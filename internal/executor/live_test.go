@@ -1,0 +1,278 @@
+package executor
+
+import (
+	"context"
+	"encoding/json"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	pb "github.com/tinkoff/invest-api-go-sdk/proto"
+
+	"github.com/olegsidorkin/moex-trader/internal/domain"
+)
+
+type fakeOrderPoster struct {
+	calls     []*pb.PostOrderRequest
+	responses []*pb.PostOrderResponse
+	err       error
+}
+
+func (f *fakeOrderPoster) PostOrder(ctx context.Context, request *pb.PostOrderRequest) (*pb.PostOrderResponse, error) {
+	f.calls = append(f.calls, request)
+	if f.err != nil {
+		return nil, f.err
+	}
+	index := len(f.calls) - 1
+	if index >= len(f.responses) {
+		return nil, context.DeadlineExceeded
+	}
+	return f.responses[index], nil
+}
+
+func newLiveExecutorForTest(t *testing.T, poster OrderPoster, now time.Time) *LiveExecutor {
+	t.Helper()
+	store := openTestStore(t)
+	exec, err := NewLiveExecutor(poster, LiveConfig{
+		AccountID: "account-1",
+		ResolveInstrumentID: func(ticker string) (string, error) {
+			return "instrument-" + ticker, nil
+		},
+		Store: store,
+		Now:   func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewLiveExecutor() error = %v", err)
+	}
+	return exec
+}
+
+func newBuySignal(now time.Time) domain.TradeSignal {
+	return domain.TradeSignal{
+		Ticker:      "SBER",
+		Action:      domain.ActionBuy,
+		Confidence:  decimal.NewFromFloat(0.8),
+		TargetLots:  1,
+		Reasoning:   "positive momentum",
+		GeneratedAt: now.Add(-time.Second),
+	}
+}
+
+func TestLiveExecutorPlacesOrder(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	poster := &fakeOrderPoster{
+		responses: []*pb.PostOrderResponse{
+			{
+				OrderId:               "broker-order-1",
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_NEW,
+				LotsRequested:         1,
+			},
+		},
+	}
+	exec := newLiveExecutorForTest(t, poster, now)
+	price := decimal.NewFromFloat(270.5)
+
+	fill, err := exec.Execute(context.Background(), newBuySignal(now), price)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if fill.Ticker != "SBER" || fill.Action != domain.ActionBuy || fill.Lots != 1 {
+		t.Fatalf("unexpected fill: %+v", fill)
+	}
+	if !fill.Price.Equal(price) {
+		t.Fatalf("fill.Price = %s, want %s", fill.Price, price)
+	}
+	if !fill.ExecutedAt.Equal(now) {
+		t.Fatalf("fill.ExecutedAt = %v, want %v", fill.ExecutedAt, now)
+	}
+	parsed, err := uuid.Parse(fill.ID)
+	if err != nil {
+		t.Fatalf("fill.ID %q is not a UUID: %v", fill.ID, err)
+	}
+	if parsed.Version() != 4 {
+		t.Fatalf("fill.ID UUID version = %d, want 4", parsed.Version())
+	}
+
+	if len(poster.calls) != 1 {
+		t.Fatalf("PostOrder calls = %d, want 1", len(poster.calls))
+	}
+	request := poster.calls[0]
+	if request.GetOrderId() != fill.ID {
+		t.Fatalf("request OrderId = %q, want %q", request.GetOrderId(), fill.ID)
+	}
+	if request.GetAccountId() != "account-1" {
+		t.Fatalf("request AccountId = %q, want account-1", request.GetAccountId())
+	}
+	if request.GetInstrumentId() != "instrument-SBER" {
+		t.Fatalf("request InstrumentId = %q, want instrument-SBER", request.GetInstrumentId())
+	}
+	if request.GetQuantity() != 1 {
+		t.Fatalf("request Quantity = %d, want 1", request.GetQuantity())
+	}
+	if request.GetDirection() != pb.OrderDirection_ORDER_DIRECTION_BUY {
+		t.Fatalf("request Direction = %s, want BUY", request.GetDirection())
+	}
+	if request.GetOrderType() != pb.OrderType_ORDER_TYPE_LIMIT {
+		t.Fatalf("request OrderType = %s, want LIMIT", request.GetOrderType())
+	}
+	if got := request.GetPrice(); got == nil || got.GetUnits() != 270 || got.GetNano() != 500000000 {
+		t.Fatalf("request Price = %v, want 270.5", got)
+	}
+
+	events, err := exec.store.ListAuditEvents(context.Background(), time.Time{})
+	if err != nil {
+		t.Fatalf("ListAuditEvents() error = %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("audit events = %d, want 1", len(events))
+	}
+	var persisted Fill
+	if err := json.Unmarshal([]byte(events[0].Payload), &persisted); err != nil {
+		t.Fatalf("unmarshal audit payload: %v", err)
+	}
+	if persisted.ID != fill.ID || persisted.Ticker != "SBER" {
+		t.Fatalf("unexpected persisted fill: %+v", persisted)
+	}
+}
+
+func TestLiveExecutorDuplicateOrderIDIsIdempotent(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	poster := &fakeOrderPoster{
+		responses: []*pb.PostOrderResponse{
+			{
+				OrderId:               "broker-order-1",
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_NEW,
+				LotsRequested:         1,
+			},
+			{
+				OrderId:               "broker-order-1",
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL,
+				LotsRequested:         1,
+				LotsExecuted:          1,
+			},
+		},
+	}
+	exec := newLiveExecutorForTest(t, poster, now)
+	orderID := uuid.NewString()
+	price := decimal.NewFromFloat(270.5)
+
+	first, err := exec.ExecuteWithOrderID(context.Background(), newBuySignal(now), price, orderID)
+	if err != nil {
+		t.Fatalf("first ExecuteWithOrderID() error = %v", err)
+	}
+	second, err := exec.ExecuteWithOrderID(context.Background(), newBuySignal(now), price, orderID)
+	if err != nil {
+		t.Fatalf("second ExecuteWithOrderID() error = %v", err)
+	}
+	if first.ID != orderID || second.ID != orderID {
+		t.Fatalf("fill IDs = %q/%q, want %q", first.ID, second.ID, orderID)
+	}
+	if second.Lots != 1 {
+		t.Fatalf("second fill Lots = %d, want 1", second.Lots)
+	}
+	if len(poster.calls) != 1 {
+		t.Fatalf("PostOrder calls = %d, want 1 for duplicate order id", len(poster.calls))
+	}
+
+	events, err := exec.store.ListAuditEvents(context.Background(), time.Time{})
+	if err != nil {
+		t.Fatalf("ListAuditEvents() error = %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("audit events = %d, want 1 (no double record)", len(events))
+	}
+}
+
+func TestLiveExecutorRejectedOrderSurfacesError(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	poster := &fakeOrderPoster{
+		responses: []*pb.PostOrderResponse{
+			{
+				OrderId:               "broker-order-rejected",
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_REJECTED,
+				Message:               "insufficient funds",
+			},
+		},
+	}
+	exec := newLiveExecutorForTest(t, poster, now)
+
+	_, err := exec.Execute(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5))
+	if err == nil {
+		t.Fatal("expected rejected order error, got nil")
+	}
+	if !strings.Contains(err.Error(), "rejected") || !strings.Contains(err.Error(), "insufficient funds") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLiveExecutorPostOrderErrorSurfaces(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	poster := &fakeOrderPoster{err: context.DeadlineExceeded}
+	exec := newLiveExecutorForTest(t, poster, now)
+
+	_, err := exec.Execute(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5))
+	if err == nil {
+		t.Fatal("expected PostOrder error, got nil")
+	}
+	if !strings.Contains(err.Error(), "post order") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLiveExecutorRejectsZeroLotsBuy(t *testing.T) {
+	poster := &fakeOrderPoster{}
+	exec := newLiveExecutorForTest(t, poster, time.Now())
+	signal := newBuySignal(time.Now())
+	signal.TargetLots = 0
+
+	_, err := exec.Execute(context.Background(), signal, decimal.NewFromFloat(270.5))
+	if err == nil {
+		t.Fatal("expected zero-lots error, got nil")
+	}
+	if !strings.Contains(err.Error(), "target lots must be positive") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(poster.calls) != 0 {
+		t.Fatalf("PostOrder calls = %d, want 0", len(poster.calls))
+	}
+}
+
+func TestNewLiveExecutorValidatesConfig(t *testing.T) {
+	store := openTestStore(t)
+	resolver := func(ticker string) (string, error) { return ticker, nil }
+	tests := []struct {
+		name   string
+		orders OrderPoster
+		cfg    LiveConfig
+	}{
+		{
+			name:   "nil poster",
+			orders: nil,
+			cfg:    LiveConfig{AccountID: "account", ResolveInstrumentID: resolver, Store: store},
+		},
+		{
+			name:   "empty account",
+			orders: &fakeOrderPoster{},
+			cfg:    LiveConfig{AccountID: " ", ResolveInstrumentID: resolver, Store: store},
+		},
+		{
+			name:   "nil resolver",
+			orders: &fakeOrderPoster{},
+			cfg:    LiveConfig{AccountID: "account", Store: store},
+		},
+		{
+			name:   "nil store",
+			orders: &fakeOrderPoster{},
+			cfg:    LiveConfig{AccountID: "account", ResolveInstrumentID: resolver},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := NewLiveExecutor(tt.orders, tt.cfg); err == nil {
+				t.Fatal("expected config validation error, got nil")
+			}
+		})
+	}
+}

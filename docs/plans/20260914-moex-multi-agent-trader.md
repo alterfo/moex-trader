@@ -223,12 +223,12 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 18
 
 ### Task 18: Idempotent live executor
-- [ ] `internal/executor.LiveExecutor`: sends real orders via the Tinkoff orders API;
+- [x] `internal/executor.LiveExecutor`: sends real orders via the Tinkoff orders API;
       `OrderID` generated as UUID v4 and passed through for idempotency; all
       quantities/prices as `decimal.Decimal`
-- [ ] write tests with a mocked Tinkoff order endpoint (successful placement, duplicate
+- [x] write tests with a mocked Tinkoff order endpoint (successful placement, duplicate
       `OrderID` is idempotent/no double-fill, rejected order surfaces an error)
-- [ ] run tests — must pass before task 19
+- [x] run tests — must pass before task 19
 
 ### Task 19: Kill switch integration and Ollama timeout watchdog
 - [ ] persist kill-switch state in storage; once triggered, orchestrator blocks new
