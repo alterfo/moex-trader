@@ -223,3 +223,74 @@ func TestDecisionEngineDecimalConfidenceRoundTrip(t *testing.T) {
 		t.Fatal("generated_at was not defaulted")
 	}
 }
+
+type recordingAlerter struct {
+	tickers []string
+	causes  []error
+}
+
+func (a *recordingAlerter) LLMFailure(ctx context.Context, ticker string, cause error) error {
+	a.tickers = append(a.tickers, ticker)
+	a.causes = append(a.causes, cause)
+	return nil
+}
+
+type failingAlerter struct{}
+
+func (a failingAlerter) LLMFailure(ctx context.Context, ticker string, cause error) error {
+	return fmt.Errorf("telegram unavailable")
+}
+
+func TestDecisionEngineAlertsOnExhaustedRetries(t *testing.T) {
+	client := &scriptedChatClient{
+		errs: []error{
+			fmt.Errorf("connection refused"),
+			fmt.Errorf("connection refused"),
+			fmt.Errorf("connection refused"),
+		},
+	}
+	alerter := &recordingAlerter{}
+	engine := newTestDecisionEngine(client, &recordingAuditSink{})
+	engine.SetAlerter(alerter)
+
+	signal, err := engine.Generate(context.Background(), domain.FeatureContext{Ticker: "SBER"})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if signal.Action != domain.ActionHold {
+		t.Fatalf("fallback action = %q, want HOLD", signal.Action)
+	}
+	if len(alerter.tickers) != 1 || alerter.tickers[0] != "SBER" {
+		t.Fatalf("alerter tickers = %v, want [SBER]", alerter.tickers)
+	}
+	if len(alerter.causes) != 1 || alerter.causes[0] == nil {
+		t.Fatalf("alerter causes = %v, want one non-nil cause", alerter.causes)
+	}
+}
+
+func TestDecisionEngineNoAlerterDoesNotCrash(t *testing.T) {
+	client := &scriptedChatClient{
+		errs: []error{fmt.Errorf("connection refused"), fmt.Errorf("connection refused"), fmt.Errorf("connection refused")},
+	}
+	engine := newTestDecisionEngine(client, &recordingAuditSink{})
+
+	if _, err := engine.Generate(context.Background(), domain.FeatureContext{Ticker: "SBER"}); err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+}
+
+func TestDecisionEngineAlerterErrorDoesNotFailGeneration(t *testing.T) {
+	client := &scriptedChatClient{
+		errs: []error{fmt.Errorf("connection refused"), fmt.Errorf("connection refused"), fmt.Errorf("connection refused")},
+	}
+	engine := newTestDecisionEngine(client, &recordingAuditSink{})
+	engine.SetAlerter(failingAlerter{})
+
+	signal, err := engine.Generate(context.Background(), domain.FeatureContext{Ticker: "SBER"})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if signal.Action != domain.ActionHold {
+		t.Fatalf("fallback action = %q, want HOLD", signal.Action)
+	}
+}

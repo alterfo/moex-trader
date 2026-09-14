@@ -221,3 +221,39 @@ func TestInvalidEnvDuration(t *testing.T) {
 		t.Fatal("expected error for invalid env duration")
 	}
 }
+
+func TestTelegramConfigOptional(t *testing.T) {
+	clearEnv(t)
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if cfg.Telegram.BotToken != "" || cfg.Telegram.ChatID != "" {
+		t.Fatalf("unexpected telegram defaults: %+v", cfg.Telegram)
+	}
+
+	cfg, err = Parse([]byte("storage:\n  path: ./trader.db\ntelegram:\n  bot_token: tok\n  chat_id: chat\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if cfg.Telegram.BotToken != "tok" || cfg.Telegram.ChatID != "chat" {
+		t.Fatalf("unexpected telegram config: %+v", cfg.Telegram)
+	}
+}
+
+func TestTelegramEnvOverrides(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("MOEX_TRADER_TELEGRAM_BOT_TOKEN", "env-token")
+	t.Setenv("MOEX_TRADER_TELEGRAM_CHAT_ID", "env-chat")
+
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if cfg.Telegram.BotToken != "env-token" {
+		t.Fatalf("unexpected bot token: %q", cfg.Telegram.BotToken)
+	}
+	if cfg.Telegram.ChatID != "env-chat" {
+		t.Fatalf("unexpected chat id: %q", cfg.Telegram.ChatID)
+	}
+}

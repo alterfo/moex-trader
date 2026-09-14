@@ -205,11 +205,11 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 16
 
 ### Task 16: Telegram alerting
-- [ ] `internal/alert/telegram`: send a message on LLM failure (exhausted retries) and
+- [x] `internal/alert/telegram`: send a message on LLM failure (exhausted retries) and
       on Kill Switch trigger; bot token/chat ID from config/env
-- [ ] write tests with a mocked Telegram Bot API endpoint (success, API error, missing
+- [x] write tests with a mocked Telegram Bot API endpoint (success, API error, missing
       config → no-op instead of crash)
-- [ ] run tests — must pass before task 17
+- [x] run tests — must pass before task 17
 
 ### Phase 4: Live Micro-Lot Trading
 

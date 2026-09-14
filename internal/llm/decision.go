@@ -26,6 +26,10 @@ type AuditSink interface {
 	InsertAuditEvent(ctx context.Context, event domain.AuditEvent) error
 }
 
+type Alerter interface {
+	LLMFailure(ctx context.Context, ticker string, cause error) error
+}
+
 type DecisionEngine struct {
 	client      ChatClient
 	prompt      *PromptBuilder
@@ -33,6 +37,7 @@ type DecisionEngine struct {
 	maxAttempts int
 	now         func() time.Time
 	logger      *log.Logger
+	alerter     Alerter
 }
 
 func NewDecisionEngine(client ChatClient, prompt *PromptBuilder, audit AuditSink, now func() time.Time) *DecisionEngine {
@@ -90,6 +95,7 @@ func (e *DecisionEngine) Generate(ctx context.Context, feature domain.FeatureCon
 		GeneratedAt: e.now(),
 	}
 	e.recordFailure(ctx, feature.Ticker, lastErr)
+	e.notifyLLMFailure(ctx, feature.Ticker, lastErr)
 	return fallback, nil
 }
 
@@ -127,6 +133,19 @@ func (e *DecisionEngine) recordFailure(ctx context.Context, ticker string, cause
 	}
 	if err := e.audit.InsertAuditEvent(ctx, event); err != nil {
 		e.logger.Printf("llm: record decision failure for %s: %v", ticker, err)
+	}
+}
+
+func (e *DecisionEngine) SetAlerter(alerter Alerter) {
+	e.alerter = alerter
+}
+
+func (e *DecisionEngine) notifyLLMFailure(ctx context.Context, ticker string, cause error) {
+	if e.alerter == nil {
+		return
+	}
+	if err := e.alerter.LLMFailure(ctx, ticker, cause); err != nil {
+		e.logger.Printf("llm: alert LLM failure for %s: %v", ticker, err)
 	}
 }
 

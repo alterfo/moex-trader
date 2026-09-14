@@ -16,6 +16,7 @@ type Config struct {
 	MOEXISSBaseURL string   `yaml:"moex_iss_base_url"`
 	Storage        Storage  `yaml:"storage"`
 	Risk           Risk     `yaml:"risk"`
+	Telegram       Telegram `yaml:"telegram"`
 	IsPaperTrading bool     `yaml:"is_paper_trading"`
 	PollInterval   Duration `yaml:"poll_interval"`
 }
@@ -32,6 +33,11 @@ type Storage struct {
 
 type Risk struct {
 	MaxLots int `yaml:"max_lots"`
+}
+
+type Telegram struct {
+	BotToken string `yaml:"bot_token"`
+	ChatID   string `yaml:"chat_id"`
 }
 
 const (
@@ -149,6 +155,12 @@ func applyEnv(cfg *Config) error {
 	}
 	if v := os.Getenv("MOEX_TRADER_TICKERS"); v != "" {
 		cfg.Tickers = splitComma(v)
+	}
+	if v := os.Getenv("MOEX_TRADER_TELEGRAM_BOT_TOKEN"); v != "" {
+		cfg.Telegram.BotToken = v
+	}
+	if v := os.Getenv("MOEX_TRADER_TELEGRAM_CHAT_ID"); v != "" {
+		cfg.Telegram.ChatID = v
 	}
 	return nil
 }

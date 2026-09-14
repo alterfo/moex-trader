@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/olegsidorkin/moex-trader/internal/alert/telegram"
 	"github.com/olegsidorkin/moex-trader/internal/config"
 	"github.com/olegsidorkin/moex-trader/internal/executor"
 	"github.com/olegsidorkin/moex-trader/internal/features"
@@ -64,6 +65,7 @@ func run() error {
 
 	llmClient := llm.New(cfg.Ollama.Host, cfg.Ollama.Model, cfg.Ollama.Timeout.Std())
 	decisionEngine := llm.NewDecisionEngine(llmClient, llm.NewPromptBuilder(), store, time.Now)
+	decisionEngine.SetAlerter(telegram.New(cfg.Telegram.BotToken, cfg.Telegram.ChatID, nil))
 	signalSource := orchestrator.NewLLMSignalSource(decisionEngine, cfg.Ollama.Timeout.Std(), log.Default())
 	appMetrics := metrics.New()
 
