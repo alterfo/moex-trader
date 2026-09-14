@@ -30,6 +30,14 @@ the completion of Task 21.
   `cmd/trader` uses paper execution only and rejects live mode until Tinkoff orders,
   account snapshot, and order cancellation are wired.
 
+## Broker-specific pre-live checks
+
+- Confirm the configured `commission.rate` matches the real contracted tariff for the
+  selected broker, and update the rate if the demo or live fill proves otherwise.
+- Before enabling Finam live orders, confirm whether the Finam order-placement API
+  supports a client-supplied idempotency key; if it does not, add client-side
+  dedup/state-tracking for retries.
+
 ## Validation results
 
 - `go test -count=1 ./...` passes for all packages.

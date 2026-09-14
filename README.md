@@ -1,9 +1,9 @@
 # MOEX Multi-Agent Trader
 
 A Go trading system for MOEX instruments. It ingests market data and news, builds a
-feature context, asks a local LLM (Ollama) for a structured trade signal, passes the
-signal through a risk gate, and executes it — paper trades first, then live micro-lots
-via Tinkoff. Every step is recorded as an audit event for later review.
+   feature context, asks a local LLM (Ollama) for a structured trade signal, passes the
+   signal through a risk gate, and executes it — paper trades first, then live micro-lots
+   via Tinkoff or Finam. Every step is recorded as an audit event for later review.
 
 The system is a single-process modular monolith: internal Go packages talk through
 interfaces, with no network hop between components. Redis Streams is an optional
@@ -18,7 +18,7 @@ internal bus for later process splitting, not a requirement for the system to wo
   and bounded retry
 - Hardened risk gate: max position size, fat-finger price check, and persisted kill
   switch; daily-loss and drawdown limits require a live account snapshot (not wired yet)
-- Paper executor and an idempotent Tinkoff live executor using UUID v4 order IDs
+- Paper executor plus idempotent Tinkoff and Finam live executors using UUID v4 order IDs
 - Full audit trail in SQLite
 - Prometheus metrics, optional Telegram alerting, and an hourly verifier report
 
@@ -28,7 +28,7 @@ internal bus for later process splitting, not a requirement for the system to wo
 - An Ollama server reachable from this process. The default host is
   `192.168.88.193:11434` with model `qwen3.8`. Do not run `ollama serve` on the trading
   machine itself; point the config at the shared GPU host.
-- Tinkoff credentials only when using live mode (see below)
+- Broker credentials only when using live mode (Tinkoff or Finam; see below)
 
 ## Quick start
 
@@ -64,6 +64,10 @@ storage:
   path: "./trader.db"
 risk:
   max_lots: 1
+commission:
+  broker: "finam"
+  rate: "0.0001"   # 0.01%, Finam "Единый дневной"
+broker: "paper"     # paper | tinkoff | finam
 is_paper_trading: true
 poll_interval: 5m
 telegram:
@@ -82,6 +86,8 @@ after the YAML is parsed:
 | `moex_iss_base_url` | `MOEX_TRADER_MOEX_ISS_URL` |
 | `storage.path` | `MOEX_TRADER_STORAGE_PATH` |
 | `risk.max_lots` | `MOEX_TRADER_RISK_MAX_LOTS` |
+| `commission.rate` | `MOEX_TRADER_COMMISSION_RATE` |
+| `broker` | `MOEX_TRADER_BROKER` (`paper` / `tinkoff` / `finam`) |
 | `poll_interval` | `MOEX_TRADER_POLL_INTERVAL` |
 | `is_paper_trading` | `MOEX_TRADER_IS_PAPER_TRADING` |
 | `telegram.bot_token` | `MOEX_TRADER_TELEGRAM_BOT_TOKEN` |
@@ -94,12 +100,20 @@ recorded as virtual fills in SQLite by `PaperExecutor`; no external order is sen
 Account-based risk limits (daily loss and drawdown kill switch) are disabled because
 there is no live account snapshot source; the max-lot and fat-finger checks still apply.
 
-Live order placement is implemented in `internal/executor/live.go`, but the current
-`cmd/trader` entrypoint has no Tinkoff orders/account wiring. It therefore refuses to
-start when `is_paper_trading: false` (or `MOEX_TRADER_IS_PAPER_TRADING=false`) rather
-than running with silently bypassed live protections. Connect the Tinkoff credentials,
+Live order placement is implemented for both Tinkoff (`internal/executor/live.go`) and
+Finam (`internal/executor/finam.go`), but the current `cmd/trader` entrypoint has no
+orders/account wiring for either broker. It therefore refuses to start when
+`broker: tinkoff` or `broker: finam` is selected (or `is_paper_trading: false`) rather
+than running with silently bypassed live protections. Connect the broker credentials,
 account snapshot, and order canceller before enabling real money, then follow
 `docs/GO_LIVE_CHECKLIST.md`.
+
+The Finam integration mirrors the Tinkoff client pattern. Its market-data and order
+client (`internal/ingestion/finam`) authenticates by exchanging a long-lived secret
+token for a JWT, caches the JWT, and refreshes it one minute before its 15-minute
+expiry (or reactively on a 401). Finam publishes a demo account for exercising this
+flow without real money; the secret token is obtained manually from the Finam tokens
+portal and is never committed.
 
 ## Commands
 
@@ -128,10 +142,10 @@ internal/
   config/     YAML + env config loading and defaults
   domain/     FeatureContext, TradeSignal, AuditEvent
   features/   feature-context builder
-  ingestion/  MOEX ISS, news, AlgoPack, and Tinkoff market-data clients
+  ingestion/  MOEX ISS, news, AlgoPack, Tinkoff, and Finam market-data clients
   llm/        Ollama client, prompt builder, JSON schema, decision engine
   risk/       risk gate and kill switch
-  executor/   paper and live (Tinkoff) executors
+  executor/   paper and live (Tinkoff and Finam) executors
   storage/    SQLite store with WAL and audit/signal persistence
   orchestrator/ cycle loop and signal source adapters
   bus/        optional Redis Streams signal bus
@@ -151,8 +165,8 @@ internal/
 4. Risk gate — `internal/risk.Gate` validates the signal and rejects it if it exceeds
    the max position or fat-finger limits; with a live account snapshot it also enforces
    daily-loss and drawdown limits and trips the kill switch.
-5. Executor — `internal/executor` either records a paper fill or sends a real Tinkoff
-   order.
+5. Executor — `internal/executor` either records a paper fill or sends a real Tinkoff or
+   Finam order.
 6. Audit — every stage is written to `audit_events` in SQLite for the verifier and
    debugging.
 

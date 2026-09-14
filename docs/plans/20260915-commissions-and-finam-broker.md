@@ -148,9 +148,9 @@ execution integration, following the same pattern already used for Tinkoff.
 - [x] verify test coverage for `executor`, `verifier`, and the new `finam` packages
 
 ### Task 8: [Final] Documentation
-- [ ] update `README.md`: add Finam to the broker/commands section, note the demo
+- [x] update `README.md`: add Finam to the broker/commands section, note the demo
       account and the 15-minute JWT refresh behavior
-- [ ] update `docs/GO_LIVE_CHECKLIST.md`: add "commission rate matches the real
+- [x] update `docs/GO_LIVE_CHECKLIST.md`: add "commission rate matches the real
       contracted tariff" and "confirm whether Finam order placement supports a
       client-supplied idempotency key before enabling live orders"
 
