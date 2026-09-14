@@ -78,6 +78,7 @@ func run() error {
 
 	riskConfig := risk.DefaultConfig()
 	riskConfig.MaxLots = cfg.Risk.MaxLots
+	riskConfig.Positions = store
 	riskConfig.Store = store
 	riskConfig.Alerter = telegramClient
 	gate, err := risk.NewHardenedGate(riskConfig)

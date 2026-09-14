@@ -268,8 +268,22 @@ func TestTelegramConfigOptional(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse returned error: %v", err)
 	}
-	if cfg.Telegram.BotToken != "tok" || cfg.Telegram.ChatID != "chat" {
+	if cfg.Telegram.BotToken != "" || cfg.Telegram.ChatID != "chat" {
 		t.Fatalf("unexpected telegram config: %+v", cfg.Telegram)
+	}
+}
+
+func TestSecretYAMLFieldsAreIgnored(t *testing.T) {
+	clearEnv(t)
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\nalgopack_token: yaml-token\ntelegram:\n  bot_token: yaml-bot-token\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if cfg.AlgoPackToken != "" {
+		t.Fatalf("AlgoPackToken = %q, want empty because secrets are env-only", cfg.AlgoPackToken)
+	}
+	if cfg.Telegram.BotToken != "" {
+		t.Fatalf("Telegram.BotToken = %q, want empty because secrets are env-only", cfg.Telegram.BotToken)
 	}
 }
 

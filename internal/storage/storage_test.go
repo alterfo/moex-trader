@@ -120,6 +120,32 @@ func TestAuditEventInsertAndListRoundTrip(t *testing.T) {
 	}
 }
 
+func TestStoreCurrentLots(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	events := []domain.AuditEvent{
+		{ID: "buy", Ticker: "SBER", Stage: "executor", Payload: `{"action":"BUY","lots":1}`, CreatedAt: now},
+		{ID: "sell-two", Ticker: "SBER", Stage: "executor", Payload: `{"action":"SELL","lots":2}`, CreatedAt: now.Add(time.Second)},
+		{ID: "other-ticker", Ticker: "YDEX", Stage: "executor", Payload: `{"action":"BUY","lots":5}`, CreatedAt: now},
+		{ID: "malformed", Ticker: "SBER", Stage: "executor", Payload: `{not-json`, CreatedAt: now},
+	}
+	for _, event := range events {
+		if err := store.InsertAuditEvent(ctx, event); err != nil {
+			t.Fatalf("InsertAuditEvent(%s) error = %v", event.ID, err)
+		}
+	}
+
+	got, err := store.CurrentLots(ctx, "SBER")
+	if err != nil {
+		t.Fatalf("CurrentLots() error = %v", err)
+	}
+	if got != -1 {
+		t.Fatalf("CurrentLots(SBER) = %d, want -1", got)
+	}
+}
+
 func TestInsertAuditEventDuplicateIDFails(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()

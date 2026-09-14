@@ -15,7 +15,7 @@ type Config struct {
 	Ollama          Ollama   `yaml:"ollama"`
 	MOEXISSBaseURL  string   `yaml:"moex_iss_base_url"`
 	AlgoPackBaseURL string   `yaml:"algopack_base_url"`
-	AlgoPackToken   string   `yaml:"algopack_token"`
+	AlgoPackToken   string   `yaml:"-"`
 	Storage         Storage  `yaml:"storage"`
 	Risk            Risk     `yaml:"risk"`
 	Telegram        Telegram `yaml:"telegram"`
@@ -38,7 +38,7 @@ type Risk struct {
 }
 
 type Telegram struct {
-	BotToken string `yaml:"bot_token"`
+	BotToken string `yaml:"-"`
 	ChatID   string `yaml:"chat_id"`
 }
 

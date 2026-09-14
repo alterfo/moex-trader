@@ -171,6 +171,9 @@ func (l *LiveExecutor) ExecuteWithOrderID(ctx context.Context, signal domain.Tra
 		if status == "partially_filled" {
 			return Fill{}, fmt.Errorf("live executor: order %q is partially filled and requires reconciliation", orderID)
 		}
+		if status == "submitted" || status == "requires_reconciliation" {
+			return Fill{}, fmt.Errorf("live executor: order %q requires reconciliation", orderID)
+		}
 		if isPersistedFill(fill) {
 			return fill, nil
 		}
@@ -354,7 +357,7 @@ func (l *LiveExecutor) record(ctx context.Context, fill Fill) error {
 func (l *LiveExecutor) recordIntent(ctx context.Context, signal domain.TradeSignal, price decimal.Decimal, orderID string) error {
 	now := l.now()
 	payload, err := json.Marshal(liveOrderIntent{
-		Status:      "submitted",
+		Status:      "requires_reconciliation",
 		Ticker:      signal.Ticker,
 		Action:      signal.Action,
 		TargetLots:  signal.TargetLots,

@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -200,6 +201,45 @@ func (s *Store) ListAllAuditEvents(ctx context.Context) ([]domain.AuditEvent, er
 	defer rows.Close()
 
 	return scanAuditEvents(rows)
+}
+
+func (s *Store) CurrentLots(ctx context.Context, ticker string) (int, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT payload
+		 FROM audit_events
+		 WHERE ticker = ? AND stage = 'executor'
+		 ORDER BY created_at ASC, id ASC`,
+		ticker,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("list executor audit events for %q: %w", ticker, err)
+	}
+	defer rows.Close()
+
+	total := 0
+	for rows.Next() {
+		var payload string
+		if err := rows.Scan(&payload); err != nil {
+			return 0, fmt.Errorf("scan executor audit event for %q: %w", ticker, err)
+		}
+		var fill struct {
+			Action domain.Action `json:"action"`
+			Lots   int           `json:"lots"`
+		}
+		if err := json.Unmarshal([]byte(payload), &fill); err != nil {
+			continue
+		}
+		switch fill.Action {
+		case domain.ActionBuy:
+			total += fill.Lots
+		case domain.ActionSell:
+			total -= fill.Lots
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("iterate executor audit events for %q: %w", ticker, err)
+	}
+	return total, nil
 }
 
 func scanAuditEvents(rows *sql.Rows) ([]domain.AuditEvent, error) {

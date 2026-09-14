@@ -176,7 +176,7 @@ func (c *Client) LastPrice(ctx context.Context, instrumentID string) (Quote, err
 		if lastPrice == nil {
 			continue
 		}
-		if lastPrice.GetInstrumentUid() != "" && lastPrice.GetInstrumentUid() != instrumentID && lastPrice.GetFigi() != instrumentID {
+		if !lastPriceMatchesInstrument(lastPrice, instrumentID) {
 			continue
 		}
 		quote, err := convertLastPrice(lastPrice)
@@ -187,6 +187,12 @@ func (c *Client) LastPrice(ctx context.Context, instrumentID string) (Quote, err
 		return quote, nil
 	}
 	return Quote{}, fmt.Errorf("tinkoff get last price %q: no data", instrumentID)
+}
+
+func lastPriceMatchesInstrument(lastPrice *pb.LastPrice, instrumentID string) bool {
+	uid := lastPrice.GetInstrumentUid()
+	figi := lastPrice.GetFigi()
+	return (uid != "" && uid == instrumentID) || (figi != "" && figi == instrumentID)
 }
 
 func (c *Client) OrderBook(ctx context.Context, instrumentID string, depth int32) (OrderBook, error) {

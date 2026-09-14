@@ -67,7 +67,6 @@ risk:
 is_paper_trading: true
 poll_interval: 5m
 telegram:
-  bot_token: ""
   chat_id: ""
 ```
 

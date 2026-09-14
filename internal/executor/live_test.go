@@ -390,32 +390,9 @@ func TestLiveExecutorPostOrderErrorSurfaces(t *testing.T) {
 	}
 }
 
-func TestLiveExecutorRetriesSubmittedOrderAfterTransientError(t *testing.T) {
+func TestLiveExecutorRequiresReconciliationAfterTransientPostError(t *testing.T) {
 	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
-	poster := &fakeOrderPoster{
-		err: context.DeadlineExceeded,
-		responses: []*pb.PostOrderResponse{
-			{
-				OrderId:               "broker-order-1",
-				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL,
-				LotsRequested:         1,
-				LotsExecuted:          1,
-			},
-			{
-				OrderId:               "broker-order-1",
-				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL,
-				LotsRequested:         1,
-				LotsExecuted:          1,
-			},
-		},
-	}
-	callCount := 0
-	poster.onPost = func() {
-		callCount++
-		if callCount == 2 {
-			poster.err = nil
-		}
-	}
+	poster := &fakeOrderPoster{err: context.DeadlineExceeded}
 	exec := newLiveExecutorForTest(t, poster, now)
 	orderID := uuid.NewString()
 	price := decimal.NewFromFloat(270.5)
@@ -424,23 +401,69 @@ func TestLiveExecutorRetriesSubmittedOrderAfterTransientError(t *testing.T) {
 	if _, err := exec.ExecuteWithOrderID(context.Background(), signal, price, orderID); err == nil {
 		t.Fatal("expected first PostOrder error, got nil")
 	}
-	fill, err := exec.ExecuteWithOrderID(context.Background(), signal, price, orderID)
+	_, err := exec.ExecuteWithOrderID(context.Background(), signal, price, orderID)
+	if err == nil || !strings.Contains(err.Error(), "requires reconciliation") {
+		t.Fatalf("second ExecuteWithOrderID() error = %v, want reconciliation error", err)
+	}
+	if len(poster.calls) != 1 {
+		t.Fatalf("PostOrder calls = %d, want 1 without automatic retry", len(poster.calls))
+	}
+}
+
+func TestLiveExecutorDoesNotRepostUncertainOrderAfterRestart(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	store, err := storage.Open(filepath.Join(t.TempDir(), "trader.db"))
 	if err != nil {
-		t.Fatalf("second ExecuteWithOrderID() error = %v, want retry to succeed", err)
+		t.Fatalf("storage.Open() error = %v", err)
 	}
-	if fill.ID != orderID || fill.Lots != 1 {
-		t.Fatalf("fill = %+v, want order %s with 1 lot", fill, orderID)
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	first, err := NewLiveExecutor(&fakeOrderPoster{err: context.DeadlineExceeded}, LiveConfig{
+		AccountID: "account-1",
+		ResolveInstrumentID: func(ticker string) (string, error) {
+			return "instrument-" + ticker, nil
+		},
+		Store: store,
+		Now:   func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewLiveExecutor() error = %v", err)
 	}
-	if len(poster.calls) != 2 {
-		t.Fatalf("PostOrder calls = %d, want 2", len(poster.calls))
+	orderID := uuid.NewString()
+	if _, err := first.ExecuteWithOrderID(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5), orderID); err == nil {
+		t.Fatal("expected first PostOrder error, got nil")
 	}
 
-	events, err := exec.store.ListAuditEvents(context.Background(), time.Time{})
-	if err != nil {
-		t.Fatalf("ListAuditEvents() error = %v", err)
+	restartedPoster := &fakeOrderPoster{
+		responses: []*pb.PostOrderResponse{
+			{
+				OrderId:               "broker-order-1",
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL,
+				LotsRequested:         1,
+				LotsExecuted:          1,
+			},
+		},
 	}
-	if len(events) != 1 {
-		t.Fatalf("audit events = %d, want 1 after retry", len(events))
+	restarted, err := NewLiveExecutor(restartedPoster, LiveConfig{
+		AccountID: "account-1",
+		ResolveInstrumentID: func(ticker string) (string, error) {
+			return "instrument-" + ticker, nil
+		},
+		Store: store,
+		Now:   func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewLiveExecutor() restarted error = %v", err)
+	}
+	if _, err := restarted.ExecuteWithOrderID(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5), orderID); err == nil || !strings.Contains(err.Error(), "requires reconciliation") {
+		t.Fatalf("restarted ExecuteWithOrderID() error = %v, want reconciliation error", err)
+	}
+	if len(restartedPoster.calls) != 0 {
+		t.Fatalf("restarted PostOrder calls = %d, want 0", len(restartedPoster.calls))
 	}
 }
 

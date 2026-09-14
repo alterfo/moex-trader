@@ -26,7 +26,6 @@ ollama:
   timeout: 10s
 moex_iss_base_url: "https://iss.moex.com/iss"
 algopack_base_url: "https://apim.moex.com/iss/datashop"
-algopack_token: ""
 storage:
   path: "./trader.db"
 risk:
@@ -34,5 +33,4 @@ risk:
 is_paper_trading: true
 poll_interval: 5m
 telegram:
-  bot_token: ""
   chat_id: ""

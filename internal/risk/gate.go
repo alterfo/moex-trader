@@ -38,6 +38,10 @@ type OrderCanceller interface {
 	CancelOpenOrders(ctx context.Context) error
 }
 
+type PositionReader interface {
+	CurrentLots(ctx context.Context, ticker string) (int, error)
+}
+
 type KillSwitchStore interface {
 	IsKillSwitchActive(ctx context.Context) (bool, error)
 	SetKillSwitchActive(ctx context.Context, active bool) error
@@ -53,6 +57,7 @@ type Config struct {
 	FatFingerPct    decimal.Decimal
 	MaxDrawdownPct  decimal.Decimal
 	Canceller       OrderCanceller
+	Positions       PositionReader
 	Store           KillSwitchStore
 	Alerter         KillSwitchAlerter
 }
@@ -63,6 +68,7 @@ type HardenedGate struct {
 	fatFingerPct    decimal.Decimal
 	maxDrawdownPct  decimal.Decimal
 	canceller       OrderCanceller
+	positions       PositionReader
 	store           KillSwitchStore
 	alerter         KillSwitchAlerter
 
@@ -98,6 +104,7 @@ func NewHardenedGate(cfg Config) (*HardenedGate, error) {
 		fatFingerPct:    cfg.FatFingerPct,
 		maxDrawdownPct:  cfg.MaxDrawdownPct,
 		canceller:       cfg.Canceller,
+		positions:       cfg.Positions,
 		store:           cfg.Store,
 		alerter:         cfg.Alerter,
 	}, nil
@@ -123,18 +130,28 @@ func (g *HardenedGate) Approve(ctx context.Context, request Request) (bool, erro
 	if active {
 		return false, nil
 	}
-	if g.canceller != nil && (request.Signal.Action == domain.ActionBuy || request.Signal.Action == domain.ActionSell) && !g.hasAccountData(request.Account) {
-		return false, fmt.Errorf("risk gate: live trading requires account deposit and equity data")
-	}
-
 	if g.exceedsDrawdown(request.Account) {
 		if err := g.triggerKillSwitch(ctx, "drawdown limit exceeded"); err != nil {
 			return false, fmt.Errorf("risk gate: trigger kill switch: %w", err)
 		}
 		return false, nil
 	}
+	currentLots := 0
+	if g.positions != nil {
+		var err error
+		currentLots, err = g.positions.CurrentLots(ctx, request.Signal.Ticker)
+		if err != nil {
+			return false, fmt.Errorf("risk gate: read current position for %s: %w", request.Signal.Ticker, err)
+		}
+	}
 	if request.Signal.TargetLots > g.maxLots {
 		return false, nil
+	}
+	if g.exceedsMaxPosition(request.Signal, currentLots) {
+		return false, nil
+	}
+	if g.canceller != nil && (request.Signal.Action == domain.ActionBuy || request.Signal.Action == domain.ActionSell) && !g.hasAccountData(request.Account) {
+		return false, fmt.Errorf("risk gate: live trading requires account deposit and equity data")
 	}
 	if request.Signal.Action == domain.ActionBuy || request.Signal.Action == domain.ActionSell {
 		if request.Signal.TargetLots > 0 && !g.fatFingerOK(request.Market, request.Signal.Action) {
@@ -145,6 +162,31 @@ func (g *HardenedGate) Approve(ctx context.Context, request Request) (bool, erro
 		return false, nil
 	}
 	return true, nil
+}
+
+func (g *HardenedGate) exceedsMaxPosition(signal domain.TradeSignal, currentLots int) bool {
+	if signal.Action != domain.ActionBuy && signal.Action != domain.ActionSell {
+		return false
+	}
+	proposed := currentLots + signedLots(signal.Action, signal.TargetLots)
+	return absInt(proposed) > g.maxLots
+}
+
+func signedLots(action domain.Action, lots int) int {
+	if action == domain.ActionSell {
+		return -lots
+	}
+	if action == domain.ActionBuy {
+		return lots
+	}
+	return 0
+}
+
+func absInt(value int) int {
+	if value < 0 {
+		return -value
+	}
+	return value
 }
 
 func (g *HardenedGate) fatFingerOK(market Market, action domain.Action) bool {

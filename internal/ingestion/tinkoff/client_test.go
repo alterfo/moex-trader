@@ -184,6 +184,54 @@ func TestLastPriceSuccess(t *testing.T) {
 	}
 }
 
+func TestLastPriceAcceptsFigiWhenUIDIsEmpty(t *testing.T) {
+	server := &fakeMarketDataServer{
+		lastPrices: func(ctx context.Context, req *pb.GetLastPricesRequest) (*pb.GetLastPricesResponse, error) {
+			return &pb.GetLastPricesResponse{
+				LastPrices: []*pb.LastPrice{
+					{
+						Figi:  "SBER",
+						Price: quotationFromString("123.45"),
+						Time:  timestamppb.New(time.Unix(1700000000, 0)),
+					},
+				},
+			}, nil
+		},
+	}
+	conn := startTestServer(t, func(s *grpc.Server) { pb.RegisterMarketDataServiceServer(s, server) })
+	client := newClientFromConn(conn)
+
+	quote, err := client.LastPrice(context.Background(), "SBER")
+	if err != nil {
+		t.Fatalf("LastPrice returned error: %v", err)
+	}
+	if quote.InstrumentID != "SBER" {
+		t.Fatalf("InstrumentID = %q, want SBER", quote.InstrumentID)
+	}
+}
+
+func TestLastPriceRejectsEmptyUIDAndMismatchedFigi(t *testing.T) {
+	server := &fakeMarketDataServer{
+		lastPrices: func(ctx context.Context, req *pb.GetLastPricesRequest) (*pb.GetLastPricesResponse, error) {
+			return &pb.GetLastPricesResponse{
+				LastPrices: []*pb.LastPrice{
+					{
+						Figi:  "GAZP",
+						Price: quotationFromString("123.45"),
+						Time:  timestamppb.New(time.Unix(1700000000, 0)),
+					},
+				},
+			}, nil
+		},
+	}
+	conn := startTestServer(t, func(s *grpc.Server) { pb.RegisterMarketDataServiceServer(s, server) })
+	client := newClientFromConn(conn)
+
+	if _, err := client.LastPrice(context.Background(), "SBER"); err == nil {
+		t.Fatal("LastPrice returned nil error for mismatched instrument")
+	}
+}
+
 func TestLastPriceAuthError(t *testing.T) {
 	server := &fakeMarketDataServer{
 		lastPrices: func(ctx context.Context, req *pb.GetLastPricesRequest) (*pb.GetLastPricesResponse, error) {
@@ -208,7 +256,7 @@ func TestAuthMetadataIsSent(t *testing.T) {
 				return nil, status.Error(codes.Unauthenticated, "missing bearer token")
 			}
 			return &pb.GetLastPricesResponse{
-				LastPrices: []*pb.LastPrice{{Price: quotationFromString("42.5"), Time: timestamppb.Now()}},
+				LastPrices: []*pb.LastPrice{{InstrumentUid: "SBER", Price: quotationFromString("42.5"), Time: timestamppb.Now()}},
 			}, nil
 		},
 	})

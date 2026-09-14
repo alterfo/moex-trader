@@ -60,6 +60,15 @@ type fakeKillSwitchStore struct {
 	setErr error
 }
 
+type fakePositionReader struct {
+	lots int
+	err  error
+}
+
+func (f *fakePositionReader) CurrentLots(ctx context.Context, ticker string) (int, error) {
+	return f.lots, f.err
+}
+
 type fakeKillSwitchAlerter struct {
 	reasons []string
 	err     error
@@ -160,6 +169,48 @@ func TestHardenedGateApprove(t *testing.T) {
 				t.Fatalf("Approve() = %v, want %v", approved, tt.want)
 			}
 		})
+	}
+}
+
+func TestHardenedGateEnforcesCurrentPosition(t *testing.T) {
+	positions := &fakePositionReader{lots: 1}
+	cfg := DefaultConfig()
+	cfg.Positions = positions
+	gate, err := NewHardenedGate(cfg)
+	if err != nil {
+		t.Fatalf("NewHardenedGate() error = %v", err)
+	}
+
+	approved, err := gate.Approve(context.Background(), testRequest())
+	if err != nil {
+		t.Fatalf("Approve() error = %v", err)
+	}
+	if approved {
+		t.Fatal("expected one-lot BUY to be rejected when current position is already one lot")
+	}
+
+	request := testRequest()
+	request.Signal.Action = domain.ActionSell
+	approved, err = gate.Approve(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Approve() error = %v", err)
+	}
+	if !approved {
+		t.Fatal("expected one-lot SELL to close the current one-lot position")
+	}
+}
+
+func TestHardenedGatePositionReaderError(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Positions = &fakePositionReader{err: errors.New("position read failed")}
+	gate, err := NewHardenedGate(cfg)
+	if err != nil {
+		t.Fatalf("NewHardenedGate() error = %v", err)
+	}
+
+	_, err = gate.Approve(context.Background(), testRequest())
+	if err == nil || !strings.Contains(err.Error(), "position read failed") {
+		t.Fatalf("Approve() error = %v, want position read failure", err)
 	}
 }
 
@@ -385,6 +436,37 @@ func TestHardenedGateDrawdownBoundary(t *testing.T) {
 	}
 	if canceller.calls != 0 {
 		t.Fatalf("cancel calls = %d, want 0", canceller.calls)
+	}
+}
+
+func TestHardenedGateDrawdownTriggersForZeroEquity(t *testing.T) {
+	canceller := &fakeCanceller{}
+	cfg := DefaultConfig()
+	cfg.Canceller = canceller
+	gate, err := NewHardenedGate(cfg)
+	if err != nil {
+		t.Fatalf("NewHardenedGate() error = %v", err)
+	}
+
+	request := testRequest()
+	request.Account = Account{
+		Deposit:        decimal.RequireFromString("1000"),
+		DayStartEquity: decimal.RequireFromString("1000"),
+		CurrentEquity:  decimal.Zero,
+	}
+
+	approved, err := gate.Approve(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Approve() error = %v", err)
+	}
+	if approved {
+		t.Fatal("expected zero equity drawdown to reject the signal")
+	}
+	if canceller.calls != 1 {
+		t.Fatalf("cancel calls = %d, want 1", canceller.calls)
+	}
+	if !gate.IsKillSwitchActive() {
+		t.Fatal("expected zero equity drawdown to trip the kill switch")
 	}
 }
 
