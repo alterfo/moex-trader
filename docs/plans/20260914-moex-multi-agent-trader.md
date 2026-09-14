@@ -163,14 +163,14 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 11
 
 ### Task 11: Wire LLM into the orchestrator + latency benchmark
-- [ ] replace the Phase 1 stub signal source in `internal/orchestrator` with the real
+- [x] replace the Phase 1 stub signal source in `internal/orchestrator` with the real
       LLM call (context timeout applied per call)
-- [ ] add a lightweight latency measurement around the LLM call (logged; full
+- [x] add a lightweight latency measurement around the LLM call (logged; full
       Prometheus histogram is Task 15)
-- [ ] `cmd/llmbench`: small CLI/test harness running N sample `FeatureContext`s through
+- [x] `cmd/llmbench`: small CLI/test harness running N sample `FeatureContext`s through
       the LLM and reporting success rate + average/percentile latency
-- [ ] write tests: orchestrator integration test with a mocked LLM client
-- [ ] run full test suite — must pass before task 12
+- [x] write tests: orchestrator integration test with a mocked LLM client
+- [x] run full test suite — must pass before task 12
 
 ### Phase 3: Paper Trading Realism
 

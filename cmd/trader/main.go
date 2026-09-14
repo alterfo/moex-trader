@@ -15,6 +15,7 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/news"
+	"github.com/olegsidorkin/moex-trader/internal/llm"
 	"github.com/olegsidorkin/moex-trader/internal/orchestrator"
 	"github.com/olegsidorkin/moex-trader/internal/risk"
 	"github.com/olegsidorkin/moex-trader/internal/storage"
@@ -56,11 +57,15 @@ func run() error {
 		return fmt.Errorf("create risk gate: %w", err)
 	}
 
+	llmClient := llm.New(cfg.Ollama.Host, cfg.Ollama.Model, cfg.Ollama.Timeout.Std())
+	decisionEngine := llm.NewDecisionEngine(llmClient, llm.NewPromptBuilder(), store, time.Now)
+	signalSource := orchestrator.NewLLMSignalSource(decisionEngine, cfg.Ollama.Timeout.Std(), log.Default())
+
 	orch, err := orchestrator.New(orchestrator.Options{
 		Tickers:      cfg.Tickers,
 		Ingestor:     ingestor,
 		Builder:      features.NewBuilder(time.Now),
-		Source:       orchestrator.NewRuleSignalSource(time.Now),
+		Source:       signalSource,
 		Gate:         gate,
 		Executor:     executor.NewPaperExecutor(store, time.Now),
 		Audit:        store,
