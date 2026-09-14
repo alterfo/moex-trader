@@ -138,12 +138,12 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 ### Phase 2: LLM Integration
 
 ### Task 8: Ollama client wrapper
-- [ ] `internal/llm`: wrap the Ollama API client pointed at the configured host/model,
+- [x] `internal/llm`: wrap the Ollama API client pointed at the configured host/model,
       `Chat` call using `Format: "json"`
-- [ ] JSON Schema for `TradeSignal` passed alongside the request
-- [ ] write tests against a mocked HTTP server (valid JSON reply, malformed JSON,
+- [x] JSON Schema for `TradeSignal` passed alongside the request
+- [x] write tests against a mocked HTTP server (valid JSON reply, malformed JSON,
       request timeout)
-- [ ] run tests — must pass before task 9
+- [x] run tests — must pass before task 9
 
 ### Task 9: Prompt template and few-shot examples
 - [ ] system prompt builder taking a `FeatureContext`, explicit instruction "Отвечай
