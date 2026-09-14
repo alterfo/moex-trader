@@ -240,11 +240,11 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 20
 
 ### Task 20: Verifier agent
-- [ ] `cmd/verifier` (or `internal/verifier`): hourly job reading `AuditEvent` history,
+- [x] `cmd/verifier` (or `internal/verifier`): hourly job reading `AuditEvent` history,
       correlating signals with realized P&L, producing a markdown report per losing
       trade ("was the LLM signal adequate?")
-- [ ] write tests with a fixture audit log producing the expected report sections
-- [ ] run tests — must pass before task 21
+- [x] write tests with a fixture audit log producing the expected report sections
+- [x] run tests — must pass before task 21
 
 ### Task 21: Verify acceptance criteria and Go-Live checklist
 - [ ] write `docs/GO_LIVE_CHECKLIST.md` mapping each of the 7 checklist items from the
