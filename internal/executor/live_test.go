@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	pb "github.com/tinkoff/invest-api-go-sdk/proto"
 
 	"github.com/olegsidorkin/moex-trader/internal/domain"
+	"github.com/olegsidorkin/moex-trader/internal/storage"
 )
 
 type fakeOrderPoster struct {
@@ -184,6 +186,54 @@ func TestLiveExecutorDuplicateOrderIDIsIdempotent(t *testing.T) {
 	}
 	if len(events) != 1 {
 		t.Fatalf("audit events = %d, want 1 (no double record)", len(events))
+	}
+}
+
+func TestLiveExecutorCachesPostedOrderWhenAuditWriteFails(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	poster := &fakeOrderPoster{
+		responses: []*pb.PostOrderResponse{
+			{
+				OrderId:               "broker-order-1",
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL,
+				LotsRequested:         1,
+				LotsExecuted:          1,
+			},
+		},
+	}
+	store, err := storage.Open(filepath.Join(t.TempDir(), "trader.db"))
+	if err != nil {
+		t.Fatalf("storage.Open() error = %v", err)
+	}
+	exec, err := NewLiveExecutor(poster, LiveConfig{
+		AccountID: "account-1",
+		ResolveInstrumentID: func(ticker string) (string, error) {
+			return "instrument-" + ticker, nil
+		},
+		Store: store,
+		Now:   func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewLiveExecutor() error = %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("store.Close() error = %v", err)
+	}
+
+	orderID := uuid.NewString()
+	_, err = exec.ExecuteWithOrderID(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5), orderID)
+	if err == nil {
+		t.Fatal("expected audit write failure, got nil")
+	}
+	cached, err := exec.ExecuteWithOrderID(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5), orderID)
+	if err != nil {
+		t.Fatalf("second ExecuteWithOrderID() error = %v, want cached fill", err)
+	}
+	if cached.ID != orderID {
+		t.Fatalf("cached fill ID = %q, want %q", cached.ID, orderID)
+	}
+	if len(poster.calls) != 1 {
+		t.Fatalf("PostOrder calls = %d, want 1", len(poster.calls))
 	}
 }
 

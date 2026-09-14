@@ -22,6 +22,10 @@ type EventReader interface {
 	ListAuditEvents(ctx context.Context, since time.Time) ([]domain.AuditEvent, error)
 }
 
+type EventHistoryReader interface {
+	ListAllAuditEvents(ctx context.Context) ([]domain.AuditEvent, error)
+}
+
 type Verifier struct {
 	events EventReader
 	now    func() time.Time
@@ -90,9 +94,18 @@ func (v *Verifier) Run(ctx context.Context, since time.Time) (*Report, error) {
 	}
 
 	now := v.now()
-	events, err := v.events.ListAuditEvents(ctx, since)
-	if err != nil {
-		return nil, fmt.Errorf("verifier: list audit events: %w", err)
+	var events []domain.AuditEvent
+	var err error
+	if history, ok := v.events.(EventHistoryReader); ok {
+		events, err = history.ListAllAuditEvents(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("verifier: list all audit events: %w", err)
+		}
+	} else {
+		events, err = v.events.ListAuditEvents(ctx, since)
+		if err != nil {
+			return nil, fmt.Errorf("verifier: list audit events: %w", err)
+		}
 	}
 
 	signals, fills := parseEvents(events)

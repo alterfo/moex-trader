@@ -65,6 +65,17 @@ func (f *fakeSource) Generate(ctx context.Context, feature domain.FeatureContext
 	return signal, nil
 }
 
+type fixedTickerSource struct {
+	signal domain.TradeSignal
+	now    func() time.Time
+}
+
+func (f *fixedTickerSource) Generate(_ context.Context, _ domain.FeatureContext) (domain.TradeSignal, error) {
+	signal := f.signal
+	signal.GeneratedAt = f.now()
+	return signal, nil
+}
+
 type executorCall struct {
 	signal domain.TradeSignal
 	price  decimal.Decimal
@@ -443,5 +454,45 @@ func TestProcessTickerRecordsIngestFailure(t *testing.T) {
 	}
 	if !strings.Contains(events[0].Payload, "moex unavailable") {
 		t.Fatalf("event payload does not contain error: %q", events[0].Payload)
+	}
+}
+
+func TestProcessTickerRejectsMismatchedSignalTicker(t *testing.T) {
+	store := openTestStore(t)
+	now := func() time.Time { return time.Date(2024, 1, 11, 12, 30, 0, 0, time.UTC) }
+	ingestor := &fakeIngestor{inputs: map[string]features.Input{"SBER": fixtureInput("SBER")}}
+	source := &fixedTickerSource{
+		signal: domain.TradeSignal{
+			Ticker:     "YDEX",
+			Action:     domain.ActionBuy,
+			Confidence: decimal.NewFromFloat(0.8),
+			TargetLots: 1,
+			Reasoning:  "wrong ticker",
+		},
+		now: now,
+	}
+	exec := &fakeExecutor{store: store, now: now}
+	orch := newTestOrchestrator(t, store, ingestor, source, now, exec)
+
+	err := orch.processTicker(context.Background(), "SBER")
+	if err == nil {
+		t.Fatal("expected mismatch error, got nil")
+	}
+	if !strings.Contains(err.Error(), "does not match requested ticker") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exec.callCount() != 0 {
+		t.Fatalf("executor calls = %d, want 0", exec.callCount())
+	}
+
+	events, listErr := store.ListAuditEvents(context.Background(), time.Time{})
+	if listErr != nil {
+		t.Fatalf("ListAuditEvents() error = %v", listErr)
+	}
+	if got := countEvents(events, "SBER", StageRisk); got != 0 {
+		t.Fatalf("risk events = %d, want 0", got)
+	}
+	if got := countEvents(events, "SBER", StageExecutor); got != 0 {
+		t.Fatalf("executor events = %d, want 0", got)
 	}
 }

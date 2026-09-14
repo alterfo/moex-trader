@@ -69,15 +69,11 @@ func (c *Client) LookupSecurity(ctx context.Context, ticker string) (Security, e
 	if err != nil {
 		return empty, err
 	}
-	primary := resp.Description.firstString("primary_boardid")
-	if primary == "" {
-		primary = resp.Description.firstString("marketprice_boardid")
-	}
-	secid := resp.Description.firstString("secid")
+	secid := resp.Description.valueForName("SECID")
 	if secid == "" {
 		secid = ticker
 	}
-	board, err := resp.Boards.findRow(map[string]string{"boardid": primary})
+	board, err := resp.Boards.selectBoard(secid)
 	if err != nil {
 		return empty, err
 	}
@@ -124,16 +120,24 @@ func (c *Client) Candles(ctx context.Context, sec Security, interval int, from, 
 
 func (c *Client) Quote(ctx context.Context, sec Security) (Quote, error) {
 	var empty Quote
-	path := fmt.Sprintf("/engines/%s/markets/%s/securities/%s.json",
-		url.PathEscape(sec.Engine), url.PathEscape(sec.Market), url.PathEscape(sec.SecID))
+	path := fmt.Sprintf("/engines/%s/markets/%s/boards/%s/securities/%s.json",
+		url.PathEscape(sec.Engine), url.PathEscape(sec.Market), url.PathEscape(sec.Board), url.PathEscape(sec.SecID))
 	resp, err := c.getJSON(ctx, path)
 	if err != nil {
 		return empty, err
 	}
-	if len(resp.Marketdata.Data) == 0 {
+	marketdata := resp.Marketdata
+	if sec.Board != "" {
+		var found bool
+		marketdata, found = resp.Marketdata.findLastRow("BOARDID", sec.Board)
+		if !found {
+			return empty, fmt.Errorf("moex quote for %q: no marketdata row for board %q", sec.SecID, sec.Board)
+		}
+	}
+	if len(marketdata.Data) == 0 {
 		return empty, fmt.Errorf("moex quote for %q: no marketdata rows", sec.SecID)
 	}
-	last := resp.Marketdata.firstString("LAST")
+	last := marketdata.firstString("LAST")
 	if last == "" {
 		return empty, fmt.Errorf("moex quote for %q: no LAST column", sec.SecID)
 	}
@@ -141,11 +145,11 @@ func (c *Client) Quote(ctx context.Context, sec Security) (Quote, error) {
 	if err != nil {
 		return empty, fmt.Errorf("parse moex last price %q: %w", last, err)
 	}
-	bid, err := optionalDecimal(resp.Marketdata.firstString("BID"))
+	bid, err := optionalDecimal(marketdata.firstString("BID"))
 	if err != nil {
 		return empty, fmt.Errorf("parse moex bid for %q: %w", sec.SecID, err)
 	}
-	ask, err := optionalDecimal(resp.Marketdata.firstString("OFFER"))
+	ask, err := optionalDecimal(marketdata.firstString("OFFER"))
 	if err != nil {
 		return empty, fmt.Errorf("parse moex offer for %q: %w", sec.SecID, err)
 	}
@@ -245,6 +249,20 @@ func (b issBlock) firstString(column string) string {
 	return stringify(b.Data[0], index)
 }
 
+func (b issBlock) valueForName(name string) string {
+	nameIndex := b.columnIndex("name")
+	valueIndex := b.columnIndex("value")
+	if nameIndex < 0 || valueIndex < 0 {
+		return ""
+	}
+	for _, row := range b.Data {
+		if strings.EqualFold(stringify(row, nameIndex), name) {
+			return stringify(row, valueIndex)
+		}
+	}
+	return ""
+}
+
 func (b issBlock) columnIndex(column string) int {
 	for i, name := range b.Columns {
 		if name == column {
@@ -268,6 +286,71 @@ func (b issBlock) findRow(criteria map[string]string) (issBlock, error) {
 		}
 	}
 	return issBlock{}, fmt.Errorf("moex lookup: no row matching %v", criteria)
+}
+
+func (b issBlock) selectBoard(secid string) (issBlock, error) {
+	var primary issBlock
+	var primaryFound bool
+	var traded issBlock
+	var tradedFound bool
+	var first issBlock
+	var firstFound bool
+
+	for _, row := range b.Data {
+		rowBlock := issBlock{Columns: b.Columns, Data: [][]any{row}}
+		if secid != "" {
+			rowSecID := stringifyRow(b.Columns, row, "secid")
+			if rowSecID != "" && !strings.EqualFold(rowSecID, secid) {
+				continue
+			}
+		}
+		if !firstFound {
+			first = rowBlock
+			firstFound = true
+		}
+		isPrimary := stringifyRow(b.Columns, row, "is_primary")
+		isTraded := stringifyRow(b.Columns, row, "is_traded")
+		if isPrimary == "1" {
+			if isTraded == "1" {
+				return rowBlock, nil
+			}
+			if !primaryFound {
+				primary = rowBlock
+				primaryFound = true
+			}
+		}
+		if isTraded == "1" && !tradedFound {
+			traded = rowBlock
+			tradedFound = true
+		}
+	}
+	if primaryFound {
+		return primary, nil
+	}
+	if tradedFound {
+		return traded, nil
+	}
+	if firstFound {
+		return first, nil
+	}
+	return issBlock{}, fmt.Errorf("moex lookup: no board rows in response")
+}
+
+func (b issBlock) findLastRow(column, want string) (issBlock, bool) {
+	index := b.columnIndex(column)
+	if index < 0 {
+		return issBlock{}, false
+	}
+	for _, row := range b.Data {
+		if stringify(row, index) != want {
+			continue
+		}
+		if stringifyRow(b.Columns, row, "LAST") == "" {
+			continue
+		}
+		return issBlock{Columns: b.Columns, Data: [][]any{row}}, true
+	}
+	return issBlock{}, false
 }
 
 func parseISSDateTime(raw string) (time.Time, error) {

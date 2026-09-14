@@ -16,6 +16,7 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/config"
 	"github.com/olegsidorkin/moex-trader/internal/executor"
 	"github.com/olegsidorkin/moex-trader/internal/features"
+	"github.com/olegsidorkin/moex-trader/internal/ingestion/algopack"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/news"
 	"github.com/olegsidorkin/moex-trader/internal/llm"
@@ -70,7 +71,8 @@ func run() error {
 	moexClient := moex.NewClient(cfg.MOEXISSBaseURL, nil)
 	fetcher := news.NewFetcher(nil)
 	matcher := news.NewMatcher(news.DefaultAliases())
-	ingestor := orchestrator.NewMOEXIngestor(moexClient, fetcher, matcher, news.DefaultSources())
+	algopackFetcher := algopack.NewHTTPFetcher(cfg.AlgoPackBaseURL, nil)
+	ingestor := orchestrator.NewMOEXIngestor(moexClient, fetcher, matcher, news.DefaultSources(), algopackFetcher)
 
 	telegramClient := telegram.New(cfg.Telegram.BotToken, cfg.Telegram.ChatID, nil)
 

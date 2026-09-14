@@ -25,6 +25,7 @@ ollama:
   model: "qwen3.8"
   timeout: 10s
 moex_iss_base_url: "https://iss.moex.com/iss"
+algopack_base_url: "https://apim.moex.com/iss/datashop"
 storage:
   path: "./trader.db"
 risk:

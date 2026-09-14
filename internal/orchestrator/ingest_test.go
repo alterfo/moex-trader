@@ -9,9 +9,21 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/shopspring/decimal"
+
+	"github.com/olegsidorkin/moex-trader/internal/ingestion/algopack"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/news"
 )
+
+type fakeAlgoPackFetcher struct {
+	book algopack.OrderBook
+	err  error
+}
+
+func (f fakeAlgoPackFetcher) FetchOrderBook(_ context.Context, _ string) (algopack.OrderBook, error) {
+	return f.book, f.err
+}
 
 func TestMOEXIngestorCachesNewsPerCycleAndPopulatesQuote(t *testing.T) {
 	var newsCalls atomic.Int32
@@ -34,15 +46,15 @@ func TestMOEXIngestorCachesNewsPerCycleAndPopulatesQuote(t *testing.T) {
 		case r.URL.Path == "/securities/SBER.json":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"description": map[string]any{
-					"columns": []string{"secid", "primary_boardid"},
-					"data":    [][]any{{"SBER", "TQBR"}},
+					"columns": []string{"name", "title", "value", "type", "sort_order", "is_hidden", "precision"},
+					"data":    [][]any{{"SECID", "Идентификатор инструмента", "SBER", "string", 0, 0, nil}},
 				},
 				"boards": map[string]any{
-					"columns": []string{"boardid", "engine", "market", "is_primary"},
-					"data":    [][]any{{"TQBR", "stock", "shares", 1}},
+					"columns": []string{"secid", "boardid", "engine", "market", "is_traded", "is_primary"},
+					"data":    [][]any{{"SBER", "TQBR", "stock", "shares", 1, 1}},
 				},
 			})
-		case r.URL.Path == "/engines/stock/markets/shares/securities/SBER.json":
+		case r.URL.Path == "/engines/stock/markets/shares/boards/TQBR/securities/SBER.json":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"marketdata": map[string]any{
 					"columns": []string{"SECID", "BOARDID", "LAST", "BID", "OFFER"},
@@ -69,7 +81,11 @@ func TestMOEXIngestorCachesNewsPerCycleAndPopulatesQuote(t *testing.T) {
 	matcher := news.NewMatcher(map[string][]string{"SBER": {"сбербанк", "сбер"}})
 	ingestor := NewMOEXIngestor(moexClient, news.NewFetcher(nil), matcher, []news.Source{
 		{Name: "test", URL: newsServer.URL, Type: "rss"},
-	})
+	}, fakeAlgoPackFetcher{book: algopack.OrderBook{
+		Ticker: "SBER",
+		Bids:   []algopack.Level{{Price: decimal.NewFromFloat(270.1), Quantity: decimal.NewFromFloat(1000)}},
+		Asks:   []algopack.Level{{Price: decimal.NewFromFloat(270.3), Quantity: decimal.NewFromFloat(500)}},
+	}})
 
 	ingestor.ResetCycle()
 	first, err := ingestor.Ingest(context.Background(), "SBER")
@@ -88,6 +104,9 @@ func TestMOEXIngestorCachesNewsPerCycleAndPopulatesQuote(t *testing.T) {
 	}
 	if first.Price.Bid.String() != "272.2" || first.Price.Ask.String() != "272.3" {
 		t.Fatalf("unexpected quote bid/ask: %s/%s", first.Price.Bid, first.Price.Ask)
+	}
+	if !first.OrderBookImbalance.Equal(decimal.NewFromInt(1).Div(decimal.NewFromInt(3))) {
+		t.Fatalf("unexpected order book imbalance %s", first.OrderBookImbalance)
 	}
 
 	ingestor.ResetCycle()

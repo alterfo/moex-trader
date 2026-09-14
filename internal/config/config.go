@@ -11,14 +11,15 @@ import (
 )
 
 type Config struct {
-	Tickers        []string `yaml:"tickers"`
-	Ollama         Ollama   `yaml:"ollama"`
-	MOEXISSBaseURL string   `yaml:"moex_iss_base_url"`
-	Storage        Storage  `yaml:"storage"`
-	Risk           Risk     `yaml:"risk"`
-	Telegram       Telegram `yaml:"telegram"`
-	IsPaperTrading bool     `yaml:"is_paper_trading"`
-	PollInterval   Duration `yaml:"poll_interval"`
+	Tickers         []string `yaml:"tickers"`
+	Ollama          Ollama   `yaml:"ollama"`
+	MOEXISSBaseURL  string   `yaml:"moex_iss_base_url"`
+	AlgoPackBaseURL string   `yaml:"algopack_base_url"`
+	Storage         Storage  `yaml:"storage"`
+	Risk            Risk     `yaml:"risk"`
+	Telegram        Telegram `yaml:"telegram"`
+	IsPaperTrading  bool     `yaml:"is_paper_trading"`
+	PollInterval    Duration `yaml:"poll_interval"`
 }
 
 type Ollama struct {
@@ -41,12 +42,13 @@ type Telegram struct {
 }
 
 const (
-	defaultOllamaHost     = "192.168.88.193:11434"
-	defaultOllamaModel    = "qwen3.8"
-	defaultOllamaTimeout  = Duration(10 * time.Second)
-	defaultMOEXISSBaseURL = "https://iss.moex.com/iss"
-	defaultPollInterval   = Duration(5 * time.Minute)
-	defaultRiskMaxLots    = 1
+	defaultOllamaHost      = "192.168.88.193:11434"
+	defaultOllamaModel     = "qwen3.8"
+	defaultOllamaTimeout   = Duration(10 * time.Second)
+	defaultMOEXISSBaseURL  = "https://iss.moex.com/iss"
+	defaultAlgoPackBaseURL = "https://apim.moex.com/iss/datashop"
+	defaultPollInterval    = Duration(5 * time.Minute)
+	defaultRiskMaxLots     = 1
 )
 
 func Default() *Config {
@@ -57,10 +59,11 @@ func Default() *Config {
 			Model:   defaultOllamaModel,
 			Timeout: defaultOllamaTimeout,
 		},
-		MOEXISSBaseURL: defaultMOEXISSBaseURL,
-		Risk:           Risk{MaxLots: defaultRiskMaxLots},
-		IsPaperTrading: true,
-		PollInterval:   defaultPollInterval,
+		MOEXISSBaseURL:  defaultMOEXISSBaseURL,
+		AlgoPackBaseURL: defaultAlgoPackBaseURL,
+		Risk:            Risk{MaxLots: defaultRiskMaxLots},
+		IsPaperTrading:  true,
+		PollInterval:    defaultPollInterval,
 	}
 }
 
@@ -107,6 +110,9 @@ func (c *Config) Validate() error {
 	if strings.TrimSpace(c.MOEXISSBaseURL) == "" {
 		return fmt.Errorf("moex_iss_base_url must not be empty")
 	}
+	if strings.TrimSpace(c.AlgoPackBaseURL) == "" {
+		return fmt.Errorf("algopack_base_url must not be empty")
+	}
 	if strings.TrimSpace(c.Storage.Path) == "" {
 		return fmt.Errorf("storage.path must not be empty")
 	}
@@ -135,6 +141,9 @@ func applyEnv(cfg *Config) error {
 	}
 	if v := os.Getenv("MOEX_TRADER_MOEX_ISS_URL"); v != "" {
 		cfg.MOEXISSBaseURL = v
+	}
+	if v := os.Getenv("MOEX_TRADER_ALGOPACK_BASE_URL"); v != "" {
+		cfg.AlgoPackBaseURL = v
 	}
 	if v := os.Getenv("MOEX_TRADER_STORAGE_PATH"); v != "" {
 		cfg.Storage.Path = v

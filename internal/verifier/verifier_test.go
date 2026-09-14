@@ -22,6 +22,18 @@ func (f fakeEvents) ListAuditEvents(_ context.Context, _ time.Time) ([]domain.Au
 	return f.events, nil
 }
 
+type fakeAllEvents struct {
+	events []domain.AuditEvent
+}
+
+func (f fakeAllEvents) ListAuditEvents(_ context.Context, _ time.Time) ([]domain.AuditEvent, error) {
+	return f.events, nil
+}
+
+func (f fakeAllEvents) ListAllAuditEvents(_ context.Context) ([]domain.AuditEvent, error) {
+	return f.events, nil
+}
+
 func dec(s string) decimal.Decimal {
 	return decimal.RequireFromString(s)
 }
@@ -231,6 +243,31 @@ func TestRunFiltersToWindow(t *testing.T) {
 	}
 	if len(report.Trades) != 1 || report.Trades[0].Ticker != "YDEX" {
 		t.Fatalf("Trades = %+v, want only YDEX in window", report.Trades)
+	}
+}
+
+func TestRunReconstructsPositionsOpenedBeforeWindow(t *testing.T) {
+	base := time.Date(2026, 9, 14, 12, 0, 0, 0, time.UTC)
+	since := base.Add(10 * time.Second)
+	now := base.Add(20 * time.Second)
+
+	events := []domain.AuditEvent{
+		fillEvent("old-buy", "SBER", domain.ActionBuy, 1, "100", base.Add(5*time.Second)),
+		fillEvent("close-sell", "SBER", domain.ActionSell, 1, "105", base.Add(15*time.Second)),
+	}
+
+	report, err := New(fakeAllEvents{events: events}, func() time.Time { return now }).Run(context.Background(), since)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if report.ClosedTrades != 1 {
+		t.Fatalf("ClosedTrades = %d, want 1", report.ClosedTrades)
+	}
+	if got := report.TotalRealizedPnL.String(); got != "5" {
+		t.Fatalf("TotalRealizedPnL = %q, want 5", got)
+	}
+	if report.LosingTrades != 0 || len(report.Trades) != 0 {
+		t.Fatalf("report = %+v, want no losing trades", report)
 	}
 }
 

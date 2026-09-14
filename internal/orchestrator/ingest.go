@@ -11,6 +11,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/olegsidorkin/moex-trader/internal/features"
+	"github.com/olegsidorkin/moex-trader/internal/ingestion/algopack"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/news"
 )
@@ -23,13 +24,14 @@ type MOEXIngestor struct {
 	candleInterval int
 	candleLookback time.Duration
 	logger         *log.Logger
+	algopack       algopack.Fetcher
 
 	mu              sync.Mutex
 	newsCache       []news.Article
 	newsCacheFilled bool
 }
 
-func NewMOEXIngestor(moexClient *moex.Client, fetcher *news.Fetcher, matcher *news.Matcher, sources []news.Source) *MOEXIngestor {
+func NewMOEXIngestor(moexClient *moex.Client, fetcher *news.Fetcher, matcher *news.Matcher, sources []news.Source, algopackFetcher algopack.Fetcher) *MOEXIngestor {
 	if sources == nil {
 		sources = news.DefaultSources()
 	}
@@ -41,6 +43,7 @@ func NewMOEXIngestor(moexClient *moex.Client, fetcher *news.Fetcher, matcher *ne
 		candleInterval: 24,
 		candleLookback: 10 * 24 * time.Hour,
 		logger:         log.Default(),
+		algopack:       algopackFetcher,
 	}
 }
 
@@ -64,7 +67,7 @@ func (i *MOEXIngestor) Ingest(ctx context.Context, ticker string) (features.Inpu
 	articles := i.cycleArticles(ctx)
 	matches := i.matcher.Match(articles)
 
-	return features.Input{
+	input := features.Input{
 		Ticker: ticker,
 		Price: features.PriceSnapshot{
 			LastPrice: quote.Last,
@@ -75,7 +78,18 @@ func (i *MOEXIngestor) Ingest(ctx context.Context, ticker string) (features.Inpu
 		},
 		Candles: candles,
 		News:    filterMatches(matches, ticker),
-	}, nil
+	}
+
+	if i.algopack != nil {
+		book, err := i.algopack.FetchOrderBook(ctx, ticker)
+		if err != nil {
+			i.logger.Printf("ingest: algopack order book for %s: %v", ticker, err)
+		} else {
+			input.OrderBookImbalance = book.Imbalance()
+		}
+	}
+
+	return input, nil
 }
 
 func (i *MOEXIngestor) ResetCycle() {

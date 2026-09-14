@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -60,13 +61,13 @@ func (c *Client) Send(ctx context.Context, text string) error {
 	endpoint := c.baseURL + "/bot" + c.token + "/sendMessage"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
-		return fmt.Errorf("telegram: build sendMessage request: %w", err)
+		return fmt.Errorf("telegram: build sendMessage request: %w", redactError(err, c.token))
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("telegram: sendMessage: %w", err)
+		return fmt.Errorf("telegram: sendMessage: %w", redactError(err, c.token))
 	}
 	defer resp.Body.Close()
 
@@ -86,6 +87,13 @@ func (c *Client) Send(ctx context.Context, text string) error {
 		return fmt.Errorf("telegram: sendMessage rejected: %s", payload.Description)
 	}
 	return nil
+}
+
+func redactError(err error, token string) error {
+	if err == nil || token == "" {
+		return err
+	}
+	return errors.New(strings.ReplaceAll(err.Error(), token, "***"))
 }
 
 func (c *Client) LLMFailure(ctx context.Context, ticker string, cause error) error {

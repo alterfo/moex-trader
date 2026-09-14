@@ -9,6 +9,12 @@ import (
 	"testing"
 )
 
+type errorTransport struct{}
+
+func (errorTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return nil, fmt.Errorf("dial tcp: get %s: connection refused", req.URL)
+}
+
 func TestSendSuccess(t *testing.T) {
 	var gotPath, gotContentType string
 	var gotChatID, gotText string
@@ -77,6 +83,22 @@ func TestSendHTTPError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "401") {
 		t.Fatalf("Send() error = %v, want status 401", err)
+	}
+}
+
+func TestSendTransportErrorRedactsToken(t *testing.T) {
+	client := newClient("https://api.telegram.org", "super-secret-token", "chat-456", &http.Client{
+		Transport: errorTransport{},
+	})
+	err := client.Send(context.Background(), "hello")
+	if err == nil {
+		t.Fatal("Send() error = nil, want transport error")
+	}
+	if strings.Contains(err.Error(), "super-secret-token") {
+		t.Fatalf("Send() error leaked token: %v", err)
+	}
+	if !strings.Contains(err.Error(), "***") {
+		t.Fatalf("Send() error did not redact token: %v", err)
 	}
 }
 

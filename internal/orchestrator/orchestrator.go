@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -204,6 +205,10 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string) error {
 	o.record(ctx, ticker, StageSignal, auditJSON(signal))
 	if o.metrics != nil {
 		o.metrics.IncSignalsGenerated()
+	}
+	if strings.TrimSpace(signal.Ticker) != "" && !strings.EqualFold(signal.Ticker, ticker) {
+		o.record(ctx, ticker, StageSignal, auditError("signal ticker mismatch", fmt.Errorf("signal ticker %q does not match requested ticker %q", signal.Ticker, ticker)))
+		return fmt.Errorf("signal ticker %q does not match requested ticker %q", signal.Ticker, ticker)
 	}
 
 	approved, err := o.gate.Approve(ctx, risk.Request{

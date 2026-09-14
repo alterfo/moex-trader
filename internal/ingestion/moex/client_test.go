@@ -21,14 +21,17 @@ func TestLookupSecurity(t *testing.T) {
 		}
 		payload := map[string]any{
 			"description": map[string]any{
-				"columns": []string{"secid", "name", "primary_boardid"},
-				"data":    [][]any{{"SBER", "Сбербанк", "TQBR"}},
+				"columns": []string{"name", "title", "value", "type", "sort_order", "is_hidden", "precision"},
+				"data": [][]any{
+					{"SECID", "Идентификатор инструмента", "SBER", "string", 0, 0, nil},
+					{"SHORTNAME", "Краткое наименование", "Сбербанк", "string", 1, 0, nil},
+				},
 			},
 			"boards": map[string]any{
-				"columns": []string{"boardid", "engine", "market", "is_primary"},
+				"columns": []string{"secid", "boardid", "engine", "market", "is_traded", "is_primary"},
 				"data": [][]any{
-					{"TQBR", "stock", "shares", 1},
-					{"SMAL", "stock", "shares", 0},
+					{"SBER", "TQBR", "stock", "shares", 1, 1},
+					{"SBER", "SMAL", "stock", "shares", 1, 0},
 				},
 			},
 		}
@@ -94,7 +97,7 @@ func TestCandles(t *testing.T) {
 
 func TestLastPrice(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/engines/stock/markets/shares/securities/SBER.json" {
+		if r.URL.Path != "/engines/stock/markets/shares/boards/TQBR/securities/SBER.json" {
 			http.NotFound(w, r)
 			return
 		}
@@ -110,7 +113,7 @@ func TestLastPrice(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, nil)
-	price, err := client.LastPrice(context.Background(), Security{SecID: "SBER", Engine: "stock", Market: "shares"})
+	price, err := client.LastPrice(context.Background(), Security{SecID: "SBER", Board: "TQBR", Engine: "stock", Market: "shares"})
 	if err != nil {
 		t.Fatalf("LastPrice() error = %v", err)
 	}
@@ -133,7 +136,7 @@ func TestQuoteParsesBidAndOffer(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, nil)
-	quote, err := client.Quote(context.Background(), Security{SecID: "SBER", Engine: "stock", Market: "shares"})
+	quote, err := client.Quote(context.Background(), Security{SecID: "SBER", Board: "TQBR", Engine: "stock", Market: "shares"})
 	if err != nil {
 		t.Fatalf("Quote() error = %v", err)
 	}
@@ -155,7 +158,7 @@ func TestHTTPError(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, nil)
-	_, err := client.LastPrice(context.Background(), Security{SecID: "SBER", Engine: "stock", Market: "shares"})
+	_, err := client.LastPrice(context.Background(), Security{SecID: "SBER", Board: "TQBR", Engine: "stock", Market: "shares"})
 	if err == nil {
 		t.Fatal("expected error for HTTP error response")
 	}
@@ -172,7 +175,7 @@ func TestMalformedJSON(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, nil)
-	_, err := client.LastPrice(context.Background(), Security{SecID: "SBER", Engine: "stock", Market: "shares"})
+	_, err := client.LastPrice(context.Background(), Security{SecID: "SBER", Board: "TQBR", Engine: "stock", Market: "shares"})
 	if err == nil {
 		t.Fatal("expected error for malformed JSON")
 	}
@@ -188,7 +191,7 @@ func TestTimeout(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, &http.Client{Timeout: 20 * time.Millisecond})
-	_, err := client.LastPrice(context.Background(), Security{SecID: "SBER", Engine: "stock", Market: "shares"})
+	_, err := client.LastPrice(context.Background(), Security{SecID: "SBER", Board: "TQBR", Engine: "stock", Market: "shares"})
 	if err == nil {
 		t.Fatal("expected error for request timeout")
 	}

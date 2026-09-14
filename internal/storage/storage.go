@@ -143,6 +143,24 @@ func (s *Store) ListAuditEvents(ctx context.Context, since time.Time) ([]domain.
 	}
 	defer rows.Close()
 
+	return scanAuditEvents(rows)
+}
+
+func (s *Store) ListAllAuditEvents(ctx context.Context) ([]domain.AuditEvent, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, ticker, stage, payload, created_at
+		 FROM audit_events
+		 ORDER BY created_at ASC, id ASC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list all audit events: %w", err)
+	}
+	defer rows.Close()
+
+	return scanAuditEvents(rows)
+}
+
+func scanAuditEvents(rows *sql.Rows) ([]domain.AuditEvent, error) {
 	events := make([]domain.AuditEvent, 0)
 	for rows.Next() {
 		var event domain.AuditEvent

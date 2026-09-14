@@ -150,9 +150,9 @@ func (l *LiveExecutor) ExecuteWithOrderID(ctx context.Context, signal domain.Tra
 	l.pending[orderID] = pending
 	l.mu.Unlock()
 
-	fill, err := l.placeOrder(ctx, signal, price, orderID)
+	fill, err, posted := l.placeOrder(ctx, signal, price, orderID)
 	l.mu.Lock()
-	if err == nil {
+	if err == nil || posted {
 		l.sent[orderID] = fill
 	}
 	delete(l.pending, orderID)
@@ -162,30 +162,30 @@ func (l *LiveExecutor) ExecuteWithOrderID(ctx context.Context, signal domain.Tra
 	return fill, err
 }
 
-func (l *LiveExecutor) placeOrder(ctx context.Context, signal domain.TradeSignal, price decimal.Decimal, orderID string) (Fill, error) {
+func (l *LiveExecutor) placeOrder(ctx context.Context, signal domain.TradeSignal, price decimal.Decimal, orderID string) (Fill, error, bool) {
 	instrumentID, err := l.resolve(signal.Ticker)
 	if err != nil {
-		return Fill{}, fmt.Errorf("live executor: resolve instrument id for %q: %w", signal.Ticker, err)
+		return Fill{}, fmt.Errorf("live executor: resolve instrument id for %q: %w", signal.Ticker, err), false
 	}
 	instrumentID = strings.TrimSpace(instrumentID)
 	if instrumentID == "" {
-		return Fill{}, fmt.Errorf("live executor: instrument id for %q must not be empty", signal.Ticker)
+		return Fill{}, fmt.Errorf("live executor: instrument id for %q must not be empty", signal.Ticker), false
 	}
 
 	request, err := l.orderRequest(signal, price, orderID, instrumentID)
 	if err != nil {
-		return Fill{}, err
+		return Fill{}, err, false
 	}
 
 	response, err := l.orders.PostOrder(ctx, request)
 	if err != nil {
-		return Fill{}, fmt.Errorf("live executor: post order %q: %w", orderID, err)
+		return Fill{}, fmt.Errorf("live executor: post order %q: %w", orderID, err), false
 	}
 	if response == nil {
-		return Fill{}, fmt.Errorf("live executor: post order %q: nil response", orderID)
+		return Fill{}, fmt.Errorf("live executor: post order %q: nil response", orderID), false
 	}
 	if response.GetExecutionReportStatus() == pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_REJECTED {
-		return Fill{}, fmt.Errorf("live executor: order %q rejected: %s", orderID, response.GetMessage())
+		return Fill{}, fmt.Errorf("live executor: order %q rejected: %s", orderID, response.GetMessage()), false
 	}
 
 	fill := Fill{
@@ -198,10 +198,10 @@ func (l *LiveExecutor) placeOrder(ctx context.Context, signal domain.TradeSignal
 	}
 
 	if err := l.record(ctx, fill); err != nil {
-		return Fill{}, err
+		return fill, err, true
 	}
 
-	return fill, nil
+	return fill, nil, true
 }
 
 func validateLiveInput(signal domain.TradeSignal, price decimal.Decimal) error {
