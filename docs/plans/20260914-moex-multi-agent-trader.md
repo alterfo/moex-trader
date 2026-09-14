@@ -196,13 +196,13 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 15
 
 ### Task 15: Prometheus metrics
-- [ ] `internal/metrics`: `llm_inference_duration_seconds` (histogram),
+- [x] `internal/metrics`: `llm_inference_duration_seconds` (histogram),
       `signals_generated_total` (counter), `risk_rejections_total` (counter); expose
       `/metrics` over HTTP
-- [ ] wire metric updates into the orchestrator (LLM call, signal generation, risk
+- [x] wire metric updates into the orchestrator (LLM call, signal generation, risk
       gate rejection)
-- [ ] write tests asserting metrics register and increment correctly
-- [ ] run tests — must pass before task 16
+- [x] write tests asserting metrics register and increment correctly
+- [x] run tests — must pass before task 16
 
 ### Task 16: Telegram alerting
 - [ ] `internal/alert/telegram`: send a message on LLM failure (exhausted retries) and

@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,6 +18,7 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/news"
 	"github.com/olegsidorkin/moex-trader/internal/llm"
+	"github.com/olegsidorkin/moex-trader/internal/metrics"
 	"github.com/olegsidorkin/moex-trader/internal/orchestrator"
 	"github.com/olegsidorkin/moex-trader/internal/risk"
 	"github.com/olegsidorkin/moex-trader/internal/storage"
@@ -29,7 +32,9 @@ func main() {
 
 func run() error {
 	var configPath string
+	var metricsAddr string
 	flag.StringVar(&configPath, "config", "config.yaml", "path to config YAML")
+	flag.StringVar(&metricsAddr, "metrics-addr", ":9090", "address for Prometheus /metrics endpoint")
 	flag.Parse()
 
 	cfg, err := config.Load(configPath)
@@ -60,6 +65,23 @@ func run() error {
 	llmClient := llm.New(cfg.Ollama.Host, cfg.Ollama.Model, cfg.Ollama.Timeout.Std())
 	decisionEngine := llm.NewDecisionEngine(llmClient, llm.NewPromptBuilder(), store, time.Now)
 	signalSource := orchestrator.NewLLMSignalSource(decisionEngine, cfg.Ollama.Timeout.Std(), log.Default())
+	appMetrics := metrics.New()
+
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("/metrics", appMetrics.Handler())
+	metricsServer := &http.Server{Addr: metricsAddr, Handler: metricsMux}
+	go func() {
+		if err := metricsServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("metrics server: %v", err)
+		}
+	}()
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := metricsServer.Shutdown(shutdownCtx); err != nil {
+			log.Printf("metrics server shutdown: %v", err)
+		}
+	}()
 
 	orch, err := orchestrator.New(orchestrator.Options{
 		Tickers:      cfg.Tickers,
@@ -70,6 +92,7 @@ func run() error {
 		Executor:     executor.NewPaperExecutor(store, time.Now),
 		Audit:        store,
 		PollInterval: cfg.PollInterval.Std(),
+		Metrics:      appMetrics,
 	})
 	if err != nil {
 		return fmt.Errorf("create orchestrator: %w", err)

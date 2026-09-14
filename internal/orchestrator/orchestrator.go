@@ -12,6 +12,7 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/executor"
 	"github.com/olegsidorkin/moex-trader/internal/features"
+	"github.com/olegsidorkin/moex-trader/internal/metrics"
 	"github.com/olegsidorkin/moex-trader/internal/risk"
 )
 
@@ -45,6 +46,7 @@ type Options struct {
 	PollInterval time.Duration
 	Logger       *log.Logger
 	Now          func() time.Time
+	Metrics      *metrics.Metrics
 }
 
 type Orchestrator struct {
@@ -58,6 +60,7 @@ type Orchestrator struct {
 	pollInterval time.Duration
 	logger       *log.Logger
 	now          func() time.Time
+	metrics      *metrics.Metrics
 }
 
 func New(opts Options) (*Orchestrator, error) {
@@ -111,6 +114,7 @@ func New(opts Options) (*Orchestrator, error) {
 		pollInterval: pollInterval,
 		logger:       logger,
 		now:          now,
+		metrics:      opts.Metrics,
 	}, nil
 }
 
@@ -155,12 +159,19 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string) error {
 	}
 	o.record(ctx, ticker, StageIngest, auditJSON(feature))
 
+	started := time.Now()
 	signal, err := o.source.Generate(ctx, feature)
+	if o.metrics != nil {
+		o.metrics.ObserveLLMInference(time.Since(started))
+	}
 	if err != nil {
 		o.record(ctx, ticker, StageSignal, auditError("generate signal", err))
 		return fmt.Errorf("generate signal for %s: %w", ticker, err)
 	}
 	o.record(ctx, ticker, StageSignal, auditJSON(signal))
+	if o.metrics != nil {
+		o.metrics.IncSignalsGenerated()
+	}
 
 	approved, err := o.gate.Approve(ctx, signal)
 	if err != nil {
@@ -171,6 +182,9 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string) error {
 		Approved bool `json:"approved"`
 	}{Approved: approved}))
 	if !approved {
+		if o.metrics != nil {
+			o.metrics.IncRiskRejections()
+		}
 		return nil
 	}
 
