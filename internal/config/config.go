@@ -7,20 +7,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Tickers         []string `yaml:"tickers"`
-	Ollama          Ollama   `yaml:"ollama"`
-	MOEXISSBaseURL  string   `yaml:"moex_iss_base_url"`
-	AlgoPackBaseURL string   `yaml:"algopack_base_url"`
-	AlgoPackToken   string   `yaml:"-"`
-	Storage         Storage  `yaml:"storage"`
-	Risk            Risk     `yaml:"risk"`
-	Telegram        Telegram `yaml:"telegram"`
-	IsPaperTrading  bool     `yaml:"is_paper_trading"`
-	PollInterval    Duration `yaml:"poll_interval"`
+	Tickers         []string   `yaml:"tickers"`
+	Ollama          Ollama     `yaml:"ollama"`
+	MOEXISSBaseURL  string     `yaml:"moex_iss_base_url"`
+	AlgoPackBaseURL string     `yaml:"algopack_base_url"`
+	AlgoPackToken   string     `yaml:"-"`
+	Storage         Storage    `yaml:"storage"`
+	Risk            Risk       `yaml:"risk"`
+	Telegram        Telegram   `yaml:"telegram"`
+	Commission      Commission `yaml:"commission"`
+	IsPaperTrading  bool       `yaml:"is_paper_trading"`
+	PollInterval    Duration   `yaml:"poll_interval"`
 }
 
 type Ollama struct {
@@ -42,14 +44,20 @@ type Telegram struct {
 	ChatID   string `yaml:"chat_id"`
 }
 
+type Commission struct {
+	Broker string          `yaml:"broker"`
+	Rate   decimal.Decimal `yaml:"rate"`
+}
+
 const (
-	defaultOllamaHost      = "192.168.88.193:11434"
-	defaultOllamaModel     = "qwen3.8"
-	defaultOllamaTimeout   = Duration(10 * time.Second)
-	defaultMOEXISSBaseURL  = "https://iss.moex.com/iss"
-	defaultAlgoPackBaseURL = "https://apim.moex.com/iss/datashop"
-	defaultPollInterval    = Duration(5 * time.Minute)
-	defaultRiskMaxLots     = 1
+	defaultOllamaHost       = "192.168.88.193:11434"
+	defaultOllamaModel      = "qwen3.8"
+	defaultOllamaTimeout    = Duration(10 * time.Second)
+	defaultMOEXISSBaseURL   = "https://iss.moex.com/iss"
+	defaultAlgoPackBaseURL  = "https://apim.moex.com/iss/datashop"
+	defaultPollInterval     = Duration(5 * time.Minute)
+	defaultRiskMaxLots      = 1
+	defaultCommissionBroker = "finam"
 )
 
 func Default() *Config {
@@ -63,8 +71,12 @@ func Default() *Config {
 		MOEXISSBaseURL:  defaultMOEXISSBaseURL,
 		AlgoPackBaseURL: defaultAlgoPackBaseURL,
 		Risk:            Risk{MaxLots: defaultRiskMaxLots},
-		IsPaperTrading:  true,
-		PollInterval:    defaultPollInterval,
+		Commission: Commission{
+			Broker: defaultCommissionBroker,
+			Rate:   decimal.New(1, -4),
+		},
+		IsPaperTrading: true,
+		PollInterval:   defaultPollInterval,
 	}
 }
 
@@ -119,6 +131,12 @@ func (c *Config) Validate() error {
 	}
 	if c.Risk.MaxLots <= 0 {
 		return fmt.Errorf("risk.max_lots must be positive")
+	}
+	if strings.TrimSpace(c.Commission.Broker) == "" {
+		return fmt.Errorf("commission.broker must not be empty")
+	}
+	if c.Commission.Rate.IsNegative() {
+		return fmt.Errorf("commission.rate must be non-negative")
 	}
 	if c.PollInterval <= 0 {
 		return fmt.Errorf("poll_interval must be positive")
@@ -181,6 +199,13 @@ func applyEnv(cfg *Config) error {
 	}
 	if v := os.Getenv("MOEX_TRADER_TELEGRAM_CHAT_ID"); v != "" {
 		cfg.Telegram.ChatID = v
+	}
+	if v := os.Getenv("MOEX_TRADER_COMMISSION_RATE"); v != "" {
+		rate, err := decimal.NewFromString(v)
+		if err != nil {
+			return fmt.Errorf("parse MOEX_TRADER_COMMISSION_RATE: %w", err)
+		}
+		cfg.Commission.Rate = rate
 	}
 	return nil
 }

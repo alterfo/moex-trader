@@ -19,6 +19,7 @@ type Fill struct {
 	Action     domain.Action   `json:"action"`
 	Lots       int             `json:"lots"`
 	Price      decimal.Decimal `json:"price"`
+	Commission decimal.Decimal `json:"commission"`
 	ExecutedAt time.Time       `json:"executed_at"`
 }
 

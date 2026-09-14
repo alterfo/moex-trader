@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 func clearEnv(t *testing.T) {
@@ -24,6 +26,7 @@ func clearEnv(t *testing.T) {
 		"MOEX_TRADER_RISK_MAX_LOTS",
 		"MOEX_TRADER_TELEGRAM_BOT_TOKEN",
 		"MOEX_TRADER_TELEGRAM_CHAT_ID",
+		"MOEX_TRADER_COMMISSION_RATE",
 	} {
 		t.Setenv(key, "")
 	}
@@ -155,6 +158,89 @@ func TestDefaultsAppliedWhenFieldsOmitted(t *testing.T) {
 	}
 	if cfg.Risk.MaxLots != 1 {
 		t.Fatalf("unexpected default risk max lots: %d", cfg.Risk.MaxLots)
+	}
+	if cfg.Commission.Broker != "finam" {
+		t.Fatalf("unexpected default commission broker: %q", cfg.Commission.Broker)
+	}
+	if !cfg.Commission.Rate.Equal(decimal.New(1, -4)) {
+		t.Fatalf("unexpected default commission rate: %s", cfg.Commission.Rate)
+	}
+}
+
+func TestCommissionLoaded(t *testing.T) {
+	clearEnv(t)
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\ncommission:\n  broker: tinkoff\n  rate: \"0.0015\"\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if cfg.Commission.Broker != "tinkoff" {
+		t.Fatalf("Commission.Broker = %q, want tinkoff", cfg.Commission.Broker)
+	}
+	want := decimal.RequireFromString("0.0015")
+	if !cfg.Commission.Rate.Equal(want) {
+		t.Fatalf("Commission.Rate = %s, want %s", cfg.Commission.Rate, want)
+	}
+}
+
+func TestCommissionMissingSectionFallsBackToDefault(t *testing.T) {
+	clearEnv(t)
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if cfg.Commission.Broker != "finam" {
+		t.Fatalf("Commission.Broker = %q, want finam", cfg.Commission.Broker)
+	}
+	if !cfg.Commission.Rate.Equal(decimal.New(1, -4)) {
+		t.Fatalf("Commission.Rate = %s, want %s", cfg.Commission.Rate, decimal.New(1, -4))
+	}
+}
+
+func TestCommissionInvalidRateYAML(t *testing.T) {
+	clearEnv(t)
+	_, err := Parse([]byte("storage:\n  path: ./trader.db\ncommission:\n  rate: \"not-a-decimal\"\n"))
+	if err == nil {
+		t.Fatal("expected error for invalid commission rate")
+	}
+}
+
+func TestCommissionEnvOverride(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("MOEX_TRADER_COMMISSION_RATE", "0.0025")
+
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	want := decimal.RequireFromString("0.0025")
+	if !cfg.Commission.Rate.Equal(want) {
+		t.Fatalf("Commission.Rate = %s, want %s", cfg.Commission.Rate, want)
+	}
+	if cfg.Commission.Broker != "finam" {
+		t.Fatalf("Commission.Broker = %q, want finam", cfg.Commission.Broker)
+	}
+}
+
+func TestCommissionInvalidEnvRate(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("MOEX_TRADER_COMMISSION_RATE", "not-a-decimal")
+	_, err := Parse([]byte("storage:\n  path: ./trader.db\n"))
+	if err == nil {
+		t.Fatal("expected error for invalid commission rate env var")
+	}
+	if !strings.Contains(err.Error(), "MOEX_TRADER_COMMISSION_RATE") {
+		t.Fatalf("expected MOEX_TRADER_COMMISSION_RATE error, got: %v", err)
+	}
+}
+
+func TestCommissionNegativeRateRejected(t *testing.T) {
+	clearEnv(t)
+	_, err := Parse([]byte("storage:\n  path: ./trader.db\ncommission:\n  rate: \"-0.01\"\n"))
+	if err == nil {
+		t.Fatal("expected error for negative commission rate")
+	}
+	if !strings.Contains(err.Error(), "commission.rate") {
+		t.Fatalf("expected commission.rate error, got: %v", err)
 	}
 }
 
