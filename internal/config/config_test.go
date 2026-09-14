@@ -142,6 +142,28 @@ func TestDefaultsAppliedWhenFieldsOmitted(t *testing.T) {
 	if cfg.PollInterval.Std() != 5*time.Minute {
 		t.Fatalf("unexpected default poll interval: %s", cfg.PollInterval.Std())
 	}
+	if cfg.Risk.MaxLots != 1 {
+		t.Fatalf("unexpected default risk max lots: %d", cfg.Risk.MaxLots)
+	}
+}
+
+func TestRiskMaxLotsLoadedAndValidated(t *testing.T) {
+	clearEnv(t)
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\nrisk:\n  max_lots: 3\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if cfg.Risk.MaxLots != 3 {
+		t.Fatalf("unexpected risk max lots: %d", cfg.Risk.MaxLots)
+	}
+
+	_, err = Parse([]byte("storage:\n  path: ./trader.db\nrisk:\n  max_lots: 0\n"))
+	if err == nil {
+		t.Fatal("expected error for non-positive risk max lots")
+	}
+	if !strings.Contains(err.Error(), "risk.max_lots") {
+		t.Fatalf("expected risk.max_lots error, got: %v", err)
+	}
 }
 
 func TestEnvOverrides(t *testing.T) {

@@ -15,6 +15,7 @@ type Config struct {
 	Ollama         Ollama   `yaml:"ollama"`
 	MOEXISSBaseURL string   `yaml:"moex_iss_base_url"`
 	Storage        Storage  `yaml:"storage"`
+	Risk           Risk     `yaml:"risk"`
 	IsPaperTrading bool     `yaml:"is_paper_trading"`
 	PollInterval   Duration `yaml:"poll_interval"`
 }
@@ -29,12 +30,17 @@ type Storage struct {
 	Path string `yaml:"path"`
 }
 
+type Risk struct {
+	MaxLots int `yaml:"max_lots"`
+}
+
 const (
 	defaultOllamaHost     = "192.168.88.193:11434"
 	defaultOllamaModel    = "qwen3.8"
 	defaultOllamaTimeout  = Duration(10 * time.Second)
 	defaultMOEXISSBaseURL = "https://iss.moex.com/iss"
 	defaultPollInterval   = Duration(5 * time.Minute)
+	defaultRiskMaxLots    = 1
 )
 
 func Default() *Config {
@@ -46,6 +52,7 @@ func Default() *Config {
 			Timeout: defaultOllamaTimeout,
 		},
 		MOEXISSBaseURL: defaultMOEXISSBaseURL,
+		Risk:           Risk{MaxLots: defaultRiskMaxLots},
 		IsPaperTrading: true,
 		PollInterval:   defaultPollInterval,
 	}
@@ -96,6 +103,9 @@ func (c *Config) Validate() error {
 	}
 	if strings.TrimSpace(c.Storage.Path) == "" {
 		return fmt.Errorf("storage.path must not be empty")
+	}
+	if c.Risk.MaxLots <= 0 {
+		return fmt.Errorf("risk.max_lots must be positive")
 	}
 	if c.PollInterval <= 0 {
 		return fmt.Errorf("poll_interval must be positive")

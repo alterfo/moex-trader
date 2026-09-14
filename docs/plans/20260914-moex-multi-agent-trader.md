@@ -126,14 +126,14 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 7
 
 ### Task 7: Orchestration loop
-- [ ] `internal/orchestrator`: ticker-driven loop — per configured instrument:
+- [x] `internal/orchestrator`: ticker-driven loop — per configured instrument:
       ingest → build FeatureContext → signal source (Phase 1: simple rule-based stub,
       swapped for the LLM in Task 11) → RiskGate → Executor → AuditEvent
-- [ ] `cmd/trader/main.go`: wire config + all components, graceful shutdown on
+- [x] `cmd/trader/main.go`: wire config + all components, graceful shutdown on
       SIGINT/SIGTERM
-- [ ] write tests: run N loop ticks against fakes, assert audit events recorded and
+- [x] write tests: run N loop ticks against fakes, assert audit events recorded and
       shutdown is clean
-- [ ] run full test suite — must pass before task 8
+- [x] run full test suite — must pass before task 8
 
 ### Phase 2: LLM Integration
 

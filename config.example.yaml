@@ -27,5 +27,7 @@ ollama:
 moex_iss_base_url: "https://iss.moex.com/iss"
 storage:
   path: "./trader.db"
+risk:
+  max_lots: 1
 is_paper_trading: true
 poll_interval: 5m
