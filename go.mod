@@ -14,11 +14,16 @@ require (
 )
 
 require (
+	github.com/alicebob/miniredis/v2 v2.39.0 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
+	github.com/redis/go-redis/v9 v9.22.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.8.0 // indirect

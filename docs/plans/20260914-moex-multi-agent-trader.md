@@ -190,10 +190,10 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 14
 
 ### Task 14: Redis Streams signal bus (optional decoupling)
-- [ ] `internal/bus`: publish `TradeSignal` + `AuditEvent` to a Redis Stream; consumer
+- [x] `internal/bus`: publish `TradeSignal` + `AuditEvent` to a Redis Stream; consumer
       stub that can later run as a separate process
-- [ ] write tests using an in-memory/fake Redis (e.g. `miniredis`)
-- [ ] run tests — must pass before task 15
+- [x] write tests using an in-memory/fake Redis (e.g. `miniredis`)
+- [x] run tests — must pass before task 15
 
 ### Task 15: Prometheus metrics
 - [ ] `internal/metrics`: `llm_inference_duration_seconds` (histogram),
