@@ -114,7 +114,7 @@ func run() error {
 		Builder:      features.NewBuilder(time.Now),
 		Source:       signalSource,
 		Gate:         gate,
-		Executor:     executor.NewPaperExecutor(store, time.Now),
+		Executor:     executor.NewPaperExecutorWithCommission(store, time.Now, cfg.Commission.Rate),
 		Audit:        store,
 		PollInterval: cfg.PollInterval.Std(),
 		Metrics:      appMetrics,

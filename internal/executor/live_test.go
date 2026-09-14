@@ -647,3 +647,106 @@ func TestLiveExecutorConcurrentWaitersShareResult(t *testing.T) {
 		t.Fatalf("results = %d, want 3", count)
 	}
 }
+
+func TestLiveExecutorComputesCommission(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	tests := []struct {
+		name         string
+		rate         string
+		executedNano int32
+		executedUnit int64
+		want         string
+	}{
+		{name: "basis point rate", rate: "0.0001", executedUnit: 271, executedNano: 250000000, want: "0.027125"},
+		{name: "zero rate", rate: "0", executedUnit: 271, executedNano: 250000000, want: "0"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rate, err := decimal.NewFromString(tt.rate)
+			if err != nil {
+				t.Fatalf("rate %q: %v", tt.rate, err)
+			}
+			want, err := decimal.NewFromString(tt.want)
+			if err != nil {
+				t.Fatalf("want %q: %v", tt.want, err)
+			}
+			poster := &fakeOrderPoster{
+				responses: []*pb.PostOrderResponse{
+					{
+						OrderId:               "broker-order-1",
+						ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL,
+						LotsRequested:         1,
+						LotsExecuted:          1,
+						ExecutedOrderPrice:    &pb.MoneyValue{Currency: "RUB", Units: tt.executedUnit, Nano: tt.executedNano},
+					},
+				},
+			}
+			store := openTestStore(t)
+			exec, err := NewLiveExecutor(poster, LiveConfig{
+				AccountID: "account-1",
+				ResolveInstrumentID: func(ticker string) (string, error) {
+					return "instrument-" + ticker, nil
+				},
+				Store:          store,
+				Now:            func() time.Time { return now },
+				CommissionRate: rate,
+			})
+			if err != nil {
+				t.Fatalf("NewLiveExecutor() error = %v", err)
+			}
+			fill, err := exec.Execute(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5))
+			if err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if !fill.Commission.Equal(want) {
+				t.Fatalf("fill.Commission = %s, want %s", fill.Commission, want)
+			}
+		})
+	}
+}
+
+func TestLiveExecutorPersistsCommission(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	poster := &fakeOrderPoster{
+		responses: []*pb.PostOrderResponse{
+			{
+				OrderId:               "broker-order-1",
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL,
+				LotsRequested:         1,
+				LotsExecuted:          1,
+				ExecutedOrderPrice:    &pb.MoneyValue{Currency: "RUB", Units: 271, Nano: 250000000},
+			},
+		},
+	}
+	store := openTestStore(t)
+	exec, err := NewLiveExecutor(poster, LiveConfig{
+		AccountID: "account-1",
+		ResolveInstrumentID: func(ticker string) (string, error) {
+			return "instrument-" + ticker, nil
+		},
+		Store:          store,
+		Now:            func() time.Time { return now },
+		CommissionRate: decimal.New(1, -4),
+	})
+	if err != nil {
+		t.Fatalf("NewLiveExecutor() error = %v", err)
+	}
+	fill, err := exec.Execute(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5))
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	events, err := store.ListAuditEvents(context.Background(), time.Time{})
+	if err != nil {
+		t.Fatalf("ListAuditEvents() error = %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("audit events = %d, want 1", len(events))
+	}
+	var persisted Fill
+	if err := json.Unmarshal([]byte(events[0].Payload), &persisted); err != nil {
+		t.Fatalf("unmarshal audit payload: %v", err)
+	}
+	if !persisted.Commission.Equal(fill.Commission) {
+		t.Fatalf("persisted.Commission = %s, want %s", persisted.Commission, fill.Commission)
+	}
+}

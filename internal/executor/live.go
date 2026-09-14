@@ -43,6 +43,7 @@ type persistedOrder struct {
 	Action     domain.Action   `json:"action"`
 	Lots       int             `json:"lots"`
 	Price      decimal.Decimal `json:"price"`
+	Commission decimal.Decimal `json:"commission"`
 	ExecutedAt time.Time       `json:"executed_at"`
 	Status     string          `json:"status"`
 }
@@ -55,15 +56,17 @@ type LiveConfig struct {
 	OrderType           pb.OrderType
 	Store               *storage.Store
 	Now                 func() time.Time
+	CommissionRate      decimal.Decimal
 }
 
 type LiveExecutor struct {
-	orders    OrderPoster
-	accountID string
-	resolve   InstrumentIDResolver
-	orderType pb.OrderType
-	store     *storage.Store
-	now       func() time.Time
+	orders         OrderPoster
+	accountID      string
+	resolve        InstrumentIDResolver
+	orderType      pb.OrderType
+	store          *storage.Store
+	now            func() time.Time
+	commissionRate decimal.Decimal
 
 	mu      sync.Mutex
 	sent    map[string]Fill
@@ -94,15 +97,16 @@ func NewLiveExecutor(orders OrderPoster, cfg LiveConfig) (*LiveExecutor, error) 
 		now = time.Now
 	}
 	return &LiveExecutor{
-		orders:    orders,
-		accountID: accountID,
-		resolve:   cfg.ResolveInstrumentID,
-		orderType: orderType,
-		store:     cfg.Store,
-		now:       now,
-		sent:      make(map[string]Fill),
-		pending:   make(map[string]chan struct{}),
-		results:   make(map[string]orderResult),
+		orders:         orders,
+		accountID:      accountID,
+		resolve:        cfg.ResolveInstrumentID,
+		orderType:      orderType,
+		store:          cfg.Store,
+		now:            now,
+		commissionRate: cfg.CommissionRate,
+		sent:           make(map[string]Fill),
+		pending:        make(map[string]chan struct{}),
+		results:        make(map[string]orderResult),
 	}, nil
 }
 
@@ -253,12 +257,14 @@ func (l *LiveExecutor) placeOrder(ctx context.Context, signal domain.TradeSignal
 		if lots <= 0 {
 			return Fill{}, fmt.Errorf("live executor: order %q reported %s with zero executed lots", orderID, status), false
 		}
+		fillPrice := executedOrderPrice(response, price)
 		fill := Fill{
 			ID:         orderID,
 			Ticker:     signal.Ticker,
 			Action:     signal.Action,
 			Lots:       lots,
-			Price:      executedOrderPrice(response, price),
+			Price:      fillPrice,
+			Commission: commissionAmount(fillPrice, lots, l.commissionRate),
 			ExecutedAt: l.now(),
 		}
 		if err := l.record(ctx, fill); err != nil {
@@ -413,6 +419,7 @@ func (l *LiveExecutor) recordPartialFill(ctx context.Context, signal domain.Trad
 		Action:     signal.Action,
 		Lots:       lots,
 		Price:      price,
+		Commission: commissionAmount(price, lots, l.commissionRate),
 		ExecutedAt: now,
 		Status:     "partially_filled",
 	})
@@ -454,6 +461,7 @@ func (l *LiveExecutor) loadPersistedOrder(ctx context.Context, orderID string) (
 		Action:     order.Action,
 		Lots:       order.Lots,
 		Price:      order.Price,
+		Commission: order.Commission,
 		ExecutedAt: order.ExecutedAt,
 	}
 	return fill, order.Status, true, nil

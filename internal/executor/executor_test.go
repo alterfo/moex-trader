@@ -204,3 +204,71 @@ func TestPaperExecutorRejectsInvalidInputs(t *testing.T) {
 		})
 	}
 }
+
+func TestPaperExecutorComputesCommission(t *testing.T) {
+	tests := []struct {
+		name  string
+		price string
+		lots  int
+		rate  string
+		want  string
+	}{
+		{name: "single lot basis point rate", price: "100", lots: 1, rate: "0.0001", want: "0.01"},
+		{name: "multiple lots fractional price", price: "270.5", lots: 2, rate: "0.0001", want: "0.0541"},
+		{name: "percent rate", price: "4500.25", lots: 3, rate: "0.01", want: "135.0075"},
+		{name: "zero rate", price: "270.5", lots: 2, rate: "0", want: "0"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := openTestStore(t)
+			price, err := decimal.NewFromString(tt.price)
+			if err != nil {
+				t.Fatalf("price %q: %v", tt.price, err)
+			}
+			rate, err := decimal.NewFromString(tt.rate)
+			if err != nil {
+				t.Fatalf("rate %q: %v", tt.rate, err)
+			}
+			want, err := decimal.NewFromString(tt.want)
+			if err != nil {
+				t.Fatalf("want %q: %v", tt.want, err)
+			}
+			exec := NewPaperExecutorWithCommission(store, time.Now, rate)
+			signal := domain.TradeSignal{
+				Ticker:      "SBER",
+				Action:      domain.ActionBuy,
+				Confidence:  decimal.NewFromFloat(0.8),
+				TargetLots:  tt.lots,
+				Reasoning:   "commission test",
+				GeneratedAt: time.Now(),
+			}
+			fill, err := exec.Execute(context.Background(), signal, price)
+			if err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if !fill.Commission.Equal(want) {
+				t.Fatalf("fill.Commission = %s, want %s", fill.Commission, want)
+			}
+		})
+	}
+}
+
+func TestPaperExecutorHoldHasZeroCommission(t *testing.T) {
+	store := openTestStore(t)
+	exec := NewPaperExecutorWithCommission(store, time.Now, decimal.New(1, -4))
+	signal := domain.TradeSignal{
+		Ticker:      "SBER",
+		Action:      domain.ActionHold,
+		Confidence:  decimal.NewFromFloat(0.4),
+		TargetLots:  0,
+		Reasoning:   "hold",
+		GeneratedAt: time.Now(),
+	}
+	fill, err := exec.Execute(context.Background(), signal, decimal.New(100, 0))
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !fill.Commission.IsZero() {
+		t.Fatalf("fill.Commission = %s, want 0", fill.Commission)
+	}
+}

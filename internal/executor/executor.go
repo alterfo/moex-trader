@@ -28,15 +28,20 @@ type Executor interface {
 }
 
 type PaperExecutor struct {
-	store *storage.Store
-	now   func() time.Time
+	store          *storage.Store
+	now            func() time.Time
+	commissionRate decimal.Decimal
 }
 
 func NewPaperExecutor(store *storage.Store, now func() time.Time) *PaperExecutor {
+	return NewPaperExecutorWithCommission(store, now, decimal.Zero)
+}
+
+func NewPaperExecutorWithCommission(store *storage.Store, now func() time.Time, commissionRate decimal.Decimal) *PaperExecutor {
 	if now == nil {
 		now = time.Now
 	}
-	return &PaperExecutor{store: store, now: now}
+	return &PaperExecutor{store: store, now: now, commissionRate: commissionRate}
 }
 
 func (p *PaperExecutor) Execute(ctx context.Context, signal domain.TradeSignal, price decimal.Decimal) (Fill, error) {
@@ -65,6 +70,7 @@ func (p *PaperExecutor) Execute(ctx context.Context, signal domain.TradeSignal, 
 		Action:     signal.Action,
 		Lots:       lots,
 		Price:      price,
+		Commission: commissionAmount(price, lots, p.commissionRate),
 		ExecutedAt: p.now(),
 	}
 
@@ -85,4 +91,11 @@ func (p *PaperExecutor) Execute(ctx context.Context, signal domain.TradeSignal, 
 	}
 
 	return fill, nil
+}
+
+func commissionAmount(price decimal.Decimal, lots int, rate decimal.Decimal) decimal.Decimal {
+	if lots <= 0 || rate.IsNegative() || price.Sign() <= 0 {
+		return decimal.Zero
+	}
+	return price.Mul(decimal.NewFromInt(int64(lots))).Mul(rate)
 }

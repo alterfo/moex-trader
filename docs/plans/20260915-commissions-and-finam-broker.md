@@ -91,13 +91,13 @@ execution integration, following the same pattern already used for Tinkoff.
 - [x] run tests — must pass before task 2
 
 ### Task 2: Apply commission in both executors
-- [ ] `PaperExecutor.Execute`: compute `commission = price * lots * rate`, set it on
+- [x] `PaperExecutor.Execute`: compute `commission = price * lots * rate`, set it on
       the returned `Fill`
-- [ ] `internal/executor/live.go` (Tinkoff): same commission computation on its
+- [x] `internal/executor/live.go` (Tinkoff): same commission computation on its
       `Fill`
-- [ ] write tests: commission computed correctly for both executors (several
+- [x] write tests: commission computed correctly for both executors (several
       price/lots/rate combinations, zero-rate edge case)
-- [ ] run tests — must pass before task 3
+- [x] run tests — must pass before task 3
 
 ### Task 3: Net P&L in the verifier
 - [ ] update `internal/verifier` P&L reconstruction to subtract `Fill.Commission`
