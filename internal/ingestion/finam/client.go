@@ -42,6 +42,46 @@ const (
 	TimeframeQR          Timeframe = "TIME_FRAME_QR"
 )
 
+type Side string
+
+const (
+	SideUnspecified Side = "SIDE_UNSPECIFIED"
+	SideBuy         Side = "SIDE_BUY"
+	SideSell        Side = "SIDE_SELL"
+)
+
+type OrderType string
+
+const (
+	OrderTypeUnspecified OrderType = "ORDER_TYPE_UNSPECIFIED"
+	OrderTypeMarket      OrderType = "ORDER_TYPE_MARKET"
+	OrderTypeLimit       OrderType = "ORDER_TYPE_LIMIT"
+)
+
+type TimeInForce string
+
+const (
+	TimeInForceUnspecified TimeInForce = "TIME_IN_FORCE_UNSPECIFIED"
+	TimeInForceDay         TimeInForce = "TIME_IN_FORCE_DAY"
+)
+
+type OrderStatus string
+
+const (
+	OrderStatusUnspecified     OrderStatus = "ORDER_STATUS_UNSPECIFIED"
+	OrderStatusNew             OrderStatus = "ORDER_STATUS_NEW"
+	OrderStatusPartiallyFilled OrderStatus = "ORDER_STATUS_PARTIALLY_FILLED"
+	OrderStatusFilled          OrderStatus = "ORDER_STATUS_FILLED"
+	OrderStatusExecuted        OrderStatus = "ORDER_STATUS_EXECUTED"
+	OrderStatusRejected        OrderStatus = "ORDER_STATUS_REJECTED"
+	OrderStatusRejectedByExch  OrderStatus = "ORDER_STATUS_REJECTED_BY_EXCHANGE"
+	OrderStatusDeniedByBroker  OrderStatus = "ORDER_STATUS_DENIED_BY_BROKER"
+	OrderStatusCanceled        OrderStatus = "ORDER_STATUS_CANCELED"
+	OrderStatusExpired         OrderStatus = "ORDER_STATUS_EXPIRED"
+	OrderStatusFailed          OrderStatus = "ORDER_STATUS_FAILED"
+	OrderStatusPendingNew      OrderStatus = "ORDER_STATUS_PENDING_NEW"
+)
+
 type Config struct {
 	BaseURL     string
 	SecretToken string
@@ -74,6 +114,22 @@ type Candle struct {
 	End    time.Time
 }
 
+type PlaceOrderRequest struct {
+	Symbol        string
+	Quantity      decimal.Decimal
+	Side          Side
+	Type          OrderType
+	TimeInForce   TimeInForce
+	ClientOrderID string
+}
+
+type PlaceOrderResponse struct {
+	OrderID          string
+	ExecID           string
+	Status           OrderStatus
+	ExecutedQuantity decimal.Decimal
+}
+
 type decimalValue struct {
 	Value string `json:"value"`
 }
@@ -101,6 +157,22 @@ type finamBar struct {
 	Low       decimalValue `json:"low"`
 	Close     decimalValue `json:"close"`
 	Volume    decimalValue `json:"volume"`
+}
+
+type finamPlaceOrderRequest struct {
+	Symbol        string       `json:"symbol,omitempty"`
+	Quantity      decimalValue `json:"quantity,omitempty"`
+	Side          Side         `json:"side,omitempty"`
+	Type          OrderType    `json:"type,omitempty"`
+	TimeInForce   TimeInForce  `json:"time_in_force,omitempty"`
+	ClientOrderID string       `json:"client_order_id,omitempty"`
+}
+
+type finamPlaceOrderResponse struct {
+	OrderID          string       `json:"order_id"`
+	ExecID           string       `json:"exec_id"`
+	Status           OrderStatus  `json:"status"`
+	ExecutedQuantity decimalValue `json:"executed_quantity"`
 }
 
 type authRequest struct {
@@ -195,6 +267,60 @@ func (c *Client) Bars(ctx context.Context, symbol string, timeframe Timeframe, f
 	return candles, nil
 }
 
+func (c *Client) PlaceOrder(ctx context.Context, accountID string, request PlaceOrderRequest) (PlaceOrderResponse, error) {
+	var empty PlaceOrderResponse
+	accountID = strings.TrimSpace(accountID)
+	if accountID == "" {
+		return empty, errors.New("finam: account id must not be empty")
+	}
+	if err := validateSymbol(request.Symbol); err != nil {
+		return empty, err
+	}
+	if !request.Quantity.IsPositive() {
+		return empty, errors.New("finam: order quantity must be positive")
+	}
+	if request.Side != SideBuy && request.Side != SideSell {
+		return empty, fmt.Errorf("finam: order side must be %q or %q", SideBuy, SideSell)
+	}
+	orderType := request.Type
+	if orderType == "" || orderType == OrderTypeUnspecified {
+		orderType = OrderTypeMarket
+	}
+	timeInForce := request.TimeInForce
+	if timeInForce == "" || timeInForce == TimeInForceUnspecified {
+		timeInForce = TimeInForceDay
+	}
+
+	body := finamPlaceOrderRequest{
+		Symbol:        request.Symbol,
+		Quantity:      decimalValue{Value: request.Quantity.String()},
+		Side:          request.Side,
+		Type:          orderType,
+		TimeInForce:   timeInForce,
+		ClientOrderID: request.ClientOrderID,
+	}
+	var response finamPlaceOrderResponse
+	path := "/v1/accounts/" + url.PathEscape(accountID) + "/orders"
+	if err := c.doJSONBody(ctx, http.MethodPost, path, nil, body, &response); err != nil {
+		return empty, err
+	}
+
+	executedQuantity := decimal.Zero
+	if strings.TrimSpace(response.ExecutedQuantity.Value) != "" {
+		parsed, err := decimal.NewFromString(response.ExecutedQuantity.Value)
+		if err != nil {
+			return empty, fmt.Errorf("finam: parse executed quantity %q: %w", response.ExecutedQuantity.Value, err)
+		}
+		executedQuantity = parsed
+	}
+	return PlaceOrderResponse{
+		OrderID:          response.OrderID,
+		ExecID:           response.ExecID,
+		Status:           response.Status,
+		ExecutedQuantity: executedQuantity,
+	}, nil
+}
+
 var validTimeframes = map[Timeframe]bool{
 	TimeframeM1:  true,
 	TimeframeM5:  true,
@@ -271,12 +397,29 @@ func (c *Client) ensureToken(ctx context.Context, force bool) (string, error) {
 }
 
 func (c *Client) doJSON(ctx context.Context, method, path string, query url.Values, out any) error {
+	return c.doJSONBody(ctx, method, path, query, nil, out)
+}
+
+func (c *Client) doJSONBody(ctx context.Context, method, path string, query url.Values, body any, out any) error {
+	var bodyBytes []byte
+	if body != nil {
+		encoded, err := json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("finam: marshal request %s %s: %w", method, path, err)
+		}
+		bodyBytes = encoded
+	}
 	for attempt := 0; attempt < 2; attempt++ {
 		token, err := c.ensureToken(ctx, attempt > 0)
 		if err != nil {
 			return err
 		}
-		request, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, nil)
+		var request *http.Request
+		if body == nil {
+			request, err = http.NewRequestWithContext(ctx, method, c.baseURL+path, nil)
+		} else {
+			request, err = http.NewRequestWithContext(ctx, method, c.baseURL+path, bytes.NewReader(bodyBytes))
+		}
 		if err != nil {
 			return fmt.Errorf("finam: build request %s %s: %w", method, path, err)
 		}
@@ -285,6 +428,9 @@ func (c *Client) doJSON(ctx context.Context, method, path string, query url.Valu
 		}
 		request.Header.Set("Authorization", "Bearer "+token)
 		request.Header.Set("Accept", "application/json")
+		if body != nil {
+			request.Header.Set("Content-Type", "application/json")
+		}
 
 		response, err := c.httpClient.Do(request)
 		if err != nil {

@@ -118,16 +118,16 @@ execution integration, following the same pattern already used for Tinkoff.
 - [x] run tests — must pass before task 5
 
 ### Task 5: Finam executor
-- [ ] `internal/executor/finam.go`: `FinamExecutor` implementing the `Executor`
+- [x] `internal/executor/finam.go`: `FinamExecutor` implementing the `Executor`
       interface, placing market orders via the Finam Trade API using the client from
       Task 4
-- [ ] populate `Fill.Commission` using the config rate from Task 1 (Finam doesn't
+- [x] populate `Fill.Commission` using the config rate from Task 1 (Finam doesn't
       return commission synchronously in the order-placement response per the public
       docs, so this stays the config-rate estimate, not an exchange-confirmed figure
       — note this explicitly in a doc comment)
-- [ ] write tests with mocked order endpoint (successful placement, rejected order,
+- [x] write tests with mocked order endpoint (successful placement, rejected order,
       JWT refresh mid-request)
-- [ ] run tests — must pass before task 6
+- [x] run tests — must pass before task 6
 
 ### Task 6: Wire broker selection into cmd/trader
 - [ ] extend config with a `broker` field (`paper` / `tinkoff` / `finam`) alongside
