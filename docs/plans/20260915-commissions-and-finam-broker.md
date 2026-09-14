@@ -141,11 +141,11 @@ execution integration, following the same pattern already used for Tinkoff.
 - [x] run full test suite — must pass before task 7
 
 ### Task 7: Verify acceptance criteria
-- [ ] verify commission is applied consistently across paper/Tinkoff/Finam fills and
+- [x] verify commission is applied consistently across paper/Tinkoff/Finam fills and
       reflected in verifier net P&L
-- [ ] run full test suite (`go test ./...`)
-- [ ] run `go vet ./...` and `gofmt -l .` — fix any issues
-- [ ] verify test coverage for `executor`, `verifier`, and the new `finam` packages
+- [x] run full test suite (`go test ./...`)
+- [x] run `go vet ./...` and `gofmt -l .` — fix any issues
+- [x] verify test coverage for `executor`, `verifier`, and the new `finam` packages
 
 ### Task 8: [Final] Documentation
 - [ ] update `README.md`: add Finam to the broker/commands section, note the demo
