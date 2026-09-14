@@ -112,10 +112,10 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 5
 
 ### Task 5: FeatureContext builder
-- [ ] `internal/features`: combine price data + matched news + basic technical
+- [x] `internal/features`: combine price data + matched news + basic technical
       features (return, realized volatility) into a `FeatureContext` per ticker
-- [ ] write tests with fixture inputs (full data, missing news, missing price data)
-- [ ] run tests — must pass before task 6
+- [x] write tests with fixture inputs (full data, missing news, missing price data)
+- [x] run tests — must pass before task 6
 
 ### Task 6: Paper executor and risk-gate stub
 - [ ] `internal/executor`: `Executor` interface + `PaperExecutor` (simulated fill at
