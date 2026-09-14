@@ -100,11 +100,11 @@ execution integration, following the same pattern already used for Tinkoff.
 - [x] run tests — must pass before task 3
 
 ### Task 3: Net P&L in the verifier
-- [ ] update `internal/verifier` P&L reconstruction to subtract `Fill.Commission`
+- [x] update `internal/verifier` P&L reconstruction to subtract `Fill.Commission`
       from gross P&L per trade, and report both gross and net in the markdown output
-- [ ] write tests with fixture audit logs showing a trade that's gross-positive but
+- [x] write tests with fixture audit logs showing a trade that's gross-positive but
       net-negative after commission (must be flagged as a loss in the report)
-- [ ] run tests — must pass before task 4
+- [x] run tests — must pass before task 4
 
 ### Task 4: Finam market-data client
 - [ ] `internal/ingestion/finam/client.go`: `Config{BaseURL, SecretToken}`,

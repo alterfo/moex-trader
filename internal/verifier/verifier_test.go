@@ -74,6 +74,25 @@ func fillEvent(id, ticker string, action domain.Action, lots int, price string, 
 	}
 }
 
+func fillEventWithCommission(id, ticker string, action domain.Action, lots int, price, commission string, at time.Time) domain.AuditEvent {
+	payload, _ := json.Marshal(fillRecord{
+		ID:         id,
+		Ticker:     ticker,
+		Action:     action,
+		Lots:       lots,
+		Price:      dec(price),
+		Commission: dec(commission),
+		ExecutedAt: at,
+	})
+	return domain.AuditEvent{
+		ID:        id,
+		Ticker:    ticker,
+		Stage:     stageExecutor,
+		Payload:   string(payload),
+		CreatedAt: at,
+	}
+}
+
 func TestRunProducesLosingLongTradeReport(t *testing.T) {
 	base := time.Date(2026, 9, 14, 12, 0, 0, 0, time.UTC)
 	now := base.Add(10 * time.Second)
@@ -169,6 +188,60 @@ func TestRunOnlyReportsLosingTrades(t *testing.T) {
 	}
 	if markdown := report.Markdown(); strings.Contains(markdown, "Losing trade: SBER") {
 		t.Fatalf("Markdown() should not include the winning SBER trade:\n%s", markdown)
+	}
+}
+
+func TestRunGrossPositiveNetNegativeAfterCommission(t *testing.T) {
+	base := time.Date(2026, 9, 14, 12, 0, 0, 0, time.UTC)
+	now := base.Add(5 * time.Second)
+
+	events := []domain.AuditEvent{
+		signalEvent("sig-sber", "SBER", domain.ActionBuy, "0.8", "positive momentum", base),
+		fillEventWithCommission("fill-sber-buy", "SBER", domain.ActionBuy, 1, "100", "1", base.Add(time.Second)),
+		fillEventWithCommission("fill-sber-sell", "SBER", domain.ActionSell, 1, "101", "1", base.Add(2*time.Second)),
+	}
+
+	report, err := New(fakeEvents{events: events}, func() time.Time { return now }).Run(context.Background(), base)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if report.ClosedTrades != 1 {
+		t.Fatalf("ClosedTrades = %d, want 1", report.ClosedTrades)
+	}
+	if report.LosingTrades != 1 {
+		t.Fatalf("LosingTrades = %d, want 1", report.LosingTrades)
+	}
+	if got := report.TotalGrossPnL.String(); got != "1" {
+		t.Fatalf("TotalGrossPnL = %q, want 1", got)
+	}
+	if got := report.TotalCommission.String(); got != "2" {
+		t.Fatalf("TotalCommission = %q, want 2", got)
+	}
+	if got := report.TotalRealizedPnL.String(); got != "-1" {
+		t.Fatalf("TotalRealizedPnL = %q, want -1", got)
+	}
+	if len(report.Trades) != 1 {
+		t.Fatalf("len(Trades) = %d, want 1", len(report.Trades))
+	}
+
+	trade := report.Trades[0]
+	if trade.GrossPnL.String() != "1" || trade.Commission.String() != "2" || trade.RealizedPnL.String() != "-1" {
+		t.Fatalf("trade P&L = gross %s / commission %s / net %s, want 1/2/-1", trade.GrossPnL, trade.Commission, trade.RealizedPnL)
+	}
+
+	markdown := report.Markdown()
+	for _, want := range []string{
+		"- Total realized P&L (gross): 1",
+		"- Total commissions: 2",
+		"- Total realized P&L (net): -1",
+		"- Gross P&L: 1",
+		"- Commission: 2",
+		"- Net P&L: -1",
+	} {
+		if !strings.Contains(markdown, want) {
+			t.Fatalf("Markdown() missing %q:\n%s", want, markdown)
+		}
 	}
 }
 

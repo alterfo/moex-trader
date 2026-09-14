@@ -46,6 +46,8 @@ type LosingTrade struct {
 	ExitPrice   decimal.Decimal
 	OpenedAt    time.Time
 	ClosedAt    time.Time
+	GrossPnL    decimal.Decimal
+	Commission  decimal.Decimal
 	RealizedPnL decimal.Decimal
 	Signal      *domain.TradeSignal
 	Adequacy    string
@@ -57,6 +59,8 @@ type Report struct {
 	Until            time.Time
 	ClosedTrades     int
 	LosingTrades     int
+	TotalGrossPnL    decimal.Decimal
+	TotalCommission  decimal.Decimal
 	TotalRealizedPnL decimal.Decimal
 	Trades           []LosingTrade
 }
@@ -67,6 +71,7 @@ type fillRecord struct {
 	Action     domain.Action   `json:"action"`
 	Lots       int             `json:"lots"`
 	Price      decimal.Decimal `json:"price"`
+	Commission decimal.Decimal `json:"commission"`
 	ExecutedAt time.Time       `json:"executed_at"`
 }
 
@@ -78,14 +83,17 @@ type tradeResult struct {
 	exitPrice  decimal.Decimal
 	openedAt   time.Time
 	closedAt   time.Time
+	grossPnl   decimal.Decimal
+	commission decimal.Decimal
 	pnl        decimal.Decimal
 }
 
 type position struct {
-	direction domain.Action
-	lots      int
-	avgPrice  decimal.Decimal
-	openedAt  time.Time
+	direction  domain.Action
+	lots       int
+	avgPrice   decimal.Decimal
+	commission decimal.Decimal
+	openedAt   time.Time
 }
 
 func (v *Verifier) Run(ctx context.Context, since time.Time) (*Report, error) {
@@ -134,6 +142,8 @@ func (v *Verifier) Run(ctx context.Context, since time.Time) (*Report, error) {
 			continue
 		}
 		report.ClosedTrades++
+		report.TotalGrossPnL = report.TotalGrossPnL.Add(result.grossPnl)
+		report.TotalCommission = report.TotalCommission.Add(result.commission)
 		report.TotalRealizedPnL = report.TotalRealizedPnL.Add(result.pnl)
 		if result.pnl.Sign() < 0 {
 			report.Trades = append(report.Trades, buildLosingTrade(result, findSignal(signals[result.ticker], result.openedAt)))
@@ -198,10 +208,11 @@ func applyFill(positions map[string]*position, results []tradeResult, fill fillR
 	pos := positions[fill.Ticker]
 	if pos == nil {
 		positions[fill.Ticker] = &position{
-			direction: fill.Action,
-			lots:      fill.Lots,
-			avgPrice:  fill.Price,
-			openedAt:  fill.ExecutedAt,
+			direction:  fill.Action,
+			lots:       fill.Lots,
+			avgPrice:   fill.Price,
+			commission: fill.Commission,
+			openedAt:   fill.ExecutedAt,
 		}
 		return results
 	}
@@ -211,16 +222,19 @@ func applyFill(positions map[string]*position, results []tradeResult, fill fillR
 		newLots := decimal.NewFromInt(int64(pos.lots + fill.Lots))
 		pos.avgPrice = pos.avgPrice.Mul(oldLots).Add(fill.Price.Mul(decimal.NewFromInt(int64(fill.Lots)))).Div(newLots)
 		pos.lots += fill.Lots
+		pos.commission = pos.commission.Add(fill.Commission)
 		return results
 	}
 
 	closed := minInt(pos.lots, fill.Lots)
-	var pnl decimal.Decimal
+	var grossPnl decimal.Decimal
 	if pos.direction == domain.ActionBuy {
-		pnl = fill.Price.Sub(pos.avgPrice).Mul(decimal.NewFromInt(int64(closed)))
+		grossPnl = fill.Price.Sub(pos.avgPrice).Mul(decimal.NewFromInt(int64(closed)))
 	} else {
-		pnl = pos.avgPrice.Sub(fill.Price).Mul(decimal.NewFromInt(int64(closed)))
+		grossPnl = pos.avgPrice.Sub(fill.Price).Mul(decimal.NewFromInt(int64(closed)))
 	}
+	commission := closedCommission(pos, fill, closed)
+	pnl := grossPnl.Sub(commission)
 
 	results = append(results, tradeResult{
 		ticker:     fill.Ticker,
@@ -230,25 +244,37 @@ func applyFill(positions map[string]*position, results []tradeResult, fill fillR
 		exitPrice:  fill.Price,
 		openedAt:   pos.openedAt,
 		closedAt:   fill.ExecutedAt,
+		grossPnl:   grossPnl,
+		commission: commission,
 		pnl:        pnl,
 	})
 
+	oldLots := pos.lots
 	pos.lots -= closed
-	if pos.lots == 0 {
+	if pos.lots > 0 {
+		pos.commission = pos.commission.Mul(decimal.NewFromInt(int64(pos.lots)).Div(decimal.NewFromInt(int64(oldLots))))
+	} else {
 		delete(positions, fill.Ticker)
 	}
 
 	remainder := fill.Lots - closed
 	if remainder > 0 {
 		positions[fill.Ticker] = &position{
-			direction: fill.Action,
-			lots:      remainder,
-			avgPrice:  fill.Price,
-			openedAt:  fill.ExecutedAt,
+			direction:  fill.Action,
+			lots:       remainder,
+			avgPrice:   fill.Price,
+			commission: fill.Commission.Mul(decimal.NewFromInt(int64(remainder)).Div(decimal.NewFromInt(int64(fill.Lots)))),
+			openedAt:   fill.ExecutedAt,
 		}
 	}
 
 	return results
+}
+
+func closedCommission(pos *position, fill fillRecord, closed int) decimal.Decimal {
+	entryCommission := pos.commission.Mul(decimal.NewFromInt(int64(closed)).Div(decimal.NewFromInt(int64(pos.lots))))
+	exitCommission := fill.Commission.Mul(decimal.NewFromInt(int64(closed)).Div(decimal.NewFromInt(int64(fill.Lots))))
+	return entryCommission.Add(exitCommission)
 }
 
 func findSignal(signals []domain.TradeSignal, openedAt time.Time) *domain.TradeSignal {
@@ -274,6 +300,8 @@ func buildLosingTrade(result tradeResult, signal *domain.TradeSignal) LosingTrad
 		ExitPrice:   result.exitPrice,
 		OpenedAt:    result.openedAt,
 		ClosedAt:    result.closedAt,
+		GrossPnL:    result.grossPnl,
+		Commission:  result.commission,
 		RealizedPnL: result.pnl,
 		Signal:      signal,
 	}

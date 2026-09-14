@@ -13,7 +13,9 @@ func (r Report) Markdown() string {
 	fmt.Fprintf(&b, "- Window: %s → %s\n", r.Since.Format(time.RFC3339), r.Until.Format(time.RFC3339))
 	fmt.Fprintf(&b, "- Closed trades: %d\n", r.ClosedTrades)
 	fmt.Fprintf(&b, "- Losing trades: %d\n", r.LosingTrades)
-	fmt.Fprintf(&b, "- Total realized P&L (price × lots): %s\n\n", r.TotalRealizedPnL.String())
+	fmt.Fprintf(&b, "- Total realized P&L (gross): %s\n", r.TotalGrossPnL.String())
+	fmt.Fprintf(&b, "- Total commissions: %s\n", r.TotalCommission.String())
+	fmt.Fprintf(&b, "- Total realized P&L (net): %s\n\n", r.TotalRealizedPnL.String())
 
 	if len(r.Trades) == 0 {
 		b.WriteString("No losing trades in this window.\n")
@@ -26,7 +28,9 @@ func (r Report) Markdown() string {
 		fmt.Fprintf(&b, "- Lots: %d\n", trade.Lots)
 		fmt.Fprintf(&b, "- Entry price: %s\n", trade.EntryPrice.String())
 		fmt.Fprintf(&b, "- Exit price: %s\n", trade.ExitPrice.String())
-		fmt.Fprintf(&b, "- Realized P&L: %s\n", trade.RealizedPnL.String())
+		fmt.Fprintf(&b, "- Gross P&L: %s\n", trade.GrossPnL.String())
+		fmt.Fprintf(&b, "- Commission: %s\n", trade.Commission.String())
+		fmt.Fprintf(&b, "- Net P&L: %s\n", trade.RealizedPnL.String())
 		fmt.Fprintf(&b, "- Opened at: %s\n", trade.OpenedAt.Format(time.RFC3339))
 		fmt.Fprintf(&b, "- Closed at: %s\n", trade.ClosedAt.Format(time.RFC3339))
 		if trade.Signal != nil {
