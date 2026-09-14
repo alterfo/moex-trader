@@ -175,11 +175,11 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 ### Phase 3: Paper Trading Realism
 
 ### Task 12: Tinkoff Invest API client (market data)
-- [ ] `internal/ingestion/tinkoff`: client using the Tinkoff Invest Go SDK for market
+- [x] `internal/ingestion/tinkoff`: client using the Tinkoff Invest Go SDK for market
       data (quotes/candles), gated behind `is_paper_trading` config flag
-- [ ] write tests with mocked gRPC/HTTP responses (valid data, auth error, stream
+- [x] write tests with mocked gRPC/HTTP responses (valid data, auth error, stream
       disconnect/reconnect)
-- [ ] run tests — must pass before task 13
+- [x] run tests — must pass before task 13
 
 ### Task 13: MOEX AlgoPack enrichment worker
 - [ ] `internal/ingestion/algopack`: async worker enriching `FeatureContext` with
