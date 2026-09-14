@@ -1,0 +1,31 @@
+tickers:
+  - YDEX
+  - OZON
+  - SBER
+  - LKOH
+  - GAZP
+  - GMKN
+  - ROSN
+  - NVTK
+  - TATN
+  - MTSS
+  - MGNT
+  - PLZL
+  - CHMF
+  - DATA
+  - T
+  - SBMM
+  - VTBR
+  - RUAL
+  - GLDRUB_TOM
+  - SLVRUB_TOM
+  - CNYRUB_TOM
+ollama:
+  host: "192.168.88.193:11434"
+  model: "qwen3.8"
+  timeout: 10s
+moex_iss_base_url: "https://iss.moex.com/iss"
+storage:
+  path: "./trader.db"
+is_paper_trading: true
+poll_interval: 5m

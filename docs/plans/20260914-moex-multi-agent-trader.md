@@ -73,16 +73,16 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 ### Phase 1: Foundation
 
 ### Task 1: Project skeleton and config
-- [ ] `go.mod` (`github.com/olegsidorkin/moex-trader`), directories: `cmd/trader`,
+- [x] `go.mod` (`github.com/olegsidorkin/moex-trader`), directories: `cmd/trader`,
       `internal/{config,domain,storage,ingestion,features,llm,risk,executor,audit,orchestrator}`
-- [ ] `internal/config`: load YAML (or env) config — ticker list (port the 19
+- [x] `internal/config`: load YAML (or env) config — ticker list (port the 19
       instruments from finanalys `config.py`), Ollama host/model (default
       `192.168.88.193:11434`, `qwen3.8`), MOEX ISS base URL, SQLite path, poll interval,
       `is_paper_trading` flag
-- [ ] `config.example.yaml` committed; real `config.yaml`/`.env` gitignored
-- [ ] write tests for config loading (valid file, missing file, malformed YAML,
+- [x] `config.example.yaml` committed; real `config.yaml`/`.env` gitignored
+- [x] write tests for config loading (valid file, missing file, malformed YAML,
       missing required field)
-- [ ] run tests — must pass before task 2
+- [x] run tests — must pass before task 2
 
 ### Task 2: Domain types
 - [ ] `internal/domain`: `FeatureContext`, `TradeSignal` (Action enum
