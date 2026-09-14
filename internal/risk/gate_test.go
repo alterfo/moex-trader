@@ -59,6 +59,16 @@ type fakeKillSwitchStore struct {
 	err    error
 }
 
+type fakeKillSwitchAlerter struct {
+	reasons []string
+	err     error
+}
+
+func (f *fakeKillSwitchAlerter) KillSwitchTriggered(ctx context.Context, reason string) error {
+	f.reasons = append(f.reasons, reason)
+	return f.err
+}
+
 func (f *fakeKillSwitchStore) IsKillSwitchActive(ctx context.Context) (bool, error) {
 	f.calls++
 	return f.active, f.err
@@ -115,7 +125,8 @@ func TestHardenedGateApprove(t *testing.T) {
 	}{
 		{name: "valid signal", want: true},
 		{name: "empty ticker", mutate: func(r *Request) { r.Signal.Ticker = " " }, wantErr: "ticker must not be empty"},
-		{name: "negative lots", mutate: func(r *Request) { r.Signal.TargetLots = -1 }, wantErr: "target lots must be non-negative"},
+		{name: "negative lots", mutate: func(r *Request) { r.Signal.TargetLots = -1 }, wantErr: "target lots must be positive for BUY/SELL"},
+		{name: "zero lots buy", mutate: func(r *Request) { r.Signal.TargetLots = 0 }, wantErr: "target lots must be positive for BUY/SELL"},
 		{name: "one lot at max", want: true},
 		{name: "two lots above max", mutate: func(r *Request) { r.Signal.TargetLots = 2 }, want: false},
 		{name: "zero lots hold", mutate: func(r *Request) {
@@ -219,17 +230,26 @@ func TestHardenedGateFatFingerBoundary(t *testing.T) {
 	}
 }
 
-func TestHardenedGateFatFingerSkipsMissingQuote(t *testing.T) {
+func TestHardenedGateFatFingerUsesPrevCloseFallback(t *testing.T) {
 	gate := newTestGate(t)
-	request := testRequest()
-	request.Market = Market{OrderPrice: decimal.NewFromInt(100)}
 
+	request := testRequest()
+	request.Market = Market{OrderPrice: decimal.NewFromInt(105), PrevClose: decimal.NewFromInt(100)}
 	approved, err := gate.Approve(context.Background(), request)
 	if err != nil {
 		t.Fatalf("Approve() error = %v", err)
 	}
+	if approved {
+		t.Fatal("expected rejection when order price is 5% above prev close")
+	}
+
+	request.Market = Market{OrderPrice: decimal.NewFromInt(100)}
+	approved, err = gate.Approve(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Approve() error = %v", err)
+	}
 	if !approved {
-		t.Fatal("expected approval when no bid/ask quote is available")
+		t.Fatal("expected approval when no quote reference is available")
 	}
 }
 
@@ -420,6 +440,30 @@ func TestHardenedGatePersistsAndReadsKillSwitch(t *testing.T) {
 	}
 	if store.calls < 1 {
 		t.Fatalf("expected gate to read persisted kill switch state")
+	}
+}
+
+func TestHardenedGateAlertsOnKillSwitch(t *testing.T) {
+	alerter := &fakeKillSwitchAlerter{}
+	cfg := DefaultConfig()
+	cfg.Alerter = alerter
+	gate, err := NewHardenedGate(cfg)
+	if err != nil {
+		t.Fatalf("NewHardenedGate() error = %v", err)
+	}
+
+	request := testRequest()
+	request.Account = Account{
+		Deposit:        decimal.RequireFromString("1000"),
+		DayStartEquity: decimal.RequireFromString("969"),
+		CurrentEquity:  decimal.RequireFromString("969"),
+	}
+
+	if _, err := gate.Approve(context.Background(), request); err != nil {
+		t.Fatalf("Approve() error = %v", err)
+	}
+	if len(alerter.reasons) != 1 || alerter.reasons[0] != "drawdown limit exceeded" {
+		t.Fatalf("alerter reasons = %v, want drawdown limit exceeded", alerter.reasons)
 	}
 }
 

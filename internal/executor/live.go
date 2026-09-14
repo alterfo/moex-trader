@@ -22,19 +22,9 @@ type OrderPoster interface {
 	PostOrder(ctx context.Context, request *pb.PostOrderRequest) (*pb.PostOrderResponse, error)
 }
 
-type TinkoffOrderPoster struct {
-	client pb.OrdersServiceClient
-}
-
-func NewTinkoffOrderPoster(client pb.OrdersServiceClient) *TinkoffOrderPoster {
-	return &TinkoffOrderPoster{client: client}
-}
-
-func (p *TinkoffOrderPoster) PostOrder(ctx context.Context, request *pb.PostOrderRequest) (*pb.PostOrderResponse, error) {
-	if p == nil || p.client == nil {
-		return nil, fmt.Errorf("live executor: tinkoff orders client is nil")
-	}
-	return p.client.PostOrder(ctx, request)
+type orderResult struct {
+	fill Fill
+	err  error
 }
 
 type InstrumentIDResolver func(ticker string) (string, error)
@@ -55,8 +45,9 @@ type LiveExecutor struct {
 	store     *storage.Store
 	now       func() time.Time
 
-	mu   sync.Mutex
-	sent map[string]Fill
+	mu      sync.Mutex
+	sent    map[string]Fill
+	pending map[string]chan orderResult
 }
 
 func NewLiveExecutor(orders OrderPoster, cfg LiveConfig) (*LiveExecutor, error) {
@@ -89,6 +80,7 @@ func NewLiveExecutor(orders OrderPoster, cfg LiveConfig) (*LiveExecutor, error) 
 		store:     cfg.Store,
 		now:       now,
 		sent:      make(map[string]Fill),
+		pending:   make(map[string]chan orderResult),
 	}, nil
 }
 
@@ -145,8 +137,32 @@ func (l *LiveExecutor) ExecuteWithOrderID(ctx context.Context, signal domain.Tra
 		l.mu.Unlock()
 		return fill, nil
 	}
+	if pending, ok := l.pending[orderID]; ok {
+		l.mu.Unlock()
+		select {
+		case result := <-pending:
+			return result.fill, result.err
+		case <-ctx.Done():
+			return Fill{}, ctx.Err()
+		}
+	}
+	pending := make(chan orderResult, 1)
+	l.pending[orderID] = pending
 	l.mu.Unlock()
 
+	fill, err := l.placeOrder(ctx, signal, price, orderID)
+	l.mu.Lock()
+	if err == nil {
+		l.sent[orderID] = fill
+	}
+	delete(l.pending, orderID)
+	l.mu.Unlock()
+	pending <- orderResult{fill: fill, err: err}
+	close(pending)
+	return fill, err
+}
+
+func (l *LiveExecutor) placeOrder(ctx context.Context, signal domain.TradeSignal, price decimal.Decimal, orderID string) (Fill, error) {
 	instrumentID, err := l.resolve(signal.Ticker)
 	if err != nil {
 		return Fill{}, fmt.Errorf("live executor: resolve instrument id for %q: %w", signal.Ticker, err)
@@ -176,21 +192,14 @@ func (l *LiveExecutor) ExecuteWithOrderID(ctx context.Context, signal domain.Tra
 		ID:         orderID,
 		Ticker:     signal.Ticker,
 		Action:     signal.Action,
-		Lots:       signal.TargetLots,
+		Lots:       int(response.GetLotsExecuted()),
 		Price:      price,
 		ExecutedAt: l.now(),
-	}
-	if executedLots := response.GetLotsExecuted(); executedLots > 0 {
-		fill.Lots = int(executedLots)
 	}
 
 	if err := l.record(ctx, fill); err != nil {
 		return Fill{}, err
 	}
-
-	l.mu.Lock()
-	l.sent[orderID] = fill
-	l.mu.Unlock()
 
 	return fill, nil
 }

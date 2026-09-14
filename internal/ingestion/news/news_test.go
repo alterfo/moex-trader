@@ -80,6 +80,38 @@ func TestFetchValidRSS(t *testing.T) {
 	}
 }
 
+func TestFetchSkipsMalformedPubDateItem(t *testing.T) {
+	body := `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <item>
+      <title>Broken date item</title>
+      <link>https://example.com/broken</link>
+      <pubDate>not-a-real-date</pubDate>
+    </item>
+    <item>
+      <title>Valid date item</title>
+      <link>https://example.com/valid</link>
+      <pubDate>Mon, 09 Jan 2024 10:00:00 +0300</pubDate>
+    </item>
+  </channel>
+</rss>`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/rss+xml")
+		fmt.Fprint(w, body)
+	}))
+	defer server.Close()
+
+	fetcher := NewFetcher(nil)
+	articles, err := fetcher.Fetch(context.Background(), Source{Name: "test", URL: server.URL})
+	if err != nil {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+	if len(articles) != 1 || articles[0].Title != "Valid date item" {
+		t.Fatalf("articles = %+v, want only the valid-date item", articles)
+	}
+}
+
 func TestFetchHTTPError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "gone", http.StatusGone)

@@ -27,6 +27,10 @@ type Ingestor interface {
 	Ingest(ctx context.Context, ticker string) (features.Input, error)
 }
 
+type CycleResetter interface {
+	ResetCycle()
+}
+
 type SignalSource interface {
 	Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error)
 }
@@ -145,6 +149,9 @@ func (o *Orchestrator) Run(ctx context.Context) {
 }
 
 func (o *Orchestrator) RunOnce(ctx context.Context) {
+	if resetter, ok := o.ingestor.(CycleResetter); ok {
+		resetter.ResetCycle()
+	}
 	for _, ticker := range o.tickers {
 		if ctx.Err() != nil {
 			return
@@ -205,6 +212,7 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string) error {
 			OrderPrice: feature.LastPrice,
 			Bid:        feature.Bid,
 			Ask:        feature.Ask,
+			PrevClose:  feature.PrevClose,
 		},
 		Account: o.account,
 	})

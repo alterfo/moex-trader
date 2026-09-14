@@ -176,7 +176,13 @@ func TestPaperExecutorRejectsInvalidInputs(t *testing.T) {
 			name:    "negative lots",
 			signal:  func() domain.TradeSignal { s := valid; s.TargetLots = -1; return s }(),
 			price:   decimal.NewFromFloat(100),
-			wantErr: "target lots must be non-negative",
+			wantErr: "target lots must be positive for BUY/SELL",
+		},
+		{
+			name:    "zero lots buy",
+			signal:  func() domain.TradeSignal { s := valid; s.TargetLots = 0; return s }(),
+			price:   decimal.NewFromFloat(100),
+			wantErr: "target lots must be positive for BUY/SELL",
 		},
 		{
 			name:    "zero price",

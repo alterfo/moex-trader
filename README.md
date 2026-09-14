@@ -16,8 +16,8 @@ internal bus for later process splitting, not a requirement for the system to wo
   order-book imbalance
 - Structured Ollama LLM decisions (`BUY` / `SELL` / `HOLD`) with strict JSON output
   and bounded retry
-- Hardened risk gate: max position size, daily loss limit, fat-finger price check, and
-  drawdown kill switch
+- Hardened risk gate: max position size, fat-finger price check, and persisted kill
+  switch; daily-loss and drawdown limits require a live account snapshot (not wired yet)
 - Paper executor and an idempotent Tinkoff live executor using UUID v4 order IDs
 - Full audit trail in SQLite
 - Prometheus metrics, optional Telegram alerting, and an hourly verifier report
@@ -40,8 +40,8 @@ go run ./cmd/trader -config config.yaml
 ```
 
 The trader starts an orchestration loop immediately, then repeats on
-`poll_interval` (default `5m`). It also serves Prometheus metrics on
-`http://localhost:9090/metrics` by default; override with `-metrics-addr`.
+`poll_interval` (default `5m`). It also serves Prometheus metrics on port `9090`
+(`-metrics-addr`, default `:9090`), reachable at `http://localhost:9090/metrics`.
 
 Stop it with `Ctrl+C` (SIGINT/SIGTERM).
 
@@ -82,6 +82,7 @@ after the YAML is parsed:
 | `ollama.timeout` | `MOEX_TRADER_OLLAMA_TIMEOUT` |
 | `moex_iss_base_url` | `MOEX_TRADER_MOEX_ISS_URL` |
 | `storage.path` | `MOEX_TRADER_STORAGE_PATH` |
+| `risk.max_lots` | `MOEX_TRADER_RISK_MAX_LOTS` |
 | `poll_interval` | `MOEX_TRADER_POLL_INTERVAL` |
 | `is_paper_trading` | `MOEX_TRADER_IS_PAPER_TRADING` |
 | `telegram.bot_token` | `MOEX_TRADER_TELEGRAM_BOT_TOKEN` |
@@ -91,22 +92,20 @@ after the YAML is parsed:
 
 Paper mode is the default (`is_paper_trading: true`). In paper mode, signals are
 recorded as virtual fills in SQLite by `PaperExecutor`; no external order is sent.
+Account-based risk limits (daily loss and drawdown kill switch) are disabled because
+there is no live account snapshot source; the max-lot and fat-finger checks still apply.
 
-To trade live micro-lots:
-
-1. Obtain a Tinkoff Invest API token and provide it through the live-executor wiring.
-2. Set `is_paper_trading: false` in config or via
-   `MOEX_TRADER_IS_PAPER_TRADING=false`.
-3. Start with one lot, keep the hardened risk gate enabled, and follow the go-live
-   checklist in `docs/GO_LIVE_CHECKLIST.md`.
-
-The current `cmd/trader` entrypoint wires `PaperExecutor` by default. Live order
-placement is implemented in `internal/executor/live.go` and must be connected to the
-Tinkoff credentials before enabling real money.
+Live order placement is implemented in `internal/executor/live.go`, but the current
+`cmd/trader` entrypoint has no Tinkoff orders/account wiring. It therefore refuses to
+start when `is_paper_trading: false` (or `MOEX_TRADER_IS_PAPER_TRADING=false`) rather
+than running with silently bypassed live protections. Connect the Tinkoff credentials,
+account snapshot, and order canceller before enabling real money, then follow
+`docs/GO_LIVE_CHECKLIST.md`.
 
 ## Commands
 
-- `cmd/trader` — runs the full ingest → features → LLM → risk → executor loop
+- `cmd/trader` — runs the full ingest → features → LLM → risk → executor loop; use
+  `-reset-kill-switch` to clear a persisted kill switch and exit
 - `cmd/llmbench` — sends sample feature contexts to Ollama and reports success rate
   and latency percentiles
 - `cmd/verifier` — reads audit events and produces a markdown report correlating
@@ -135,7 +134,6 @@ internal/
   risk/       risk gate and kill switch
   executor/   paper and live (Tinkoff) executors
   storage/    SQLite store with WAL and audit/signal persistence
-  audit/      audit event helpers (implemented through storage)
   orchestrator/ cycle loop and signal source adapters
   bus/        optional Redis Streams signal bus
   metrics/    Prometheus metrics
@@ -152,7 +150,8 @@ internal/
 3. LLM — `internal/llm.DecisionEngine` sends the feature context to Ollama with a
    strict-JSON prompt, retries on parse failure, and falls back to `HOLD`.
 4. Risk gate — `internal/risk.Gate` validates the signal and rejects it if it exceeds
-   position, daily-loss, fat-finger, or drawdown limits.
+   the max position or fat-finger limits; with a live account snapshot it also enforces
+   daily-loss and drawdown limits and trips the kill switch.
 5. Executor — `internal/executor` either records a paper fill or sends a real Tinkoff
    order.
 6. Audit — every stage is written to `audit_events` in SQLite for the verifier and

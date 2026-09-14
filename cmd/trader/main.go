@@ -34,8 +34,10 @@ func main() {
 func run() error {
 	var configPath string
 	var metricsAddr string
+	var resetKillSwitch bool
 	flag.StringVar(&configPath, "config", "config.yaml", "path to config YAML")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":9090", "address for Prometheus /metrics endpoint")
+	flag.BoolVar(&resetKillSwitch, "reset-kill-switch", false, "reset persisted kill switch and exit")
 	flag.Parse()
 
 	cfg, err := config.Load(configPath)
@@ -53,19 +55,37 @@ func run() error {
 		}
 	}()
 
+	if resetKillSwitch {
+		if err := store.SetKillSwitchActive(context.Background(), false); err != nil {
+			return fmt.Errorf("reset kill switch: %w", err)
+		}
+		log.Printf("kill switch reset")
+		return nil
+	}
+
+	if !cfg.IsPaperTrading {
+		return fmt.Errorf("live trading mode is not wired: set is_paper_trading: true or MOEX_TRADER_IS_PAPER_TRADING=true")
+	}
+
 	moexClient := moex.NewClient(cfg.MOEXISSBaseURL, nil)
 	fetcher := news.NewFetcher(nil)
 	matcher := news.NewMatcher(news.DefaultAliases())
 	ingestor := orchestrator.NewMOEXIngestor(moexClient, fetcher, matcher, news.DefaultSources())
 
-	gate, err := risk.NewLotLimitGate(cfg.Risk.MaxLots)
+	telegramClient := telegram.New(cfg.Telegram.BotToken, cfg.Telegram.ChatID, nil)
+
+	riskConfig := risk.DefaultConfig()
+	riskConfig.MaxLots = cfg.Risk.MaxLots
+	riskConfig.Store = store
+	riskConfig.Alerter = telegramClient
+	gate, err := risk.NewHardenedGate(riskConfig)
 	if err != nil {
 		return fmt.Errorf("create risk gate: %w", err)
 	}
 
 	llmClient := llm.New(cfg.Ollama.Host, cfg.Ollama.Model, cfg.Ollama.Timeout.Std())
 	decisionEngine := llm.NewDecisionEngine(llmClient, llm.NewPromptBuilder(), store, time.Now)
-	decisionEngine.SetAlerter(telegram.New(cfg.Telegram.BotToken, cfg.Telegram.ChatID, nil))
+	decisionEngine.SetAlerter(telegramClient)
 	signalSource := orchestrator.NewLLMSignalSource(decisionEngine, cfg.Ollama.Timeout.Std(), log.Default())
 	appMetrics := metrics.New()
 
@@ -95,6 +115,7 @@ func run() error {
 		Audit:        store,
 		PollInterval: cfg.PollInterval.Std(),
 		Metrics:      appMetrics,
+		KillSwitch:   store,
 	})
 	if err != nil {
 		return fmt.Errorf("create orchestrator: %w", err)
@@ -104,6 +125,7 @@ func run() error {
 	defer stop()
 
 	log.Printf("starting trader: tickers=%d paper=%v poll_interval=%s", len(cfg.Tickers), cfg.IsPaperTrading, cfg.PollInterval.Std())
+	log.Printf("paper trading mode: account-based risk limits are disabled; max-lot and fat-finger checks still apply")
 	orch.Run(ctx)
 	log.Printf("trader stopped")
 	return nil

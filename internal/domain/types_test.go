@@ -32,6 +32,8 @@ func TestTradeSignalValidate(t *testing.T) {
 		{name: "unknown action", mutate: func(s *TradeSignal) { s.Action = Action("HODL") }, wantErr: "action must be one of BUY, SELL, HOLD"},
 		{name: "negative confidence", mutate: func(s *TradeSignal) { s.Confidence = decimal.NewFromFloat(-0.01) }, wantErr: "confidence must be in [0,1]"},
 		{name: "confidence above one", mutate: func(s *TradeSignal) { s.Confidence = decimal.NewFromFloat(1.01) }, wantErr: "confidence must be in [0,1]"},
+		{name: "zero lots buy", mutate: func(s *TradeSignal) { s.TargetLots = 0 }, wantErr: "target lots must be positive for BUY/SELL"},
+		{name: "negative lots sell", mutate: func(s *TradeSignal) { s.Action = ActionSell; s.TargetLots = -1 }, wantErr: "target lots must be positive for BUY/SELL"},
 	}
 
 	for _, tt := range tests {

@@ -271,6 +271,29 @@ func TestRunSkipsMalformedPayloads(t *testing.T) {
 	}
 }
 
+func TestRunSkipsNonTradeSignalPayloads(t *testing.T) {
+	base := time.Date(2026, 9, 14, 12, 0, 0, 0, time.UTC)
+	now := base.Add(6 * time.Second)
+
+	events := []domain.AuditEvent{
+		{ID: "llm-error", Ticker: "SBER", Stage: stageSignal, Payload: `{"error":"timeout","attempts":3,"fallback":"HOLD","target_lots":0}`, CreatedAt: base},
+		signalEvent("sig", "SBER", domain.ActionBuy, "0.6", "buy", base.Add(time.Second)),
+		fillEvent("buy", "SBER", domain.ActionBuy, 1, "100", base.Add(2*time.Second)),
+		fillEvent("sell", "SBER", domain.ActionSell, 1, "90", base.Add(3*time.Second)),
+	}
+
+	report, err := New(fakeEvents{events: events}, func() time.Time { return now }).Run(context.Background(), base)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if report.ClosedTrades != 1 || report.LosingTrades != 1 {
+		t.Fatalf("report = %+v, want one losing trade", report)
+	}
+	if report.Trades[0].Signal == nil || report.Trades[0].Signal.Action != domain.ActionBuy {
+		t.Fatalf("Signal = %+v, want the valid BUY signal, not the LLM error payload", report.Trades[0].Signal)
+	}
+}
+
 func TestRunWithStorageIntegration(t *testing.T) {
 	store, err := storage.Open(filepath.Join(t.TempDir(), "trader.db"))
 	if err != nil {

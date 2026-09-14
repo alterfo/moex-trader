@@ -70,7 +70,7 @@ func parseRSS(data []byte, source Source) ([]Article, error) {
 	for _, item := range feed.Channel.Items {
 		publishedAt, err := parseRSSDate(item.PubDate)
 		if err != nil {
-			return nil, fmt.Errorf("parse RSS date %q from %q: %w", item.PubDate, source.URL, err)
+			continue
 		}
 		articles = append(articles, Article{
 			Title:       strings.TrimSpace(item.Title),

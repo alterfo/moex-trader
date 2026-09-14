@@ -119,11 +119,6 @@ func quotationFromString(value string) *pb.Quotation {
 	return &pb.Quotation{Units: units, Nano: int32(nano)}
 }
 
-func decimalToQuotation(t *testing.T, value string) *pb.Quotation {
-	t.Helper()
-	return quotationFromString(value)
-}
-
 func requireDecimal(t *testing.T, got decimal.Decimal, want string) {
 	t.Helper()
 	wantDecimal, err := decimal.NewFromString(want)
@@ -166,7 +161,7 @@ func TestLastPriceSuccess(t *testing.T) {
 				LastPrices: []*pb.LastPrice{
 					{
 						InstrumentUid: "SBER",
-						Price:         decimalToQuotation(t, "123.45"),
+						Price:         quotationFromString("123.45"),
 						Time:          timestamppb.New(time.Unix(1700000000, 0)),
 					},
 				},
@@ -213,7 +208,7 @@ func TestAuthMetadataIsSent(t *testing.T) {
 				return nil, status.Error(codes.Unauthenticated, "missing bearer token")
 			}
 			return &pb.GetLastPricesResponse{
-				LastPrices: []*pb.LastPrice{{Price: decimalToQuotation(t, "42.5"), Time: timestamppb.Now()}},
+				LastPrices: []*pb.LastPrice{{Price: quotationFromString("42.5"), Time: timestamppb.Now()}},
 			}, nil
 		},
 	})
@@ -341,6 +336,22 @@ func TestStreamLastPricesReconnectsAfterDisconnect(t *testing.T) {
 	server.mu.Unlock()
 	if calls < 2 {
 		t.Fatalf("server calls = %d, want at least 2", calls)
+	}
+}
+
+func TestNextStreamBackoffCapsAtMax(t *testing.T) {
+	tests := []struct {
+		current time.Duration
+		want    time.Duration
+	}{
+		{current: 100 * time.Millisecond, want: 200 * time.Millisecond},
+		{current: 500 * time.Millisecond, want: time.Second},
+		{current: time.Second, want: time.Second},
+	}
+	for _, tt := range tests {
+		if got := nextStreamBackoff(tt.current); got != tt.want {
+			t.Fatalf("nextStreamBackoff(%s) = %s, want %s", tt.current, got, tt.want)
+		}
 	}
 }
 

@@ -19,6 +19,9 @@ func clearEnv(t *testing.T) {
 		"MOEX_TRADER_POLL_INTERVAL",
 		"MOEX_TRADER_IS_PAPER_TRADING",
 		"MOEX_TRADER_TICKERS",
+		"MOEX_TRADER_RISK_MAX_LOTS",
+		"MOEX_TRADER_TELEGRAM_BOT_TOKEN",
+		"MOEX_TRADER_TELEGRAM_CHAT_ID",
 	} {
 		t.Setenv(key, "")
 	}
@@ -210,6 +213,19 @@ func TestEnvOverrides(t *testing.T) {
 		if cfg.Tickers[i] != want[i] {
 			t.Fatalf("unexpected ticker at %d: %q", i, cfg.Tickers[i])
 		}
+	}
+}
+
+func TestRiskMaxLotsEnvOverride(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("MOEX_TRADER_RISK_MAX_LOTS", "7")
+
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if cfg.Risk.MaxLots != 7 {
+		t.Fatalf("Risk.MaxLots = %d, want 7", cfg.Risk.MaxLots)
 	}
 }
 

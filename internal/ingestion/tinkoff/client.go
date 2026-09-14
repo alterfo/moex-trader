@@ -266,10 +266,16 @@ func (c *Client) runLastPriceStream(ctx context.Context, instrumentID string, qu
 			return
 		case <-time.After(backoff):
 		}
-		if backoff < streamMaxBackoff {
-			backoff *= 2
-		}
+		backoff = nextStreamBackoff(backoff)
 	}
+}
+
+func nextStreamBackoff(current time.Duration) time.Duration {
+	next := current * 2
+	if next > streamMaxBackoff {
+		return streamMaxBackoff
+	}
+	return next
 }
 
 func (c *Client) consumeLastPriceStream(ctx context.Context, instrumentID string, quotes chan<- Quote) error {

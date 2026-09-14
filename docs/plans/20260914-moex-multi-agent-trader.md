@@ -21,7 +21,7 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 ## Context (from discovery)
 
 - Sibling project `finanalys` (`~/dev/fin/finanalys`) is a Python MOEX news-sentiment
-  tool. Not reused as code — only its 19-instrument ticker list (`config.py`
+  tool. Not reused as code — only its 21-instrument ticker list (`config.py`
   `INSTRUMENTS`) and RSS news-source list are ported as a starting point.
 - Ollama runs on aibox at `192.168.88.193:11434` (RTX 4090, shared GPU — check
   `nvidia-smi` free VRAM before assuming headroom). Never run `ollama serve` locally.
@@ -75,7 +75,7 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 ### Task 1: Project skeleton and config
 - [x] `go.mod` (`github.com/olegsidorkin/moex-trader`), directories: `cmd/trader`,
       `internal/{config,domain,storage,ingestion,features,llm,risk,executor,audit,orchestrator}`
-- [x] `internal/config`: load YAML (or env) config — ticker list (port the 19
+- [x] `internal/config`: load YAML (or env) config — ticker list (port the 21
       instruments from finanalys `config.py`), Ollama host/model (default
       `192.168.88.193:11434`, `qwen3.8`), MOEX ISS base URL, SQLite path, poll interval,
       `is_paper_trading` flag
@@ -209,6 +209,8 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
       on Kill Switch trigger; bot token/chat ID from config/env
 - [x] write tests with a mocked Telegram Bot API endpoint (success, API error, missing
       config → no-op instead of crash)
+- [x] wire the Telegram client into both `llm.DecisionEngine` and the risk-gate kill
+      switch trigger in `cmd/trader`
 - [x] run tests — must pass before task 17
 
 ### Phase 4: Live Micro-Lot Trading
@@ -235,9 +237,13 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
       signals until manually reset
 - [x] wrap every Ollama call with a 10s `context.WithTimeout`; on timeout, skip the
       cycle for that ticker instead of blocking the loop
+- [x] wire a store-backed `risk.HardenedGate`, orchestrator `KillSwitch` state, and a
+      `cmd/trader -reset-kill-switch` reset path into the running entrypoint
 - [x] write tests: simulated >3% drawdown trips the kill switch and blocks the next
       cycle; simulated LLM timeout skips the cycle without hanging or crashing
 - [x] run tests — must pass before task 20
+- ⚠️ live account snapshot and order cancellation are not wired yet; `cmd/trader`
+      rejects `is_paper_trading: false` instead of silently bypassing live protections
 
 ### Task 20: Verifier agent
 - [x] `cmd/verifier` (or `internal/verifier`): hourly job reading `AuditEvent` history,

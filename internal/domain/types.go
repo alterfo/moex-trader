@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -49,16 +50,19 @@ type TradeSignal struct {
 
 func (s TradeSignal) Validate() error {
 	if strings.TrimSpace(s.Ticker) == "" {
-		return NewValidationError("ticker must not be empty")
+		return fmt.Errorf("ticker must not be empty")
 	}
 	if !s.Action.IsValid() {
-		return NewValidationError("action must be one of BUY, SELL, HOLD")
+		return fmt.Errorf("action must be one of BUY, SELL, HOLD")
 	}
 	if s.Confidence.LessThan(decimal.Zero) {
-		return NewValidationError("confidence must be in [0,1]")
+		return fmt.Errorf("confidence must be in [0,1]")
 	}
 	if s.Confidence.GreaterThan(decimal.NewFromInt(1)) {
-		return NewValidationError("confidence must be in [0,1]")
+		return fmt.Errorf("confidence must be in [0,1]")
+	}
+	if (s.Action == ActionBuy || s.Action == ActionSell) && s.TargetLots <= 0 {
+		return fmt.Errorf("target lots must be positive for BUY/SELL")
 	}
 	return nil
 }

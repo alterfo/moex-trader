@@ -156,6 +156,13 @@ func applyEnv(cfg *Config) error {
 	if v := os.Getenv("MOEX_TRADER_TICKERS"); v != "" {
 		cfg.Tickers = splitComma(v)
 	}
+	if v := os.Getenv("MOEX_TRADER_RISK_MAX_LOTS"); v != "" {
+		maxLots, err := strconv.Atoi(v)
+		if err != nil {
+			return fmt.Errorf("parse MOEX_TRADER_RISK_MAX_LOTS: %w", err)
+		}
+		cfg.Risk.MaxLots = maxLots
+	}
 	if v := os.Getenv("MOEX_TRADER_TELEGRAM_BOT_TOKEN"); v != "" {
 		cfg.Telegram.BotToken = v
 	}

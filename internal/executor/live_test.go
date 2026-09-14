@@ -66,8 +66,9 @@ func TestLiveExecutorPlacesOrder(t *testing.T) {
 		responses: []*pb.PostOrderResponse{
 			{
 				OrderId:               "broker-order-1",
-				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_NEW,
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL,
 				LotsRequested:         1,
+				LotsExecuted:          1,
 			},
 		},
 	}
@@ -143,8 +144,9 @@ func TestLiveExecutorDuplicateOrderIDIsIdempotent(t *testing.T) {
 		responses: []*pb.PostOrderResponse{
 			{
 				OrderId:               "broker-order-1",
-				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_NEW,
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL,
 				LotsRequested:         1,
+				LotsExecuted:          1,
 			},
 			{
 				OrderId:               "broker-order-1",
@@ -182,6 +184,40 @@ func TestLiveExecutorDuplicateOrderIDIsIdempotent(t *testing.T) {
 	}
 	if len(events) != 1 {
 		t.Fatalf("audit events = %d, want 1 (no double record)", len(events))
+	}
+}
+
+func TestLiveExecutorNewOrderRecordsZeroLots(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	poster := &fakeOrderPoster{
+		responses: []*pb.PostOrderResponse{
+			{
+				OrderId:               "broker-order-new",
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_NEW,
+				LotsRequested:         1,
+			},
+		},
+	}
+	exec := newLiveExecutorForTest(t, poster, now)
+	orderID := uuid.NewString()
+
+	fill, err := exec.ExecuteWithOrderID(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5), orderID)
+	if err != nil {
+		t.Fatalf("ExecuteWithOrderID() error = %v", err)
+	}
+	if fill.Lots != 0 {
+		t.Fatalf("fill.Lots = %d, want 0 for a NEW order with no executions", fill.Lots)
+	}
+
+	duplicate, err := exec.ExecuteWithOrderID(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5), orderID)
+	if err != nil {
+		t.Fatalf("duplicate ExecuteWithOrderID() error = %v", err)
+	}
+	if duplicate.Lots != 0 {
+		t.Fatalf("duplicate fill.Lots = %d, want cached 0", duplicate.Lots)
+	}
+	if len(poster.calls) != 1 {
+		t.Fatalf("PostOrder calls = %d, want 1", len(poster.calls))
 	}
 }
 

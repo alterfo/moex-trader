@@ -45,6 +45,12 @@ type Candle struct {
 	End    time.Time
 }
 
+type Quote struct {
+	Last decimal.Decimal
+	Bid  decimal.Decimal
+	Ask  decimal.Decimal
+}
+
 type issResponse struct {
 	Description issBlock `json:"description"`
 	Boards      issBlock `json:"boards"`
@@ -116,25 +122,49 @@ func (c *Client) Candles(ctx context.Context, sec Security, interval int, from, 
 	return candles, nil
 }
 
-func (c *Client) LastPrice(ctx context.Context, sec Security) (decimal.Decimal, error) {
+func (c *Client) Quote(ctx context.Context, sec Security) (Quote, error) {
+	var empty Quote
 	path := fmt.Sprintf("/engines/%s/markets/%s/securities/%s.json",
 		url.PathEscape(sec.Engine), url.PathEscape(sec.Market), url.PathEscape(sec.SecID))
 	resp, err := c.getJSON(ctx, path)
 	if err != nil {
-		return decimal.Zero, err
+		return empty, err
 	}
 	if len(resp.Marketdata.Data) == 0 {
-		return decimal.Zero, fmt.Errorf("moex last price for %q: no marketdata rows", sec.SecID)
+		return empty, fmt.Errorf("moex quote for %q: no marketdata rows", sec.SecID)
 	}
 	last := resp.Marketdata.firstString("LAST")
 	if last == "" {
-		return decimal.Zero, fmt.Errorf("moex last price for %q: no LAST column", sec.SecID)
+		return empty, fmt.Errorf("moex quote for %q: no LAST column", sec.SecID)
 	}
-	price, err := decimal.NewFromString(last)
+	lastPrice, err := decimal.NewFromString(last)
 	if err != nil {
-		return decimal.Zero, fmt.Errorf("parse moex last price %q: %w", last, err)
+		return empty, fmt.Errorf("parse moex last price %q: %w", last, err)
 	}
-	return price, nil
+	bid, err := optionalDecimal(resp.Marketdata.firstString("BID"))
+	if err != nil {
+		return empty, fmt.Errorf("parse moex bid for %q: %w", sec.SecID, err)
+	}
+	ask, err := optionalDecimal(resp.Marketdata.firstString("OFFER"))
+	if err != nil {
+		return empty, fmt.Errorf("parse moex offer for %q: %w", sec.SecID, err)
+	}
+	return Quote{Last: lastPrice, Bid: bid, Ask: ask}, nil
+}
+
+func (c *Client) LastPrice(ctx context.Context, sec Security) (decimal.Decimal, error) {
+	quote, err := c.Quote(ctx, sec)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	return quote.Last, nil
+}
+
+func optionalDecimal(raw string) (decimal.Decimal, error) {
+	if raw == "" {
+		return decimal.Zero, nil
+	}
+	return decimal.NewFromString(raw)
 }
 
 func (c *Client) getJSON(ctx context.Context, path string) (*issResponse, error) {

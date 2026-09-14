@@ -19,30 +19,38 @@ func TestChatValidResponse(t *testing.T) {
 		}
 		var req ChatRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			t.Fatalf("decode request: %v", err)
+			t.Errorf("decode request: %v", err)
+			return
 		}
 		if req.Model != "qwen3.8" {
-			t.Fatalf("model = %q, want qwen3.8", req.Model)
+			t.Errorf("model = %q, want qwen3.8", req.Model)
+			return
 		}
 		if req.Format != "json" {
-			t.Fatalf("format = %q, want json", req.Format)
+			t.Errorf("format = %q, want json", req.Format)
+			return
 		}
 		if len(req.Messages) != 2 {
-			t.Fatalf("messages = %d, want 2", len(req.Messages))
+			t.Errorf("messages = %d, want 2", len(req.Messages))
+			return
 		}
 		if req.Messages[0].Role != "system" || req.Messages[1].Role != "user" {
-			t.Fatalf("unexpected roles: %+v", req.Messages)
+			t.Errorf("unexpected roles: %+v", req.Messages)
+			return
 		}
 		schema, ok := req.Schema.(map[string]any)
 		if !ok {
-			t.Fatalf("schema not present as object: %T", req.Schema)
+			t.Errorf("schema not present as object: %T", req.Schema)
+			return
 		}
 		props, ok := schema["properties"].(map[string]any)
 		if !ok {
-			t.Fatalf("schema has no properties: %+v", schema)
+			t.Errorf("schema has no properties: %+v", schema)
+			return
 		}
 		if _, ok := props["action"]; !ok {
-			t.Fatalf("schema properties missing action: %+v", props)
+			t.Errorf("schema properties missing action: %+v", props)
+			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")

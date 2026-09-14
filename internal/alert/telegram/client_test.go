@@ -16,7 +16,8 @@ func TestSendSuccess(t *testing.T) {
 		gotPath = r.URL.Path
 		gotContentType = r.Header.Get("Content-Type")
 		if err := r.ParseForm(); err != nil {
-			t.Fatalf("ParseForm() error = %v", err)
+			t.Errorf("ParseForm() error = %v", err)
+			return
 		}
 		gotChatID = r.FormValue("chat_id")
 		gotText = r.FormValue("text")
@@ -112,7 +113,8 @@ func TestSemanticNotifications(t *testing.T) {
 	var messages []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
-			t.Fatalf("ParseForm() error = %v", err)
+			t.Errorf("ParseForm() error = %v", err)
+			return
 		}
 		messages = append(messages, r.FormValue("text"))
 		w.Header().Set("Content-Type", "application/json")

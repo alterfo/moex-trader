@@ -54,7 +54,8 @@ func TestCandles(t *testing.T) {
 			return
 		}
 		if r.URL.Query().Get("interval") != "24" {
-			t.Fatalf("unexpected interval %q", r.URL.Query().Get("interval"))
+			t.Errorf("unexpected interval %q", r.URL.Query().Get("interval"))
+			return
 		}
 		payload := map[string]any{
 			"candles": map[string]any{
@@ -115,6 +116,35 @@ func TestLastPrice(t *testing.T) {
 	}
 	if !price.Equal(decimal.NewFromFloat(272.25)) {
 		t.Fatalf("unexpected price %s", price)
+	}
+}
+
+func TestQuoteParsesBidAndOffer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		payload := map[string]any{
+			"marketdata": map[string]any{
+				"columns": []string{"SECID", "BOARDID", "LAST", "BID", "OFFER"},
+				"data":    [][]any{{"SBER", "TQBR", 272.25, 272.2, 272.3}},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(payload)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, nil)
+	quote, err := client.Quote(context.Background(), Security{SecID: "SBER", Engine: "stock", Market: "shares"})
+	if err != nil {
+		t.Fatalf("Quote() error = %v", err)
+	}
+	if !quote.Last.Equal(decimal.NewFromFloat(272.25)) {
+		t.Fatalf("quote.Last = %s, want 272.25", quote.Last)
+	}
+	if !quote.Bid.Equal(decimal.NewFromFloat(272.2)) {
+		t.Fatalf("quote.Bid = %s, want 272.2", quote.Bid)
+	}
+	if !quote.Ask.Equal(decimal.NewFromFloat(272.3)) {
+		t.Fatalf("quote.Ask = %s, want 272.3", quote.Ask)
 	}
 }
 

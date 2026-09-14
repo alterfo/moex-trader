@@ -3,7 +3,9 @@ package orchestrator
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -20,6 +22,11 @@ type MOEXIngestor struct {
 	sources        []news.Source
 	candleInterval int
 	candleLookback time.Duration
+	logger         *log.Logger
+
+	mu              sync.Mutex
+	newsCache       []news.Article
+	newsCacheFilled bool
 }
 
 func NewMOEXIngestor(moexClient *moex.Client, fetcher *news.Fetcher, matcher *news.Matcher, sources []news.Source) *MOEXIngestor {
@@ -33,6 +40,7 @@ func NewMOEXIngestor(moexClient *moex.Client, fetcher *news.Fetcher, matcher *ne
 		sources:        sources,
 		candleInterval: 24,
 		candleLookback: 10 * 24 * time.Hour,
+		logger:         log.Default(),
 	}
 }
 
@@ -42,9 +50,9 @@ func (i *MOEXIngestor) Ingest(ctx context.Context, ticker string) (features.Inpu
 	if err != nil {
 		return empty, fmt.Errorf("lookup security %s: %w", ticker, err)
 	}
-	lastPrice, err := i.moex.LastPrice(ctx, security)
+	quote, err := i.moex.Quote(ctx, security)
 	if err != nil {
-		return empty, fmt.Errorf("last price %s: %w", ticker, err)
+		return empty, fmt.Errorf("quote %s: %w", ticker, err)
 	}
 
 	now := time.Now()
@@ -53,19 +61,39 @@ func (i *MOEXIngestor) Ingest(ctx context.Context, ticker string) (features.Inpu
 		return empty, fmt.Errorf("candles %s: %w", ticker, err)
 	}
 
-	articles := i.fetchArticles(ctx)
+	articles := i.cycleArticles(ctx)
 	matches := i.matcher.Match(articles)
 
 	return features.Input{
 		Ticker: ticker,
 		Price: features.PriceSnapshot{
-			LastPrice: lastPrice,
+			LastPrice: quote.Last,
+			Bid:       quote.Bid,
+			Ask:       quote.Ask,
 			PrevClose: previousClose(candles, now),
 			AsOf:      now,
 		},
 		Candles: candles,
 		News:    filterMatches(matches, ticker),
 	}, nil
+}
+
+func (i *MOEXIngestor) ResetCycle() {
+	i.mu.Lock()
+	i.newsCacheFilled = false
+	i.newsCache = nil
+	i.mu.Unlock()
+}
+
+func (i *MOEXIngestor) cycleArticles(ctx context.Context) []news.Article {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.newsCacheFilled {
+		return i.newsCache
+	}
+	i.newsCache = i.fetchArticles(ctx)
+	i.newsCacheFilled = true
+	return i.newsCache
 }
 
 func (i *MOEXIngestor) fetchArticles(ctx context.Context) []news.Article {
@@ -76,6 +104,7 @@ func (i *MOEXIngestor) fetchArticles(ctx context.Context) []news.Article {
 		}
 		items, err := i.news.Fetch(ctx, source)
 		if err != nil {
+			i.logger.Printf("ingest: fetch news source %s: %v", source.Name, err)
 			continue
 		}
 		articles = append(articles, items...)

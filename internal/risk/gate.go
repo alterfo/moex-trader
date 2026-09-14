@@ -18,6 +18,7 @@ type Market struct {
 	OrderPrice decimal.Decimal
 	Bid        decimal.Decimal
 	Ask        decimal.Decimal
+	PrevClose  decimal.Decimal
 }
 
 type Account struct {
@@ -41,6 +42,10 @@ type KillSwitchStore interface {
 	SetKillSwitchActive(ctx context.Context, active bool) error
 }
 
+type KillSwitchAlerter interface {
+	KillSwitchTriggered(ctx context.Context, reason string) error
+}
+
 type Config struct {
 	MaxLots         int
 	MaxDailyLossPct decimal.Decimal
@@ -48,6 +53,7 @@ type Config struct {
 	MaxDrawdownPct  decimal.Decimal
 	Canceller       OrderCanceller
 	Store           KillSwitchStore
+	Alerter         KillSwitchAlerter
 }
 
 type HardenedGate struct {
@@ -57,6 +63,7 @@ type HardenedGate struct {
 	maxDrawdownPct  decimal.Decimal
 	canceller       OrderCanceller
 	store           KillSwitchStore
+	alerter         KillSwitchAlerter
 
 	mu         sync.RWMutex
 	killSwitch bool
@@ -91,6 +98,7 @@ func NewHardenedGate(cfg Config) (*HardenedGate, error) {
 		maxDrawdownPct:  cfg.MaxDrawdownPct,
 		canceller:       cfg.Canceller,
 		store:           cfg.Store,
+		alerter:         cfg.Alerter,
 	}, nil
 }
 
@@ -107,18 +115,21 @@ func (g *HardenedGate) Approve(ctx context.Context, request Request) (bool, erro
 	if request.Signal.TargetLots < 0 {
 		return false, fmt.Errorf("risk gate: target lots must be non-negative")
 	}
-
-	if g.exceedsDrawdown(request.Account) {
-		if err := g.triggerKillSwitch(ctx); err != nil {
-			return false, fmt.Errorf("risk gate: trigger kill switch: %w", err)
-		}
-		return false, nil
-	}
 	active, err := g.killSwitchActive(ctx)
 	if err != nil {
 		return false, fmt.Errorf("risk gate: read kill switch: %w", err)
 	}
 	if active {
+		return false, nil
+	}
+	if g.canceller != nil && (request.Signal.Action == domain.ActionBuy || request.Signal.Action == domain.ActionSell) && !g.hasAccountData(request.Account) {
+		return false, fmt.Errorf("risk gate: live trading requires account deposit and equity data")
+	}
+
+	if g.exceedsDrawdown(request.Account) {
+		if err := g.triggerKillSwitch(ctx, "drawdown limit exceeded"); err != nil {
+			return false, fmt.Errorf("risk gate: trigger kill switch: %w", err)
+		}
 		return false, nil
 	}
 	if request.Signal.TargetLots > g.maxLots {
@@ -140,21 +151,23 @@ func (g *HardenedGate) fatFingerOK(market Market) bool {
 		return false
 	}
 	if market.Bid.Sign() <= 0 && market.Ask.Sign() <= 0 {
-		return true
-	}
-	if market.Bid.Sign() > 0 {
-		deviation := market.OrderPrice.Sub(market.Bid).Abs().Div(market.Bid).Mul(decimal.NewFromInt(100))
-		if deviation.GreaterThan(g.fatFingerPct) {
-			return false
+		if market.PrevClose.Sign() <= 0 {
+			return true
 		}
+		return g.withinFatFingerBand(market.OrderPrice, market.PrevClose)
 	}
-	if market.Ask.Sign() > 0 {
-		deviation := market.OrderPrice.Sub(market.Ask).Abs().Div(market.Ask).Mul(decimal.NewFromInt(100))
-		if deviation.GreaterThan(g.fatFingerPct) {
-			return false
-		}
+	if market.Bid.Sign() > 0 && !g.withinFatFingerBand(market.OrderPrice, market.Bid) {
+		return false
+	}
+	if market.Ask.Sign() > 0 && !g.withinFatFingerBand(market.OrderPrice, market.Ask) {
+		return false
 	}
 	return true
+}
+
+func (g *HardenedGate) withinFatFingerBand(orderPrice, reference decimal.Decimal) bool {
+	deviation := orderPrice.Sub(reference).Abs().Div(reference).Mul(decimal.NewFromInt(100))
+	return !deviation.GreaterThan(g.fatFingerPct)
 }
 
 func (g *HardenedGate) exceedsDailyLoss(account Account) bool {
@@ -177,7 +190,7 @@ func (g *HardenedGate) exceedsDrawdown(account Account) bool {
 	return drawdown.GreaterThan(g.maxDrawdownPct)
 }
 
-func (g *HardenedGate) triggerKillSwitch(ctx context.Context) error {
+func (g *HardenedGate) triggerKillSwitch(ctx context.Context, reason string) error {
 	g.mu.Lock()
 	if g.killSwitch {
 		g.mu.Unlock()
@@ -186,6 +199,7 @@ func (g *HardenedGate) triggerKillSwitch(ctx context.Context) error {
 	g.killSwitch = true
 	canceller := g.canceller
 	store := g.store
+	alerter := g.alerter
 	g.mu.Unlock()
 
 	if store != nil {
@@ -193,10 +207,21 @@ func (g *HardenedGate) triggerKillSwitch(ctx context.Context) error {
 			return fmt.Errorf("risk gate: persist kill switch: %w", err)
 		}
 	}
-	if canceller == nil {
-		return nil
+	if canceller != nil {
+		if err := canceller.CancelOpenOrders(ctx); err != nil {
+			return fmt.Errorf("risk gate: cancel open orders: %w", err)
+		}
 	}
-	return canceller.CancelOpenOrders(ctx)
+	if alerter != nil {
+		if err := alerter.KillSwitchTriggered(ctx, reason); err != nil {
+			return fmt.Errorf("risk gate: alert kill switch: %w", err)
+		}
+	}
+	return nil
+}
+
+func (g *HardenedGate) hasAccountData(account Account) bool {
+	return account.Deposit.Sign() > 0 && account.DayStartEquity.Sign() > 0 && account.CurrentEquity.Sign() > 0
 }
 
 func (g *HardenedGate) killSwitchActive(ctx context.Context) (bool, error) {
@@ -218,7 +243,7 @@ func (g *HardenedGate) killSwitchActive(ctx context.Context) (bool, error) {
 }
 
 func (g *HardenedGate) TripKillSwitch(ctx context.Context) error {
-	return g.triggerKillSwitch(ctx)
+	return g.triggerKillSwitch(ctx, "manual trigger")
 }
 
 func (g *HardenedGate) ResetKillSwitch() {

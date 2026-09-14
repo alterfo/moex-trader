@@ -90,7 +90,7 @@ func (v *Verifier) Run(ctx context.Context, since time.Time) (*Report, error) {
 	}
 
 	now := v.now()
-	events, err := v.events.ListAuditEvents(ctx, time.Time{})
+	events, err := v.events.ListAuditEvents(ctx, since)
 	if err != nil {
 		return nil, fmt.Errorf("verifier: list audit events: %w", err)
 	}
@@ -144,6 +144,9 @@ func parseEvents(events []domain.AuditEvent) (map[string][]domain.TradeSignal, [
 			}
 			if strings.TrimSpace(signal.Ticker) == "" {
 				signal.Ticker = event.Ticker
+			}
+			if err := signal.Validate(); err != nil {
+				continue
 			}
 			signals[signal.Ticker] = append(signals[signal.Ticker], signal)
 		case stageExecutor:
