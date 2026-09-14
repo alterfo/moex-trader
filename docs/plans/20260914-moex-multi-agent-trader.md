@@ -257,9 +257,9 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] verify test coverage is reasonable for risk/executor/llm packages
 
 ### Task 22: [Final] Documentation
-- [ ] `README.md`: what the system does, how to configure and run it, how paper vs
+- [x] `README.md`: what the system does, how to configure and run it, how paper vs
       live mode is selected
-- [ ] document the package layout and the signal pipeline (ingest → features → LLM →
+- [x] document the package layout and the signal pipeline (ingest → features → LLM →
       risk gate → executor → audit)
 
 ## Technical Details
