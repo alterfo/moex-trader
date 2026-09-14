@@ -22,6 +22,7 @@ func clearEnv(t *testing.T) {
 		"MOEX_TRADER_STORAGE_PATH",
 		"MOEX_TRADER_POLL_INTERVAL",
 		"MOEX_TRADER_IS_PAPER_TRADING",
+		"MOEX_TRADER_BROKER",
 		"MOEX_TRADER_TICKERS",
 		"MOEX_TRADER_RISK_MAX_LOTS",
 		"MOEX_TRADER_TELEGRAM_BOT_TOKEN",
@@ -152,6 +153,9 @@ func TestDefaultsAppliedWhenFieldsOmitted(t *testing.T) {
 	}
 	if !cfg.IsPaperTrading {
 		t.Fatal("expected default is_paper_trading to be true")
+	}
+	if cfg.Broker != BrokerPaper {
+		t.Fatalf("unexpected default broker: %q", cfg.Broker)
 	}
 	if cfg.PollInterval.Std() != 5*time.Minute {
 		t.Fatalf("unexpected default poll interval: %s", cfg.PollInterval.Std())
@@ -387,5 +391,39 @@ func TestTelegramEnvOverrides(t *testing.T) {
 	}
 	if cfg.Telegram.ChatID != "env-chat" {
 		t.Fatalf("unexpected chat id: %q", cfg.Telegram.ChatID)
+	}
+}
+
+func TestBrokerLoadedAndValidated(t *testing.T) {
+	clearEnv(t)
+	for _, broker := range []string{BrokerPaper, BrokerTinkoff, BrokerFinam} {
+		cfg, err := Parse([]byte("storage:\n  path: ./trader.db\nbroker: \"" + broker + "\"\n"))
+		if err != nil {
+			t.Fatalf("Parse(%q) returned error: %v", broker, err)
+		}
+		if cfg.Broker != broker {
+			t.Fatalf("Broker = %q, want %q", cfg.Broker, broker)
+		}
+	}
+
+	_, err := Parse([]byte("storage:\n  path: ./trader.db\nbroker: alfa\n"))
+	if err == nil {
+		t.Fatal("expected error for unknown broker")
+	}
+	if !strings.Contains(err.Error(), "broker must be one of") {
+		t.Fatalf("expected broker validation error, got: %v", err)
+	}
+}
+
+func TestBrokerEnvOverride(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("MOEX_TRADER_BROKER", BrokerFinam)
+
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if cfg.Broker != BrokerFinam {
+		t.Fatalf("Broker = %q, want %q", cfg.Broker, BrokerFinam)
 	}
 }

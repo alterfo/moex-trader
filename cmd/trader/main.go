@@ -64,10 +64,6 @@ func run() error {
 		return nil
 	}
 
-	if !cfg.IsPaperTrading {
-		return fmt.Errorf("live trading mode is not wired: set is_paper_trading: true or MOEX_TRADER_IS_PAPER_TRADING=true")
-	}
-
 	moexClient := moex.NewClient(cfg.MOEXISSBaseURL, nil)
 	fetcher := news.NewFetcher(nil)
 	matcher := news.NewMatcher(news.DefaultAliases())
@@ -92,6 +88,11 @@ func run() error {
 	signalSource := orchestrator.NewLLMSignalSource(decisionEngine, cfg.Ollama.Timeout.Std(), log.Default())
 	appMetrics := metrics.New()
 
+	tradeExecutor, err := selectExecutor(cfg, store, time.Now)
+	if err != nil {
+		return err
+	}
+
 	metricsMux := http.NewServeMux()
 	metricsMux.Handle("/metrics", appMetrics.Handler())
 	metricsServer := &http.Server{Addr: metricsAddr, Handler: metricsMux}
@@ -114,7 +115,7 @@ func run() error {
 		Builder:      features.NewBuilder(time.Now),
 		Source:       signalSource,
 		Gate:         gate,
-		Executor:     executor.NewPaperExecutorWithCommission(store, time.Now, cfg.Commission.Rate),
+		Executor:     tradeExecutor,
 		Audit:        store,
 		PollInterval: cfg.PollInterval.Std(),
 		Metrics:      appMetrics,
@@ -127,9 +128,26 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	log.Printf("starting trader: tickers=%d paper=%v poll_interval=%s", len(cfg.Tickers), cfg.IsPaperTrading, cfg.PollInterval.Std())
+	log.Printf("starting trader: tickers=%d broker=%s paper=%v poll_interval=%s", len(cfg.Tickers), cfg.Broker, cfg.IsPaperTrading, cfg.PollInterval.Std())
 	log.Printf("paper trading mode: account-based risk limits are disabled; max-lot and fat-finger checks still apply")
 	orch.Run(ctx)
 	log.Printf("trader stopped")
 	return nil
+}
+
+func selectExecutor(cfg *config.Config, store *storage.Store, now func() time.Time) (executor.Executor, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("select executor: config is nil")
+	}
+	if !cfg.IsPaperTrading {
+		return nil, fmt.Errorf("live trading mode is not wired for broker %q: set broker: paper and is_paper_trading: true", cfg.Broker)
+	}
+	switch cfg.Broker {
+	case "", config.BrokerPaper:
+		return executor.NewPaperExecutorWithCommission(store, now, cfg.Commission.Rate), nil
+	case config.BrokerTinkoff, config.BrokerFinam:
+		return nil, fmt.Errorf("live trading mode is not wired for broker %q: set broker: paper and is_paper_trading: true", cfg.Broker)
+	default:
+		return nil, fmt.Errorf("select executor: unknown broker %q", cfg.Broker)
+	}
 }

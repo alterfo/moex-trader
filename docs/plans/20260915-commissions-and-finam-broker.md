@@ -130,15 +130,15 @@ execution integration, following the same pattern already used for Tinkoff.
 - [x] run tests — must pass before task 6
 
 ### Task 6: Wire broker selection into cmd/trader
-- [ ] extend config with a `broker` field (`paper` / `tinkoff` / `finam`) alongside
+- [x] extend config with a `broker` field (`paper` / `tinkoff` / `finam`) alongside
       the existing `is_paper_trading` flag
-- [ ] `cmd/trader` selects the matching `Executor`; for `tinkoff` and `finam` in
+- [x] `cmd/trader` selects the matching `Executor`; for `tinkoff` and `finam` in
       non-paper mode, keep the existing honest-refusal behavior (refuse to start
       without account-snapshot/order-cancellation wiring) rather than silently
       running with incomplete risk protections
-- [ ] write tests: broker selection picks the right executor, live-mode refusal
+- [x] write tests: broker selection picks the right executor, live-mode refusal
       still triggers for both Tinkoff and Finam
-- [ ] run full test suite — must pass before task 7
+- [x] run full test suite — must pass before task 7
 
 ### Task 7: Verify acceptance criteria
 - [ ] verify commission is applied consistently across paper/Tinkoff/Finam fills and

@@ -33,6 +33,7 @@ risk:
 commission:
   broker: "finam"
   rate: "0.0001"   # 0.01%, Finam "Единый дневной"
+broker: "paper"     # paper | tinkoff | finam
 is_paper_trading: true
 poll_interval: 5m
 telegram:

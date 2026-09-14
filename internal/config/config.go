@@ -21,6 +21,7 @@ type Config struct {
 	Risk            Risk       `yaml:"risk"`
 	Telegram        Telegram   `yaml:"telegram"`
 	Commission      Commission `yaml:"commission"`
+	Broker          string     `yaml:"broker"`
 	IsPaperTrading  bool       `yaml:"is_paper_trading"`
 	PollInterval    Duration   `yaml:"poll_interval"`
 }
@@ -50,6 +51,12 @@ type Commission struct {
 }
 
 const (
+	BrokerPaper   = "paper"
+	BrokerTinkoff = "tinkoff"
+	BrokerFinam   = "finam"
+)
+
+const (
 	defaultOllamaHost       = "192.168.88.193:11434"
 	defaultOllamaModel      = "qwen3.8"
 	defaultOllamaTimeout    = Duration(10 * time.Second)
@@ -75,6 +82,7 @@ func Default() *Config {
 			Broker: defaultCommissionBroker,
 			Rate:   decimal.New(1, -4),
 		},
+		Broker:         BrokerPaper,
 		IsPaperTrading: true,
 		PollInterval:   defaultPollInterval,
 	}
@@ -138,6 +146,11 @@ func (c *Config) Validate() error {
 	if c.Commission.Rate.IsNegative() {
 		return fmt.Errorf("commission.rate must be non-negative")
 	}
+	switch c.Broker {
+	case BrokerPaper, BrokerTinkoff, BrokerFinam:
+	default:
+		return fmt.Errorf("broker must be one of paper, tinkoff, finam")
+	}
 	if c.PollInterval <= 0 {
 		return fmt.Errorf("poll_interval must be positive")
 	}
@@ -183,6 +196,9 @@ func applyEnv(cfg *Config) error {
 			return fmt.Errorf("parse MOEX_TRADER_IS_PAPER_TRADING: %w", err)
 		}
 		cfg.IsPaperTrading = b
+	}
+	if v := os.Getenv("MOEX_TRADER_BROKER"); v != "" {
+		cfg.Broker = v
 	}
 	if v := os.Getenv("MOEX_TRADER_TICKERS"); v != "" {
 		cfg.Tickers = splitComma(v)
