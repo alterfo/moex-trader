@@ -155,12 +155,12 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 10
 
 ### Task 10: Response validation and bounded retry
-- [ ] parse LLM response into `TradeSignal`, run `Validate()`; on invalid JSON/schema,
+- [x] parse LLM response into `TradeSignal`, run `Validate()`; on invalid JSON/schema,
       retry up to 2 times; on exhausted retries, fall back to a HOLD signal and log an
       `AuditEvent` noting the failure
-- [ ] write tests: valid on first try, invalid-then-valid on retry, exhausted retries
+- [x] write tests: valid on first try, invalid-then-valid on retry, exhausted retries
       → HOLD fallback
-- [ ] run tests — must pass before task 11
+- [x] run tests — must pass before task 11
 
 ### Task 11: Wire LLM into the orchestrator + latency benchmark
 - [ ] replace the Phase 1 stub signal source in `internal/orchestrator` with the real
