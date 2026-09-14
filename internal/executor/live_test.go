@@ -390,6 +390,60 @@ func TestLiveExecutorPostOrderErrorSurfaces(t *testing.T) {
 	}
 }
 
+func TestLiveExecutorRetriesSubmittedOrderAfterTransientError(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	poster := &fakeOrderPoster{
+		err: context.DeadlineExceeded,
+		responses: []*pb.PostOrderResponse{
+			{
+				OrderId:               "broker-order-1",
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL,
+				LotsRequested:         1,
+				LotsExecuted:          1,
+			},
+			{
+				OrderId:               "broker-order-1",
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL,
+				LotsRequested:         1,
+				LotsExecuted:          1,
+			},
+		},
+	}
+	callCount := 0
+	poster.onPost = func() {
+		callCount++
+		if callCount == 2 {
+			poster.err = nil
+		}
+	}
+	exec := newLiveExecutorForTest(t, poster, now)
+	orderID := uuid.NewString()
+	price := decimal.NewFromFloat(270.5)
+	signal := newBuySignal(now)
+
+	if _, err := exec.ExecuteWithOrderID(context.Background(), signal, price, orderID); err == nil {
+		t.Fatal("expected first PostOrder error, got nil")
+	}
+	fill, err := exec.ExecuteWithOrderID(context.Background(), signal, price, orderID)
+	if err != nil {
+		t.Fatalf("second ExecuteWithOrderID() error = %v, want retry to succeed", err)
+	}
+	if fill.ID != orderID || fill.Lots != 1 {
+		t.Fatalf("fill = %+v, want order %s with 1 lot", fill, orderID)
+	}
+	if len(poster.calls) != 2 {
+		t.Fatalf("PostOrder calls = %d, want 2", len(poster.calls))
+	}
+
+	events, err := exec.store.ListAuditEvents(context.Background(), time.Time{})
+	if err != nil {
+		t.Fatalf("ListAuditEvents() error = %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("audit events = %d, want 1 after retry", len(events))
+	}
+}
+
 func TestLiveExecutorRejectsZeroLotsBuy(t *testing.T) {
 	poster := &fakeOrderPoster{}
 	exec := newLiveExecutorForTest(t, poster, time.Now())

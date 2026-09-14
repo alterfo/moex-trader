@@ -254,6 +254,48 @@ func TestHardenedGateFatFingerUsesPrevCloseFallback(t *testing.T) {
 	}
 }
 
+func TestHardenedGateFatFingerUsesSideAppropriateQuote(t *testing.T) {
+	gate := newTestGate(t)
+
+	buy := testRequest()
+	buy.Market = Market{
+		OrderPrice: decimal.RequireFromString("104"),
+		Bid:        decimal.RequireFromString("100"),
+		Ask:        decimal.RequireFromString("104"),
+	}
+	approved, err := gate.Approve(context.Background(), buy)
+	if err != nil {
+		t.Fatalf("buy Approve() error = %v", err)
+	}
+	if !approved {
+		t.Fatal("expected buy at ask to pass fat-finger check")
+	}
+
+	sell := testRequest()
+	sell.Signal.Action = domain.ActionSell
+	sell.Market = Market{
+		OrderPrice: decimal.RequireFromString("100"),
+		Bid:        decimal.RequireFromString("100"),
+		Ask:        decimal.RequireFromString("104"),
+	}
+	approved, err = gate.Approve(context.Background(), sell)
+	if err != nil {
+		t.Fatalf("sell Approve() error = %v", err)
+	}
+	if !approved {
+		t.Fatal("expected sell at bid to pass fat-finger check")
+	}
+
+	sell.Market.OrderPrice = decimal.RequireFromString("102.1")
+	approved, err = gate.Approve(context.Background(), sell)
+	if err != nil {
+		t.Fatalf("wide sell Approve() error = %v", err)
+	}
+	if approved {
+		t.Fatal("expected sell above bid to fail fat-finger check")
+	}
+}
+
 func TestHardenedGateFatFingerRejectsNonPositiveOrderPrice(t *testing.T) {
 	gate := newTestGate(t)
 	request := testRequest()

@@ -174,7 +174,9 @@ func (l *LiveExecutor) ExecuteWithOrderID(ctx context.Context, signal domain.Tra
 		if isPersistedFill(fill) {
 			return fill, nil
 		}
-		return Fill{}, fmt.Errorf("live executor: order %q was already submitted and has no recorded fill", orderID)
+		if status != "submitted" {
+			return Fill{}, fmt.Errorf("live executor: order %q was already submitted and has no recorded fill", orderID)
+		}
 	}
 
 	l.mu.Lock()
@@ -369,7 +371,7 @@ func (l *LiveExecutor) recordIntent(ctx context.Context, signal domain.TradeSign
 		Payload:   string(payload),
 		CreatedAt: now,
 	}
-	if err := l.store.InsertAuditEvent(ctx, event); err != nil {
+	if err := l.store.UpsertAuditEvent(ctx, event); err != nil {
 		return fmt.Errorf("live executor: persist order intent: %w", err)
 	}
 	return nil

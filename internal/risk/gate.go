@@ -137,7 +137,7 @@ func (g *HardenedGate) Approve(ctx context.Context, request Request) (bool, erro
 		return false, nil
 	}
 	if request.Signal.Action == domain.ActionBuy || request.Signal.Action == domain.ActionSell {
-		if request.Signal.TargetLots > 0 && !g.fatFingerOK(request.Market) {
+		if request.Signal.TargetLots > 0 && !g.fatFingerOK(request.Market, request.Signal.Action) {
 			return false, nil
 		}
 	}
@@ -147,23 +147,24 @@ func (g *HardenedGate) Approve(ctx context.Context, request Request) (bool, erro
 	return true, nil
 }
 
-func (g *HardenedGate) fatFingerOK(market Market) bool {
+func (g *HardenedGate) fatFingerOK(market Market, action domain.Action) bool {
 	if market.OrderPrice.Sign() <= 0 {
 		return false
 	}
-	if market.Bid.Sign() <= 0 && market.Ask.Sign() <= 0 {
-		if market.PrevClose.Sign() <= 0 {
-			return false
-		}
-		return g.withinFatFingerBand(market.OrderPrice, market.PrevClose)
+
+	reference := market.PrevClose
+	if action == domain.ActionBuy {
+		reference = market.Ask
+	} else if action == domain.ActionSell {
+		reference = market.Bid
 	}
-	if market.Bid.Sign() > 0 && !g.withinFatFingerBand(market.OrderPrice, market.Bid) {
+	if reference.Sign() <= 0 {
+		reference = market.PrevClose
+	}
+	if reference.Sign() <= 0 {
 		return false
 	}
-	if market.Ask.Sign() > 0 && !g.withinFatFingerBand(market.OrderPrice, market.Ask) {
-		return false
-	}
-	return true
+	return g.withinFatFingerBand(market.OrderPrice, reference)
 }
 
 func (g *HardenedGate) withinFatFingerBand(orderPrice, reference decimal.Decimal) bool {
