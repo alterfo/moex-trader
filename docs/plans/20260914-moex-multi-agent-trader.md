@@ -231,13 +231,13 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 19
 
 ### Task 19: Kill switch integration and Ollama timeout watchdog
-- [ ] persist kill-switch state in storage; once triggered, orchestrator blocks new
+- [x] persist kill-switch state in storage; once triggered, orchestrator blocks new
       signals until manually reset
-- [ ] wrap every Ollama call with a 10s `context.WithTimeout`; on timeout, skip the
+- [x] wrap every Ollama call with a 10s `context.WithTimeout`; on timeout, skip the
       cycle for that ticker instead of blocking the loop
-- [ ] write tests: simulated >3% drawdown trips the kill switch and blocks the next
+- [x] write tests: simulated >3% drawdown trips the kill switch and blocks the next
       cycle; simulated LLM timeout skips the cycle without hanging or crashing
-- [ ] run tests — must pass before task 20
+- [x] run tests — must pass before task 20
 
 ### Task 20: Verifier agent
 - [ ] `cmd/verifier` (or `internal/verifier`): hourly job reading `AuditEvent` history,

@@ -225,3 +225,72 @@ func TestConcurrentWALWrites(t *testing.T) {
 		t.Fatalf("ListAuditEvents() returned %d events, want %d", len(events), writers*writesPerWriter)
 	}
 }
+
+func TestKillSwitchPersistence(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	active, err := store.IsKillSwitchActive(ctx)
+	if err != nil {
+		t.Fatalf("IsKillSwitchActive() error = %v", err)
+	}
+	if active {
+		t.Fatal("IsKillSwitchActive() = true, want false before trigger")
+	}
+
+	if err := store.SetKillSwitchActive(ctx, true); err != nil {
+		t.Fatalf("SetKillSwitchActive(true) error = %v", err)
+	}
+	active, err = store.IsKillSwitchActive(ctx)
+	if err != nil {
+		t.Fatalf("IsKillSwitchActive() error = %v", err)
+	}
+	if !active {
+		t.Fatal("IsKillSwitchActive() = false, want true after trigger")
+	}
+
+	if err := store.SetKillSwitchActive(ctx, false); err != nil {
+		t.Fatalf("SetKillSwitchActive(false) error = %v", err)
+	}
+	active, err = store.IsKillSwitchActive(ctx)
+	if err != nil {
+		t.Fatalf("IsKillSwitchActive() error = %v", err)
+	}
+	if active {
+		t.Fatal("IsKillSwitchActive() = true, want false after reset")
+	}
+}
+
+func TestKillSwitchPersistsAcrossStoreInstances(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "trader.db")
+	ctx := context.Background()
+
+	first, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	if err := first.SetKillSwitchActive(ctx, true); err != nil {
+		t.Fatalf("SetKillSwitchActive(true) error = %v", err)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	second, err := Open(path)
+	if err != nil {
+		t.Fatalf("second Open() error = %v", err)
+	}
+	defer func() {
+		if err := second.Close(); err != nil {
+			t.Fatalf("second Close() error = %v", err)
+		}
+	}()
+
+	active, err := second.IsKillSwitchActive(ctx)
+	if err != nil {
+		t.Fatalf("IsKillSwitchActive() error = %v", err)
+	}
+	if !active {
+		t.Fatal("IsKillSwitchActive() = false, want true across store instances")
+	}
+}

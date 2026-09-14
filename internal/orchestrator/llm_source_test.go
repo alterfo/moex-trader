@@ -34,6 +34,13 @@ func (m *mockedChatClient) Chat(ctx context.Context, messages []llm.Message) (ll
 	}, nil
 }
 
+type blockingChatClient struct{}
+
+func (blockingChatClient) Chat(ctx context.Context, messages []llm.Message) (llm.ChatResponse, error) {
+	<-ctx.Done()
+	return llm.ChatResponse{}, ctx.Err()
+}
+
 func tickerFromSystemPrompt(messages []llm.Message) string {
 	if len(messages) == 0 {
 		return ""
@@ -108,5 +115,46 @@ func TestLLMSignalSourceLogsLatency(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "orchestrator: llm latency for SBER:") {
 		t.Fatalf("latency log missing: %q", buf.String())
+	}
+}
+
+func TestOrchestratorLLMTimeoutSkipsCycle(t *testing.T) {
+	store := openTestStore(t)
+	now := func() time.Time { return time.Date(2024, 1, 11, 12, 30, 0, 0, time.UTC) }
+	ingestor := &fakeIngestor{inputs: map[string]features.Input{
+		"SBER": fixtureInput("SBER"),
+	}}
+	decision := llm.NewDecisionEngine(blockingChatClient{}, llm.NewPromptBuilder(), store, now)
+	source := NewLLMSignalSource(decision, 50*time.Millisecond, log.New(io.Discard, "", 0))
+	exec := &fakeExecutor{store: store, now: now}
+	orch := newTestOrchestrator(t, store, ingestor, source, now, exec)
+
+	orch.RunOnce(context.Background())
+
+	if exec.callCount() != 0 {
+		t.Fatalf("executor calls = %d, want 0 when LLM call times out", exec.callCount())
+	}
+
+	events, err := store.ListAuditEvents(context.Background(), time.Time{})
+	if err != nil {
+		t.Fatalf("ListAuditEvents() error = %v", err)
+	}
+	if got := countEvents(events, "SBER", StageExecutor); got != 0 {
+		t.Fatalf("executor events for SBER = %d, want 0", got)
+	}
+	if got := countEvents(events, "SBER", StageSignal); got != 1 {
+		t.Fatalf("signal events for SBER = %d, want 1", got)
+	}
+
+	var foundTimeout bool
+	for _, event := range events {
+		if event.Ticker == "SBER" && event.Stage == StageSignal {
+			if strings.Contains(event.Payload, "timed out") {
+				foundTimeout = true
+			}
+		}
+	}
+	if !foundTimeout {
+		t.Fatal("expected a timed-out signal audit event")
 	}
 }

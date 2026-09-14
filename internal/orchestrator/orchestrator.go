@@ -35,6 +35,10 @@ type AuditWriter interface {
 	InsertAuditEvent(ctx context.Context, event domain.AuditEvent) error
 }
 
+type KillSwitchState interface {
+	IsKillSwitchActive(ctx context.Context) (bool, error)
+}
+
 type Options struct {
 	Tickers      []string
 	Ingestor     Ingestor
@@ -48,6 +52,7 @@ type Options struct {
 	Now          func() time.Time
 	Metrics      *metrics.Metrics
 	Account      risk.Account
+	KillSwitch   KillSwitchState
 }
 
 type Orchestrator struct {
@@ -63,6 +68,7 @@ type Orchestrator struct {
 	now          func() time.Time
 	metrics      *metrics.Metrics
 	account      risk.Account
+	killSwitch   KillSwitchState
 }
 
 func New(opts Options) (*Orchestrator, error) {
@@ -118,6 +124,7 @@ func New(opts Options) (*Orchestrator, error) {
 		now:          now,
 		metrics:      opts.Metrics,
 		account:      opts.Account,
+		killSwitch:   opts.KillSwitch,
 	}, nil
 }
 
@@ -142,10 +149,26 @@ func (o *Orchestrator) RunOnce(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
+		blocked, err := o.killSwitchBlocked(ctx)
+		if err != nil {
+			o.logger.Printf("orchestrator: check kill switch: %v", err)
+			return
+		}
+		if blocked {
+			o.logger.Printf("orchestrator: kill switch active, blocking new signals")
+			return
+		}
 		if err := o.processTicker(ctx, ticker); err != nil {
 			o.logger.Printf("orchestrator: ticker %s: %v", ticker, err)
 		}
 	}
+}
+
+func (o *Orchestrator) killSwitchBlocked(ctx context.Context) (bool, error) {
+	if o.killSwitch == nil {
+		return false, nil
+	}
+	return o.killSwitch.IsKillSwitchActive(ctx)
 }
 
 func (o *Orchestrator) processTicker(ctx context.Context, ticker string) error {

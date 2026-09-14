@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -72,6 +73,9 @@ func (e *DecisionEngine) Generate(ctx context.Context, feature domain.FeatureCon
 		response, err := e.client.Chat(ctx, messages)
 		if err != nil {
 			lastErr = err
+			if isContextDeadlineExceeded(err) {
+				return domain.TradeSignal{}, fmt.Errorf("llm: chat timed out for %s: %w", feature.Ticker, err)
+			}
 			continue
 		}
 
@@ -97,6 +101,10 @@ func (e *DecisionEngine) Generate(ctx context.Context, feature domain.FeatureCon
 	e.recordFailure(ctx, feature.Ticker, lastErr)
 	e.notifyLLMFailure(ctx, feature.Ticker, lastErr)
 	return fallback, nil
+}
+
+func isContextDeadlineExceeded(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded)
 }
 
 func ParseTradeSignal(content string) (domain.TradeSignal, error) {

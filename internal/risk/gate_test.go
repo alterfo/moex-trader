@@ -53,6 +53,22 @@ func (f *fakeCanceller) CancelOpenOrders(ctx context.Context) error {
 	return f.err
 }
 
+type fakeKillSwitchStore struct {
+	active bool
+	calls  int
+	err    error
+}
+
+func (f *fakeKillSwitchStore) IsKillSwitchActive(ctx context.Context) (bool, error) {
+	f.calls++
+	return f.active, f.err
+}
+
+func (f *fakeKillSwitchStore) SetKillSwitchActive(ctx context.Context, active bool) error {
+	f.active = active
+	return f.err
+}
+
 func TestNewHardenedGateRejectsInvalidConfig(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -365,5 +381,65 @@ func TestHardenedGateManualKillSwitch(t *testing.T) {
 	}
 	if !approved {
 		t.Fatal("expected approval after kill switch reset")
+	}
+}
+
+func TestHardenedGatePersistsAndReadsKillSwitch(t *testing.T) {
+	store := &fakeKillSwitchStore{}
+	cfg := DefaultConfig()
+	cfg.Store = store
+	gate, err := NewHardenedGate(cfg)
+	if err != nil {
+		t.Fatalf("NewHardenedGate() error = %v", err)
+	}
+
+	request := testRequest()
+	request.Account = Account{
+		Deposit:        decimal.RequireFromString("1000"),
+		DayStartEquity: decimal.RequireFromString("969"),
+		CurrentEquity:  decimal.RequireFromString("969"),
+	}
+
+	approved, err := gate.Approve(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Approve() error = %v", err)
+	}
+	if approved {
+		t.Fatal("expected drawdown to reject the signal")
+	}
+	if !store.active {
+		t.Fatal("expected kill switch to be persisted as active")
+	}
+
+	approved, err = gate.Approve(context.Background(), testRequest())
+	if err != nil {
+		t.Fatalf("second Approve() error = %v", err)
+	}
+	if approved {
+		t.Fatal("expected persisted kill switch to block the next signal")
+	}
+	if store.calls < 1 {
+		t.Fatalf("expected gate to read persisted kill switch state")
+	}
+}
+
+func TestHardenedGateBlocksPrePersistedKillSwitch(t *testing.T) {
+	store := &fakeKillSwitchStore{active: true}
+	cfg := DefaultConfig()
+	cfg.Store = store
+	gate, err := NewHardenedGate(cfg)
+	if err != nil {
+		t.Fatalf("NewHardenedGate() error = %v", err)
+	}
+
+	approved, err := gate.Approve(context.Background(), testRequest())
+	if err != nil {
+		t.Fatalf("Approve() error = %v", err)
+	}
+	if approved {
+		t.Fatal("expected pre-persisted kill switch to block the signal")
+	}
+	if !gate.IsKillSwitchActive() {
+		t.Fatal("expected in-memory kill switch state to be synced from storage")
 	}
 }

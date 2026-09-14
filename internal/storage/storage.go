@@ -79,6 +79,12 @@ func migrate(db *sql.DB) error {
 			generated_at INTEGER NOT NULL,
 			created_at INTEGER NOT NULL
 		);`,
+		`CREATE TABLE kill_switch (
+			id INTEGER PRIMARY KEY CHECK (id = 1),
+			active INTEGER NOT NULL,
+			triggered_at INTEGER NOT NULL
+		);
+		INSERT INTO kill_switch (id, active, triggered_at) VALUES (1, 0, 0);`,
 	}
 
 	for index, statement := range migrations {
@@ -171,6 +177,31 @@ func (s *Store) InsertTradeSignal(ctx context.Context, signal domain.TradeSignal
 	)
 	if err != nil {
 		return fmt.Errorf("insert trade signal: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) IsKillSwitchActive(ctx context.Context) (bool, error) {
+	var active int
+	if err := s.db.QueryRowContext(ctx, `SELECT active FROM kill_switch WHERE id = 1`).Scan(&active); err != nil {
+		return false, fmt.Errorf("read kill switch: %w", err)
+	}
+	return active != 0, nil
+}
+
+func (s *Store) SetKillSwitchActive(ctx context.Context, active bool) error {
+	value := 0
+	triggeredAt := int64(0)
+	if active {
+		value = 1
+		triggeredAt = time.Now().UnixNano()
+	}
+	if _, err := s.db.ExecContext(ctx,
+		`INSERT INTO kill_switch (id, active, triggered_at) VALUES (1, ?, ?)
+		 ON CONFLICT(id) DO UPDATE SET active = excluded.active, triggered_at = excluded.triggered_at`,
+		value, triggeredAt,
+	); err != nil {
+		return fmt.Errorf("set kill switch: %w", err)
 	}
 	return nil
 }

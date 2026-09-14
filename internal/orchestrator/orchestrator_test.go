@@ -204,6 +204,83 @@ func TestRunOnceRecordsFullPipeline(t *testing.T) {
 	}
 }
 
+func TestOrchestratorKillSwitchBlocksNextCycle(t *testing.T) {
+	store := openTestStore(t)
+	now := func() time.Time { return time.Date(2024, 1, 11, 12, 30, 0, 0, time.UTC) }
+	ingestor := &fakeIngestor{inputs: map[string]features.Input{
+		"SBER": fixtureInput("SBER"),
+		"YDEX": fixtureInput("YDEX"),
+	}}
+	source := &fakeSource{
+		signal: domain.TradeSignal{
+			Action:      domain.ActionBuy,
+			Confidence:  decimal.NewFromFloat(0.8),
+			TargetLots:  1,
+			Reasoning:   "fixture buy",
+			GeneratedAt: now(),
+		},
+		now: now,
+	}
+	exec := &fakeExecutor{store: store, now: now}
+
+	cfg := risk.DefaultConfig()
+	cfg.Store = store
+	gate, err := risk.NewHardenedGate(cfg)
+	if err != nil {
+		t.Fatalf("NewHardenedGate() error = %v", err)
+	}
+	account := risk.Account{
+		Deposit:        decimal.RequireFromString("1000"),
+		DayStartEquity: decimal.RequireFromString("969.99"),
+		CurrentEquity:  decimal.RequireFromString("969.99"),
+	}
+
+	orch, err := New(Options{
+		Tickers:      []string{"SBER", "YDEX"},
+		Ingestor:     ingestor,
+		Source:       source,
+		Gate:         gate,
+		Executor:     exec,
+		Audit:        store,
+		PollInterval: time.Second,
+		Now:          now,
+		Account:      account,
+		KillSwitch:   store,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	orch.RunOnce(context.Background())
+	orch.RunOnce(context.Background())
+
+	if ingestor.calls.Load() != 1 {
+		t.Fatalf("ingestor calls = %d, want 1 after kill switch blocked the loop", ingestor.calls.Load())
+	}
+	if exec.callCount() != 0 {
+		t.Fatalf("executor calls = %d, want 0", exec.callCount())
+	}
+
+	active, err := store.IsKillSwitchActive(context.Background())
+	if err != nil {
+		t.Fatalf("IsKillSwitchActive() error = %v", err)
+	}
+	if !active {
+		t.Fatal("expected kill switch to remain active in storage")
+	}
+
+	events, err := store.ListAuditEvents(context.Background(), time.Time{})
+	if err != nil {
+		t.Fatalf("ListAuditEvents() error = %v", err)
+	}
+	if got := countEvents(events, "SBER", StageRisk); got != 1 {
+		t.Fatalf("risk events for SBER = %d, want 1", got)
+	}
+	if got := countEvents(events, "YDEX", StageIngest); got != 0 {
+		t.Fatalf("ingest events for YDEX = %d, want 0 after kill switch", got)
+	}
+}
+
 func TestRunOnceProcessesMultipleTicks(t *testing.T) {
 	store := openTestStore(t)
 	now := func() time.Time { return time.Date(2024, 1, 11, 12, 30, 0, 0, time.UTC) }

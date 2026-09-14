@@ -36,12 +36,18 @@ type OrderCanceller interface {
 	CancelOpenOrders(ctx context.Context) error
 }
 
+type KillSwitchStore interface {
+	IsKillSwitchActive(ctx context.Context) (bool, error)
+	SetKillSwitchActive(ctx context.Context, active bool) error
+}
+
 type Config struct {
 	MaxLots         int
 	MaxDailyLossPct decimal.Decimal
 	FatFingerPct    decimal.Decimal
 	MaxDrawdownPct  decimal.Decimal
 	Canceller       OrderCanceller
+	Store           KillSwitchStore
 }
 
 type HardenedGate struct {
@@ -50,6 +56,7 @@ type HardenedGate struct {
 	fatFingerPct    decimal.Decimal
 	maxDrawdownPct  decimal.Decimal
 	canceller       OrderCanceller
+	store           KillSwitchStore
 
 	mu         sync.RWMutex
 	killSwitch bool
@@ -83,6 +90,7 @@ func NewHardenedGate(cfg Config) (*HardenedGate, error) {
 		fatFingerPct:    cfg.FatFingerPct,
 		maxDrawdownPct:  cfg.MaxDrawdownPct,
 		canceller:       cfg.Canceller,
+		store:           cfg.Store,
 	}, nil
 }
 
@@ -106,7 +114,11 @@ func (g *HardenedGate) Approve(ctx context.Context, request Request) (bool, erro
 		}
 		return false, nil
 	}
-	if g.IsKillSwitchActive() {
+	active, err := g.killSwitchActive(ctx)
+	if err != nil {
+		return false, fmt.Errorf("risk gate: read kill switch: %w", err)
+	}
+	if active {
 		return false, nil
 	}
 	if request.Signal.TargetLots > g.maxLots {
@@ -173,12 +185,36 @@ func (g *HardenedGate) triggerKillSwitch(ctx context.Context) error {
 	}
 	g.killSwitch = true
 	canceller := g.canceller
+	store := g.store
 	g.mu.Unlock()
 
+	if store != nil {
+		if err := store.SetKillSwitchActive(ctx, true); err != nil {
+			return fmt.Errorf("risk gate: persist kill switch: %w", err)
+		}
+	}
 	if canceller == nil {
 		return nil
 	}
 	return canceller.CancelOpenOrders(ctx)
+}
+
+func (g *HardenedGate) killSwitchActive(ctx context.Context) (bool, error) {
+	if g.store != nil {
+		active, err := g.store.IsKillSwitchActive(ctx)
+		if err != nil {
+			return false, err
+		}
+		if active {
+			g.mu.Lock()
+			g.killSwitch = true
+			g.mu.Unlock()
+		}
+		return active, nil
+	}
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return g.killSwitch, nil
 }
 
 func (g *HardenedGate) TripKillSwitch(ctx context.Context) error {
@@ -189,6 +225,17 @@ func (g *HardenedGate) ResetKillSwitch() {
 	g.mu.Lock()
 	g.killSwitch = false
 	g.mu.Unlock()
+}
+
+func (g *HardenedGate) ResetKillSwitchContext(ctx context.Context) error {
+	g.mu.Lock()
+	g.killSwitch = false
+	store := g.store
+	g.mu.Unlock()
+	if store == nil {
+		return nil
+	}
+	return store.SetKillSwitchActive(ctx, false)
 }
 
 func (g *HardenedGate) IsKillSwitchActive() bool {
