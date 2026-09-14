@@ -85,13 +85,13 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 2
 
 ### Task 2: Domain types
-- [ ] `internal/domain`: `FeatureContext`, `TradeSignal` (Action enum
+- [x] `internal/domain`: `FeatureContext`, `TradeSignal` (Action enum
       BUY/SELL/HOLD, Confidence, Reasoning, TargetLots), `AuditEvent` — all
       price/money fields as `decimal.Decimal`
-- [ ] validation methods (`TradeSignal.Validate()`: confidence in [0,1], action is a
+- [x] validation methods (`TradeSignal.Validate()`: confidence in [0,1], action is a
       known enum value, ticker non-empty)
-- [ ] write tests for validation (success + each invalid-field case)
-- [ ] run tests — must pass before task 3
+- [x] write tests for validation (success + each invalid-field case)
+- [x] run tests — must pass before task 3
 
 ### Task 3: SQLite storage layer
 - [ ] `internal/storage`: open DSN with `_journal_mode=WAL&_busy_timeout=5000` via
