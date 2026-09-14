@@ -146,13 +146,13 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 9
 
 ### Task 9: Prompt template and few-shot examples
-- [ ] system prompt builder taking a `FeatureContext`, explicit instruction "Отвечай
+- [x] system prompt builder taking a `FeatureContext`, explicit instruction "Отвечай
       ТОЛЬКО валидным JSON, без markdown-оберток и пояснений" (Go-Live checklist item)
-- [ ] embed 3–5 few-shot examples (varied tickers/sentiment/actions) directly in the
+- [x] embed 3–5 few-shot examples (varied tickers/sentiment/actions) directly in the
       system prompt
-- [ ] write tests verifying prompt assembly for several `FeatureContext` inputs
+- [x] write tests verifying prompt assembly for several `FeatureContext` inputs
       (contains schema, contains few-shot block, contains the strict-JSON instruction)
-- [ ] run tests — must pass before task 10
+- [x] run tests — must pass before task 10
 
 ### Task 10: Response validation and bounded retry
 - [ ] parse LLM response into `TradeSignal`, run `Validate()`; on invalid JSON/schema,
