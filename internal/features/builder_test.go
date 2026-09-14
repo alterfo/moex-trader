@@ -7,6 +7,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/news"
 )
@@ -147,6 +148,65 @@ func TestBuildEmptyTicker(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "ticker must not be empty") {
 		t.Fatalf("unexpected error %v", err)
+	}
+}
+
+func TestBuildWithOrderBookImbalance(t *testing.T) {
+	builder := NewBuilder(nil)
+	input := Input{
+		Ticker: "SBER",
+		Price: PriceSnapshot{
+			LastPrice: decimal.NewFromFloat(270),
+			PrevClose: decimal.NewFromFloat(260),
+		},
+		OrderBookImbalance: decimal.NewFromFloat(0.4),
+	}
+
+	ctx, err := builder.Build(input)
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if !ctx.OrderBookImbalance.Equal(decimal.NewFromFloat(0.4)) {
+		t.Fatalf("unexpected order book imbalance %s", ctx.OrderBookImbalance)
+	}
+}
+
+func TestBuildClampsOrderBookImbalance(t *testing.T) {
+	base := Input{
+		Ticker: "SBER",
+		Price: PriceSnapshot{
+			LastPrice: decimal.NewFromFloat(270),
+			PrevClose: decimal.NewFromFloat(260),
+		},
+	}
+	tests := []struct {
+		name      string
+		imbalance decimal.Decimal
+		want      decimal.Decimal
+	}{
+		{"above one", decimal.NewFromFloat(1.4), decimal.NewFromInt(1)},
+		{"below minus one", decimal.NewFromFloat(-1.2), decimal.NewFromInt(-1)},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			input := base
+			input.OrderBookImbalance = test.imbalance
+			ctx, err := NewBuilder(nil).Build(input)
+			if err != nil {
+				t.Fatalf("Build() error = %v", err)
+			}
+			if !ctx.OrderBookImbalance.Equal(test.want) {
+				t.Fatalf("unexpected order book imbalance %s, want %s", ctx.OrderBookImbalance, test.want)
+			}
+		})
+	}
+}
+
+func TestEnrichWithAlgoPack(t *testing.T) {
+	enriched := EnrichWithAlgoPack(domain.FeatureContext{Ticker: "SBER"}, decimal.NewFromFloat(1.7))
+	if !enriched.OrderBookImbalance.Equal(decimal.NewFromInt(1)) {
+		t.Fatalf("unexpected clamped imbalance %s", enriched.OrderBookImbalance)
 	}
 }
 

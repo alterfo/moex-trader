@@ -182,12 +182,12 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 13
 
 ### Task 13: MOEX AlgoPack enrichment worker
-- [ ] `internal/ingestion/algopack`: async worker enriching `FeatureContext` with
+- [x] `internal/ingestion/algopack`: async worker enriching `FeatureContext` with
       additional AlgoPack fields (e.g. order-book imbalance), fanning results into the
       feature builder from Task 5
-- [ ] write tests with fixture AlgoPack payloads (success, partial data, worker
+- [x] write tests with fixture AlgoPack payloads (success, partial data, worker
       timeout)
-- [ ] run tests — must pass before task 14
+- [x] run tests — must pass before task 14
 
 ### Task 14: Redis Streams signal bus (optional decoupling)
 - [ ] `internal/bus`: publish `TradeSignal` + `AuditEvent` to a Redis Stream; consumer

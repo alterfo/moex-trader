@@ -22,10 +22,11 @@ type PriceSnapshot struct {
 }
 
 type Input struct {
-	Ticker  string
-	Price   PriceSnapshot
-	Candles []moex.Candle
-	News    []news.MatchedArticle
+	Ticker             string
+	Price              PriceSnapshot
+	Candles            []moex.Candle
+	News               []news.MatchedArticle
+	OrderBookImbalance decimal.Decimal
 }
 
 type Builder struct {
@@ -71,8 +72,23 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 		RealizedVolatility: realizedVolatility(input.Candles),
 		NewsSentiment:      newsSentiment,
 		NewsCount:          newsCount,
-		OrderBookImbalance: decimal.Zero,
+		OrderBookImbalance: clampImbalance(input.OrderBookImbalance),
 	}, nil
+}
+
+func EnrichWithAlgoPack(feature domain.FeatureContext, imbalance decimal.Decimal) domain.FeatureContext {
+	feature.OrderBookImbalance = clampImbalance(imbalance)
+	return feature
+}
+
+func clampImbalance(value decimal.Decimal) decimal.Decimal {
+	if value.GreaterThan(decimal.NewFromInt(1)) {
+		return decimal.NewFromInt(1)
+	}
+	if value.LessThan(decimal.NewFromInt(-1)) {
+		return decimal.NewFromInt(-1)
+	}
+	return value
 }
 
 func percentChange(current, previous decimal.Decimal) decimal.Decimal {
