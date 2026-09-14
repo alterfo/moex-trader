@@ -118,12 +118,12 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 6
 
 ### Task 6: Paper executor and risk-gate stub
-- [ ] `internal/executor`: `Executor` interface + `PaperExecutor` (simulated fill at
+- [x] `internal/executor`: `Executor` interface + `PaperExecutor` (simulated fill at
       last known price, persisted via storage)
-- [ ] `internal/risk`: `Gate` interface + basic stub (rejects if `TargetLots` exceeds a
+- [x] `internal/risk`: `Gate` interface + basic stub (rejects if `TargetLots` exceeds a
       configured max — hardened rules land in Task 17)
-- [ ] write tests: paper fill simulation, risk gate approve/reject on the stub rule
-- [ ] run tests — must pass before task 7
+- [x] write tests: paper fill simulation, risk gate approve/reject on the stub rule
+- [x] run tests — must pass before task 7
 
 ### Task 7: Orchestration loop
 - [ ] `internal/orchestrator`: ticker-driven loop — per configured instrument:
