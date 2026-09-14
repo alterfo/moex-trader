@@ -247,14 +247,14 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 21
 
 ### Task 21: Verify acceptance criteria and Go-Live checklist
-- [ ] write `docs/GO_LIVE_CHECKLIST.md` mapping each of the 7 checklist items from the
+- [x] write `docs/GO_LIVE_CHECKLIST.md` mapping each of the 7 checklist items from the
       source spec to the code/test that satisfies it (decimal usage, SQLite WAL params,
       strict-JSON prompt instruction, fat-finger check, UUID v4 idempotency, kill-switch
       test, Ollama timeout watchdog)
-- [ ] verify all Phase 1–4 requirements from Overview are implemented
-- [ ] run full test suite (`go test ./...`)
-- [ ] run `go vet ./...` and `gofmt -l .` — fix any issues
-- [ ] verify test coverage is reasonable for risk/executor/llm packages
+- [x] verify all Phase 1–4 requirements from Overview are implemented
+- [x] run full test suite (`go test ./...`)
+- [x] run `go vet ./...` and `gofmt -l .` — fix any issues
+- [x] verify test coverage is reasonable for risk/executor/llm packages
 
 ### Task 22: [Final] Documentation
 - [ ] `README.md`: what the system does, how to configure and run it, how paper vs
