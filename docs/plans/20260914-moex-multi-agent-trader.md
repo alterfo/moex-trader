@@ -94,13 +94,13 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 3
 
 ### Task 3: SQLite storage layer
-- [ ] `internal/storage`: open DSN with `_journal_mode=WAL&_busy_timeout=5000` via
+- [x] `internal/storage`: open DSN with `_journal_mode=WAL&_busy_timeout=5000` via
       `modernc.org/sqlite`
-- [ ] schema + migration for `audit_events` and `trade_signals` tables
-- [ ] `InsertAuditEvent`, `ListAuditEvents(since time.Time)`, `InsertTradeSignal`
-- [ ] write tests against a temp-file SQLite DB (insert/list round-trip, constraint
+- [x] schema + migration for `audit_events` and `trade_signals` tables
+- [x] `InsertAuditEvent`, `ListAuditEvents(since time.Time)`, `InsertTradeSignal`
+- [x] write tests against a temp-file SQLite DB (insert/list round-trip, constraint
       violation, concurrent-write-under-WAL smoke test)
-- [ ] run tests — must pass before task 4
+- [x] run tests — must pass before task 4
 
 ### Task 4: MOEX ISS data ingestion + news fetcher
 - [ ] `internal/ingestion/moex`: fetch last price / candles per ticker from the public
