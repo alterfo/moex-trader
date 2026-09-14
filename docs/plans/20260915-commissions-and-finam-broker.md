@@ -107,15 +107,15 @@ execution integration, following the same pattern already used for Tinkoff.
 - [x] run tests — must pass before task 4
 
 ### Task 4: Finam market-data client
-- [ ] `internal/ingestion/finam/client.go`: `Config{BaseURL, SecretToken}`,
+- [x] `internal/ingestion/finam/client.go`: `Config{BaseURL, SecretToken}`,
       `Client`, `Quote`, `Candle`, `New(ctx, cfg) (*Client, error)` mirroring the
       Tinkoff client shape
-- [ ] implement the two-step auth: exchange `SecretToken` for a JWT, cache it, and
+- [x] implement the two-step auth: exchange `SecretToken` for a JWT, cache it, and
       transparently refresh it before/after the 15-minute expiry
-- [ ] implement quote/candle fetch methods over REST
-- [ ] write tests with `httptest.Server` mocks: successful auth + fetch, JWT expiry
+- [x] implement quote/candle fetch methods over REST
+- [x] write tests with `httptest.Server` mocks: successful auth + fetch, JWT expiry
       triggers refresh-and-retry, auth failure, malformed response
-- [ ] run tests — must pass before task 5
+- [x] run tests — must pass before task 5
 
 ### Task 5: Finam executor
 - [ ] `internal/executor/finam.go`: `FinamExecutor` implementing the `Executor`
