@@ -32,6 +32,10 @@ type CycleResetter interface {
 	ResetCycle()
 }
 
+type CyclePreparer interface {
+	PrepareCycle(ctx context.Context, tickers []string)
+}
+
 type SignalSource interface {
 	Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error)
 }
@@ -152,6 +156,9 @@ func (o *Orchestrator) Run(ctx context.Context) {
 func (o *Orchestrator) RunOnce(ctx context.Context) {
 	if resetter, ok := o.ingestor.(CycleResetter); ok {
 		resetter.ResetCycle()
+	}
+	if preparer, ok := o.ingestor.(CyclePreparer); ok {
+		preparer.PrepareCycle(ctx, o.tickers)
 	}
 	for _, ticker := range o.tickers {
 		if ctx.Err() != nil {

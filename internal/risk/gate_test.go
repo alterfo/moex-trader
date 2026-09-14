@@ -57,6 +57,7 @@ type fakeKillSwitchStore struct {
 	active bool
 	calls  int
 	err    error
+	setErr error
 }
 
 type fakeKillSwitchAlerter struct {
@@ -76,7 +77,7 @@ func (f *fakeKillSwitchStore) IsKillSwitchActive(ctx context.Context) (bool, err
 
 func (f *fakeKillSwitchStore) SetKillSwitchActive(ctx context.Context, active bool) error {
 	f.active = active
-	return f.err
+	return f.setErr
 }
 
 func TestNewHardenedGateRejectsInvalidConfig(t *testing.T) {
@@ -485,5 +486,41 @@ func TestHardenedGateBlocksPrePersistedKillSwitch(t *testing.T) {
 	}
 	if !gate.IsKillSwitchActive() {
 		t.Fatal("expected in-memory kill switch state to be synced from storage")
+	}
+}
+
+func TestHardenedGateLocalKillSwitchBlocksAfterPersistenceFailure(t *testing.T) {
+	store := &fakeKillSwitchStore{setErr: errors.New("persist failed")}
+	cfg := DefaultConfig()
+	cfg.Store = store
+	gate, err := NewHardenedGate(cfg)
+	if err != nil {
+		t.Fatalf("NewHardenedGate() error = %v", err)
+	}
+
+	request := testRequest()
+	request.Account = Account{
+		Deposit:        decimal.RequireFromString("1000"),
+		DayStartEquity: decimal.RequireFromString("969"),
+		CurrentEquity:  decimal.RequireFromString("969"),
+	}
+
+	if _, err := gate.Approve(context.Background(), request); err == nil {
+		t.Fatal("expected persistence failure from triggerKillSwitch")
+	}
+	if !gate.IsKillSwitchActive() {
+		t.Fatal("expected local kill switch to stay active after persistence failure")
+	}
+
+	store.calls = 0
+	approved, err := gate.Approve(context.Background(), testRequest())
+	if err != nil {
+		t.Fatalf("second Approve() error = %v, want blocked without a store read", err)
+	}
+	if approved {
+		t.Fatal("expected local kill switch to block the next signal")
+	}
+	if store.calls != 0 {
+		t.Fatalf("kill switch store calls = %d, want 0 when local flag is active", store.calls)
 	}
 }

@@ -18,24 +18,32 @@ type Fetcher interface {
 
 type HTTPFetcher struct {
 	baseURL    string
+	token      string
 	httpClient *http.Client
 }
 
-func NewHTTPFetcher(baseURL string, httpClient *http.Client) *HTTPFetcher {
+func NewHTTPFetcher(baseURL, token string, httpClient *http.Client) *HTTPFetcher {
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: defaultHTTPTimeout}
 	}
-	return &HTTPFetcher{baseURL: strings.TrimRight(baseURL, "/"), httpClient: httpClient}
+	return &HTTPFetcher{
+		baseURL:    strings.TrimRight(baseURL, "/"),
+		token:      strings.TrimSpace(token),
+		httpClient: httpClient,
+	}
 }
 
 func (f *HTTPFetcher) FetchOrderBook(ctx context.Context, ticker string) (OrderBook, error) {
 	var empty OrderBook
-	requestURL := f.baseURL + "/algopack/" + url.PathEscape(ticker) + ".json"
+	requestURL := f.baseURL + "/algopack/eq/obstats/" + url.PathEscape(ticker) + ".json"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		return empty, fmt.Errorf("build algopack request %q: %w", requestURL, err)
 	}
 	req.Header.Set("Accept", "application/json")
+	if f.token != "" {
+		req.Header.Set("Authorization", "Bearer "+f.token)
+	}
 	resp, err := f.httpClient.Do(req)
 	if err != nil {
 		return empty, fmt.Errorf("get algopack %q: %w", requestURL, err)

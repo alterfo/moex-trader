@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/shopspring/decimal"
 
@@ -23,6 +25,39 @@ type fakeAlgoPackFetcher struct {
 
 func (f fakeAlgoPackFetcher) FetchOrderBook(_ context.Context, _ string) (algopack.OrderBook, error) {
 	return f.book, f.err
+}
+
+type blockingAlgoPackFetcher struct {
+	release chan struct{}
+	started chan struct{}
+	once    sync.Once
+
+	mu     sync.Mutex
+	active int
+}
+
+func (f *blockingAlgoPackFetcher) FetchOrderBook(ctx context.Context, ticker string) (algopack.OrderBook, error) {
+	f.mu.Lock()
+	f.active++
+	if f.active == 2 {
+		f.once.Do(func() { close(f.started) })
+	}
+	f.mu.Unlock()
+
+	select {
+	case <-f.release:
+	case <-ctx.Done():
+		return algopack.OrderBook{}, ctx.Err()
+	}
+
+	f.mu.Lock()
+	f.active--
+	f.mu.Unlock()
+	return algopack.OrderBook{
+		Ticker: ticker,
+		Bids:   []algopack.Level{{Price: decimal.NewFromInt(1), Quantity: decimal.NewFromInt(3)}},
+		Asks:   []algopack.Level{{Price: decimal.NewFromInt(1), Quantity: decimal.NewFromInt(1)}},
+	}, nil
 }
 
 func TestMOEXIngestorCachesNewsPerCycleAndPopulatesQuote(t *testing.T) {
@@ -115,5 +150,33 @@ func TestMOEXIngestorCachesNewsPerCycleAndPopulatesQuote(t *testing.T) {
 	}
 	if newsCalls.Load() != 2 {
 		t.Fatalf("news requests = %d, want 2 after cycle reset", newsCalls.Load())
+	}
+}
+
+func TestMOEXIngestorPrepareCycleFansOutAlgoPackWork(t *testing.T) {
+	fetcher := &blockingAlgoPackFetcher{
+		release: make(chan struct{}),
+		started: make(chan struct{}),
+	}
+	ingestor := NewMOEXIngestor(nil, news.NewFetcher(nil), news.NewMatcher(nil), nil, fetcher)
+
+	ingestor.PrepareCycle(context.Background(), []string{"SBER", "OZON"})
+
+	select {
+	case <-fetcher.started:
+	case <-time.After(time.Second):
+		t.Fatal("algopack worker did not start concurrent fetches")
+	}
+	close(fetcher.release)
+
+	result, ok := ingestor.algopackResult(context.Background(), "SBER")
+	if !ok {
+		t.Fatal("expected prepared algopack result for SBER")
+	}
+	if result.Err != nil {
+		t.Fatalf("unexpected algopack result error: %v", result.Err)
+	}
+	if !result.Imbalance.Equal(decimal.NewFromFloat(0.5)) {
+		t.Fatalf("unexpected imbalance %s, want 0.5", result.Imbalance)
 	}
 }

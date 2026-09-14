@@ -71,7 +71,7 @@ func run() error {
 	moexClient := moex.NewClient(cfg.MOEXISSBaseURL, nil)
 	fetcher := news.NewFetcher(nil)
 	matcher := news.NewMatcher(news.DefaultAliases())
-	algopackFetcher := algopack.NewHTTPFetcher(cfg.AlgoPackBaseURL, nil)
+	algopackFetcher := algopack.NewHTTPFetcher(cfg.AlgoPackBaseURL, cfg.AlgoPackToken, nil)
 	ingestor := orchestrator.NewMOEXIngestor(moexClient, fetcher, matcher, news.DefaultSources(), algopackFetcher)
 
 	telegramClient := telegram.New(cfg.Telegram.BotToken, cfg.Telegram.ChatID, nil)

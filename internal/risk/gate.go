@@ -225,6 +225,12 @@ func (g *HardenedGate) hasAccountData(account Account) bool {
 }
 
 func (g *HardenedGate) killSwitchActive(ctx context.Context) (bool, error) {
+	g.mu.RLock()
+	local := g.killSwitch
+	g.mu.RUnlock()
+	if local {
+		return true, nil
+	}
 	if g.store != nil {
 		active, err := g.store.IsKillSwitchActive(ctx)
 		if err != nil {
@@ -237,9 +243,7 @@ func (g *HardenedGate) killSwitchActive(ctx context.Context) (bool, error) {
 		}
 		return active, nil
 	}
-	g.mu.RLock()
-	defer g.mu.RUnlock()
-	return g.killSwitch, nil
+	return false, nil
 }
 
 func (g *HardenedGate) TripKillSwitch(ctx context.Context) error {

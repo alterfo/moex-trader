@@ -22,9 +22,9 @@ the completion of Task 21.
   executor, risk-gate stub, and orchestration loop are implemented and tested.
 - Phase 2: Ollama client, strict prompt/few-shot examples, bounded retry with HOLD
   fallback, orchestration wiring, and `cmd/llmbench` are implemented and tested.
-- Phase 3: Tinkoff market-data client, AlgoPack enrichment (library, not wired into
-  `cmd/trader`), Redis Streams bus, Prometheus metrics, and Telegram alerting are
-  implemented and tested.
+- Phase 3: Tinkoff market-data client, AlgoPack enrichment wired into the orchestrator
+  as an async per-cycle worker, Redis Streams bus, Prometheus metrics, and Telegram
+  alerting are implemented and tested.
 - Phase 4: hardened risk gate, idempotent live executor, persisted kill switch plus
   Ollama timeout watchdog, and verifier agent are implemented and tested. The running
   `cmd/trader` uses paper execution only and rejects live mode until Tinkoff orders,

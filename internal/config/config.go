@@ -15,6 +15,7 @@ type Config struct {
 	Ollama          Ollama   `yaml:"ollama"`
 	MOEXISSBaseURL  string   `yaml:"moex_iss_base_url"`
 	AlgoPackBaseURL string   `yaml:"algopack_base_url"`
+	AlgoPackToken   string   `yaml:"algopack_token"`
 	Storage         Storage  `yaml:"storage"`
 	Risk            Risk     `yaml:"risk"`
 	Telegram        Telegram `yaml:"telegram"`
@@ -144,6 +145,9 @@ func applyEnv(cfg *Config) error {
 	}
 	if v := os.Getenv("MOEX_TRADER_ALGOPACK_BASE_URL"); v != "" {
 		cfg.AlgoPackBaseURL = v
+	}
+	if v := os.Getenv("MOEX_TRADER_ALGOPACK_TOKEN"); v != "" {
+		cfg.AlgoPackToken = v
 	}
 	if v := os.Getenv("MOEX_TRADER_STORAGE_PATH"); v != "" {
 		cfg.Storage.Path = v

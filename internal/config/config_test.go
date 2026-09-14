@@ -16,6 +16,7 @@ func clearEnv(t *testing.T) {
 		"MOEX_TRADER_OLLAMA_TIMEOUT",
 		"MOEX_TRADER_MOEX_ISS_URL",
 		"MOEX_TRADER_ALGOPACK_BASE_URL",
+		"MOEX_TRADER_ALGOPACK_TOKEN",
 		"MOEX_TRADER_STORAGE_PATH",
 		"MOEX_TRADER_POLL_INTERVAL",
 		"MOEX_TRADER_IS_PAPER_TRADING",
@@ -143,6 +144,9 @@ func TestDefaultsAppliedWhenFieldsOmitted(t *testing.T) {
 	if cfg.AlgoPackBaseURL != "https://apim.moex.com/iss/datashop" {
 		t.Fatalf("unexpected default algopack base url: %q", cfg.AlgoPackBaseURL)
 	}
+	if cfg.AlgoPackToken != "" {
+		t.Fatalf("unexpected default algopack token: %q", cfg.AlgoPackToken)
+	}
 	if !cfg.IsPaperTrading {
 		t.Fatal("expected default is_paper_trading to be true")
 	}
@@ -180,6 +184,7 @@ func TestEnvOverrides(t *testing.T) {
 	t.Setenv("MOEX_TRADER_OLLAMA_TIMEOUT", "25s")
 	t.Setenv("MOEX_TRADER_MOEX_ISS_URL", "https://override.example/iss")
 	t.Setenv("MOEX_TRADER_ALGOPACK_BASE_URL", "https://override.example/datashop")
+	t.Setenv("MOEX_TRADER_ALGOPACK_TOKEN", "env-algopack-token")
 	t.Setenv("MOEX_TRADER_STORAGE_PATH", "/override/trader.db")
 	t.Setenv("MOEX_TRADER_POLL_INTERVAL", "2m")
 	t.Setenv("MOEX_TRADER_IS_PAPER_TRADING", "false")
@@ -203,6 +208,9 @@ func TestEnvOverrides(t *testing.T) {
 	}
 	if cfg.AlgoPackBaseURL != "https://override.example/datashop" {
 		t.Fatalf("unexpected algopack base url: %q", cfg.AlgoPackBaseURL)
+	}
+	if cfg.AlgoPackToken != "env-algopack-token" {
+		t.Fatalf("unexpected algopack token: %q", cfg.AlgoPackToken)
 	}
 	if cfg.Storage.Path != "/override/trader.db" {
 		t.Fatalf("unexpected storage path: %q", cfg.Storage.Path)

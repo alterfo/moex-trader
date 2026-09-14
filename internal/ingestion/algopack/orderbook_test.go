@@ -35,6 +35,45 @@ func TestParseOrderBook(t *testing.T) {
 	}
 }
 
+func TestParseObstatsEnvelope(t *testing.T) {
+	book, err := ParseOrderBook([]byte(`{
+		"obstats": {
+			"columns": ["tradedate", "tradetime", "secid", "imbalance_vol"],
+			"data": [
+				["2024-01-11", "11:00:00", "SBER", 0.1],
+				["2024-01-11", "12:00:00", "SBER", -0.4]
+			]
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("ParseOrderBook() error = %v", err)
+	}
+	if book.Ticker != "SBER" {
+		t.Fatalf("unexpected ticker %q", book.Ticker)
+	}
+	if book.Timestamp.IsZero() {
+		t.Fatal("expected timestamp from obstats row")
+	}
+	if !book.Imbalance().Equal(decimal.NewFromFloat(-0.4)) {
+		t.Fatalf("unexpected imbalance %s, want -0.4", book.Imbalance())
+	}
+}
+
+func TestParseObstatsMissingImbalanceFallsBack(t *testing.T) {
+	book, err := ParseOrderBook([]byte(`{
+		"obstats": {
+			"columns": ["secid", "levels_b"],
+			"data": [["SBER", 10]]
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("ParseOrderBook() error = %v", err)
+	}
+	if !book.Imbalance().IsZero() {
+		t.Fatalf("expected zero imbalance without imbalance_vol, got %s", book.Imbalance())
+	}
+}
+
 func TestParseOrderBookPartialData(t *testing.T) {
 	book, err := ParseOrderBook([]byte(`{
 		"ticker": "OZON",

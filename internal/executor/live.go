@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -25,6 +26,25 @@ type OrderPoster interface {
 type orderResult struct {
 	fill Fill
 	err  error
+}
+
+type liveOrderIntent struct {
+	Status      string          `json:"status"`
+	Ticker      string          `json:"ticker"`
+	Action      domain.Action   `json:"action"`
+	TargetLots  int             `json:"target_lots"`
+	Price       decimal.Decimal `json:"price"`
+	Message     string          `json:"message,omitempty"`
+	SubmittedAt time.Time       `json:"submitted_at"`
+}
+
+type persistedOrder struct {
+	Ticker     string          `json:"ticker"`
+	Action     domain.Action   `json:"action"`
+	Lots       int             `json:"lots"`
+	Price      decimal.Decimal `json:"price"`
+	ExecutedAt time.Time       `json:"executed_at"`
+	Status     string          `json:"status"`
 }
 
 type InstrumentIDResolver func(ticker string) (string, error)
@@ -139,12 +159,27 @@ func (l *LiveExecutor) ExecuteWithOrderID(ctx context.Context, signal domain.Tra
 	}
 	if pending, ok := l.pending[orderID]; ok {
 		l.mu.Unlock()
-		select {
-		case result := <-pending:
-			return result.fill, result.err
-		case <-ctx.Done():
-			return Fill{}, ctx.Err()
+		return l.waitPending(ctx, pending)
+	}
+	l.mu.Unlock()
+
+	if fill, found, err := l.loadPersistedOrder(ctx, orderID); err != nil {
+		return Fill{}, err
+	} else if found {
+		if isPersistedFill(fill) {
+			return fill, nil
 		}
+		return Fill{}, fmt.Errorf("live executor: order %q was already submitted and has no recorded fill", orderID)
+	}
+
+	l.mu.Lock()
+	if fill, ok := l.sent[orderID]; ok {
+		l.mu.Unlock()
+		return fill, nil
+	}
+	if pending, ok := l.pending[orderID]; ok {
+		l.mu.Unlock()
+		return l.waitPending(ctx, pending)
 	}
 	pending := make(chan orderResult, 1)
 	l.pending[orderID] = pending
@@ -162,6 +197,15 @@ func (l *LiveExecutor) ExecuteWithOrderID(ctx context.Context, signal domain.Tra
 	return fill, err
 }
 
+func (l *LiveExecutor) waitPending(ctx context.Context, pending chan orderResult) (Fill, error) {
+	select {
+	case result := <-pending:
+		return result.fill, result.err
+	case <-ctx.Done():
+		return Fill{}, ctx.Err()
+	}
+}
+
 func (l *LiveExecutor) placeOrder(ctx context.Context, signal domain.TradeSignal, price decimal.Decimal, orderID string) (Fill, error, bool) {
 	instrumentID, err := l.resolve(signal.Ticker)
 	if err != nil {
@@ -177,6 +221,10 @@ func (l *LiveExecutor) placeOrder(ctx context.Context, signal domain.TradeSignal
 		return Fill{}, err, false
 	}
 
+	if err := l.recordIntent(ctx, signal, price, orderID); err != nil {
+		return Fill{}, err, false
+	}
+
 	response, err := l.orders.PostOrder(ctx, request)
 	if err != nil {
 		return Fill{}, fmt.Errorf("live executor: post order %q: %w", orderID, err), false
@@ -184,24 +232,48 @@ func (l *LiveExecutor) placeOrder(ctx context.Context, signal domain.TradeSignal
 	if response == nil {
 		return Fill{}, fmt.Errorf("live executor: post order %q: nil response", orderID), false
 	}
-	if response.GetExecutionReportStatus() == pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_REJECTED {
-		return Fill{}, fmt.Errorf("live executor: order %q rejected: %s", orderID, response.GetMessage()), false
-	}
 
-	fill := Fill{
-		ID:         orderID,
-		Ticker:     signal.Ticker,
-		Action:     signal.Action,
-		Lots:       int(response.GetLotsExecuted()),
-		Price:      price,
-		ExecutedAt: l.now(),
+	status := response.GetExecutionReportStatus()
+	switch status {
+	case pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL, pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_PARTIALLYFILL:
+		lots := int(response.GetLotsExecuted())
+		if lots <= 0 {
+			return Fill{}, fmt.Errorf("live executor: order %q reported %s with zero executed lots", orderID, status), false
+		}
+		fill := Fill{
+			ID:         orderID,
+			Ticker:     signal.Ticker,
+			Action:     signal.Action,
+			Lots:       lots,
+			Price:      price,
+			ExecutedAt: l.now(),
+		}
+		if err := l.record(ctx, fill); err != nil {
+			return fill, err, true
+		}
+		return fill, nil, true
+	case pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_REJECTED:
+		message := response.GetMessage()
+		if err := l.recordOrderStatus(ctx, signal, price, orderID, "rejected", message); err != nil {
+			return Fill{}, fmt.Errorf("live executor: order %q rejected: %s; record status: %w", orderID, message, err), false
+		}
+		return Fill{}, fmt.Errorf("live executor: order %q rejected: %s", orderID, message), false
+	case pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_CANCELLED:
+		if err := l.recordOrderStatus(ctx, signal, price, orderID, "cancelled", ""); err != nil {
+			return Fill{}, fmt.Errorf("live executor: order %q cancelled; record status: %w", orderID, err), false
+		}
+		return Fill{}, fmt.Errorf("live executor: order %q was cancelled", orderID), false
+	case pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_NEW:
+		if err := l.recordOrderStatus(ctx, signal, price, orderID, "new", ""); err != nil {
+			return Fill{}, fmt.Errorf("live executor: order %q accepted but not filled; record status: %w", orderID, err), false
+		}
+		return Fill{}, fmt.Errorf("live executor: order %q was accepted but not filled", orderID), false
+	default:
+		if err := l.recordOrderStatus(ctx, signal, price, orderID, "unspecified", ""); err != nil {
+			return Fill{}, fmt.Errorf("live executor: order %q has status %s; record status: %w", orderID, status, err), false
+		}
+		return Fill{}, fmt.Errorf("live executor: order %q has unsupported execution report status %s", orderID, status), false
 	}
-
-	if err := l.record(ctx, fill); err != nil {
-		return fill, err, true
-	}
-
-	return fill, nil, true
 }
 
 func validateLiveInput(signal domain.TradeSignal, price decimal.Decimal) error {
@@ -254,10 +326,99 @@ func (l *LiveExecutor) record(ctx context.Context, fill Fill) error {
 		Payload:   string(payload),
 		CreatedAt: fill.ExecutedAt,
 	}
-	if err := l.store.InsertAuditEvent(ctx, event); err != nil {
+	if err := l.store.UpsertAuditEvent(ctx, event); err != nil {
 		return fmt.Errorf("live executor: persist fill: %w", err)
 	}
 	return nil
+}
+
+func (l *LiveExecutor) recordIntent(ctx context.Context, signal domain.TradeSignal, price decimal.Decimal, orderID string) error {
+	now := l.now()
+	payload, err := json.Marshal(liveOrderIntent{
+		Status:      "submitted",
+		Ticker:      signal.Ticker,
+		Action:      signal.Action,
+		TargetLots:  signal.TargetLots,
+		Price:       price,
+		SubmittedAt: now,
+	})
+	if err != nil {
+		return fmt.Errorf("live executor: marshal order intent: %w", err)
+	}
+	event := domain.AuditEvent{
+		ID:        orderID,
+		Ticker:    signal.Ticker,
+		Stage:     "executor",
+		Payload:   string(payload),
+		CreatedAt: now,
+	}
+	if err := l.store.InsertAuditEvent(ctx, event); err != nil {
+		return fmt.Errorf("live executor: persist order intent: %w", err)
+	}
+	return nil
+}
+
+func (l *LiveExecutor) recordOrderStatus(ctx context.Context, signal domain.TradeSignal, price decimal.Decimal, orderID, status, message string) error {
+	payload, err := json.Marshal(liveOrderIntent{
+		Status:      status,
+		Ticker:      signal.Ticker,
+		Action:      signal.Action,
+		TargetLots:  signal.TargetLots,
+		Price:       price,
+		Message:     message,
+		SubmittedAt: l.now(),
+	})
+	if err != nil {
+		return fmt.Errorf("live executor: marshal order status: %w", err)
+	}
+	event := domain.AuditEvent{
+		ID:        orderID,
+		Ticker:    signal.Ticker,
+		Stage:     "executor",
+		Payload:   string(payload),
+		CreatedAt: l.now(),
+	}
+	if err := l.store.UpsertAuditEvent(ctx, event); err != nil {
+		return fmt.Errorf("live executor: persist order status: %w", err)
+	}
+	return nil
+}
+
+func (l *LiveExecutor) loadPersistedOrder(ctx context.Context, orderID string) (Fill, bool, error) {
+	event, err := l.store.GetAuditEvent(ctx, orderID)
+	if err != nil {
+		if errors.Is(err, storage.ErrAuditEventNotFound) {
+			return Fill{}, false, nil
+		}
+		return Fill{}, false, err
+	}
+
+	var order persistedOrder
+	if err := json.Unmarshal([]byte(event.Payload), &order); err != nil {
+		return Fill{}, true, nil
+	}
+	if strings.TrimSpace(order.Ticker) == "" {
+		order.Ticker = event.Ticker
+	}
+	fill := Fill{
+		ID:         orderID,
+		Ticker:     order.Ticker,
+		Action:     order.Action,
+		Lots:       order.Lots,
+		Price:      order.Price,
+		ExecutedAt: order.ExecutedAt,
+	}
+	return fill, true, nil
+}
+
+func isPersistedFill(fill Fill) bool {
+	if fill.Action != domain.ActionBuy && fill.Action != domain.ActionSell {
+		return false
+	}
+	if fill.Lots <= 0 || fill.Price.Sign() <= 0 || fill.ExecutedAt.IsZero() {
+		return false
+	}
+	return true
 }
 
 func decimalToQuotation(value decimal.Decimal) *pb.Quotation {

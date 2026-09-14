@@ -20,10 +20,14 @@ type fakeOrderPoster struct {
 	calls     []*pb.PostOrderRequest
 	responses []*pb.PostOrderResponse
 	err       error
+	onPost    func()
 }
 
 func (f *fakeOrderPoster) PostOrder(ctx context.Context, request *pb.PostOrderRequest) (*pb.PostOrderResponse, error) {
 	f.calls = append(f.calls, request)
+	if f.onPost != nil {
+		f.onPost()
+	}
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -216,8 +220,8 @@ func TestLiveExecutorCachesPostedOrderWhenAuditWriteFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLiveExecutor() error = %v", err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatalf("store.Close() error = %v", err)
+	poster.onPost = func() {
+		_ = store.Close()
 	}
 
 	orderID := uuid.NewString()
@@ -237,7 +241,7 @@ func TestLiveExecutorCachesPostedOrderWhenAuditWriteFails(t *testing.T) {
 	}
 }
 
-func TestLiveExecutorNewOrderRecordsZeroLots(t *testing.T) {
+func TestLiveExecutorNewOrderReturnsPendingError(t *testing.T) {
 	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
 	poster := &fakeOrderPoster{
 		responses: []*pb.PostOrderResponse{
@@ -251,23 +255,101 @@ func TestLiveExecutorNewOrderRecordsZeroLots(t *testing.T) {
 	exec := newLiveExecutorForTest(t, poster, now)
 	orderID := uuid.NewString()
 
-	fill, err := exec.ExecuteWithOrderID(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5), orderID)
-	if err != nil {
-		t.Fatalf("ExecuteWithOrderID() error = %v", err)
+	_, err := exec.ExecuteWithOrderID(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5), orderID)
+	if err == nil {
+		t.Fatal("expected NEW order to return a pending error, got nil")
 	}
-	if fill.Lots != 0 {
-		t.Fatalf("fill.Lots = %d, want 0 for a NEW order with no executions", fill.Lots)
+	if !strings.Contains(err.Error(), "accepted but not filled") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
-	duplicate, err := exec.ExecuteWithOrderID(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5), orderID)
-	if err != nil {
-		t.Fatalf("duplicate ExecuteWithOrderID() error = %v", err)
+	_, err = exec.ExecuteWithOrderID(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5), orderID)
+	if err == nil {
+		t.Fatal("expected duplicate NEW order to avoid submitting again, got nil")
 	}
-	if duplicate.Lots != 0 {
-		t.Fatalf("duplicate fill.Lots = %d, want cached 0", duplicate.Lots)
+	if !strings.Contains(err.Error(), "already submitted") {
+		t.Fatalf("unexpected duplicate error: %v", err)
 	}
 	if len(poster.calls) != 1 {
 		t.Fatalf("PostOrder calls = %d, want 1", len(poster.calls))
+	}
+}
+
+func TestLiveExecutorCancelledOrderSurfacesError(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	poster := &fakeOrderPoster{
+		responses: []*pb.PostOrderResponse{
+			{
+				OrderId:               "broker-order-cancelled",
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_CANCELLED,
+			},
+		},
+	}
+	exec := newLiveExecutorForTest(t, poster, now)
+
+	_, err := exec.Execute(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5))
+	if err == nil {
+		t.Fatal("expected cancelled order error, got nil")
+	}
+	if !strings.Contains(err.Error(), "cancelled") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLiveExecutorPersistedFillIsIdempotentAfterRestart(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	store, err := storage.Open(filepath.Join(t.TempDir(), "trader.db"))
+	if err != nil {
+		t.Fatalf("storage.Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = store.Close()
+	})
+
+	poster := &fakeOrderPoster{
+		responses: []*pb.PostOrderResponse{
+			{
+				OrderId:               "broker-order-1",
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL,
+				LotsRequested:         1,
+				LotsExecuted:          1,
+			},
+		},
+	}
+	first, err := NewLiveExecutor(poster, LiveConfig{
+		AccountID: "account-1",
+		ResolveInstrumentID: func(ticker string) (string, error) {
+			return "instrument-" + ticker, nil
+		},
+		Store: store,
+		Now:   func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewLiveExecutor() error = %v", err)
+	}
+
+	orderID := uuid.NewString()
+	if _, err := first.ExecuteWithOrderID(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5), orderID); err != nil {
+		t.Fatalf("first ExecuteWithOrderID() error = %v", err)
+	}
+
+	restarted, err := NewLiveExecutor(&fakeOrderPoster{err: context.DeadlineExceeded}, LiveConfig{
+		AccountID: "account-1",
+		ResolveInstrumentID: func(ticker string) (string, error) {
+			return "instrument-" + ticker, nil
+		},
+		Store: store,
+		Now:   func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewLiveExecutor() restarted error = %v", err)
+	}
+	fill, err := restarted.ExecuteWithOrderID(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5), orderID)
+	if err != nil {
+		t.Fatalf("restarted ExecuteWithOrderID() error = %v", err)
+	}
+	if fill.ID != orderID || fill.Lots != 1 {
+		t.Fatalf("restarted fill = %+v, want persisted fill", fill)
 	}
 }
 

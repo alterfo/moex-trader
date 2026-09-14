@@ -26,8 +26,9 @@ func TestChatValidResponse(t *testing.T) {
 			t.Errorf("model = %q, want qwen3.8", req.Model)
 			return
 		}
-		if req.Format != "json" {
-			t.Errorf("format = %q, want json", req.Format)
+		format, ok := req.Format.(map[string]any)
+		if !ok {
+			t.Errorf("format = %T, want schema object", req.Format)
 			return
 		}
 		if len(req.Messages) != 2 {
@@ -38,18 +39,13 @@ func TestChatValidResponse(t *testing.T) {
 			t.Errorf("unexpected roles: %+v", req.Messages)
 			return
 		}
-		schema, ok := req.Schema.(map[string]any)
+		props, ok := format["properties"].(map[string]any)
 		if !ok {
-			t.Errorf("schema not present as object: %T", req.Schema)
-			return
-		}
-		props, ok := schema["properties"].(map[string]any)
-		if !ok {
-			t.Errorf("schema has no properties: %+v", schema)
+			t.Errorf("format schema has no properties: %+v", format)
 			return
 		}
 		if _, ok := props["action"]; !ok {
-			t.Errorf("schema properties missing action: %+v", props)
+			t.Errorf("format schema properties missing action: %+v", props)
 			return
 		}
 

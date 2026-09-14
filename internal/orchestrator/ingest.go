@@ -25,17 +25,21 @@ type MOEXIngestor struct {
 	candleLookback time.Duration
 	logger         *log.Logger
 	algopack       algopack.Fetcher
+	algopackWorker *algopack.Worker
 
 	mu              sync.Mutex
 	newsCache       []news.Article
 	newsCacheFilled bool
+
+	cycleMu      sync.Mutex
+	cycleResults map[string]chan algopack.Result
 }
 
 func NewMOEXIngestor(moexClient *moex.Client, fetcher *news.Fetcher, matcher *news.Matcher, sources []news.Source, algopackFetcher algopack.Fetcher) *MOEXIngestor {
 	if sources == nil {
 		sources = news.DefaultSources()
 	}
-	return &MOEXIngestor{
+	ingestor := &MOEXIngestor{
 		moex:           moexClient,
 		news:           fetcher,
 		matcher:        matcher,
@@ -45,6 +49,10 @@ func NewMOEXIngestor(moexClient *moex.Client, fetcher *news.Fetcher, matcher *ne
 		logger:         log.Default(),
 		algopack:       algopackFetcher,
 	}
+	if algopackFetcher != nil {
+		ingestor.algopackWorker = algopack.NewWorker(algopackFetcher, 2, 10*time.Second)
+	}
+	return ingestor
 }
 
 func (i *MOEXIngestor) Ingest(ctx context.Context, ticker string) (features.Input, error) {
@@ -81,11 +89,19 @@ func (i *MOEXIngestor) Ingest(ctx context.Context, ticker string) (features.Inpu
 	}
 
 	if i.algopack != nil {
-		book, err := i.algopack.FetchOrderBook(ctx, ticker)
-		if err != nil {
-			i.logger.Printf("ingest: algopack order book for %s: %v", ticker, err)
+		if result, ok := i.algopackResult(ctx, ticker); ok {
+			if result.Err != nil {
+				i.logger.Printf("ingest: algopack order book for %s: %v", ticker, result.Err)
+			} else {
+				input.OrderBookImbalance = result.Imbalance
+			}
 		} else {
-			input.OrderBookImbalance = book.Imbalance()
+			book, err := i.algopack.FetchOrderBook(ctx, ticker)
+			if err != nil {
+				i.logger.Printf("ingest: algopack order book for %s: %v", ticker, err)
+			} else {
+				input.OrderBookImbalance = book.Imbalance()
+			}
 		}
 	}
 
@@ -97,6 +113,76 @@ func (i *MOEXIngestor) ResetCycle() {
 	i.newsCacheFilled = false
 	i.newsCache = nil
 	i.mu.Unlock()
+	i.cycleMu.Lock()
+	i.cycleResults = nil
+	i.cycleMu.Unlock()
+}
+
+func (i *MOEXIngestor) PrepareCycle(ctx context.Context, tickers []string) {
+	if i.algopackWorker == nil {
+		return
+	}
+	seen := make(map[string]struct{}, len(tickers))
+	unique := make([]string, 0, len(tickers))
+	for _, ticker := range tickers {
+		key := strings.ToUpper(strings.TrimSpace(ticker))
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		unique = append(unique, key)
+	}
+	if len(unique) == 0 {
+		return
+	}
+
+	results := make(map[string]chan algopack.Result, len(unique))
+	for _, ticker := range unique {
+		results[ticker] = make(chan algopack.Result, 1)
+	}
+	i.cycleMu.Lock()
+	i.cycleResults = results
+	i.cycleMu.Unlock()
+
+	jobs := make(chan string, len(unique))
+	workerResults := i.algopackWorker.Start(ctx, jobs)
+	go func() {
+		for result := range workerResults {
+			key := strings.ToUpper(strings.TrimSpace(result.Ticker))
+			if ch, ok := results[key]; ok {
+				ch <- result
+			}
+		}
+		for _, ch := range results {
+			close(ch)
+		}
+	}()
+	for _, ticker := range unique {
+		jobs <- ticker
+	}
+	close(jobs)
+}
+
+func (i *MOEXIngestor) algopackResult(ctx context.Context, ticker string) (algopack.Result, bool) {
+	key := strings.ToUpper(strings.TrimSpace(ticker))
+	i.cycleMu.Lock()
+	ch, ok := i.cycleResults[key]
+	i.cycleMu.Unlock()
+	if !ok {
+		return algopack.Result{}, false
+	}
+	select {
+	case result, open := <-ch:
+		if !open {
+			return algopack.Result{}, false
+		}
+		return result, true
+	case <-ctx.Done():
+		return algopack.Result{Ticker: key, Err: ctx.Err()}, true
+	}
 }
 
 func (i *MOEXIngestor) cycleArticles(ctx context.Context) []news.Article {

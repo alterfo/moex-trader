@@ -53,6 +53,17 @@ func (f *fakeIngestor) Ingest(ctx context.Context, ticker string) (features.Inpu
 	return input, nil
 }
 
+type cyclePreparingIngestor struct {
+	*fakeIngestor
+	prepared atomic.Int32
+	tickers  []string
+}
+
+func (f *cyclePreparingIngestor) PrepareCycle(_ context.Context, tickers []string) {
+	f.prepared.Add(1)
+	f.tickers = append([]string(nil), tickers...)
+}
+
 type fakeSource struct {
 	signal domain.TradeSignal
 	now    func() time.Time
@@ -212,6 +223,35 @@ func TestRunOnceRecordsFullPipeline(t *testing.T) {
 				t.Fatalf("event count for %s/%s = %d, want 1", ticker, stage, got)
 			}
 		}
+	}
+}
+
+func TestRunOnceCallsCyclePreparer(t *testing.T) {
+	store := openTestStore(t)
+	now := func() time.Time { return time.Date(2024, 1, 11, 12, 30, 0, 0, time.UTC) }
+	ingestor := &cyclePreparingIngestor{fakeIngestor: &fakeIngestor{inputs: map[string]features.Input{
+		"SBER": fixtureInput("SBER"),
+		"YDEX": fixtureInput("YDEX"),
+	}}}
+	source := &fakeSource{
+		signal: domain.TradeSignal{
+			Action:      domain.ActionHold,
+			Confidence:  decimal.NewFromFloat(0.5),
+			Reasoning:   "hold",
+			GeneratedAt: now(),
+		},
+		now: now,
+	}
+	exec := &fakeExecutor{store: store, now: now}
+	orch := newTestOrchestrator(t, store, ingestor, source, now, exec)
+
+	orch.RunOnce(context.Background())
+
+	if ingestor.prepared.Load() != 1 {
+		t.Fatalf("PrepareCycle calls = %d, want 1", ingestor.prepared.Load())
+	}
+	if len(ingestor.tickers) != 2 || ingestor.tickers[0] != "SBER" || ingestor.tickers[1] != "YDEX" {
+		t.Fatalf("unexpected prepared tickers: %v", ingestor.tickers)
 	}
 }
 

@@ -22,8 +22,7 @@ type ChatRequest struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
 	Stream   bool      `json:"stream"`
-	Format   string    `json:"format"`
-	Schema   any       `json:"schema,omitempty"`
+	Format   any       `json:"format"`
 }
 
 type ChatResponse struct {
@@ -55,8 +54,7 @@ func (c *Client) Chat(ctx context.Context, messages []Message) (ChatResponse, er
 		Model:    c.model,
 		Messages: messages,
 		Stream:   false,
-		Format:   "json",
-		Schema:   TradeSignalSchema(),
+		Format:   TradeSignalSchema(),
 	})
 	if err != nil {
 		return empty, fmt.Errorf("ollama: marshal chat request: %w", err)

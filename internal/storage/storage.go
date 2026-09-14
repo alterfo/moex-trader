@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -15,6 +16,8 @@ import (
 type Store struct {
 	db *sql.DB
 }
+
+var ErrAuditEventNotFound = errors.New("audit event not found")
 
 func Open(path string) (*Store, error) {
 	db, err := sql.Open("sqlite", buildDSN(path))
@@ -128,6 +131,45 @@ func (s *Store) InsertAuditEvent(ctx context.Context, event domain.AuditEvent) e
 		return fmt.Errorf("insert audit event %q: %w", event.ID, err)
 	}
 	return nil
+}
+
+func (s *Store) UpsertAuditEvent(ctx context.Context, event domain.AuditEvent) error {
+	if strings.TrimSpace(event.ID) == "" {
+		event.ID = uuid.NewString()
+	}
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO audit_events (id, ticker, stage, payload, created_at)
+		 VALUES (?, ?, ?, ?, ?)
+		 ON CONFLICT(id) DO UPDATE SET
+			ticker = excluded.ticker,
+			stage = excluded.stage,
+			payload = excluded.payload,
+			created_at = excluded.created_at`,
+		event.ID, event.Ticker, event.Stage, event.Payload, event.CreatedAt.UnixNano(),
+	)
+	if err != nil {
+		return fmt.Errorf("upsert audit event %q: %w", event.ID, err)
+	}
+	return nil
+}
+
+func (s *Store) GetAuditEvent(ctx context.Context, id string) (domain.AuditEvent, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT id, ticker, stage, payload, created_at
+		 FROM audit_events
+		 WHERE id = ?`,
+		id,
+	)
+	var event domain.AuditEvent
+	var createdAt int64
+	if err := row.Scan(&event.ID, &event.Ticker, &event.Stage, &event.Payload, &createdAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.AuditEvent{}, ErrAuditEventNotFound
+		}
+		return domain.AuditEvent{}, fmt.Errorf("get audit event %q: %w", id, err)
+	}
+	event.CreatedAt = time.Unix(0, createdAt)
+	return event, nil
 }
 
 func (s *Store) ListAuditEvents(ctx context.Context, since time.Time) ([]domain.AuditEvent, error) {
