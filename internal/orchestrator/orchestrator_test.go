@@ -120,6 +120,8 @@ func fixtureInput(ticker string) features.Input {
 		Price: features.PriceSnapshot{
 			LastPrice: decimal.NewFromFloat(110),
 			PrevClose: decimal.NewFromFloat(100),
+			Bid:       decimal.NewFromFloat(109.9),
+			Ask:       decimal.NewFromFloat(110.1),
 			AsOf:      time.Date(2024, 1, 11, 12, 0, 0, 0, time.UTC),
 		},
 	}

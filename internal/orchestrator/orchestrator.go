@@ -47,6 +47,7 @@ type Options struct {
 	Logger       *log.Logger
 	Now          func() time.Time
 	Metrics      *metrics.Metrics
+	Account      risk.Account
 }
 
 type Orchestrator struct {
@@ -61,6 +62,7 @@ type Orchestrator struct {
 	logger       *log.Logger
 	now          func() time.Time
 	metrics      *metrics.Metrics
+	account      risk.Account
 }
 
 func New(opts Options) (*Orchestrator, error) {
@@ -115,6 +117,7 @@ func New(opts Options) (*Orchestrator, error) {
 		logger:       logger,
 		now:          now,
 		metrics:      opts.Metrics,
+		account:      opts.Account,
 	}, nil
 }
 
@@ -173,7 +176,15 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string) error {
 		o.metrics.IncSignalsGenerated()
 	}
 
-	approved, err := o.gate.Approve(ctx, signal)
+	approved, err := o.gate.Approve(ctx, risk.Request{
+		Signal: signal,
+		Market: risk.Market{
+			OrderPrice: feature.LastPrice,
+			Bid:        feature.Bid,
+			Ask:        feature.Ask,
+		},
+		Account: o.account,
+	})
 	if err != nil {
 		o.record(ctx, ticker, StageRisk, auditError("risk gate", err))
 		return fmt.Errorf("risk gate for %s: %w", ticker, err)

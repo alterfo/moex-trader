@@ -214,13 +214,13 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 ### Phase 4: Live Micro-Lot Trading
 
 ### Task 17: Hardened risk gate
-- [ ] extend `internal/risk.Gate` with the full Go-Live checklist rules: max position
+- [x] extend `internal/risk.Gate` with the full Go-Live checklist rules: max position
       = 1 lot, daily loss limit = 0.5% of deposit, fat-finger check (order price within
       2% of current best bid/ask), kill switch on >3% drawdown (cancels all open orders,
       blocks new signals)
-- [ ] write table-driven tests covering each rule's approve/reject boundary
+- [x] write table-driven tests covering each rule's approve/reject boundary
       (e.g. exactly 2.0% vs 2.01% from best bid/ask)
-- [ ] run tests — must pass before task 18
+- [x] run tests — must pass before task 18
 
 ### Task 18: Idempotent live executor
 - [ ] `internal/executor.LiveExecutor`: sends real orders via the Tinkoff orders API;
