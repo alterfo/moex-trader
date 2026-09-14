@@ -103,13 +103,13 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 4
 
 ### Task 4: MOEX ISS data ingestion + news fetcher
-- [ ] `internal/ingestion/moex`: fetch last price / candles per ticker from the public
+- [x] `internal/ingestion/moex`: fetch last price / candles per ticker from the public
       MOEX ISS API
-- [ ] `internal/ingestion/news`: port the RSS source list + trust weights from
+- [x] `internal/ingestion/news`: port the RSS source list + trust weights from
       finanalys `config.py`, fetch + parse RSS, match articles to tickers by alias
-- [ ] write tests with `httptest.Server` fixtures (valid response, HTTP error,
+- [x] write tests with `httptest.Server` fixtures (valid response, HTTP error,
       malformed JSON/XML, timeout)
-- [ ] run tests — must pass before task 5
+- [x] run tests — must pass before task 5
 
 ### Task 5: FeatureContext builder
 - [ ] `internal/features`: combine price data + matched news + basic technical
