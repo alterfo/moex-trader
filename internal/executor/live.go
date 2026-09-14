@@ -67,7 +67,8 @@ type LiveExecutor struct {
 
 	mu      sync.Mutex
 	sent    map[string]Fill
-	pending map[string]chan orderResult
+	pending map[string]chan struct{}
+	results map[string]orderResult
 }
 
 func NewLiveExecutor(orders OrderPoster, cfg LiveConfig) (*LiveExecutor, error) {
@@ -100,7 +101,8 @@ func NewLiveExecutor(orders OrderPoster, cfg LiveConfig) (*LiveExecutor, error) 
 		store:     cfg.Store,
 		now:       now,
 		sent:      make(map[string]Fill),
-		pending:   make(map[string]chan orderResult),
+		pending:   make(map[string]chan struct{}),
+		results:   make(map[string]orderResult),
 	}, nil
 }
 
@@ -157,15 +159,18 @@ func (l *LiveExecutor) ExecuteWithOrderID(ctx context.Context, signal domain.Tra
 		l.mu.Unlock()
 		return fill, nil
 	}
-	if pending, ok := l.pending[orderID]; ok {
+	if done, ok := l.pending[orderID]; ok {
 		l.mu.Unlock()
-		return l.waitPending(ctx, pending)
+		return l.waitPending(ctx, orderID, done)
 	}
 	l.mu.Unlock()
 
-	if fill, found, err := l.loadPersistedOrder(ctx, orderID); err != nil {
+	if fill, status, found, err := l.loadPersistedOrder(ctx, orderID); err != nil {
 		return Fill{}, err
 	} else if found {
+		if status == "partially_filled" {
+			return Fill{}, fmt.Errorf("live executor: order %q is partially filled and requires reconciliation", orderID)
+		}
 		if isPersistedFill(fill) {
 			return fill, nil
 		}
@@ -177,33 +182,36 @@ func (l *LiveExecutor) ExecuteWithOrderID(ctx context.Context, signal domain.Tra
 		l.mu.Unlock()
 		return fill, nil
 	}
-	if pending, ok := l.pending[orderID]; ok {
+	if done, ok := l.pending[orderID]; ok {
 		l.mu.Unlock()
-		return l.waitPending(ctx, pending)
+		return l.waitPending(ctx, orderID, done)
 	}
-	pending := make(chan orderResult, 1)
-	l.pending[orderID] = pending
+	done := make(chan struct{})
+	l.pending[orderID] = done
 	l.mu.Unlock()
 
 	fill, err, posted := l.placeOrder(ctx, signal, price, orderID)
 	l.mu.Lock()
+	l.results[orderID] = orderResult{fill: fill, err: err}
 	if err == nil || posted {
 		l.sent[orderID] = fill
 	}
+	close(done)
 	delete(l.pending, orderID)
 	l.mu.Unlock()
-	pending <- orderResult{fill: fill, err: err}
-	close(pending)
 	return fill, err
 }
 
-func (l *LiveExecutor) waitPending(ctx context.Context, pending chan orderResult) (Fill, error) {
+func (l *LiveExecutor) waitPending(ctx context.Context, orderID string, done chan struct{}) (Fill, error) {
 	select {
-	case result := <-pending:
-		return result.fill, result.err
+	case <-done:
 	case <-ctx.Done():
 		return Fill{}, ctx.Err()
 	}
+	l.mu.Lock()
+	result := l.results[orderID]
+	l.mu.Unlock()
+	return result.fill, result.err
 }
 
 func (l *LiveExecutor) placeOrder(ctx context.Context, signal domain.TradeSignal, price decimal.Decimal, orderID string) (Fill, error, bool) {
@@ -235,7 +243,7 @@ func (l *LiveExecutor) placeOrder(ctx context.Context, signal domain.TradeSignal
 
 	status := response.GetExecutionReportStatus()
 	switch status {
-	case pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL, pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_PARTIALLYFILL:
+	case pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL:
 		lots := int(response.GetLotsExecuted())
 		if lots <= 0 {
 			return Fill{}, fmt.Errorf("live executor: order %q reported %s with zero executed lots", orderID, status), false
@@ -245,13 +253,22 @@ func (l *LiveExecutor) placeOrder(ctx context.Context, signal domain.TradeSignal
 			Ticker:     signal.Ticker,
 			Action:     signal.Action,
 			Lots:       lots,
-			Price:      price,
+			Price:      executedOrderPrice(response, price),
 			ExecutedAt: l.now(),
 		}
 		if err := l.record(ctx, fill); err != nil {
 			return fill, err, true
 		}
 		return fill, nil, true
+	case pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_PARTIALLYFILL:
+		lots := int(response.GetLotsExecuted())
+		if lots <= 0 {
+			return Fill{}, fmt.Errorf("live executor: order %q reported partially filled with zero executed lots", orderID), false
+		}
+		if err := l.recordPartialFill(ctx, signal, executedOrderPrice(response, price), orderID, lots); err != nil {
+			return Fill{}, fmt.Errorf("live executor: order %q partially filled; record partial fill: %w", orderID, err), false
+		}
+		return Fill{}, fmt.Errorf("live executor: order %q partially filled: %d of %d lots executed", orderID, lots, response.GetLotsRequested()), false
 	case pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_REJECTED:
 		message := response.GetMessage()
 		if err := l.recordOrderStatus(ctx, signal, price, orderID, "rejected", message); err != nil {
@@ -384,18 +401,44 @@ func (l *LiveExecutor) recordOrderStatus(ctx context.Context, signal domain.Trad
 	return nil
 }
 
-func (l *LiveExecutor) loadPersistedOrder(ctx context.Context, orderID string) (Fill, bool, error) {
+func (l *LiveExecutor) recordPartialFill(ctx context.Context, signal domain.TradeSignal, price decimal.Decimal, orderID string, lots int) error {
+	now := l.now()
+	payload, err := json.Marshal(persistedOrder{
+		Ticker:     signal.Ticker,
+		Action:     signal.Action,
+		Lots:       lots,
+		Price:      price,
+		ExecutedAt: now,
+		Status:     "partially_filled",
+	})
+	if err != nil {
+		return fmt.Errorf("live executor: marshal partial fill: %w", err)
+	}
+	event := domain.AuditEvent{
+		ID:        orderID,
+		Ticker:    signal.Ticker,
+		Stage:     "executor",
+		Payload:   string(payload),
+		CreatedAt: now,
+	}
+	if err := l.store.UpsertAuditEvent(ctx, event); err != nil {
+		return fmt.Errorf("live executor: persist partial fill: %w", err)
+	}
+	return nil
+}
+
+func (l *LiveExecutor) loadPersistedOrder(ctx context.Context, orderID string) (Fill, string, bool, error) {
 	event, err := l.store.GetAuditEvent(ctx, orderID)
 	if err != nil {
 		if errors.Is(err, storage.ErrAuditEventNotFound) {
-			return Fill{}, false, nil
+			return Fill{}, "", false, nil
 		}
-		return Fill{}, false, err
+		return Fill{}, "", false, err
 	}
 
 	var order persistedOrder
 	if err := json.Unmarshal([]byte(event.Payload), &order); err != nil {
-		return Fill{}, true, nil
+		return Fill{}, "", true, nil
 	}
 	if strings.TrimSpace(order.Ticker) == "" {
 		order.Ticker = event.Ticker
@@ -408,7 +451,7 @@ func (l *LiveExecutor) loadPersistedOrder(ctx context.Context, orderID string) (
 		Price:      order.Price,
 		ExecutedAt: order.ExecutedAt,
 	}
-	return fill, true, nil
+	return fill, order.Status, true, nil
 }
 
 func isPersistedFill(fill Fill) bool {
@@ -429,4 +472,24 @@ func decimalToQuotation(value decimal.Decimal) *pb.Quotation {
 		Units: units,
 		Nano:  int32(nano),
 	}
+}
+
+func executedOrderPrice(response *pb.PostOrderResponse, fallback decimal.Decimal) decimal.Decimal {
+	if response == nil {
+		return fallback
+	}
+	converted, err := moneyValueToDecimal(response.GetExecutedOrderPrice())
+	if err != nil || converted.Sign() <= 0 {
+		return fallback
+	}
+	return converted
+}
+
+func moneyValueToDecimal(value *pb.MoneyValue) (decimal.Decimal, error) {
+	if value == nil {
+		return decimal.Zero, errors.New("live executor: nil money value")
+	}
+	whole := decimal.NewFromInt(value.GetUnits())
+	fraction := decimal.NewFromInt(int64(value.GetNano())).Div(decimal.NewFromInt(quotationScale))
+	return whole.Add(fraction), nil
 }

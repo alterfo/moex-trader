@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -442,5 +443,130 @@ func TestNewLiveExecutorValidatesConfig(t *testing.T) {
 				t.Fatal("expected config validation error, got nil")
 			}
 		})
+	}
+}
+
+func TestLiveExecutorUsesExecutedOrderPrice(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	poster := &fakeOrderPoster{
+		responses: []*pb.PostOrderResponse{
+			{
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL,
+				LotsRequested:         1,
+				LotsExecuted:          1,
+				ExecutedOrderPrice:    &pb.MoneyValue{Currency: "RUB", Units: 271, Nano: 250000000},
+			},
+		},
+	}
+	exec := newLiveExecutorForTest(t, poster, now)
+
+	fill, err := exec.Execute(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5))
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	want := decimal.NewFromFloat(271.25)
+	if !fill.Price.Equal(want) {
+		t.Fatalf("fill.Price = %s, want %s", fill.Price, want)
+	}
+}
+
+func TestLiveExecutorPartialFillIsNotTerminal(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	poster := &fakeOrderPoster{
+		responses: []*pb.PostOrderResponse{
+			{
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_PARTIALLYFILL,
+				LotsRequested:         2,
+				LotsExecuted:          1,
+			},
+		},
+	}
+	exec := newLiveExecutorForTest(t, poster, now)
+	signal := newBuySignal(now)
+	signal.TargetLots = 2
+	orderID := uuid.NewString()
+
+	_, err := exec.ExecuteWithOrderID(context.Background(), signal, decimal.NewFromFloat(270.5), orderID)
+	if err == nil {
+		t.Fatal("expected partial fill error, got nil")
+	}
+	if !strings.Contains(err.Error(), "partially filled") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	_, err = exec.ExecuteWithOrderID(context.Background(), signal, decimal.NewFromFloat(270.5), orderID)
+	if err == nil {
+		t.Fatal("expected retry to remain non-terminal, got nil")
+	}
+	if len(poster.calls) != 1 {
+		t.Fatalf("PostOrder calls = %d, want 1", len(poster.calls))
+	}
+}
+
+func TestLiveExecutorConcurrentWaitersShareResult(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	entered := make(chan struct{}, 1)
+	release := make(chan struct{})
+	poster := &fakeOrderPoster{
+		responses: []*pb.PostOrderResponse{
+			{
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL,
+				LotsRequested:         1,
+				LotsExecuted:          1,
+			},
+		},
+		onPost: func() {
+			entered <- struct{}{}
+			<-release
+		},
+	}
+	exec := newLiveExecutorForTest(t, poster, now)
+	signal := newBuySignal(now)
+	orderID := uuid.NewString()
+	price := decimal.NewFromFloat(270.5)
+
+	type result struct {
+		fill Fill
+		err  error
+	}
+	results := make(chan result, 3)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		fill, err := exec.ExecuteWithOrderID(context.Background(), signal, price, orderID)
+		results <- result{fill: fill, err: err}
+	}()
+
+	<-entered
+
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			fill, err := exec.ExecuteWithOrderID(context.Background(), signal, price, orderID)
+			results <- result{fill: fill, err: err}
+		}()
+	}
+	time.Sleep(20 * time.Millisecond)
+	close(release)
+	wg.Wait()
+	close(results)
+
+	if len(poster.calls) != 1 {
+		t.Fatalf("PostOrder calls = %d, want 1", len(poster.calls))
+	}
+	count := 0
+	for res := range results {
+		count++
+		if res.err != nil {
+			t.Fatalf("ExecuteWithOrderID() error = %v", res.err)
+		}
+		if res.fill.ID != orderID || res.fill.Lots != 1 {
+			t.Fatalf("unexpected fill: %+v", res.fill)
+		}
+	}
+	if count != 3 {
+		t.Fatalf("results = %d, want 3", count)
 	}
 }

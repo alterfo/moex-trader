@@ -249,8 +249,8 @@ func TestHardenedGateFatFingerUsesPrevCloseFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Approve() error = %v", err)
 	}
-	if !approved {
-		t.Fatal("expected approval when no quote reference is available")
+	if approved {
+		t.Fatal("expected rejection when no quote reference is available")
 	}
 }
 
@@ -522,5 +522,36 @@ func TestHardenedGateLocalKillSwitchBlocksAfterPersistenceFailure(t *testing.T) 
 	}
 	if store.calls != 0 {
 		t.Fatalf("kill switch store calls = %d, want 0 when local flag is active", store.calls)
+	}
+}
+
+func TestHardenedGateKillSwitchStillCancelsAndAlertsOnPersistenceFailure(t *testing.T) {
+	store := &fakeKillSwitchStore{setErr: errors.New("persist failed")}
+	canceller := &fakeCanceller{}
+	alerter := &fakeKillSwitchAlerter{}
+	cfg := DefaultConfig()
+	cfg.Store = store
+	cfg.Canceller = canceller
+	cfg.Alerter = alerter
+	gate, err := NewHardenedGate(cfg)
+	if err != nil {
+		t.Fatalf("NewHardenedGate() error = %v", err)
+	}
+
+	request := testRequest()
+	request.Account = Account{
+		Deposit:        decimal.RequireFromString("1000"),
+		DayStartEquity: decimal.RequireFromString("969"),
+		CurrentEquity:  decimal.RequireFromString("969"),
+	}
+
+	if _, err := gate.Approve(context.Background(), request); err == nil {
+		t.Fatal("expected error from triggerKillSwitch")
+	}
+	if canceller.calls != 1 {
+		t.Fatalf("CancelOpenOrders calls = %d, want 1", canceller.calls)
+	}
+	if len(alerter.reasons) != 1 || alerter.reasons[0] != "drawdown limit exceeded" {
+		t.Fatalf("alerter reasons = %v, want drawdown limit exceeded", alerter.reasons)
 	}
 }

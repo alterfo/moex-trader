@@ -2,6 +2,7 @@ package risk
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -152,7 +153,7 @@ func (g *HardenedGate) fatFingerOK(market Market) bool {
 	}
 	if market.Bid.Sign() <= 0 && market.Ask.Sign() <= 0 {
 		if market.PrevClose.Sign() <= 0 {
-			return true
+			return false
 		}
 		return g.withinFatFingerBand(market.OrderPrice, market.PrevClose)
 	}
@@ -202,22 +203,23 @@ func (g *HardenedGate) triggerKillSwitch(ctx context.Context, reason string) err
 	alerter := g.alerter
 	g.mu.Unlock()
 
+	var errs []error
 	if store != nil {
 		if err := store.SetKillSwitchActive(ctx, true); err != nil {
-			return fmt.Errorf("risk gate: persist kill switch: %w", err)
+			errs = append(errs, fmt.Errorf("risk gate: persist kill switch: %w", err))
 		}
 	}
 	if canceller != nil {
 		if err := canceller.CancelOpenOrders(ctx); err != nil {
-			return fmt.Errorf("risk gate: cancel open orders: %w", err)
+			errs = append(errs, fmt.Errorf("risk gate: cancel open orders: %w", err))
 		}
 	}
 	if alerter != nil {
 		if err := alerter.KillSwitchTriggered(ctx, reason); err != nil {
-			return fmt.Errorf("risk gate: alert kill switch: %w", err)
+			errs = append(errs, fmt.Errorf("risk gate: alert kill switch: %w", err))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func (g *HardenedGate) hasAccountData(account Account) bool {
