@@ -19,8 +19,8 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/algopack"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/news"
-	"github.com/olegsidorkin/moex-trader/internal/llm"
 	"github.com/olegsidorkin/moex-trader/internal/metrics"
+	"github.com/olegsidorkin/moex-trader/internal/model"
 	"github.com/olegsidorkin/moex-trader/internal/orchestrator"
 	"github.com/olegsidorkin/moex-trader/internal/risk"
 	"github.com/olegsidorkin/moex-trader/internal/storage"
@@ -82,10 +82,10 @@ func run() error {
 		return fmt.Errorf("create risk gate: %w", err)
 	}
 
-	llmClient := llm.New(cfg.Ollama.Host, cfg.Ollama.Model, cfg.Ollama.Timeout.Std())
-	decisionEngine := llm.NewDecisionEngine(llmClient, llm.NewPromptBuilder(), store, time.Now)
-	decisionEngine.SetAlerter(telegramClient)
-	signalSource := orchestrator.NewLLMSignalSource(decisionEngine, cfg.Ollama.Timeout.Std(), log.Default())
+	signalSource, err := newModelSignalSource(cfg)
+	if err != nil {
+		return err
+	}
 	appMetrics := metrics.New()
 
 	tradeExecutor, err := selectExecutor(cfg, store, time.Now)
@@ -133,6 +133,17 @@ func run() error {
 	orch.Run(ctx)
 	log.Printf("trader stopped")
 	return nil
+}
+
+func newModelSignalSource(cfg *config.Config) (*model.SignalSource, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("load model: config is nil")
+	}
+	weights, err := model.LoadWeights(cfg.Model.Path)
+	if err != nil {
+		return nil, fmt.Errorf("load model: %w", err)
+	}
+	return &model.SignalSource{Weights: weights, MaxLots: cfg.Risk.MaxLots}, nil
 }
 
 func selectExecutor(cfg *config.Config, store *storage.Store, now func() time.Time) (executor.Executor, error) {

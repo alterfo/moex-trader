@@ -270,20 +270,20 @@ new signal source and rewiring `cmd/trader`/`cmd/backtest` to use it.
 - [x] run tests — must pass before task 7
 
 ### Task 7: Wire `cmd/trader` to the new SignalSource
-- [ ] in `cmd/trader/main.go`, remove the `llm.New`/`llm.NewDecisionEngine`/
+- [x] in `cmd/trader/main.go`, remove the `llm.New`/`llm.NewDecisionEngine`/
       `orchestrator.NewLLMSignalSource` chain and the `llm` import
-- [ ] load weights via `model.LoadWeights(cfg.Model.Path)` at startup (fail
+- [x] load weights via `model.LoadWeights(cfg.Model.Path)` at startup (fail
       loudly like `storage.Open` does — a live trader must not silently start
       with a broken/missing model), build `model.SignalSource{Weights: ...,
       MaxLots: cfg.Risk.MaxLots}`, pass as `orchestrator.Options.Source`
-- [ ] `telegramClient` stays wired for kill-switch alerts (unrelated to
+- [x] `telegramClient` stays wired for kill-switch alerts (unrelated to
       signal source); the LLM-failure alert path (`decisionEngine.SetAlerter`)
       is simply gone since there's no LLM to fail
-- [ ] write/update tests: any `cmd/trader`-adjacent test or a smoke-level test
+- [x] write/update tests: any `cmd/trader`-adjacent test or a smoke-level test
       confirming `orchestrator.New` is constructed with a non-nil
       `model.SignalSource` when a valid `Model.Path` is configured, and that
       startup fails clearly when the model file is missing
-- [ ] run tests — must pass before task 8
+- [x] run tests — must pass before task 8
 
 ### Task 8: `cmd/backtest` signal-source selection
 - [ ] add `-signal-source` flag to `cmd/backtest/main.go` (`model` default,

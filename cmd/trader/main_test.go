@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,9 +10,38 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/olegsidorkin/moex-trader/internal/config"
+	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/executor"
+	"github.com/olegsidorkin/moex-trader/internal/features"
+	"github.com/olegsidorkin/moex-trader/internal/model"
+	"github.com/olegsidorkin/moex-trader/internal/orchestrator"
+	"github.com/olegsidorkin/moex-trader/internal/risk"
 	"github.com/olegsidorkin/moex-trader/internal/storage"
 )
+
+type traderTestIngestor struct{}
+
+func (traderTestIngestor) Ingest(context.Context, string) (features.Input, error) {
+	return features.Input{}, nil
+}
+
+type traderTestGate struct{}
+
+func (traderTestGate) Approve(context.Context, risk.Request) (bool, error) {
+	return true, nil
+}
+
+type traderTestExecutor struct{}
+
+func (traderTestExecutor) Execute(context.Context, domain.TradeSignal, decimal.Decimal) (executor.Fill, error) {
+	return executor.Fill{}, nil
+}
+
+type traderTestAudit struct{}
+
+func (traderTestAudit) InsertAuditEvent(context.Context, domain.AuditEvent) error {
+	return nil
+}
 
 func openTraderTestStore(t *testing.T) *storage.Store {
 	t.Helper()
@@ -112,5 +142,71 @@ func TestSelectExecutorNilConfig(t *testing.T) {
 	_, err := selectExecutor(nil, nil, time.Now)
 	if err == nil {
 		t.Fatal("selectExecutor() error = nil, want nil config error")
+	}
+}
+
+func TestNewModelSignalSourceWiresIntoOrchestrator(t *testing.T) {
+	_, names := model.ToVector(domain.FeatureContext{})
+	weights := &model.Weights{
+		FeatureOrder:  names,
+		Mean:          make([]float64, len(names)),
+		Std:           make([]float64, len(names)),
+		Coef:          make([]float64, len(names)),
+		Bias:          0,
+		BuyThreshold:  0.55,
+		SellThreshold: 0.45,
+		HorizonDays:   5,
+		DeadbandPct:   0.5,
+		TrainedAt:     time.Now(),
+	}
+	for i := range weights.Std {
+		weights.Std[i] = 1
+	}
+	modelPath := filepath.Join(t.TempDir(), "model.json")
+	if err := weights.Save(modelPath); err != nil {
+		t.Fatalf("weights.Save() error = %v", err)
+	}
+
+	cfg := &config.Config{
+		Model: config.Model{Path: modelPath},
+		Risk:  config.Risk{MaxLots: 3},
+	}
+	source, err := newModelSignalSource(cfg)
+	if err != nil {
+		t.Fatalf("newModelSignalSource() error = %v", err)
+	}
+	if source == nil {
+		t.Fatal("newModelSignalSource() returned nil source")
+	}
+	if source.Weights == nil {
+		t.Fatal("newModelSignalSource() returned nil weights")
+	}
+	if source.MaxLots != cfg.Risk.MaxLots {
+		t.Fatalf("newModelSignalSource() max lots = %d, want %d", source.MaxLots, cfg.Risk.MaxLots)
+	}
+
+	_, err = orchestrator.New(orchestrator.Options{
+		Tickers:  []string{"SBER"},
+		Ingestor: traderTestIngestor{},
+		Source:   source,
+		Gate:     traderTestGate{},
+		Executor: traderTestExecutor{},
+		Audit:    traderTestAudit{},
+	})
+	if err != nil {
+		t.Fatalf("orchestrator.New() error = %v", err)
+	}
+}
+
+func TestNewModelSignalSourceMissingModelFails(t *testing.T) {
+	cfg := &config.Config{
+		Model: config.Model{Path: filepath.Join(t.TempDir(), "missing-model.json")},
+	}
+	_, err := newModelSignalSource(cfg)
+	if err == nil {
+		t.Fatal("newModelSignalSource() error = nil, want missing model failure")
+	}
+	if !strings.Contains(err.Error(), "load model") {
+		t.Fatalf("newModelSignalSource() error = %v, want load model failure", err)
 	}
 }
