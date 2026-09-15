@@ -209,7 +209,7 @@ new signal source and rewiring `cmd/trader`/`cmd/backtest` to use it.
 - [x] run tests — must pass before task 4
 
 ### Task 4: Inference — the new SignalSource
-- [ ] implement `internal/model/signal_source.go`: `SignalSource` struct
+- [x] implement `internal/model/signal_source.go`: `SignalSource` struct
       wrapping `*Weights` and a `MaxLots int`; `Generate(ctx context.Context,
       feature domain.FeatureContext) (domain.TradeSignal, error)` — matches
       `orchestrator.SignalSource`/`backtest.SignalSource` structurally (Go
@@ -217,7 +217,7 @@ new signal source and rewiring `cmd/trader`/`cmd/backtest` to use it.
       `var _ orchestrator.SignalSource = (*SignalSource)(nil)`-style compile
       check if it doesn't create an import cycle — otherwise a comment is
       enough)
-- [ ] `Generate`: convert `feature` via `ToVector`, standardize with
+- [x] `Generate`: convert `feature` via `ToVector`, standardize with
       `Weights.Mean/Std`, compute `p = sigmoid(dot(coef, x) + bias)`; if `p >=
       BuyThreshold` → `ActionBuy`; if `p <= SellThreshold` → `ActionSell`;
       else → `ActionHold` with `HoldReason: domain.HoldReasonModel`;
@@ -225,14 +225,14 @@ new signal source and rewiring `cmd/trader`/`cmd/backtest` to use it.
       for HOLD; `Reasoning` = a short deterministic string embedding `p` and
       the feature values that drove it (e.g. top contributing feature by
       `|coef_i * x_i|`) for audit-log readability — no LLM-style prose needed
-- [ ] return an error (not a HOLD signal) if `feature.Ticker` is empty or if
+- [x] return an error (not a HOLD signal) if `feature.Ticker` is empty or if
       the computed probability is `NaN`/`Inf` — matches
       `backtest.Engine.runTicker`'s existing pattern of treating signal-source
       errors as `HoldReasonError`, distinct from a genuine model HOLD
-- [ ] write tests: table-driven — fixed `Weights` fixture, known feature
+- [x] write tests: table-driven — fixed `Weights` fixture, known feature
       inputs, assert exact `Action`/`Confidence`/`TargetLots`/`HoldReason`;
       error cases (empty ticker, degenerate weights producing NaN)
-- [ ] run tests — must pass before task 5
+- [x] run tests — must pass before task 5
 
 ### Task 5: `cmd/trainmodel` — training + validation CLI
 - [ ] create `cmd/trainmodel/main.go`: flags for `-config`, `-tickers`
