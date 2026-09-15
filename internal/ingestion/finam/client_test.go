@@ -467,3 +467,74 @@ func TestPlaceOrderRejectsMalformedExecutedQuantity(t *testing.T) {
 		t.Fatalf("PlaceOrder error = %v, want parse executed quantity", err)
 	}
 }
+
+func TestGetAssetSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/v1/sessions" {
+			writeJSON(w, http.StatusOK, authResponse{Token: "jwt-asset"})
+			return
+		}
+		if r.Method != http.MethodGet || r.URL.Path != "/v1/assets/SBER@MISX" {
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.URL.Query().Get("account_id"); got != "account-1" {
+			t.Errorf("account_id = %q, want account-1", got)
+		}
+		writeJSON(w, http.StatusOK, finamAssetResponse{
+			Symbol:  "SBER@MISX",
+			LotSize: decimalValue{Value: "10"},
+		})
+	}))
+	defer server.Close()
+
+	client, err := New(context.Background(), Config{BaseURL: server.URL, SecretToken: "secret"})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	asset, err := client.GetAsset(context.Background(), "account-1", "SBER@MISX")
+	if err != nil {
+		t.Fatalf("GetAsset returned error: %v", err)
+	}
+	if asset.Symbol != "SBER@MISX" {
+		t.Fatalf("Symbol = %q, want SBER@MISX", asset.Symbol)
+	}
+	requireDecimal(t, asset.LotSize, "10")
+}
+
+func TestGetAssetRejectsInvalidInput(t *testing.T) {
+	client := &Client{}
+	if _, err := client.GetAsset(context.Background(), " ", "SBER@MISX"); err == nil || !strings.Contains(err.Error(), "account id") {
+		t.Fatalf("GetAsset empty account error = %v, want account id", err)
+	}
+	if _, err := client.GetAsset(context.Background(), "account-1", "SBER"); err == nil || !strings.Contains(err.Error(), "ticker@mic") {
+		t.Fatalf("GetAsset invalid symbol error = %v, want ticker@mic", err)
+	}
+}
+
+func TestGetAssetRejectsMalformedLotSize(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/v1/sessions" {
+			writeJSON(w, http.StatusOK, authResponse{Token: "jwt-asset"})
+			return
+		}
+		if r.Method == http.MethodGet && r.URL.Path == "/v1/assets/SBER@MISX" {
+			writeJSON(w, http.StatusOK, finamAssetResponse{
+				Symbol:  "SBER@MISX",
+				LotSize: decimalValue{Value: "not-a-decimal"},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	client, err := New(context.Background(), Config{BaseURL: server.URL, SecretToken: "secret"})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	_, err = client.GetAsset(context.Background(), "account-1", "SBER@MISX")
+	if err == nil || !strings.Contains(err.Error(), "parse asset") {
+		t.Fatalf("GetAsset error = %v, want parse asset", err)
+	}
+}

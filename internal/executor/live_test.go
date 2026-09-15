@@ -194,7 +194,7 @@ func TestLiveExecutorDuplicateOrderIDIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestLiveExecutorCachesPostedOrderWhenAuditWriteFails(t *testing.T) {
+func TestLiveExecutorDoesNotCachePostedOrderWhenAuditWriteFails(t *testing.T) {
 	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
 	poster := &fakeOrderPoster{
 		responses: []*pb.PostOrderResponse{
@@ -230,12 +230,9 @@ func TestLiveExecutorCachesPostedOrderWhenAuditWriteFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected audit write failure, got nil")
 	}
-	cached, err := exec.ExecuteWithOrderID(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5), orderID)
-	if err != nil {
-		t.Fatalf("second ExecuteWithOrderID() error = %v, want cached fill", err)
-	}
-	if cached.ID != orderID {
-		t.Fatalf("cached fill ID = %q, want %q", cached.ID, orderID)
+	_, err = exec.ExecuteWithOrderID(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5), orderID)
+	if err == nil {
+		t.Fatal("second ExecuteWithOrderID() error = nil, want no cached fill when persistence failed")
 	}
 	if len(poster.calls) != 1 {
 		t.Fatalf("PostOrder calls = %d, want 1", len(poster.calls))

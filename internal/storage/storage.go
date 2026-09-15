@@ -65,15 +65,15 @@ func migrate(db *sql.DB) error {
 	}
 
 	migrations := []string{
-		`CREATE TABLE audit_events (
+		`CREATE TABLE IF NOT EXISTS audit_events (
 			id TEXT PRIMARY KEY,
 			ticker TEXT NOT NULL,
 			stage TEXT NOT NULL,
 			payload TEXT NOT NULL,
 			created_at INTEGER NOT NULL
 		);
-		CREATE INDEX idx_audit_events_created_at ON audit_events(created_at);`,
-		`CREATE TABLE trade_signals (
+		CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events(created_at);`,
+		`CREATE TABLE IF NOT EXISTS trade_signals (
 			id TEXT PRIMARY KEY,
 			ticker TEXT NOT NULL,
 			action TEXT NOT NULL CHECK(action IN ('BUY', 'SELL', 'HOLD')),
@@ -83,12 +83,12 @@ func migrate(db *sql.DB) error {
 			generated_at INTEGER NOT NULL,
 			created_at INTEGER NOT NULL
 		);`,
-		`CREATE TABLE kill_switch (
+		`CREATE TABLE IF NOT EXISTS kill_switch (
 			id INTEGER PRIMARY KEY CHECK (id = 1),
 			active INTEGER NOT NULL,
 			triggered_at INTEGER NOT NULL
 		);
-		INSERT INTO kill_switch (id, active, triggered_at) VALUES (1, 0, 0);`,
+		INSERT OR IGNORE INTO kill_switch (id, active, triggered_at) VALUES (1, 0, 0);`,
 	}
 
 	for index, statement := range migrations {
@@ -109,7 +109,7 @@ func migrate(db *sql.DB) error {
 			_ = tx.Rollback()
 			return fmt.Errorf("apply migration %d: %w", version, err)
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`, version, time.Now().UnixNano()); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)`, version, time.Now().UnixNano()); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("record migration %d: %w", version, err)
 		}

@@ -199,10 +199,10 @@ func (l *LiveExecutor) ExecuteWithOrderID(ctx context.Context, signal domain.Tra
 	l.pending[orderID] = done
 	l.mu.Unlock()
 
-	fill, err, posted := l.placeOrder(ctx, signal, price, orderID)
+	fill, err, _ := l.placeOrder(ctx, signal, price, orderID)
 	l.mu.Lock()
 	l.results[orderID] = orderResult{fill: fill, err: err}
-	if err == nil || posted {
+	if err == nil {
 		l.sent[orderID] = fill
 	}
 	close(done)

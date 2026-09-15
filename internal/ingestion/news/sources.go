@@ -44,7 +44,7 @@ func DefaultAliases() map[string][]string {
 		"MGNT":       {"магнит", "магнита", "magnit", "MGNT"},
 		"PLZL":       {"полюса", "polyus", "PLZL"},
 		"CHMF":       {"северсталь", "северстали", "severstal", "CHMF"},
-		"DATA":       {"аренадата", "аренадаты", "arenadata", "DATA"},
+		"DATA":       {"аренадата", "аренадаты", "arenadata"},
 		"T":          {"т-технологии", "т-технологий", "тинькофф", "тинькоффа", "т-банк", "тбанк", "tinkoff", "t-technologies"},
 		"SBMM":       {"первая сберегательный", "sbmm"},
 		"VTBR":       {"втб", "vtb", "VTBR"},

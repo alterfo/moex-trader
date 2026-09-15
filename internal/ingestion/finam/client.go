@@ -115,6 +115,11 @@ type Candle struct {
 	End    time.Time
 }
 
+type Asset struct {
+	Symbol  string
+	LotSize decimal.Decimal
+}
+
 type PlaceOrderRequest struct {
 	Symbol        string
 	Quantity      decimal.Decimal
@@ -158,6 +163,11 @@ type finamBar struct {
 	Low       decimalValue `json:"low"`
 	Close     decimalValue `json:"close"`
 	Volume    decimalValue `json:"volume"`
+}
+
+type finamAssetResponse struct {
+	Symbol  string       `json:"symbol"`
+	LotSize decimalValue `json:"lot_size"`
 }
 
 type finamPlaceOrderRequest struct {
@@ -266,6 +276,36 @@ func (c *Client) Bars(ctx context.Context, symbol string, timeframe Timeframe, f
 		candles = append(candles, candle)
 	}
 	return candles, nil
+}
+
+func (c *Client) GetAsset(ctx context.Context, accountID, symbol string) (Asset, error) {
+	var empty Asset
+	accountID = strings.TrimSpace(accountID)
+	if accountID == "" {
+		return empty, errors.New("finam: account id must not be empty")
+	}
+	if err := validateSymbol(symbol); err != nil {
+		return empty, err
+	}
+
+	query := url.Values{}
+	query.Set("account_id", accountID)
+	var response finamAssetResponse
+	path := "/v1/assets/" + url.PathEscape(symbol)
+	if err := c.doJSON(ctx, http.MethodGet, path, query, &response); err != nil {
+		return empty, err
+	}
+	if strings.TrimSpace(response.LotSize.Value) == "" {
+		return empty, fmt.Errorf("finam: asset %q: missing lot size", symbol)
+	}
+	lotSize, err := decimal.NewFromString(response.LotSize.Value)
+	if err != nil {
+		return empty, fmt.Errorf("finam: parse asset %q lot size %q: %w", symbol, response.LotSize.Value, err)
+	}
+	if !lotSize.IsPositive() {
+		return empty, fmt.Errorf("finam: asset %q has non-positive lot size %s", symbol, lotSize)
+	}
+	return Asset{Symbol: symbol, LotSize: lotSize}, nil
 }
 
 func (c *Client) PlaceOrder(ctx context.Context, accountID string, request PlaceOrderRequest) (PlaceOrderResponse, error) {

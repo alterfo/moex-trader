@@ -72,6 +72,44 @@ func TestOpenConfiguresWALBusyTimeoutAndSchema(t *testing.T) {
 	}
 }
 
+func TestOpenRunsMigrationsIdempotently(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "trader.db")
+
+	first, err := Open(path)
+	if err != nil {
+		t.Fatalf("first Open() error = %v", err)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatalf("first Close() error = %v", err)
+	}
+
+	second, err := Open(path)
+	if err != nil {
+		t.Fatalf("second Open() error = %v", err)
+	}
+	defer func() {
+		if err := second.Close(); err != nil {
+			t.Fatalf("second Close() error = %v", err)
+		}
+	}()
+
+	var migrations int
+	if err := second.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&migrations); err != nil {
+		t.Fatalf("query schema_migrations: %v", err)
+	}
+	if migrations != 3 {
+		t.Fatalf("schema_migrations rows = %d, want 3", migrations)
+	}
+
+	var killSwitchRows int
+	if err := second.db.QueryRow(`SELECT COUNT(*) FROM kill_switch`).Scan(&killSwitchRows); err != nil {
+		t.Fatalf("query kill_switch: %v", err)
+	}
+	if killSwitchRows != 1 {
+		t.Fatalf("kill_switch rows = %d, want 1", killSwitchRows)
+	}
+}
+
 func TestAuditEventInsertAndListRoundTrip(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()

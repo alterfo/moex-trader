@@ -137,10 +137,7 @@ type Matcher struct {
 func NewMatcher(aliases map[string][]string) *Matcher {
 	normalized := make(map[string][]string, len(aliases))
 	for ticker, aliasList := range aliases {
-		all := make([]string, 0, len(aliasList)+1)
-		if len(ticker) >= 2 {
-			all = append(all, ticker)
-		}
+		all := make([]string, 0, len(aliasList))
 		for _, alias := range aliasList {
 			alias = strings.TrimSpace(alias)
 			if alias != "" && !containsFold(all, alias) {

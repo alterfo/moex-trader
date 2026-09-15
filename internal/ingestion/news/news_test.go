@@ -196,6 +196,18 @@ func TestMatcherAvoidsSingleLetterTickerFalsePositive(t *testing.T) {
 	}
 }
 
+func TestMatcherDoesNotMatchDataTickerOnOrdinaryWordData(t *testing.T) {
+	article := Article{
+		Title:       "Market data shows improving liquidity",
+		Description: "Big data analytics is used by many companies.",
+		Source:      Source{Name: "test", TrustWeight: decimal.NewFromFloat(0.7)},
+	}
+	matcher := NewMatcher(DefaultAliases())
+	if matches := matcher.Match([]Article{article}); len(matches) != 0 {
+		t.Fatalf("expected no DATA match for ordinary word data, got %+v", matches)
+	}
+}
+
 func TestDefaultAliasesCoverEveryTicker(t *testing.T) {
 	aliases := DefaultAliases()
 	for _, ticker := range []string{"YDEX", "OZON", "SBER", "LKOH", "GAZP", "GMKN", "ROSN", "NVTK", "TATN", "MTSS", "MGNT", "PLZL", "CHMF", "DATA", "T", "SBMM", "VTBR", "RUAL", "GLDRUB_TOM", "SLVRUB_TOM", "CNYRUB_TOM"} {

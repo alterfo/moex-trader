@@ -100,6 +100,12 @@ type fakeExecutor struct {
 	calls []executorCall
 }
 
+type failingAuditWriter struct{}
+
+func (failingAuditWriter) InsertAuditEvent(_ context.Context, _ domain.AuditEvent) error {
+	return fmt.Errorf("disk full")
+}
+
 func (f *fakeExecutor) Execute(ctx context.Context, signal domain.TradeSignal, price decimal.Decimal) (executor.Fill, error) {
 	f.mu.Lock()
 	f.calls = append(f.calls, executorCall{signal: signal, price: price})
@@ -494,6 +500,36 @@ func TestProcessTickerRecordsIngestFailure(t *testing.T) {
 	}
 	if !strings.Contains(events[0].Payload, "moex unavailable") {
 		t.Fatalf("event payload does not contain error: %q", events[0].Payload)
+	}
+}
+
+func TestProcessTickerPropagatesAuditWriteFailure(t *testing.T) {
+	store := openTestStore(t)
+	now := func() time.Time { return time.Date(2024, 1, 11, 12, 30, 0, 0, time.UTC) }
+	ingestor := &fakeIngestor{inputs: map[string]features.Input{"SBER": fixtureInput("SBER")}}
+	source := &fakeSource{
+		signal: domain.TradeSignal{
+			Action:      domain.ActionBuy,
+			Confidence:  decimal.NewFromFloat(0.8),
+			TargetLots:  1,
+			Reasoning:   "fixture buy",
+			GeneratedAt: now(),
+		},
+		now: now,
+	}
+	exec := &fakeExecutor{store: store, now: now}
+	orch := newTestOrchestrator(t, store, ingestor, source, now, exec)
+	orch.audit = failingAuditWriter{}
+
+	err := orch.processTicker(context.Background(), "SBER")
+	if err == nil {
+		t.Fatal("expected audit write error, got nil")
+	}
+	if !strings.Contains(err.Error(), "persist ingest audit event") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exec.callCount() != 0 {
+		t.Fatalf("executor calls = %d, want 0 when audit persistence fails", exec.callCount())
 	}
 }
 

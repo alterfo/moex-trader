@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -189,16 +190,22 @@ func (o *Orchestrator) killSwitchBlocked(ctx context.Context) (bool, error) {
 func (o *Orchestrator) processTicker(ctx context.Context, ticker string) error {
 	input, err := o.ingestor.Ingest(ctx, ticker)
 	if err != nil {
-		o.record(ctx, ticker, StageIngest, auditError("ingest", err))
+		if auditErr := o.record(ctx, ticker, StageIngest, auditError("ingest", err)); auditErr != nil {
+			return errors.Join(fmt.Errorf("ingest %s: %w", ticker, err), auditErr)
+		}
 		return fmt.Errorf("ingest %s: %w", ticker, err)
 	}
 
 	feature, err := o.builder.Build(input)
 	if err != nil {
-		o.record(ctx, ticker, StageIngest, auditError("build features", err))
+		if auditErr := o.record(ctx, ticker, StageIngest, auditError("build features", err)); auditErr != nil {
+			return errors.Join(fmt.Errorf("build features for %s: %w", ticker, err), auditErr)
+		}
 		return fmt.Errorf("build features for %s: %w", ticker, err)
 	}
-	o.record(ctx, ticker, StageIngest, auditJSON(feature))
+	if err := o.record(ctx, ticker, StageIngest, auditJSON(feature)); err != nil {
+		return err
+	}
 
 	started := time.Now()
 	signal, err := o.source.Generate(ctx, feature)
@@ -206,16 +213,23 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string) error {
 		o.metrics.ObserveLLMInference(time.Since(started))
 	}
 	if err != nil {
-		o.record(ctx, ticker, StageSignal, auditError("generate signal", err))
+		if auditErr := o.record(ctx, ticker, StageSignal, auditError("generate signal", err)); auditErr != nil {
+			return errors.Join(fmt.Errorf("generate signal for %s: %w", ticker, err), auditErr)
+		}
 		return fmt.Errorf("generate signal for %s: %w", ticker, err)
 	}
-	o.record(ctx, ticker, StageSignal, auditJSON(signal))
+	if err := o.record(ctx, ticker, StageSignal, auditJSON(signal)); err != nil {
+		return err
+	}
 	if o.metrics != nil {
 		o.metrics.IncSignalsGenerated()
 	}
 	if strings.TrimSpace(signal.Ticker) != "" && !strings.EqualFold(signal.Ticker, ticker) {
-		o.record(ctx, ticker, StageSignal, auditError("signal ticker mismatch", fmt.Errorf("signal ticker %q does not match requested ticker %q", signal.Ticker, ticker)))
-		return fmt.Errorf("signal ticker %q does not match requested ticker %q", signal.Ticker, ticker)
+		mismatchErr := fmt.Errorf("signal ticker %q does not match requested ticker %q", signal.Ticker, ticker)
+		if auditErr := o.record(ctx, ticker, StageSignal, auditError("signal ticker mismatch", mismatchErr)); auditErr != nil {
+			return errors.Join(mismatchErr, auditErr)
+		}
+		return mismatchErr
 	}
 
 	approved, err := o.gate.Approve(ctx, risk.Request{
@@ -229,12 +243,16 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string) error {
 		Account: o.account,
 	})
 	if err != nil {
-		o.record(ctx, ticker, StageRisk, auditError("risk gate", err))
+		if auditErr := o.record(ctx, ticker, StageRisk, auditError("risk gate", err)); auditErr != nil {
+			return errors.Join(fmt.Errorf("risk gate for %s: %w", ticker, err), auditErr)
+		}
 		return fmt.Errorf("risk gate for %s: %w", ticker, err)
 	}
-	o.record(ctx, ticker, StageRisk, auditJSON(struct {
+	if err := o.record(ctx, ticker, StageRisk, auditJSON(struct {
 		Approved bool `json:"approved"`
-	}{Approved: approved}))
+	}{Approved: approved})); err != nil {
+		return err
+	}
 	if !approved {
 		if o.metrics != nil {
 			o.metrics.IncRiskRejections()
@@ -243,13 +261,15 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string) error {
 	}
 
 	if _, err := o.exec.Execute(ctx, signal, feature.LastPrice); err != nil {
-		o.record(ctx, ticker, StageExecutor, auditError("execute", err))
+		if auditErr := o.record(ctx, ticker, StageExecutor, auditError("execute", err)); auditErr != nil {
+			return errors.Join(fmt.Errorf("execute %s: %w", ticker, err), auditErr)
+		}
 		return fmt.Errorf("execute %s: %w", ticker, err)
 	}
 	return nil
 }
 
-func (o *Orchestrator) record(ctx context.Context, ticker, stage, payload string) {
+func (o *Orchestrator) record(ctx context.Context, ticker, stage, payload string) error {
 	event := domain.AuditEvent{
 		ID:        uuid.NewString(),
 		Ticker:    ticker,
@@ -259,7 +279,9 @@ func (o *Orchestrator) record(ctx context.Context, ticker, stage, payload string
 	}
 	if err := o.audit.InsertAuditEvent(ctx, event); err != nil {
 		o.logger.Printf("orchestrator: record %s event for %s: %v", stage, ticker, err)
+		return fmt.Errorf("orchestrator: persist %s audit event for %s: %w", stage, ticker, err)
 	}
+	return nil
 }
 
 func auditJSON(value any) string {
