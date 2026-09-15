@@ -301,18 +301,19 @@ new signal source and rewiring `cmd/trader`/`cmd/backtest` to use it.
 - [x] run tests — must pass before task 9
 
 ### Task 9: Verify acceptance criteria
-- [ ] confirm `cmd/trader` no longer imports `internal/llm` (`go list -deps`
-      or `grep` check)
-- [ ] verify all requirements from Overview: live path has no LLM call, no
+- [x] confirm `cmd/trader` no longer imports `internal/llm` (direct import set
+      and grep check are clean; the legacy LLM adapter remains only in
+      `internal/orchestrator` for `cmd/backtest -signal-source=llm`)
+- [x] verify all requirements from Overview: live path has no LLM call, no
       network dependency for signal generation, deterministic given the same
       `FeatureContext` and `model.json`
-- [ ] verify edge cases: missing/malformed `model.json` fails startup clearly;
+- [x] verify edge cases: missing/malformed `model.json` fails startup clearly;
       zero-variance training features don't produce NaN weights; validation
       backtest with too-short history degrades gracefully (matches existing
       `minFeatureCandles` skip behavior)
-- [ ] run full test suite (`go test ./...`)
-- [ ] run linter — all issues fixed
-- [ ] verify test coverage meets project standard
+- [x] run full test suite (`go test ./...`)
+- [x] run linter — all issues fixed
+- [x] verify test coverage meets project standard
 
 ### Task 10: [Final] Update documentation
 - [ ] update README (or equivalent config docs) describing the new `model:`
