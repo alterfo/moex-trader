@@ -14,6 +14,7 @@ import (
 type Config struct {
 	Tickers         []string   `yaml:"tickers"`
 	Ollama          Ollama     `yaml:"ollama"`
+	Model           Model      `yaml:"model"`
 	MOEXISSBaseURL  string     `yaml:"moex_iss_base_url"`
 	AlgoPackBaseURL string     `yaml:"algopack_base_url"`
 	AlgoPackToken   string     `yaml:"-"`
@@ -31,6 +32,10 @@ type Ollama struct {
 	Host    string   `yaml:"host"`
 	Model   string   `yaml:"model"`
 	Timeout Duration `yaml:"timeout"`
+}
+
+type Model struct {
+	Path string `yaml:"path"`
 }
 
 type Storage struct {
@@ -66,6 +71,7 @@ const (
 	defaultOllamaHost       = "192.168.88.193:11434"
 	defaultOllamaModel      = "qwen3.8"
 	defaultOllamaTimeout    = Duration(10 * time.Second)
+	defaultModelPath        = "model.json"
 	defaultMOEXISSBaseURL   = "https://iss.moex.com/iss"
 	defaultAlgoPackBaseURL  = "https://apim.moex.com/iss/datashop"
 	defaultFinamBaseURL     = "https://api.finam.ru"
@@ -82,6 +88,7 @@ func Default() *Config {
 			Model:   defaultOllamaModel,
 			Timeout: defaultOllamaTimeout,
 		},
+		Model:           Model{Path: defaultModelPath},
 		MOEXISSBaseURL:  defaultMOEXISSBaseURL,
 		AlgoPackBaseURL: defaultAlgoPackBaseURL,
 		Risk:            Risk{MaxLots: defaultRiskMaxLots},
@@ -129,15 +136,6 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("tickers[%d] must not be empty", i)
 		}
 	}
-	if strings.TrimSpace(c.Ollama.Host) == "" {
-		return fmt.Errorf("ollama.host must not be empty")
-	}
-	if strings.TrimSpace(c.Ollama.Model) == "" {
-		return fmt.Errorf("ollama.model must not be empty")
-	}
-	if c.Ollama.Timeout <= 0 {
-		return fmt.Errorf("ollama.timeout must be positive")
-	}
 	if strings.TrimSpace(c.MOEXISSBaseURL) == "" {
 		return fmt.Errorf("moex_iss_base_url must not be empty")
 	}
@@ -171,6 +169,9 @@ func (c *Config) Validate() error {
 }
 
 func applyEnv(cfg *Config) error {
+	if v := os.Getenv("MOEX_TRADER_MODEL_PATH"); v != "" {
+		cfg.Model.Path = v
+	}
 	if v := os.Getenv("MOEX_TRADER_OLLAMA_HOST"); v != "" {
 		cfg.Ollama.Host = v
 	}

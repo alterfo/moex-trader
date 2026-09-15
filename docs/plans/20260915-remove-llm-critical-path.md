@@ -256,18 +256,18 @@ new signal source and rewiring `cmd/trader`/`cmd/backtest` to use it.
 - [x] run tests — must pass before task 6
 
 ### Task 6: Config — `Model` section, relax `Ollama` requirement
-- [ ] add `Model struct { Path string \`yaml:"path"\` }` to
+- [x] add `Model struct { Path string \`yaml:"path"\` }` to
       `internal/config/config.go`'s `Config`, default path e.g. `model.json`
-- [ ] remove `Ollama.Host`/`Ollama.Model`/`Ollama.Timeout` required checks
+- [x] remove `Ollama.Host`/`Ollama.Model`/`Ollama.Timeout` required checks
       from `Config.Validate()` (they become optional — empty is valid, since
       `cmd/trader` no longer needs them); keep the `Ollama` struct itself
       (still consumed by `cmd/llmbench`/`cmd/backtest` LLM mode)
-- [ ] add `MOEX_TRADER_MODEL_PATH` env override in `applyEnv`, following the
+- [x] add `MOEX_TRADER_MODEL_PATH` env override in `applyEnv`, following the
       existing env-override pattern
-- [ ] write tests in `internal/config/config_test.go`: config without
+- [x] write tests in `internal/config/config_test.go`: config without
       `ollama:` section still validates; `Model.Path` defaults correctly; env
       override works
-- [ ] run tests — must pass before task 7
+- [x] run tests — must pass before task 7
 
 ### Task 7: Wire `cmd/trader` to the new SignalSource
 - [ ] in `cmd/trader/main.go`, remove the `llm.New`/`llm.NewDecisionEngine`/

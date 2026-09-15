@@ -16,6 +16,7 @@ func clearEnv(t *testing.T) {
 		"MOEX_TRADER_OLLAMA_HOST",
 		"MOEX_TRADER_OLLAMA_MODEL",
 		"MOEX_TRADER_OLLAMA_TIMEOUT",
+		"MOEX_TRADER_MODEL_PATH",
 		"MOEX_TRADER_MOEX_ISS_URL",
 		"MOEX_TRADER_ALGOPACK_BASE_URL",
 		"MOEX_TRADER_ALGOPACK_TOKEN",
@@ -145,6 +146,9 @@ func TestDefaultsAppliedWhenFieldsOmitted(t *testing.T) {
 	if cfg.Ollama.Timeout.Std() != 10*time.Second {
 		t.Fatalf("unexpected default ollama timeout: %s", cfg.Ollama.Timeout.Std())
 	}
+	if cfg.Model.Path != "model.json" {
+		t.Fatalf("unexpected default model path: %q", cfg.Model.Path)
+	}
 	if cfg.MOEXISSBaseURL != "https://iss.moex.com/iss" {
 		t.Fatalf("unexpected default moex base url: %q", cfg.MOEXISSBaseURL)
 	}
@@ -177,6 +181,41 @@ func TestDefaultsAppliedWhenFieldsOmitted(t *testing.T) {
 	}
 	if !cfg.Commission.Rate.Equal(decimal.New(3, -3)) {
 		t.Fatalf("unexpected default commission rate: %s", cfg.Commission.Rate)
+	}
+}
+
+func TestModelPathLoadedAndDefaults(t *testing.T) {
+	clearEnv(t)
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\nmodel:\n  path: ./weights.json\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if cfg.Model.Path != "./weights.json" {
+		t.Fatalf("Model.Path = %q, want ./weights.json", cfg.Model.Path)
+	}
+}
+
+func TestModelPathEnvOverride(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("MOEX_TRADER_MODEL_PATH", "./env-model.json")
+
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if cfg.Model.Path != "./env-model.json" {
+		t.Fatalf("Model.Path = %q, want ./env-model.json", cfg.Model.Path)
+	}
+}
+
+func TestOllamaSectionNowOptional(t *testing.T) {
+	clearEnv(t)
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\nollama:\n  host: \"\"\n  model: \"\"\n  timeout: 0s\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error for empty ollama section: %v", err)
+	}
+	if cfg.Ollama.Host != "" || cfg.Ollama.Model != "" || cfg.Ollama.Timeout != 0 {
+		t.Fatalf("unexpected ollama values: %+v", cfg.Ollama)
 	}
 }
 
