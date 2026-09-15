@@ -68,8 +68,8 @@ storage:
 risk:
   max_lots: 1
 commission:
-  broker: "finam"
-  rate: "0.0001"   # 0.01%, Finam "Единый дневной"
+  broker: "tinkoff"
+  rate: "0.003"    # 0.3%, T-Bank "Инвестор" tariff — flat rate, no per-trade minimum
 finam:
   base_url: "https://api.finam.ru"
 broker: "paper"     # paper | tinkoff | finam

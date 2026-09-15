@@ -172,10 +172,10 @@ func TestDefaultsAppliedWhenFieldsOmitted(t *testing.T) {
 	if cfg.Risk.MaxLots != 1 {
 		t.Fatalf("unexpected default risk max lots: %d", cfg.Risk.MaxLots)
 	}
-	if cfg.Commission.Broker != "finam" {
+	if cfg.Commission.Broker != "tinkoff" {
 		t.Fatalf("unexpected default commission broker: %q", cfg.Commission.Broker)
 	}
-	if !cfg.Commission.Rate.Equal(decimal.New(1, -4)) {
+	if !cfg.Commission.Rate.Equal(decimal.New(3, -3)) {
 		t.Fatalf("unexpected default commission rate: %s", cfg.Commission.Rate)
 	}
 }
@@ -201,11 +201,11 @@ func TestCommissionMissingSectionFallsBackToDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse returned error: %v", err)
 	}
-	if cfg.Commission.Broker != "finam" {
-		t.Fatalf("Commission.Broker = %q, want finam", cfg.Commission.Broker)
+	if cfg.Commission.Broker != "tinkoff" {
+		t.Fatalf("Commission.Broker = %q, want tinkoff", cfg.Commission.Broker)
 	}
-	if !cfg.Commission.Rate.Equal(decimal.New(1, -4)) {
-		t.Fatalf("Commission.Rate = %s, want %s", cfg.Commission.Rate, decimal.New(1, -4))
+	if !cfg.Commission.Rate.Equal(decimal.New(3, -3)) {
+		t.Fatalf("Commission.Rate = %s, want %s", cfg.Commission.Rate, decimal.New(3, -3))
 	}
 }
 
@@ -229,8 +229,8 @@ func TestCommissionEnvOverride(t *testing.T) {
 	if !cfg.Commission.Rate.Equal(want) {
 		t.Fatalf("Commission.Rate = %s, want %s", cfg.Commission.Rate, want)
 	}
-	if cfg.Commission.Broker != "finam" {
-		t.Fatalf("Commission.Broker = %q, want finam", cfg.Commission.Broker)
+	if cfg.Commission.Broker != "tinkoff" {
+		t.Fatalf("Commission.Broker = %q, want tinkoff", cfg.Commission.Broker)
 	}
 }
 

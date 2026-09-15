@@ -71,7 +71,7 @@ const (
 	defaultFinamBaseURL     = "https://api.finam.ru"
 	defaultPollInterval     = Duration(5 * time.Minute)
 	defaultRiskMaxLots      = 1
-	defaultCommissionBroker = "finam"
+	defaultCommissionBroker = "tinkoff"
 )
 
 func Default() *Config {
@@ -87,7 +87,7 @@ func Default() *Config {
 		Risk:            Risk{MaxLots: defaultRiskMaxLots},
 		Commission: Commission{
 			Broker: defaultCommissionBroker,
-			Rate:   decimal.New(1, -4),
+			Rate:   decimal.New(3, -3),
 		},
 		Finam: Finam{
 			BaseURL: defaultFinamBaseURL,
