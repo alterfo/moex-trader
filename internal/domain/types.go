@@ -29,10 +29,11 @@ func (a Action) IsValid() bool {
 // HOLD produced by the model must not be conflated with a HOLD produced by an
 // LLM timeout or an unparseable response, otherwise the metrics lie.
 const (
-	HoldReasonModel   = "model"   // the model itself chose HOLD
-	HoldReasonTimeout = "timeout" // the LLM call timed out (host slow/unreachable)
-	HoldReasonInvalid = "invalid" // LLM answered but output failed validation
-	HoldReasonError   = "error"   // signal source errored for another reason
+	HoldReasonModel      = "model"      // the model itself chose HOLD
+	HoldReasonTimeout    = "timeout"    // the LLM call timed out (host slow/unreachable)
+	HoldReasonInvalid    = "invalid"    // LLM answered but output failed validation
+	HoldReasonError      = "error"      // signal source errored for another reason
+	HoldReasonConfidence = "confidence" // signal filtered out below min-confidence gate
 )
 
 type FeatureContext struct {

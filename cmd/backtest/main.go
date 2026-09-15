@@ -26,6 +26,7 @@ const defaultLLMTimeout = 90 * time.Second
 const (
 	signalSourceModel = "model"
 	signalSourceLLM   = "llm"
+	signalSourceRule  = "rule"
 )
 
 func main() {
@@ -51,6 +52,8 @@ func run() error {
 	var killSwitch bool
 	var signalSourceName string
 	var modelPath string
+	var reversalThresholdPct float64
+	var minConfidence float64
 
 	flag.StringVar(&configPath, "config", "config.yaml", "path to config YAML")
 	flag.StringVar(&fromStr, "from", "", "backtest start date YYYY-MM-DD (default: one year ago)")
@@ -67,8 +70,10 @@ func run() error {
 	flag.StringVar(&cachePath, "cache", "", "path to persistent LLM decision cache (e.g. .backtest-cache.json)")
 	flag.StringVar(&outPath, "out", "", "path to write markdown report (default: -)")
 	flag.BoolVar(&killSwitch, "kill-switch", true, "enable drawdown kill switch")
-	flag.StringVar(&signalSourceName, "signal-source", signalSourceModel, "signal source: model or llm")
+	flag.StringVar(&signalSourceName, "signal-source", signalSourceModel, "signal source: model, llm or rule")
 	flag.StringVar(&modelPath, "model-path", "", "path to trained model JSON (default: model.path from config)")
+	flag.Float64Var(&reversalThresholdPct, "reversal-threshold", 0.5, "rule-only: |reversal_1d| %% required to trade")
+	flag.Float64Var(&minConfidence, "min-confidence", 0, "demote BUY/SELL to HOLD when confidence below threshold (0 = off)")
 	flag.Parse()
 
 	deposit, err := decimal.NewFromString(depositStr)
@@ -118,6 +123,8 @@ func run() error {
 		LLMBackoff:             llmBackoff,
 		MaxConsecutiveTimeouts: maxConsecutiveTimeouts,
 		CachePath:              cachePath,
+		ReversalThresholdPct:   reversalThresholdPct,
+		MinConfidence:          minConfidence,
 	})
 	if err != nil {
 		return err
@@ -150,8 +157,8 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	log.Printf("backtest: window=%s..%s tickers=%d deposit=%s lots=%d commission=%s signal_source=%s lookback=%d kill_switch=%v",
-		formatFlag(from), formatFlag(till), len(tickers), deposit.String(), maxLots, commissionRate.String(), signalSourceName, lookbackDays, killSwitch)
+	log.Printf("backtest: window=%s..%s tickers=%d deposit=%s lots=%d commission=%s signal_source=%s lookback=%d kill_switch=%v min_confidence=%s",
+		formatFlag(from), formatFlag(till), len(tickers), deposit.String(), maxLots, commissionRate.String(), signalSourceName, lookbackDays, killSwitch, decimal.NewFromFloat(minConfidence).String())
 
 	result, err := engine.Run(ctx)
 	if err != nil {
@@ -179,24 +186,20 @@ type signalSourceOptions struct {
 	LLMBackoff             time.Duration
 	MaxConsecutiveTimeouts int
 	CachePath              string
+	ReversalThresholdPct   float64
+	MinConfidence          float64
 }
 
 func buildSignalSource(cfg *config.Config, opts signalSourceOptions) (backtest.SignalSource, func() error, error) {
+	var source backtest.SignalSource
+	var saveCache func() error
 	switch opts.Mode {
 	case signalSourceModel:
 		weights, err := model.LoadWeights(opts.ModelPath)
 		if err != nil {
 			return nil, nil, fmt.Errorf("load model: %w", err)
 		}
-		source := backtest.SignalSource(&model.SignalSource{Weights: weights, MaxLots: opts.MaxLots})
-		if opts.CachePath == "" {
-			return source, nil, nil
-		}
-		cache, err := backtest.NewCachedSignalSource(source, opts.CachePath)
-		if err != nil {
-			return nil, nil, err
-		}
-		return cache, cache.Save, nil
+		source = &model.SignalSource{Weights: weights, MaxLots: opts.MaxLots}
 	case signalSourceLLM:
 		if cfg == nil {
 			return nil, nil, fmt.Errorf("load llm signal source: config is nil")
@@ -208,22 +211,38 @@ func buildSignalSource(cfg *config.Config, opts signalSourceOptions) (backtest.S
 		decisionEngine := llm.NewDecisionEngine(llmClient, llm.NewPromptBuilder(), nil, time.Now)
 		llmSource := orchestrator.NewLLMSignalSource(decisionEngine, opts.LLMTimeout, log.Default())
 
-		var source backtest.SignalSource = llmSource
+		source = llmSource
 		if opts.LLMAttempts > 1 {
 			source = backtest.NewRetryingSignalSource(
 				llmSource, opts.LLMAttempts, opts.LLMBackoff, opts.LLMBackoff*8, opts.MaxConsecutiveTimeouts, log.Default())
 		}
-		if opts.CachePath == "" {
-			return source, nil, nil
-		}
+	case signalSourceRule:
+		threshold := backtestDecimal(opts.ReversalThresholdPct)
+		source = &backtest.ReversalRuleSource{Threshold: threshold, MaxLots: opts.MaxLots}
+	default:
+		return nil, nil, fmt.Errorf("unknown signal source %q: want %q, %q or %q", opts.Mode, signalSourceModel, signalSourceLLM, signalSourceRule)
+	}
+
+	if opts.CachePath != "" {
 		cache, err := backtest.NewCachedSignalSource(source, opts.CachePath)
 		if err != nil {
 			return nil, nil, err
 		}
-		return cache, cache.Save, nil
-	default:
-		return nil, nil, fmt.Errorf("unknown signal source %q: want %q or %q", opts.Mode, signalSourceModel, signalSourceLLM)
+		source = cache
+		saveCache = cache.Save
 	}
+
+	if opts.MinConfidence > 0 {
+		source = &backtest.ConfidenceGateSource{
+			Inner:         source,
+			MinConfidence: decimal.NewFromFloat(opts.MinConfidence),
+		}
+	}
+	return source, saveCache, nil
+}
+
+func backtestDecimal(v float64) decimal.Decimal {
+	return decimal.NewFromFloat(v)
 }
 
 func splitComma(s string) []string {

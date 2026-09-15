@@ -72,7 +72,7 @@ func holdBreakdown(reasons map[string]int) string {
 		return "n/a"
 	}
 	var parts []string
-	for _, reason := range []string{"model", "timeout", "invalid", "error"} {
+	for _, reason := range []string{"model", "timeout", "invalid", "error", "confidence"} {
 		count, ok := reasons[reason]
 		if !ok || count == 0 {
 			continue
