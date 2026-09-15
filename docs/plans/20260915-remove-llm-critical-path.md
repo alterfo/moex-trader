@@ -286,19 +286,19 @@ new signal source and rewiring `cmd/trader`/`cmd/backtest` to use it.
 - [x] run tests — must pass before task 8
 
 ### Task 8: `cmd/backtest` signal-source selection
-- [ ] add `-signal-source` flag to `cmd/backtest/main.go` (`model` default,
+- [x] add `-signal-source` flag to `cmd/backtest/main.go` (`model` default,
       `llm` for comparison), `-model-path` flag (default `cfg.Model.Path`)
-- [ ] `model` mode: `model.LoadWeights` → `model.SignalSource{..., MaxLots:
+- [x] `model` mode: `model.LoadWeights` → `model.SignalSource{..., MaxLots:
       maxLots}` → optionally still wrap in `backtest.NewCachedSignalSource` if
       `-cache` is set (caching is harmless/cheap for a deterministic model,
       keep the flag working uniformly) — retry wrapping
       (`backtest.NewRetryingSignalSource`) is LLM-timeout-specific and should
       only apply in `llm` mode
-- [ ] `llm` mode: keep the existing wiring exactly as-is (no behavior change)
-- [ ] write tests: flag selection builds the expected signal source chain in
+- [x] `llm` mode: keep the existing wiring exactly as-is (no behavior change)
+- [x] write tests: flag selection builds the expected signal source chain in
       each mode (can assert on type via a small seam/interface check, or via
       a behavioral test if the existing code has one for the LLM path)
-- [ ] run tests — must pass before task 9
+- [x] run tests — must pass before task 9
 
 ### Task 9: Verify acceptance criteria
 - [ ] confirm `cmd/trader` no longer imports `internal/llm` (`go list -deps`

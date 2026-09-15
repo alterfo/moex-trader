@@ -17,10 +17,16 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/config"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/llm"
+	"github.com/olegsidorkin/moex-trader/internal/model"
 	"github.com/olegsidorkin/moex-trader/internal/orchestrator"
 )
 
 const defaultLLMTimeout = 90 * time.Second
+
+const (
+	signalSourceModel = "model"
+	signalSourceLLM   = "llm"
+)
 
 func main() {
 	if err := run(); err != nil {
@@ -43,6 +49,8 @@ func run() error {
 	var cachePath string
 	var outPath string
 	var killSwitch bool
+	var signalSourceName string
+	var modelPath string
 
 	flag.StringVar(&configPath, "config", "config.yaml", "path to config YAML")
 	flag.StringVar(&fromStr, "from", "", "backtest start date YYYY-MM-DD (default: one year ago)")
@@ -59,6 +67,8 @@ func run() error {
 	flag.StringVar(&cachePath, "cache", "", "path to persistent LLM decision cache (e.g. .backtest-cache.json)")
 	flag.StringVar(&outPath, "out", "", "path to write markdown report (default: -)")
 	flag.BoolVar(&killSwitch, "kill-switch", true, "enable drawdown kill switch")
+	flag.StringVar(&signalSourceName, "signal-source", signalSourceModel, "signal source: model or llm")
+	flag.StringVar(&modelPath, "model-path", "", "path to trained model JSON (default: model.path from config)")
 	flag.Parse()
 
 	deposit, err := decimal.NewFromString(depositStr)
@@ -73,6 +83,9 @@ func run() error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
+	}
+	if modelPath == "" {
+		modelPath = cfg.Model.Path
 	}
 
 	var from, till time.Time
@@ -96,26 +109,25 @@ func run() error {
 	moexClient := moex.NewClient(cfg.MOEXISSBaseURL, nil)
 	source := backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
 
-	llmClient := llm.New(cfg.Ollama.Host, cfg.Ollama.Model, llmTimeout)
-	decisionEngine := llm.NewDecisionEngine(llmClient, llm.NewPromptBuilder(), nil, time.Now)
-	llmSource := orchestrator.NewLLMSignalSource(decisionEngine, llmTimeout, log.Default())
-
-	var signalSource backtest.SignalSource = llmSource
-	if llmAttempts > 1 {
-		signalSource = backtest.NewRetryingSignalSource(
-			llmSource, llmAttempts, llmBackoff, llmBackoff*8, maxConsecutiveTimeouts, log.Default())
+	signalSource, saveCache, err := buildSignalSource(cfg, signalSourceOptions{
+		Mode:                   signalSourceName,
+		ModelPath:              modelPath,
+		MaxLots:                maxLots,
+		LLMTimeout:             llmTimeout,
+		LLMAttempts:            llmAttempts,
+		LLMBackoff:             llmBackoff,
+		MaxConsecutiveTimeouts: maxConsecutiveTimeouts,
+		CachePath:              cachePath,
+	})
+	if err != nil {
+		return err
 	}
-	if cachePath != "" {
-		cache, err := backtest.NewCachedSignalSource(signalSource, cachePath)
-		if err != nil {
-			return err
-		}
+	if saveCache != nil {
 		defer func() {
-			if err := cache.Save(); err != nil {
+			if err := saveCache(); err != nil {
 				log.Printf("save decision cache: %v", err)
 			}
 		}()
-		signalSource = cache
 	}
 
 	engine, err := backtest.NewEngine(backtest.Config{
@@ -138,8 +150,8 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	log.Printf("backtest: window=%s..%s tickers=%d deposit=%s lots=%d commission=%s llm_timeout=%s lookback=%d kill_switch=%v",
-		formatFlag(from), formatFlag(till), len(tickers), deposit.String(), maxLots, commissionRate.String(), llmTimeout, lookbackDays, killSwitch)
+	log.Printf("backtest: window=%s..%s tickers=%d deposit=%s lots=%d commission=%s signal_source=%s lookback=%d kill_switch=%v",
+		formatFlag(from), formatFlag(till), len(tickers), deposit.String(), maxLots, commissionRate.String(), signalSourceName, lookbackDays, killSwitch)
 
 	result, err := engine.Run(ctx)
 	if err != nil {
@@ -156,6 +168,59 @@ func run() error {
 		fmt.Print(report)
 	}
 	return nil
+}
+
+type signalSourceOptions struct {
+	Mode                   string
+	ModelPath              string
+	MaxLots                int
+	LLMTimeout             time.Duration
+	LLMAttempts            int
+	LLMBackoff             time.Duration
+	MaxConsecutiveTimeouts int
+	CachePath              string
+}
+
+func buildSignalSource(cfg *config.Config, opts signalSourceOptions) (backtest.SignalSource, func() error, error) {
+	switch opts.Mode {
+	case signalSourceModel:
+		weights, err := model.LoadWeights(opts.ModelPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load model: %w", err)
+		}
+		source := backtest.SignalSource(&model.SignalSource{Weights: weights, MaxLots: opts.MaxLots})
+		if opts.CachePath == "" {
+			return source, nil, nil
+		}
+		cache, err := backtest.NewCachedSignalSource(source, opts.CachePath)
+		if err != nil {
+			return nil, nil, err
+		}
+		return cache, cache.Save, nil
+	case signalSourceLLM:
+		if cfg == nil {
+			return nil, nil, fmt.Errorf("load llm signal source: config is nil")
+		}
+		llmClient := llm.New(cfg.Ollama.Host, cfg.Ollama.Model, opts.LLMTimeout)
+		decisionEngine := llm.NewDecisionEngine(llmClient, llm.NewPromptBuilder(), nil, time.Now)
+		llmSource := orchestrator.NewLLMSignalSource(decisionEngine, opts.LLMTimeout, log.Default())
+
+		var source backtest.SignalSource = llmSource
+		if opts.LLMAttempts > 1 {
+			source = backtest.NewRetryingSignalSource(
+				llmSource, opts.LLMAttempts, opts.LLMBackoff, opts.LLMBackoff*8, opts.MaxConsecutiveTimeouts, log.Default())
+		}
+		if opts.CachePath == "" {
+			return source, nil, nil
+		}
+		cache, err := backtest.NewCachedSignalSource(source, opts.CachePath)
+		if err != nil {
+			return nil, nil, err
+		}
+		return cache, cache.Save, nil
+	default:
+		return nil, nil, fmt.Errorf("unknown signal source %q: want %q or %q", opts.Mode, signalSourceModel, signalSourceLLM)
+	}
 }
 
 func splitComma(s string) []string {
