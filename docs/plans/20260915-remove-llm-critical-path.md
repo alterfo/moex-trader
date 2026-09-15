@@ -235,25 +235,25 @@ new signal source and rewiring `cmd/trader`/`cmd/backtest` to use it.
 - [x] run tests — must pass before task 5
 
 ### Task 5: `cmd/trainmodel` — training + validation CLI
-- [ ] create `cmd/trainmodel/main.go`: flags for `-config`, `-tickers`
+- [x] create `cmd/trainmodel/main.go`: flags for `-config`, `-tickers`
       (default from config), `-from`/`-till` (default: 2 years back → today),
       `-horizon-days` (default 5), `-deadband-pct` (default 0.5),
       `-learning-rate`, `-l2-lambda`, `-epochs` (sane defaults from Task 1),
       `-split-date` (default: `till` minus a fixed validation window, e.g. 90
       days) or `-val-days`, `-max-lots` (for the validation backtest run,
       default from config), `-out` (default `model.json`)
-- [ ] pipeline: `ISSSource.History` per ticker over `[from, till]` →
+- [x] pipeline: `ISSSource.History` per ticker over `[from, till]` →
       `dataset.BuildSamples` restricted to `decision day < split-date -
       horizon-days` for training → `model.Train` → `Weights.Save(out)` → build
       `model.SignalSource` from the just-trained weights → run
       `backtest.Engine` over `[split-date, till]` for out-of-sample validation
       → populate `Weights.Training` metrics and re-save → print
       `Result.Markdown()` (reuse existing report, don't reinvent)
-- [ ] write tests: flag defaulting/parsing; split-date computation from
+- [x] write tests: flag defaulting/parsing; split-date computation from
       `-val-days`; an end-to-end run against a small synthetic/fixture candle
       series (via a fake `HistoricalSource`, not real MOEX) produces a
       `model.json` that round-trips through `LoadWeights`
-- [ ] run tests — must pass before task 6
+- [x] run tests — must pass before task 6
 
 ### Task 6: Config — `Model` section, relax `Ollama` requirement
 - [ ] add `Model struct { Path string \`yaml:"path"\` }` to
