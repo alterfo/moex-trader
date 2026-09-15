@@ -186,27 +186,27 @@ new signal source and rewiring `cmd/trader`/`cmd/backtest` to use it.
 - [x] run tests — must pass before task 3
 
 ### Task 3: Training dataset builder (walk-forward, no lookahead)
-- [ ] implement `internal/model/dataset.go`:
+- [x] implement `internal/model/dataset.go`:
       `BuildSamples(ctx, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64) ([]LabeledSample, error)`
       where `LabeledSample{Feature domain.FeatureContext, Label float64}`
-- [ ] mirror `backtest.Engine.runTicker`'s day-loop exactly: feature at index
+- [x] mirror `backtest.Engine.runTicker`'s day-loop exactly: feature at index
       `d` built from `candles[:d]` via `features.Builder`, forward return
       computed from `candles[d+1].Open` (entry) to
       `candles[d+1+horizonDays].Close` (or `.Open`, pick one and document it)
       — skip the sample if `d+1+horizonDays >= len(candles)` (not enough
       future data yet)
-- [ ] exclude samples where `|forward return| < deadbandPct` (ambiguous —
+- [x] exclude samples where `|forward return| < deadbandPct` (ambiguous —
       neither a clean up nor down move)
-- [ ] write `internal/model/features.go`: `ToVector(f domain.FeatureContext) ([]float64, []string)`
+- [x] write `internal/model/features.go`: `ToVector(f domain.FeatureContext) ([]float64, []string)`
       converting the model's fixed feature list (see Technical Details) from
       `domain.FeatureContext` (`decimal.Decimal`/`int`) to `[]float64` in a
       stable order — this is the single source of truth for feature order,
       used by both training and inference
-- [ ] write tests: a fake `HistoricalSource` with a hand-built candle series
+- [x] write tests: a fake `HistoricalSource` with a hand-built candle series
       (known up-trend / down-trend segments) produces the expected labels;
       boundary case (not enough trailing candles for the horizon) is skipped,
       not errored; deadband exclusion works
-- [ ] run tests — must pass before task 4
+- [x] run tests — must pass before task 4
 
 ### Task 4: Inference — the new SignalSource
 - [ ] implement `internal/model/signal_source.go`: `SignalSource` struct
