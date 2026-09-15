@@ -12,9 +12,14 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/backtest"
 	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/features"
+	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 )
 
 const minFeatureCandles = 64
+
+const benchmarkTicker = "IMOEX"
+
+const dateKeyLayout = "2006-01-02"
 
 type LabeledSample struct {
 	Feature   domain.FeatureContext
@@ -44,6 +49,15 @@ func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 	}
 	fetchFrom := from.AddDate(0, 0, -backtest.DefaultWarmupDays)
 
+	indexCandles, err := source.History(ctx, benchmarkTicker, fetchFrom, till)
+	if err != nil {
+		return nil, fmt.Errorf("model: history %s: %w", benchmarkTicker, err)
+	}
+	if len(indexCandles) == 0 {
+		return nil, fmt.Errorf("model: benchmark %s has no history in the requested window", benchmarkTicker)
+	}
+	indexByDate := indexCandlesByDate(indexCandles)
+
 	builder := features.NewBuilder(time.Now)
 	var samples []LabeledSample
 	for _, ticker := range normalized {
@@ -68,7 +82,8 @@ func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 			if d+1+horizonDays >= len(candles) {
 				continue
 			}
-			entry := candles[d+1].Open
+			entryCandle := candles[d+1]
+			entry := entryCandle.Open
 			if entry.Sign() <= 0 {
 				continue
 			}
@@ -77,13 +92,25 @@ func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 			if exit.Sign() <= 0 {
 				continue
 			}
+
+			indexEntry, ok := indexByDate[dateKey(entryCandle.Begin)]
+			if !ok || indexEntry.Open.Sign() <= 0 {
+				continue
+			}
+			indexExit, ok := indexByDate[dateKey(exitCandle.Begin)]
+			if !ok || indexExit.Close.Sign() <= 0 {
+				continue
+			}
+
 			forwardReturn := exit.Sub(entry).Div(entry).Mul(decimal.NewFromInt(100))
-			forwardPct, _ := forwardReturn.Float64()
-			if math.Abs(forwardPct) < deadbandPct {
+			indexForwardReturn := indexExit.Close.Sub(indexEntry.Open).Div(indexEntry.Open).Mul(decimal.NewFromInt(100))
+			excessReturn := forwardReturn.Sub(indexForwardReturn)
+			excessPct, _ := excessReturn.Float64()
+			if math.Abs(excessPct) < deadbandPct {
 				continue
 			}
 			label := 0.0
-			if forwardPct > 0 {
+			if excessPct > 0 {
 				label = 1
 			}
 
@@ -104,6 +131,18 @@ func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 		}
 	}
 	return samples, nil
+}
+
+func indexCandlesByDate(candles []moex.Candle) map[string]moex.Candle {
+	byDate := make(map[string]moex.Candle, len(candles))
+	for _, c := range candles {
+		byDate[dateKey(c.Begin)] = c
+	}
+	return byDate
+}
+
+func dateKey(t time.Time) string {
+	return t.Format(dateKeyLayout)
 }
 
 func normalizeTickers(tickers []string) []string {

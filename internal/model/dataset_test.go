@@ -19,6 +19,22 @@ func (s datasetSource) History(_ context.Context, ticker string, _, _ time.Time)
 	return s.series[ticker], nil
 }
 
+func flatIndexCandles(n int) []moex.Candle {
+	candles := make([]moex.Candle, n)
+	for i := range candles {
+		candles[i] = moex.Candle{
+			Open:   decimal.NewFromInt(3000),
+			Close:  decimal.NewFromInt(3000),
+			High:   decimal.NewFromInt(3010),
+			Low:    decimal.NewFromInt(2990),
+			Volume: decimal.NewFromInt(1000000),
+			Begin:  time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, i),
+			End:    time.Date(2024, 1, 1, 18, 0, 0, 0, time.UTC).AddDate(0, 0, i),
+		}
+	}
+	return candles
+}
+
 func trendCandles(n int, up bool) []moex.Candle {
 	candles := make([]moex.Candle, n)
 	for i := range candles {
@@ -49,8 +65,9 @@ func trendCandles(n int, up bool) []moex.Candle {
 
 func TestBuildSamplesUpAndDownLabels(t *testing.T) {
 	source := datasetSource{series: map[string][]moex.Candle{
-		"UP":   trendCandles(80, true),
-		"DOWN": trendCandles(80, false),
+		"UP":    trendCandles(80, true),
+		"DOWN":  trendCandles(80, false),
+		"IMOEX": flatIndexCandles(80),
 	}}
 	samples, err := BuildSamples(
 		context.Background(),
@@ -91,7 +108,8 @@ func TestBuildSamplesUpAndDownLabels(t *testing.T) {
 
 func TestBuildSamplesSkipsInsufficientFutureData(t *testing.T) {
 	source := datasetSource{series: map[string][]moex.Candle{
-		"UP": trendCandles(70, true),
+		"UP":    trendCandles(70, true),
+		"IMOEX": flatIndexCandles(70),
 	}}
 	samples, err := BuildSamples(
 		context.Background(),
@@ -118,7 +136,10 @@ func TestBuildSamplesDeadbandExclusion(t *testing.T) {
 		flat[i].High = decimal.NewFromInt(101)
 		flat[i].Low = decimal.NewFromInt(99)
 	}
-	source := datasetSource{series: map[string][]moex.Candle{"FLAT": flat}}
+	source := datasetSource{series: map[string][]moex.Candle{
+		"FLAT":  flat,
+		"IMOEX": flatIndexCandles(80),
+	}}
 
 	excluded, err := BuildSamples(
 		context.Background(),
@@ -158,8 +179,64 @@ func TestBuildSamplesDeadbandExclusion(t *testing.T) {
 	}
 }
 
-func TestBuildSamplesValidation(t *testing.T) {
+func TestBuildSamplesLabelIsExcessOverBenchmark(t *testing.T) {
+	flat := trendCandles(80, true)
+	for i := range flat {
+		flat[i].Open = decimal.NewFromInt(100)
+		flat[i].Close = decimal.NewFromInt(100)
+		flat[i].High = decimal.NewFromInt(101)
+		flat[i].Low = decimal.NewFromInt(99)
+	}
+	decliningIndex := trendCandles(80, false)
+
+	source := datasetSource{series: map[string][]moex.Candle{
+		"FLAT":  flat,
+		"IMOEX": decliningIndex,
+	}}
+
+	samples, err := BuildSamples(
+		context.Background(),
+		source,
+		[]string{"FLAT"},
+		time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
+		5,
+		0,
+	)
+	if err != nil {
+		t.Fatalf("BuildSamples failed: %v", err)
+	}
+	if len(samples) == 0 {
+		t.Fatal("got 0 samples, want samples showing a flat ticker beating a declining benchmark")
+	}
+	for _, sample := range samples {
+		if sample.Label != 1 {
+			t.Fatalf("flat ticker vs declining IMOEX: label = %v, want 1 (a flat return has a positive excess return over a falling benchmark)", sample.Label)
+		}
+	}
+}
+
+func TestBuildSamplesMissingBenchmarkFails(t *testing.T) {
 	source := datasetSource{series: map[string][]moex.Candle{"UP": trendCandles(80, true)}}
+	_, err := BuildSamples(
+		context.Background(),
+		source,
+		[]string{"UP"},
+		time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
+		5,
+		0.5,
+	)
+	if err == nil {
+		t.Fatal("missing IMOEX benchmark history did not return an error")
+	}
+}
+
+func TestBuildSamplesValidation(t *testing.T) {
+	source := datasetSource{series: map[string][]moex.Candle{
+		"UP":    trendCandles(80, true),
+		"IMOEX": flatIndexCandles(80),
+	}}
 	from := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	till := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
 

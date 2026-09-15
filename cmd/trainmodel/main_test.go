@@ -173,9 +173,28 @@ func TestResolveWindowDefaults(t *testing.T) {
 	}
 }
 
+func testIndexCandles(n int) []moex.Candle {
+	candles := make([]moex.Candle, n)
+	for i := range candles {
+		candles[i] = moex.Candle{
+			Open:   decimal.NewFromInt(3000),
+			Close:  decimal.NewFromInt(3000),
+			High:   decimal.NewFromInt(3010),
+			Low:    decimal.NewFromInt(2990),
+			Volume: decimal.NewFromInt(1000000),
+			Begin:  time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, i),
+			End:    time.Date(2024, 1, 1, 18, 0, 0, 0, time.UTC).AddDate(0, 0, i),
+		}
+	}
+	return candles
+}
+
 func TestRunPipelineEndToEnd(t *testing.T) {
 	candles := testCandles(140)
-	source := trainingSource{series: map[string][]moex.Candle{"TEST": candles}}
+	source := trainingSource{series: map[string][]moex.Candle{
+		"TEST":  candles,
+		"IMOEX": testIndexCandles(140),
+	}}
 	outPath := filepath.Join(t.TempDir(), "model.json")
 	from := candles[0].Begin
 	till := candles[0].Begin.AddDate(0, 0, 200)
