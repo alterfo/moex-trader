@@ -61,6 +61,8 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 		generatedAt = input.Price.AsOf
 	}
 
+	pf := ComputePriceFeatures(input.Candles)
+
 	return domain.FeatureContext{
 		Ticker:             ticker,
 		GeneratedAt:        generatedAt,
@@ -73,6 +75,15 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 		NewsSentiment:      newsSentiment,
 		NewsCount:          newsCount,
 		OrderBookImbalance: clampImbalance(input.OrderBookImbalance),
+		Mom5d:              pf.Mom5d,
+		Mom21d:             pf.Mom21d,
+		Mom63d:             pf.Mom63d,
+		Reversal1d:         pf.Reversal1d,
+		RSI14:              pf.RSI14,
+		DistMA20Pct:        pf.DistMA20Pct,
+		DistMA50Pct:        pf.DistMA50Pct,
+		RealizedVol21d:     pf.RealizedVol21dPct,
+		VolumeZScore20d:    pf.VolumeZScore20d,
 	}, nil
 }
 

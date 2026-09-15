@@ -53,17 +53,26 @@ func (b *PromptBuilder) SystemPrompt(ctx domain.FeatureContext) string {
 
 func featureContextMap(ctx domain.FeatureContext) map[string]any {
 	return map[string]any{
-		"ticker":               ctx.Ticker,
-		"generated_at":         ctx.GeneratedAt.Format(time.RFC3339),
-		"last_price":           json.Number(ctx.LastPrice.String()),
-		"prev_close":           json.Number(ctx.PrevClose.String()),
-		"bid":                  json.Number(ctx.Bid.String()),
-		"ask":                  json.Number(ctx.Ask.String()),
-		"return_pct":           json.Number(ctx.ReturnPct.String()),
-		"realized_volatility":  json.Number(ctx.RealizedVolatility.String()),
-		"news_sentiment":       json.Number(ctx.NewsSentiment.String()),
-		"news_count":           ctx.NewsCount,
-		"order_book_imbalance": json.Number(ctx.OrderBookImbalance.String()),
+		"ticker":                      ctx.Ticker,
+		"generated_at":                ctx.GeneratedAt.Format(time.RFC3339),
+		"last_price":                  json.Number(ctx.LastPrice.String()),
+		"prev_close":                  json.Number(ctx.PrevClose.String()),
+		"bid":                         json.Number(ctx.Bid.String()),
+		"ask":                         json.Number(ctx.Ask.String()),
+		"return_pct":                  json.Number(ctx.ReturnPct.String()),
+		"realized_volatility":         json.Number(ctx.RealizedVolatility.String()),
+		"news_sentiment":              json.Number(ctx.NewsSentiment.String()),
+		"news_count":                  ctx.NewsCount,
+		"order_book_imbalance":        json.Number(ctx.OrderBookImbalance.String()),
+		"mom_5d":                      json.Number(ctx.Mom5d.String()),
+		"mom_21d":                     json.Number(ctx.Mom21d.String()),
+		"mom_63d":                     json.Number(ctx.Mom63d.String()),
+		"reversal_1d":                 json.Number(ctx.Reversal1d.String()),
+		"rsi_14":                      json.Number(ctx.RSI14.String()),
+		"dist_ma20_pct":               json.Number(ctx.DistMA20Pct.String()),
+		"dist_ma50_pct":               json.Number(ctx.DistMA50Pct.String()),
+		"realized_vol_21d_annualized": json.Number(ctx.RealizedVol21d.String()),
+		"volume_zscore_20d":           json.Number(ctx.VolumeZScore20d.String()),
 	}
 }
 

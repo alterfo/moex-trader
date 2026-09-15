@@ -37,6 +37,15 @@ type FeatureContext struct {
 	NewsSentiment      decimal.Decimal `json:"news_sentiment"`
 	NewsCount          int             `json:"news_count"`
 	OrderBookImbalance decimal.Decimal `json:"order_book_imbalance"`
+	Mom5d              decimal.Decimal `json:"mom_5d"`
+	Mom21d             decimal.Decimal `json:"mom_21d"`
+	Mom63d             decimal.Decimal `json:"mom_63d"`
+	Reversal1d         decimal.Decimal `json:"reversal_1d"`
+	RSI14              decimal.Decimal `json:"rsi_14"`
+	DistMA20Pct        decimal.Decimal `json:"dist_ma20_pct"`
+	DistMA50Pct        decimal.Decimal `json:"dist_ma50_pct"`
+	RealizedVol21d     decimal.Decimal `json:"realized_vol_21d_annualized_pct"`
+	VolumeZScore20d    decimal.Decimal `json:"volume_zscore_20d"`
 }
 
 type TradeSignal struct {
