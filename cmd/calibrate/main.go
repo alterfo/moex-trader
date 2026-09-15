@@ -26,13 +26,14 @@ const (
 )
 
 type options struct {
-	configPath  string
-	tickersFlag string
-	fromStr     string
-	tillStr     string
-	horizonsStr string
-	stride      int
-	outPath     string
+	configPath      string
+	tickersFlag     string
+	fromStr         string
+	tillStr         string
+	horizonsStr     string
+	stride          int
+	outPath         string
+	newsHistoryPath string
 }
 
 func main() {
@@ -87,6 +88,16 @@ func run(args []string, stdout io.Writer) error {
 		return fmt.Errorf("no calibration samples in the selected window")
 	}
 
+	if opts.newsHistoryPath != "" {
+		records, err := model.LoadFinanalysNewsHistory(opts.newsHistoryPath)
+		if err != nil {
+			return fmt.Errorf("load news history: %w", err)
+		}
+		news := model.AggregateDailySentiment(records)
+		applied := model.ApplyNewsOverrideToCalibration(samples, news)
+		log.Printf("calibrate: applied real news_sentiment/news_count to %d/%d samples from %d records", applied, len(samples), len(records))
+	}
+
 	report := model.BuildCalibrationReport(samples, tickers, horizons)
 	if opts.outPath != "" {
 		if err := os.WriteFile(opts.outPath, []byte(report), 0o644); err != nil {
@@ -114,6 +125,7 @@ func parseOptions(args []string) (options, error) {
 	fs.StringVar(&opts.horizonsStr, "horizons", opts.horizonsStr, "comma-separated forward-return horizons in trading days")
 	fs.IntVar(&opts.stride, "stride", opts.stride, "sample every N trading days (reduces overlap between observations)")
 	fs.StringVar(&opts.outPath, "out", "", "path to write markdown report (default: stdout)")
+	fs.StringVar(&opts.newsHistoryPath, "news-history", "", "path to a finanalys-format news_history.jsonl to override news_sentiment/news_count with real historical values where available")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}
