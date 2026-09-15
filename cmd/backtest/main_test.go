@@ -163,6 +163,18 @@ func TestBuildSignalSourceLLMWithCache(t *testing.T) {
 	}
 }
 
+func TestBuildSignalSourceLLMBlankOllamaFailsFast(t *testing.T) {
+	cfg := &config.Config{Ollama: config.Ollama{Host: "", Model: ""}}
+	_, _, err := buildSignalSource(cfg, signalSourceOptions{
+		Mode:        signalSourceLLM,
+		LLMTimeout:  time.Second,
+		LLMAttempts: 1,
+	})
+	if err == nil {
+		t.Fatal("buildSignalSource did not return an error for blank ollama host/model")
+	}
+}
+
 func TestBuildSignalSourceUnknownMode(t *testing.T) {
 	_, _, err := buildSignalSource(nil, signalSourceOptions{Mode: "other"})
 	if err == nil {

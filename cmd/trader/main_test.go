@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -195,6 +197,67 @@ func TestNewModelSignalSourceWiresIntoOrchestrator(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("orchestrator.New() error = %v", err)
+	}
+}
+
+type recordingSignalSource struct {
+	signal domain.TradeSignal
+	err    error
+}
+
+func (s recordingSignalSource) Generate(context.Context, domain.FeatureContext) (domain.TradeSignal, error) {
+	return s.signal, s.err
+}
+
+type recordingAlerter struct {
+	texts []string
+	err   error
+}
+
+func (a *recordingAlerter) Send(_ context.Context, text string) error {
+	a.texts = append(a.texts, text)
+	return a.err
+}
+
+func TestAlertingSignalSourceAlertsOnFailure(t *testing.T) {
+	generateErr := fmt.Errorf("model: computed probability is not finite for SBER")
+	alerter := &recordingAlerter{}
+	source := &alertingSignalSource{
+		source:  recordingSignalSource{err: generateErr},
+		alerter: alerter,
+		logger:  log.Default(),
+	}
+
+	_, err := source.Generate(context.Background(), domain.FeatureContext{Ticker: "SBER"})
+	if err != generateErr {
+		t.Fatalf("Generate() error = %v, want %v", err, generateErr)
+	}
+	if len(alerter.texts) != 1 {
+		t.Fatalf("alert count = %d, want 1", len(alerter.texts))
+	}
+	if !strings.Contains(alerter.texts[0], "SBER") || !strings.Contains(alerter.texts[0], generateErr.Error()) {
+		t.Fatalf("alert text = %q, want ticker and error", alerter.texts[0])
+	}
+}
+
+func TestAlertingSignalSourceNoAlertOnSuccess(t *testing.T) {
+	alerter := &recordingAlerter{}
+	wantSignal := domain.TradeSignal{Ticker: "SBER", Action: domain.ActionHold}
+	source := &alertingSignalSource{
+		source:  recordingSignalSource{signal: wantSignal},
+		alerter: alerter,
+		logger:  log.Default(),
+	}
+
+	got, err := source.Generate(context.Background(), domain.FeatureContext{Ticker: "SBER"})
+	if err != nil {
+		t.Fatalf("Generate() error = %v, want nil", err)
+	}
+	if got != wantSignal {
+		t.Fatalf("Generate() signal = %+v, want %+v", got, wantSignal)
+	}
+	if len(alerter.texts) != 0 {
+		t.Fatalf("alert count = %d, want 0", len(alerter.texts))
 	}
 }
 

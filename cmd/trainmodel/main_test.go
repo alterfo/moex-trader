@@ -225,6 +225,31 @@ func TestRunPipelineEndToEnd(t *testing.T) {
 	}
 }
 
+func TestSplitTrainValNoLabelLeakage(t *testing.T) {
+	split := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	samples := []model.LabeledSample{
+		{Label: 1, LabelDate: split.AddDate(0, 0, -3)},
+		{Label: 1, LabelDate: split.AddDate(0, 0, -1)},
+		{Label: 0, LabelDate: split},
+		{Label: 0, LabelDate: split.AddDate(0, 0, 2)},
+	}
+
+	train, val := splitTrainVal(samples, split)
+	if len(train) != 2 || len(val) != 2 {
+		t.Fatalf("split = %d train / %d val, want 2/2", len(train), len(val))
+	}
+	for _, sample := range train {
+		if !sample.LabelDate.Before(split) {
+			t.Fatalf("train sample LabelDate %v is not before split %v: label leaked into training", sample.LabelDate, split)
+		}
+	}
+	for _, sample := range val {
+		if sample.LabelDate.Before(split) {
+			t.Fatalf("val sample LabelDate %v is before split %v: sample misclassified as validation", sample.LabelDate, split)
+		}
+	}
+}
+
 func TestRunPipelineRejectsInvalidConfig(t *testing.T) {
 	_, _, err := runPipeline(context.Background(), pipelineConfig{
 		tickers:     []string{"TEST"},

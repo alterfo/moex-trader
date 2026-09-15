@@ -14,6 +14,7 @@ import (
 
 	"github.com/olegsidorkin/moex-trader/internal/alert/telegram"
 	"github.com/olegsidorkin/moex-trader/internal/config"
+	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/executor"
 	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/algopack"
@@ -82,10 +83,11 @@ func run() error {
 		return fmt.Errorf("create risk gate: %w", err)
 	}
 
-	signalSource, err := newModelSignalSource(cfg)
+	modelSource, err := newModelSignalSource(cfg)
 	if err != nil {
 		return err
 	}
+	signalSource := &alertingSignalSource{source: modelSource, alerter: telegramClient, logger: log.Default()}
 	appMetrics := metrics.New()
 
 	tradeExecutor, err := selectExecutor(cfg, store, time.Now)
@@ -133,6 +135,27 @@ func run() error {
 	orch.Run(ctx)
 	log.Printf("trader stopped")
 	return nil
+}
+
+type signalFailureAlerter interface {
+	Send(ctx context.Context, text string) error
+}
+
+type alertingSignalSource struct {
+	source  orchestrator.SignalSource
+	alerter signalFailureAlerter
+	logger  *log.Logger
+}
+
+func (a *alertingSignalSource) Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
+	signal, err := a.source.Generate(ctx, feature)
+	if err != nil && a.alerter != nil {
+		text := fmt.Sprintf("MOEX trader: signal generation failed for %s: %v", feature.Ticker, err)
+		if alertErr := a.alerter.Send(ctx, text); alertErr != nil {
+			a.logger.Printf("trader: alert signal failure for %s: %v", feature.Ticker, alertErr)
+		}
+	}
+	return signal, err
 }
 
 func newModelSignalSource(cfg *config.Config) (*model.SignalSource, error) {

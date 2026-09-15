@@ -233,15 +233,7 @@ func runPipeline(ctx context.Context, cfg pipelineConfig, source backtest.Histor
 		return nil, nil, errors.New("no labeled samples in the selected window")
 	}
 
-	trainingCutoff := cfg.split.AddDate(0, 0, -cfg.horizonDays)
-	var trainSamples, valSamples []model.LabeledSample
-	for _, sample := range samples {
-		if sample.Feature.GeneratedAt.Before(trainingCutoff) {
-			trainSamples = append(trainSamples, sample)
-		} else {
-			valSamples = append(valSamples, sample)
-		}
-	}
+	trainSamples, valSamples := splitTrainVal(samples, cfg.split)
 	if len(trainSamples) == 0 {
 		return nil, nil, errors.New("no training samples before the validation split")
 	}
@@ -272,7 +264,7 @@ func runPipeline(ctx context.Context, cfg pipelineConfig, source backtest.Histor
 		TrainedAt:     now().UTC(),
 		Training: model.TrainingMetadata{
 			TrainFrom:     cfg.from,
-			TrainTill:     trainingCutoff,
+			TrainTill:     cfg.split,
 			ValFrom:       cfg.split,
 			ValTill:       cfg.till,
 			Tickers:       append([]string(nil), cfg.tickers...),
@@ -282,10 +274,6 @@ func runPipeline(ctx context.Context, cfg pipelineConfig, source backtest.Histor
 			ValAccuracy:   labeledAccuracy(valSamples, coef, bias, mean, std),
 		},
 	}
-	if err := weights.Save(cfg.outPath); err != nil {
-		return nil, nil, fmt.Errorf("save initial weights: %w", err)
-	}
-
 	signalSource := &model.SignalSource{Weights: weights, MaxLots: cfg.maxLots}
 	engine, err := backtest.NewEngine(backtest.Config{
 		Tickers:        cfg.tickers,
@@ -320,6 +308,17 @@ func runPipeline(ctx context.Context, cfg pipelineConfig, source backtest.Histor
 		fmt.Fprint(stdout, result.Markdown())
 	}
 	return weights, result, nil
+}
+
+func splitTrainVal(samples []model.LabeledSample, split time.Time) (train, val []model.LabeledSample) {
+	for _, sample := range samples {
+		if sample.LabelDate.Before(split) {
+			train = append(train, sample)
+		} else {
+			val = append(val, sample)
+		}
+	}
+	return train, val
 }
 
 func validatePipelineConfig(cfg pipelineConfig) error {

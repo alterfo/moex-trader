@@ -17,8 +17,9 @@ import (
 const minFeatureCandles = 64
 
 type LabeledSample struct {
-	Feature domain.FeatureContext
-	Label   float64
+	Feature   domain.FeatureContext
+	Label     float64
+	LabelDate time.Time
 }
 
 func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64) ([]LabeledSample, error) {
@@ -71,7 +72,8 @@ func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 			if entry.Sign() <= 0 {
 				continue
 			}
-			exit := candles[d+1+horizonDays].Close
+			exitCandle := candles[d+1+horizonDays]
+			exit := exitCandle.Close
 			if exit.Sign() <= 0 {
 				continue
 			}
@@ -98,7 +100,7 @@ func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 			if err != nil {
 				continue
 			}
-			samples = append(samples, LabeledSample{Feature: feature, Label: label})
+			samples = append(samples, LabeledSample{Feature: feature, Label: label, LabelDate: exitCandle.Begin})
 		}
 	}
 	return samples, nil

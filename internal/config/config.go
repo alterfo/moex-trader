@@ -148,6 +148,9 @@ func (c *Config) Validate() error {
 	if strings.TrimSpace(c.Storage.Path) == "" {
 		return fmt.Errorf("storage.path must not be empty")
 	}
+	if strings.TrimSpace(c.Model.Path) == "" {
+		return fmt.Errorf("model.path must not be empty")
+	}
 	if c.Risk.MaxLots <= 0 {
 		return fmt.Errorf("risk.max_lots must be positive")
 	}

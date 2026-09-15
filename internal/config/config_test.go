@@ -208,6 +208,17 @@ func TestModelPathEnvOverride(t *testing.T) {
 	}
 }
 
+func TestModelPathEmptyFailsValidation(t *testing.T) {
+	clearEnv(t)
+	_, err := Parse([]byte("storage:\n  path: ./trader.db\nmodel:\n  path: \"\"\n"))
+	if err == nil {
+		t.Fatal("Parse returned nil error for empty model.path")
+	}
+	if !strings.Contains(err.Error(), "model.path") {
+		t.Fatalf("Parse error = %v, want model.path validation message", err)
+	}
+}
+
 func TestOllamaSectionNowOptional(t *testing.T) {
 	clearEnv(t)
 	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\nollama:\n  host: \"\"\n  model: \"\"\n  timeout: 0s\n"))

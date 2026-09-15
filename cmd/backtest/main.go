@@ -201,6 +201,9 @@ func buildSignalSource(cfg *config.Config, opts signalSourceOptions) (backtest.S
 		if cfg == nil {
 			return nil, nil, fmt.Errorf("load llm signal source: config is nil")
 		}
+		if strings.TrimSpace(cfg.Ollama.Host) == "" || strings.TrimSpace(cfg.Ollama.Model) == "" {
+			return nil, nil, fmt.Errorf("load llm signal source: ollama.host and ollama.model must be set in config for -signal-source=%s", signalSourceLLM)
+		}
 		llmClient := llm.New(cfg.Ollama.Host, cfg.Ollama.Model, opts.LLMTimeout)
 		decisionEngine := llm.NewDecisionEngine(llmClient, llm.NewPromptBuilder(), nil, time.Now)
 		llmSource := orchestrator.NewLLMSignalSource(decisionEngine, opts.LLMTimeout, log.Default())

@@ -133,3 +133,16 @@ func TestSignalSourceGenerateErrorCases(t *testing.T) {
 		t.Fatal("NaN probability did not return an error")
 	}
 }
+
+func TestSignalSourceGenerateFeatureOrderMismatch(t *testing.T) {
+	reordered := inferenceWeights(0, 0)
+	reordered.FeatureOrder[0], reordered.FeatureOrder[1] = reordered.FeatureOrder[1], reordered.FeatureOrder[0]
+
+	_, err := (&SignalSource{Weights: reordered, MaxLots: 1}).Generate(context.Background(), domain.FeatureContext{Ticker: "SBER"})
+	if err == nil {
+		t.Fatal("reordered feature_order did not return an error")
+	}
+	if !strings.Contains(err.Error(), "feature order mismatch") {
+		t.Fatalf("Generate() error = %v, want feature order mismatch", err)
+	}
+}

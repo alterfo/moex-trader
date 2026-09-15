@@ -81,6 +81,11 @@ func validateFeatureDimensions(weights *Weights) error {
 		return fmt.Errorf("model: weights dimension mismatch: coef=%d mean=%d std=%d feature_order=%d",
 			len(weights.Coef), len(weights.Mean), len(weights.Std), len(names))
 	}
+	for i, name := range names {
+		if weights.FeatureOrder[i] != name {
+			return fmt.Errorf("model: feature order mismatch at index %d: got %q, want %q", i, weights.FeatureOrder[i], name)
+		}
+	}
 	return nil
 }
 
