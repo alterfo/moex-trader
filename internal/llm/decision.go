@@ -97,6 +97,7 @@ func (e *DecisionEngine) Generate(ctx context.Context, feature domain.FeatureCon
 		TargetLots:  0,
 		Reasoning:   "LLM response was invalid or unavailable after retries",
 		GeneratedAt: e.now(),
+		HoldReason:  domain.HoldReasonInvalid,
 	}
 	e.recordFailure(ctx, feature.Ticker, lastErr)
 	e.notifyLLMFailure(ctx, feature.Ticker, lastErr)
