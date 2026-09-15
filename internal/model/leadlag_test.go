@@ -199,6 +199,51 @@ func TestFindLeadersRanksAsymmetricLeader(t *testing.T) {
 	}
 }
 
+func TestWindowedRobustnessDetectsStableRelationship(t *testing.T) {
+	n := 400
+	base := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	signal := lcgSeries(n, 555)
+	idiosyncratic := lcgSeries(n, 666)
+
+	x := make(map[string]float64, n)
+	y := make(map[string]float64, n)
+	for i := range n {
+		x[dateKey(base.AddDate(0, 0, i))] = signal[i]
+	}
+	for i := 1; i < n; i++ {
+		y[dateKey(base.AddDate(0, 0, i))] = 0.9*signal[i-1] + 0.1*idiosyncratic[i]
+	}
+
+	windows := WindowedRobustness(x, y, 1, 150, 2, 30)
+	if len(windows) < 2 {
+		t.Fatalf("got %d windows, want at least 2 non-overlapping windows", len(windows))
+	}
+	for _, w := range windows {
+		if !w.HasLeadCorr || w.LeadCorr < 0.7 {
+			t.Fatalf("window %s..%s: lead corr = %v (has=%v), want > 0.7 in every window for a stable relationship", w.Start, w.End, w.LeadCorr, w.HasLeadCorr)
+		}
+		if !w.HasGrangerP || w.GrangerP > 0.01 {
+			t.Fatalf("window %s..%s: granger p = %v (has=%v), want < 0.01 in every window", w.Start, w.End, w.GrangerP, w.HasGrangerP)
+		}
+	}
+}
+
+func TestWindowedRobustnessNoWindowsWhenHistoryTooShort(t *testing.T) {
+	n := 50
+	base := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	signal := lcgSeries(n, 1)
+	x := make(map[string]float64, n)
+	y := make(map[string]float64, n)
+	for i := range n {
+		x[dateKey(base.AddDate(0, 0, i))] = signal[i]
+		y[dateKey(base.AddDate(0, 0, i))] = signal[i]
+	}
+	windows := WindowedRobustness(x, y, 1, 150, 2, 30)
+	if len(windows) != 0 {
+		t.Fatalf("got %d windows, want 0 (history shorter than one window)", len(windows))
+	}
+}
+
 func TestBuildReturnUniverseSkipsFailingTickers(t *testing.T) {
 	source := datasetSource{series: map[string][]moex.Candle{
 		"GOOD":  syntheticCandles(120, func(i int) float64 { return 100 + float64(i) }),

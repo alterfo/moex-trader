@@ -26,6 +26,8 @@ const (
 	defaultMinOverlap   = 60
 	defaultMinAsymmetry = 0.05
 	defaultTop          = 3
+	defaultLeadDays     = 1
+	defaultWindowDays   = 150
 )
 
 type options struct {
@@ -39,6 +41,11 @@ type options struct {
 	minAsymmetry   float64
 	top            int
 	outPath        string
+	robustness     bool
+	candidateFlag  string
+	targetFlag     string
+	leadDays       int
+	windowDays     int
 }
 
 func main() {
@@ -56,6 +63,10 @@ func run(args []string, stdout io.Writer) error {
 	cfg, err := config.Load(opts.configPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
+	}
+
+	if opts.robustness {
+		return runRobustness(opts, cfg, stdout)
 	}
 
 	targets := splitComma(opts.targetsFlag)
@@ -133,13 +144,66 @@ func parseOptions(args []string) (options, error) {
 	fs.Float64Var(&opts.minAsymmetry, "min-asymmetry", opts.minAsymmetry, "minimum |lead corr| - |reverse corr| to report a candidate")
 	fs.IntVar(&opts.top, "top", opts.top, "how many leaders to show per target")
 	fs.StringVar(&opts.outPath, "out", "", "path to write markdown report (default: stdout)")
+	fs.BoolVar(&opts.robustness, "robustness", false, "check one candidate->target pair on non-overlapping windows instead of scanning all pairs")
+	fs.StringVar(&opts.candidateFlag, "candidate", "", "leader ticker for -robustness")
+	fs.StringVar(&opts.targetFlag, "target", "", "target ticker for -robustness")
+	fs.IntVar(&opts.leadDays, "lead-days", defaultLeadDays, "lag (trading days) to check for -robustness")
+	fs.IntVar(&opts.windowDays, "window-days", defaultWindowDays, "non-overlapping window length (trading days) for -robustness")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}
 	if fs.NArg() > 0 {
 		return options{}, fmt.Errorf("unexpected arguments: %s", strings.Join(fs.Args(), " "))
 	}
+	if opts.robustness && (strings.TrimSpace(opts.candidateFlag) == "" || strings.TrimSpace(opts.targetFlag) == "") {
+		return options{}, fmt.Errorf("-robustness requires -candidate and -target")
+	}
 	return opts, nil
+}
+
+func runRobustness(opts options, cfg *config.Config, stdout io.Writer) error {
+	candidate := strings.ToUpper(strings.TrimSpace(opts.candidateFlag))
+	target := strings.ToUpper(strings.TrimSpace(opts.targetFlag))
+
+	till := time.Now()
+	from := till.AddDate(0, 0, -opts.days)
+
+	moexClient := moex.NewClient(cfg.MOEXISSBaseURL, nil)
+	source := backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	log.Printf("leadlag: robustness %s -> %s, lag=%d window_days=%d", candidate, target, opts.leadDays, opts.windowDays)
+
+	returns, err := model.BuildReturnUniverse(ctx, source, []string{candidate, target}, from, till)
+	if err != nil {
+		return fmt.Errorf("build return universe: %w", err)
+	}
+	candidateReturns, ok := returns[candidate]
+	if !ok {
+		return fmt.Errorf("no history for candidate %s", candidate)
+	}
+	targetReturns, ok := returns[target]
+	if !ok {
+		return fmt.Errorf("no history for target %s", target)
+	}
+
+	windows := model.WindowedRobustness(candidateReturns, targetReturns, opts.leadDays, opts.windowDays, opts.grangerLag, opts.minOverlap)
+	if len(windows) == 0 {
+		return fmt.Errorf("not enough overlapping history for a single %d-day window", opts.windowDays)
+	}
+	report := model.BuildRobustnessReport(candidate, target, opts.leadDays, windows)
+
+	if opts.outPath != "" {
+		if err := os.WriteFile(opts.outPath, []byte(report), 0o644); err != nil {
+			return fmt.Errorf("write report %q: %w", opts.outPath, err)
+		}
+		log.Printf("leadlag: report written to %s", opts.outPath)
+		return nil
+	}
+	fmt.Fprint(stdout, report)
+	return nil
 }
 
 func splitComma(s string) []string {

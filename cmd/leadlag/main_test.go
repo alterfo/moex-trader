@@ -37,6 +37,22 @@ func TestParseOptionsOverrides(t *testing.T) {
 	}
 }
 
+func TestParseOptionsRobustnessRequiresCandidateAndTarget(t *testing.T) {
+	if _, err := parseOptions([]string{"-robustness"}); err == nil {
+		t.Fatal("parseOptions() error = nil, want error when -robustness is set without -candidate/-target")
+	}
+	if _, err := parseOptions([]string{"-robustness", "-candidate", "MTSS"}); err == nil {
+		t.Fatal("parseOptions() error = nil, want error when -target is missing")
+	}
+	opts, err := parseOptions([]string{"-robustness", "-candidate", "MTSS", "-target", "SBER"})
+	if err != nil {
+		t.Fatalf("parseOptions() error = %v", err)
+	}
+	if opts.candidateFlag != "MTSS" || opts.targetFlag != "SBER" || opts.leadDays != defaultLeadDays || opts.windowDays != defaultWindowDays {
+		t.Fatalf("unexpected robustness options: %+v", opts)
+	}
+}
+
 func TestParseOptionsRejectsPositionalArgs(t *testing.T) {
 	if _, err := parseOptions([]string{"unexpected"}); err == nil {
 		t.Fatal("parseOptions() error = nil, want unexpected argument error")

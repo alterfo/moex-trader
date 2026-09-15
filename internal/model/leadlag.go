@@ -69,7 +69,7 @@ func BuildReturnUniverse(ctx context.Context, source backtest.HistoricalSource, 
 	return returns, nil
 }
 
-func alignSeries(x, y map[string]float64) (xs, ys []float64) {
+func commonDates(x, y map[string]float64) []string {
 	dates := make([]string, 0, len(x))
 	for d := range x {
 		if _, ok := y[d]; ok {
@@ -77,6 +77,11 @@ func alignSeries(x, y map[string]float64) (xs, ys []float64) {
 		}
 	}
 	sort.Strings(dates)
+	return dates
+}
+
+func alignSeries(x, y map[string]float64) (xs, ys []float64) {
+	dates := commonDates(x, y)
 	xs = make([]float64, len(dates))
 	ys = make([]float64, len(dates))
 	for i, d := range dates {
@@ -465,6 +470,70 @@ func BuildLeadLagReport(results []LeadLagResult, bonferroniAlpha float64, nTests
 		}
 		writeLine(fmt.Sprintf("| %s | %s | %d | %+.3f | %+.3f | %s | %s |",
 			r.Target, r.Candidate, r.LeadDays, r.LeadCorr, r.ReverseCorr, pStr, sig))
+	}
+	return b.String()
+}
+
+type RobustnessWindow struct {
+	Start          string
+	End            string
+	N              int
+	LeadCorr       float64
+	HasLeadCorr    bool
+	ReverseCorr    float64
+	HasReverseCorr bool
+	GrangerP       float64
+	HasGrangerP    bool
+}
+
+func WindowedRobustness(returnsX, returnsY map[string]float64, leadDays, windowDays, grangerLag, minOverlap int) []RobustnessWindow {
+	dates := commonDates(returnsX, returnsY)
+	var windows []RobustnessWindow
+	for start := 0; start+windowDays <= len(dates); start += windowDays {
+		windowDates := dates[start : start+windowDays]
+		rx := make(map[string]float64, len(windowDates))
+		ry := make(map[string]float64, len(windowDates))
+		for _, d := range windowDates {
+			rx[d] = returnsX[d]
+			ry[d] = returnsY[d]
+		}
+
+		cc := CrossCorrelation(rx, ry, leadDays, minOverlap)
+		w := RobustnessWindow{Start: windowDates[0], End: windowDates[len(windowDates)-1], N: cc.N}
+		if v, ok := cc.Lead[leadDays]; ok {
+			w.LeadCorr, w.HasLeadCorr = v, true
+		}
+		if v, ok := cc.Lag[leadDays]; ok {
+			w.ReverseCorr, w.HasReverseCorr = v, true
+		}
+		if granger, ok := GrangerFTest(rx, ry, grangerLag, minOverlap); ok {
+			w.GrangerP, w.HasGrangerP = granger.PValue, true
+		}
+		windows = append(windows, w)
+	}
+	return windows
+}
+
+func BuildRobustnessReport(candidate, target string, leadDays int, windows []RobustnessWindow) string {
+	var b strings.Builder
+	writeLine := func(s string) { b.WriteString(s); b.WriteByte('\n') }
+
+	writeLine(fmt.Sprintf("# Устойчивость лид-лаг связи %s -> %s (лаг %d дн.) на непересекающихся окнах", candidate, target, leadDays))
+	writeLine("")
+	writeLine("| window | n | lead_corr | reverse_corr | granger_p |")
+	writeLine("|---|---:|---:|---:|---:|")
+	for _, w := range windows {
+		leadStr, revStr, pStr := "—", "—", "—"
+		if w.HasLeadCorr {
+			leadStr = fmt.Sprintf("%+.3f", w.LeadCorr)
+		}
+		if w.HasReverseCorr {
+			revStr = fmt.Sprintf("%+.3f", w.ReverseCorr)
+		}
+		if w.HasGrangerP {
+			pStr = fmt.Sprintf("%.4f", w.GrangerP)
+		}
+		writeLine(fmt.Sprintf("| %s..%s | %d | %s | %s | %s |", w.Start, w.End, w.N, leadStr, revStr, pStr))
 	}
 	return b.String()
 }
