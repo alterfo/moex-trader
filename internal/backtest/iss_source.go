@@ -75,10 +75,10 @@ func (s *ISSSource) History(ctx context.Context, ticker string, from, till time.
 			return nil, fmt.Errorf("backtest: candles for %s: no candles block", ticker)
 		}
 		rows := parseCandles(resp.Candles.Columns, resp.Candles.Data)
-		all = append(all, rows...)
-		if len(rows) < limit {
+		if len(rows) == 0 {
 			break
 		}
+		all = append(all, rows...)
 		start += len(rows)
 	}
 	return sortCandles(all), nil
