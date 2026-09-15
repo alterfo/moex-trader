@@ -1,9 +1,11 @@
 # MOEX Multi-Agent Trader
 
 A Go trading system for MOEX instruments. It ingests market data and news, builds a
-   feature context, asks a local LLM (Ollama) for a structured trade signal, passes the
-   signal through a risk gate, and executes it — paper trades first, then live micro-lots
-   via Tinkoff or Finam. Every step is recorded as an audit event for later review.
+feature context, produces a deterministic trade signal from a pure-Go logistic
+regression model, passes the signal through a risk gate, and executes it — paper
+trades first, then live micro-lots via Tinkoff or Finam. Every step is recorded as
+an audit event for later review. A local LLM (Ollama) remains available only for
+offline benchmarking and backtest comparison, never in the live `cmd/trader` path.
 
 The system is a single-process modular monolith: internal Go packages talk through
 interfaces, with no network hop between components. Redis Streams is an optional
@@ -14,8 +16,9 @@ internal bus for later process splitting, not a requirement for the system to wo
 - MOEX ISS market data plus RSS news ingestion
 - Feature-context building: price change, realized volatility, news sentiment,
   order-book imbalance
-- Structured Ollama LLM decisions (`BUY` / `SELL` / `HOLD`) with strict JSON output
-  and bounded retry
+- Deterministic logistic-regression signals (`BUY` / `SELL` / `HOLD`) trained on
+  MOEX history by `cmd/trainmodel`, with a deadband around the coin-flip boundary
+- Offline-only LLM tooling for latency benchmarks and backtest comparison
 - Hardened risk gate: max position size, fat-finger price check, and persisted kill
   switch; daily-loss and drawdown limits require a live account snapshot (not wired yet)
 - Paper executor plus a live executor for Tinkoff and Finam; Tinkoff orders are
@@ -27,17 +30,19 @@ internal bus for later process splitting, not a requirement for the system to wo
 ## Requirements
 
 - Go 1.26 or newer
-- An Ollama server reachable from this process. The default host is
-  `192.168.88.193:11434` with model `qwen3.8`. Do not run `ollama serve` on the trading
-  machine itself; point the config at the shared GPU host.
+- A trained model artifact (`model.json` by default) produced by `cmd/trainmodel`;
+  the live trader refuses to start if it is missing or malformed.
+- An Ollama server only when using `cmd/llmbench` or
+  `cmd/backtest -signal-source=llm`; it is not required for `cmd/trader`.
 - Broker credentials only when using live mode (Tinkoff or Finam; see below)
 
 ## Quick start
 
 ```sh
 cp config.example.yaml config.yaml
-# edit config.yaml to set tickers, Ollama host/model, and storage path
+# edit config.yaml to set tickers, storage path, and model.path if needed
 go build ./...
+go run ./cmd/trainmodel -config config.yaml
 go run ./cmd/trader -config config.yaml
 ```
 
@@ -57,6 +62,9 @@ Key fields:
 
 ```yaml
 tickers: [YDEX, OZON, SBER, ...]
+model:
+  path: "model.json"
+# Offline tools only: cmd/llmbench and cmd/backtest -signal-source=llm.
 ollama:
   host: "192.168.88.193:11434"
   model: "qwen3.8"
@@ -85,6 +93,7 @@ after the YAML is parsed:
 | Config field | Environment variable |
 |---|---|
 | `tickers` | `MOEX_TRADER_TICKERS` (comma separated) |
+| `model.path` | `MOEX_TRADER_MODEL_PATH` |
 | `ollama.host` | `MOEX_TRADER_OLLAMA_HOST` |
 | `ollama.model` | `MOEX_TRADER_OLLAMA_MODEL` |
 | `ollama.timeout` | `MOEX_TRADER_OLLAMA_TIMEOUT` |
@@ -133,8 +142,12 @@ gross-positive can still be reported as a loss once commission is subtracted.
 
 ## Commands
 
-- `cmd/trader` — runs the full ingest → features → LLM → risk → executor loop; use
+- `cmd/trader` — runs the full ingest → features → model → risk → executor loop; use
   `-reset-kill-switch` to clear a persisted kill switch and exit
+- `cmd/trainmodel` — fetches MOEX daily history, trains the logistic model, runs an
+  out-of-sample backtest, and writes `model.json`
+- `cmd/backtest` — replays history with the model (default) or legacy LLM
+  (`-signal-source=llm`) and writes a markdown report
 - `cmd/llmbench` — sends sample feature contexts to Ollama and reports success rate
   and latency percentiles; use `-host`, `-model`, `-timeout`, and `-n`
 - `cmd/verifier` — reads audit events and produces a markdown report correlating
@@ -143,21 +156,47 @@ gross-positive can still be reported as a loss once commission is subtracted.
 Example:
 
 ```sh
+go run ./cmd/trainmodel -config config.yaml
+go run ./cmd/backtest -signal-source=model -config config.yaml
+go run ./cmd/backtest -signal-source=llm -config config.yaml
 go run ./cmd/llmbench -host 192.168.88.193:11434 -model qwen3.8 -n 100
 go run ./cmd/verifier -db trader.db -since 1h -interval 1h
 ```
+
+## Model training and refresh
+
+The live signal source loads `model.json` at startup. Generate it with:
+
+```sh
+go run ./cmd/trainmodel -config config.yaml
+```
+
+By default this trains on the configured tickers over the last two years, uses a
+5-day forward-return horizon, excludes labels with an absolute move below 0.5%,
+reserves the final 90 days for out-of-sample validation, and writes `model.json`.
+Useful overrides include `-tickers`, `-from`, `-till`, `-split-date`, `-val-days`,
+`-horizon-days`, `-deadband-pct`, `-learning-rate`, `-l2-lambda`, `-epochs`,
+`-max-lots`, and `-out`.
+
+Retraining is manual in v1: rerun `cmd/trainmodel` when the MOEX regime shifts,
+inspect the printed validation Sharpe, hit rate, and max drawdown, and restart
+`cmd/trader` only if the refreshed artifact is acceptable.
 
 ## Package layout
 
 ```text
 cmd/
   trader/     orchestrator entrypoint
+  trainmodel/ logistic-regression training + validation entrypoint
+  backtest/   historical replay entrypoint
   llmbench/   Ollama latency benchmark
   verifier/   audit-based trade verifier
 internal/
   config/     YAML + env config loading and defaults
   domain/     FeatureContext, TradeSignal, AuditEvent
   features/   feature-context builder
+  model/      logistic-regression training, inference, and model artifact I/O
+  backtest/   historical data source, engine, and signal-source caching/retry
   ingestion/  MOEX ISS, news, AlgoPack, Tinkoff, and Finam market-data clients
   llm/        Ollama client, prompt builder, JSON schema, decision engine
   risk/       risk gate and kill switch
@@ -176,8 +215,9 @@ internal/
    then matches articles to tickers.
 2. Features — `internal/features.Builder` turns the ingested input into a
    `domain.FeatureContext` (return, volatility, sentiment, order-book imbalance).
-3. LLM — `internal/llm.DecisionEngine` sends the feature context to Ollama with a
-   strict-JSON prompt, retries on parse failure, and falls back to `HOLD`.
+3. Model — `internal/model.SignalSource` standardizes the feature context, scores it
+   with the trained weights, and maps the probability to `BUY`/`SELL`/`HOLD` using
+   the configured buy/sell thresholds.
 4. Risk gate — `internal/risk.Gate` validates the signal and rejects it if it exceeds
    the max position or fat-finger limits; with a live account snapshot it also enforces
    daily-loss and drawdown limits and trips the kill switch.

@@ -316,10 +316,10 @@ new signal source and rewiring `cmd/trader`/`cmd/backtest` to use it.
 - [x] verify test coverage meets project standard
 
 ### Task 10: [Final] Update documentation
-- [ ] update README (or equivalent config docs) describing the new `model:`
+- [x] update README (or equivalent config docs) describing the new `model:`
       config section, `cmd/trainmodel` usage, and that `ollama:` is now
       offline-tooling-only
-- [ ] add a short note to this plan's Technical Details (or a new doc) on how
+- [x] add a short note to this plan's Technical Details (or a new doc) on how
       to retrain/refresh `model.json` periodically as MOEX regime shifts —
       no automation required for v1, just document the manual command
 
@@ -357,6 +357,13 @@ for any BUY/SELL — flat position sizing, matching the existing LLM path's
 typical usage and `risk.HardenedGate`'s single-lot-family limits. No
 confidence-weighted sizing in v1 (YAGNI; the risk gate is the sizing/safety
 authority, not the signal source).
+
+**Retraining `model.json`**: v1 has no automated retraining schedule or drift
+trigger. To refresh the live artifact, run
+`go run ./cmd/trainmodel -config config.yaml` (optionally overriding
+`-tickers`, `-from`, `-till`, or `-out`), inspect the printed out-of-sample
+validation report, and restart `cmd/trader` only if the Sharpe/hit-rate/max
+drawdown are acceptable for the current MOEX regime.
 
 ## Post-Completion
 

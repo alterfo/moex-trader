@@ -20,6 +20,9 @@ tickers:
   - GLDRUB_TOM
   - SLVRUB_TOM
   - CNYRUB_TOM
+model:
+  path: "model.json"
+# Offline tools only: cmd/llmbench and cmd/backtest -signal-source=llm.
 ollama:
   host: "192.168.88.193:11434"
   model: "qwen3.8"
