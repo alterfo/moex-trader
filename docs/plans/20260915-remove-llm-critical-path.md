@@ -170,20 +170,20 @@ new signal source and rewiring `cmd/trader`/`cmd/backtest` to use it.
 - [x] run tests — must pass before task 2
 
 ### Task 2: Model artifact format (save/load)
-- [ ] define `Weights` struct in `internal/model/weights.go`: `FeatureOrder
+- [x] define `Weights` struct in `internal/model/weights.go`: `FeatureOrder
       []string`, `Mean []float64`, `Std []float64`, `Coef []float64`, `Bias
       float64`, `BuyThreshold`, `SellThreshold float64`, `HorizonDays int`,
       `DeadbandPct float64`, `TrainedAt time.Time`, `Training` metadata struct
       (date range, tickers, sample count, train/val accuracy, val Sharpe, val
       hit rate, val max drawdown pct)
-- [ ] implement `LoadWeights(path string) (*Weights, error)` and
+- [x] implement `LoadWeights(path string) (*Weights, error)` and
       `(*Weights) Save(path string) error` — JSON, indented, fail loudly on
       malformed/missing file (consistent with `storage.Open` style fail-fast)
-- [ ] validate on load: `len(Coef) == len(FeatureOrder) == len(Mean) == len(Std)`,
+- [x] validate on load: `len(Coef) == len(FeatureOrder) == len(Mean) == len(Std)`,
       `BuyThreshold > SellThreshold`, both in `(0,1)`
-- [ ] write tests: round-trip save/load, load error on malformed JSON, load
+- [x] write tests: round-trip save/load, load error on malformed JSON, load
       error on dimension mismatch
-- [ ] run tests — must pass before task 3
+- [x] run tests — must pass before task 3
 
 ### Task 3: Training dataset builder (walk-forward, no lookahead)
 - [ ] implement `internal/model/dataset.go`:
