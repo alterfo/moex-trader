@@ -185,9 +185,13 @@ func (e *Engine) CurrentLots(_ context.Context, ticker string) (int, error) {
 func (e *Engine) Run(ctx context.Context) (*Result, error) {
 	var curves []map[time.Time]decimal.Decimal
 	for _, ticker := range tickersNormalized(e.cfg.Tickers) {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		curve, err := e.runTicker(ctx, ticker)
 		if err != nil {
-			return nil, err
+			e.cfg.Logger.Printf("backtest: %s: skipping (history failed): %v", ticker, err)
+			continue
 		}
 		curves = append(curves, curve)
 	}
