@@ -104,6 +104,9 @@ func TestFinamExecutorPlacesMarketOrder(t *testing.T) {
 			if request.ClientOrderID == "" {
 				t.Error("client_order_id is empty")
 			}
+			if len(request.ClientOrderID) > finam.MaxClientOrderIDLength {
+				t.Errorf("client_order_id length = %d, want <= %d", len(request.ClientOrderID), finam.MaxClientOrderIDLength)
+			}
 			response := finamOrderResponse{OrderID: "broker-order-1", Status: string(finam.OrderStatusFilled)}
 			response.ExecutedQuantity.Value = "2"
 			writeFinamJSON(w, http.StatusOK, response)

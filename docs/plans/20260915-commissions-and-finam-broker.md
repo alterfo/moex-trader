@@ -132,10 +132,10 @@ execution integration, following the same pattern already used for Tinkoff.
 ### Task 6: Wire broker selection into cmd/trader
 - [x] extend config with a `broker` field (`paper` / `tinkoff` / `finam`) alongside
       the existing `is_paper_trading` flag
-- [x] `cmd/trader` selects the matching `Executor`; for `tinkoff` and `finam` in
-      non-paper mode, keep the existing honest-refusal behavior (refuse to start
-      without account-snapshot/order-cancellation wiring) rather than silently
-      running with incomplete risk protections
+- [x] `cmd/trader` selects the matching `Executor`; for `tinkoff` and `finam` keep
+      the existing honest-refusal behavior regardless of `is_paper_trading` (refuse
+      to start without account-snapshot/order-cancellation wiring) rather than
+      silently running with incomplete risk protections
 - [x] write tests: broker selection picks the right executor, live-mode refusal
       still triggers for both Tinkoff and Finam
 - [x] run full test suite — must pass before task 7
@@ -186,6 +186,10 @@ finam:
   base_url: "https://api.finam.ru"
   secret_token: ""  # from env / .env, never committed
 ```
+
+The `finam` config section is implemented in `internal/config` (`base_url` with a
+`MOEX_TRADER_FINAM_BASE_URL` override; `secret_token` is env-only via
+`MOEX_TRADER_FINAM_SECRET_TOKEN`) and mirrored in `config.example.yaml`.
 
 ## Post-Completion
 

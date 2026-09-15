@@ -19,6 +19,8 @@ func clearEnv(t *testing.T) {
 		"MOEX_TRADER_MOEX_ISS_URL",
 		"MOEX_TRADER_ALGOPACK_BASE_URL",
 		"MOEX_TRADER_ALGOPACK_TOKEN",
+		"MOEX_TRADER_FINAM_BASE_URL",
+		"MOEX_TRADER_FINAM_SECRET_TOKEN",
 		"MOEX_TRADER_STORAGE_PATH",
 		"MOEX_TRADER_POLL_INTERVAL",
 		"MOEX_TRADER_IS_PAPER_TRADING",
@@ -28,6 +30,7 @@ func clearEnv(t *testing.T) {
 		"MOEX_TRADER_TELEGRAM_BOT_TOKEN",
 		"MOEX_TRADER_TELEGRAM_CHAT_ID",
 		"MOEX_TRADER_COMMISSION_RATE",
+		"MOEX_TRADER_COMMISSION_BROKER",
 	} {
 		t.Setenv(key, "")
 	}
@@ -150,6 +153,12 @@ func TestDefaultsAppliedWhenFieldsOmitted(t *testing.T) {
 	}
 	if cfg.AlgoPackToken != "" {
 		t.Fatalf("unexpected default algopack token: %q", cfg.AlgoPackToken)
+	}
+	if cfg.Finam.BaseURL != "https://api.finam.ru" {
+		t.Fatalf("unexpected default finam base url: %q", cfg.Finam.BaseURL)
+	}
+	if cfg.Finam.SecretToken != "" {
+		t.Fatalf("unexpected default finam secret token: %q", cfg.Finam.SecretToken)
 	}
 	if !cfg.IsPaperTrading {
 		t.Fatal("expected default is_paper_trading to be true")
@@ -275,6 +284,8 @@ func TestEnvOverrides(t *testing.T) {
 	t.Setenv("MOEX_TRADER_MOEX_ISS_URL", "https://override.example/iss")
 	t.Setenv("MOEX_TRADER_ALGOPACK_BASE_URL", "https://override.example/datashop")
 	t.Setenv("MOEX_TRADER_ALGOPACK_TOKEN", "env-algopack-token")
+	t.Setenv("MOEX_TRADER_FINAM_BASE_URL", "https://override.example/finam")
+	t.Setenv("MOEX_TRADER_FINAM_SECRET_TOKEN", "env-finam-token")
 	t.Setenv("MOEX_TRADER_STORAGE_PATH", "/override/trader.db")
 	t.Setenv("MOEX_TRADER_POLL_INTERVAL", "2m")
 	t.Setenv("MOEX_TRADER_IS_PAPER_TRADING", "false")
@@ -301,6 +312,12 @@ func TestEnvOverrides(t *testing.T) {
 	}
 	if cfg.AlgoPackToken != "env-algopack-token" {
 		t.Fatalf("unexpected algopack token: %q", cfg.AlgoPackToken)
+	}
+	if cfg.Finam.BaseURL != "https://override.example/finam" {
+		t.Fatalf("unexpected finam base url: %q", cfg.Finam.BaseURL)
+	}
+	if cfg.Finam.SecretToken != "env-finam-token" {
+		t.Fatalf("unexpected finam secret token: %q", cfg.Finam.SecretToken)
 	}
 	if cfg.Storage.Path != "/override/trader.db" {
 		t.Fatalf("unexpected storage path: %q", cfg.Storage.Path)
@@ -425,5 +442,54 @@ func TestBrokerEnvOverride(t *testing.T) {
 	}
 	if cfg.Broker != BrokerFinam {
 		t.Fatalf("Broker = %q, want %q", cfg.Broker, BrokerFinam)
+	}
+}
+
+func TestFinamConfigLoaded(t *testing.T) {
+	clearEnv(t)
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\nfinam:\n  base_url: \"https://finam.example\"\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if cfg.Finam.BaseURL != "https://finam.example" {
+		t.Fatalf("Finam.BaseURL = %q, want https://finam.example", cfg.Finam.BaseURL)
+	}
+	if cfg.Finam.SecretToken != "" {
+		t.Fatalf("Finam.SecretToken = %q, want empty because secrets are env-only", cfg.Finam.SecretToken)
+	}
+}
+
+func TestFinamEmptyBaseURLRejected(t *testing.T) {
+	clearEnv(t)
+	_, err := Parse([]byte("storage:\n  path: ./trader.db\nfinam:\n  base_url: \"\"\n"))
+	if err == nil {
+		t.Fatal("expected error for empty finam base url")
+	}
+	if !strings.Contains(err.Error(), "finam.base_url") {
+		t.Fatalf("expected finam.base_url error, got: %v", err)
+	}
+}
+
+func TestFinamSecretYAMLIgnored(t *testing.T) {
+	clearEnv(t)
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\nfinam:\n  secret_token: yaml-secret\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if cfg.Finam.SecretToken != "" {
+		t.Fatalf("Finam.SecretToken = %q, want empty because secrets are env-only", cfg.Finam.SecretToken)
+	}
+}
+
+func TestCommissionBrokerEnvOverride(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("MOEX_TRADER_COMMISSION_BROKER", "tinkoff")
+
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if cfg.Commission.Broker != "tinkoff" {
+		t.Fatalf("Commission.Broker = %q, want tinkoff", cfg.Commission.Broker)
 	}
 }

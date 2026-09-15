@@ -319,3 +319,151 @@ func TestExpiredJWTTriggersRefreshAndRetry(t *testing.T) {
 		t.Fatalf("quote calls = %d, want 2", quoteCalls.Load())
 	}
 }
+
+func TestPlaceOrderSuccess(t *testing.T) {
+	var received finamPlaceOrderRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/v1/sessions" {
+			writeJSON(w, http.StatusOK, authResponse{Token: "jwt-order"})
+			return
+		}
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/accounts/account-1/orders" {
+			http.NotFound(w, r)
+			return
+		}
+		if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+			t.Errorf("decode order request: %v", err)
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, finamPlaceOrderResponse{
+			OrderID:          "broker-order-1",
+			ExecID:           "exec-1",
+			Status:           OrderStatusFilled,
+			ExecutedQuantity: decimalValue{Value: "3"},
+		})
+	}))
+	defer server.Close()
+
+	client, err := New(context.Background(), Config{BaseURL: server.URL, SecretToken: "secret"})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	response, err := client.PlaceOrder(context.Background(), "account-1", PlaceOrderRequest{
+		Symbol:        "SBER@MISX",
+		Quantity:      decimal.NewFromInt(3),
+		Side:          SideBuy,
+		Type:          OrderTypeMarket,
+		TimeInForce:   TimeInForceDay,
+		ClientOrderID: "client-1",
+	})
+	if err != nil {
+		t.Fatalf("PlaceOrder returned error: %v", err)
+	}
+	if response.OrderID != "broker-order-1" {
+		t.Fatalf("OrderID = %q, want broker-order-1", response.OrderID)
+	}
+	if response.ExecID != "exec-1" {
+		t.Fatalf("ExecID = %q, want exec-1", response.ExecID)
+	}
+	if response.Status != OrderStatusFilled {
+		t.Fatalf("Status = %q, want %q", response.Status, OrderStatusFilled)
+	}
+	requireDecimal(t, response.ExecutedQuantity, "3")
+	if received.Symbol != "SBER@MISX" || received.Side != SideBuy || received.Type != OrderTypeMarket || received.TimeInForce != TimeInForceDay || received.ClientOrderID != "client-1" {
+		t.Fatalf("unexpected order request: %+v", received)
+	}
+	if received.Quantity.Value != "3" {
+		t.Fatalf("quantity = %q, want 3", received.Quantity.Value)
+	}
+}
+
+func TestPlaceOrderValidation(t *testing.T) {
+	client := &Client{}
+	tests := []struct {
+		name      string
+		accountID string
+		request   PlaceOrderRequest
+		want      string
+	}{
+		{
+			name:      "empty account id",
+			accountID: " ",
+			request:   PlaceOrderRequest{Symbol: "SBER@MISX", Quantity: decimal.NewFromInt(1), Side: SideBuy},
+			want:      "account id",
+		},
+		{
+			name:      "invalid symbol",
+			accountID: "account-1",
+			request:   PlaceOrderRequest{Symbol: "SBER", Quantity: decimal.NewFromInt(1), Side: SideBuy},
+			want:      "ticker@mic",
+		},
+		{
+			name:      "non-positive quantity",
+			accountID: "account-1",
+			request:   PlaceOrderRequest{Symbol: "SBER@MISX", Quantity: decimal.Zero, Side: SideBuy},
+			want:      "quantity",
+		},
+		{
+			name:      "invalid side",
+			accountID: "account-1",
+			request:   PlaceOrderRequest{Symbol: "SBER@MISX", Quantity: decimal.NewFromInt(1), Side: SideUnspecified},
+			want:      "side",
+		},
+		{
+			name:      "long client order id",
+			accountID: "account-1",
+			request: PlaceOrderRequest{
+				Symbol:        "SBER@MISX",
+				Quantity:      decimal.NewFromInt(1),
+				Side:          SideBuy,
+				ClientOrderID: strings.Repeat("a", MaxClientOrderIDLength+1),
+			},
+			want: "client order id",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := client.PlaceOrder(context.Background(), tt.accountID, tt.request)
+			if err == nil {
+				t.Fatal("PlaceOrder returned nil error, want validation error")
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("PlaceOrder error = %v, want substring %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestPlaceOrderRejectsMalformedExecutedQuantity(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/v1/sessions" {
+			writeJSON(w, http.StatusOK, authResponse{Token: "jwt-order"})
+			return
+		}
+		if r.Method == http.MethodPost && r.URL.Path == "/v1/accounts/account-1/orders" {
+			writeJSON(w, http.StatusOK, finamPlaceOrderResponse{
+				OrderID:          "broker-order-1",
+				Status:           OrderStatusFilled,
+				ExecutedQuantity: decimalValue{Value: "not-a-decimal"},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	client, err := New(context.Background(), Config{BaseURL: server.URL, SecretToken: "secret"})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	_, err = client.PlaceOrder(context.Background(), "account-1", PlaceOrderRequest{
+		Symbol:        "SBER@MISX",
+		Quantity:      decimal.NewFromInt(1),
+		Side:          SideBuy,
+		ClientOrderID: "client-1",
+	})
+	if err == nil || !strings.Contains(err.Error(), "parse executed quantity") {
+		t.Fatalf("PlaceOrder error = %v, want parse executed quantity", err)
+	}
+}

@@ -17,11 +17,12 @@ import (
 )
 
 const (
-	DefaultBaseURL      = "https://api.finam.ru"
-	tokenLifetime       = 15 * time.Minute
-	refreshBeforeExpiry = time.Minute
-	defaultHTTPTimeout  = 10 * time.Second
-	maxResponseBytes    = 4 << 20
+	DefaultBaseURL         = "https://api.finam.ru"
+	tokenLifetime          = 15 * time.Minute
+	refreshBeforeExpiry    = time.Minute
+	defaultHTTPTimeout     = 10 * time.Second
+	maxResponseBytes       = 4 << 20
+	MaxClientOrderIDLength = 20
 )
 
 type Timeframe string
@@ -272,6 +273,9 @@ func (c *Client) PlaceOrder(ctx context.Context, accountID string, request Place
 	accountID = strings.TrimSpace(accountID)
 	if accountID == "" {
 		return empty, errors.New("finam: account id must not be empty")
+	}
+	if len(request.ClientOrderID) > MaxClientOrderIDLength {
+		return empty, fmt.Errorf("finam: client order id must be at most %d characters, got %d", MaxClientOrderIDLength, len(request.ClientOrderID))
 	}
 	if err := validateSymbol(request.Symbol); err != nil {
 		return empty, err

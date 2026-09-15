@@ -102,7 +102,7 @@ func (f *FinamExecutor) Execute(ctx context.Context, signal domain.TradeSignal, 
 		Side:          side,
 		Type:          finam.OrderTypeMarket,
 		TimeInForce:   finam.TimeInForceDay,
-		ClientOrderID: orderID,
+		ClientOrderID: finamClientOrderID(orderID),
 	})
 	if err != nil {
 		return Fill{}, fmt.Errorf("finam executor: place order %q: %w", orderID, err)
@@ -140,6 +140,14 @@ func (f *FinamExecutor) Execute(ctx context.Context, signal domain.TradeSignal, 
 	default:
 		return Fill{}, fmt.Errorf("finam executor: order %q has unsupported status %s", orderID, response.Status)
 	}
+}
+
+func finamClientOrderID(orderID string) string {
+	compact := strings.ReplaceAll(orderID, "-", "")
+	if len(compact) <= finam.MaxClientOrderIDLength {
+		return compact
+	}
+	return compact[:finam.MaxClientOrderIDLength]
 }
 
 func validateFinamInput(signal domain.TradeSignal, price decimal.Decimal) error {

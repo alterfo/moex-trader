@@ -21,6 +21,7 @@ type Config struct {
 	Risk            Risk       `yaml:"risk"`
 	Telegram        Telegram   `yaml:"telegram"`
 	Commission      Commission `yaml:"commission"`
+	Finam           Finam      `yaml:"finam"`
 	Broker          string     `yaml:"broker"`
 	IsPaperTrading  bool       `yaml:"is_paper_trading"`
 	PollInterval    Duration   `yaml:"poll_interval"`
@@ -50,6 +51,11 @@ type Commission struct {
 	Rate   decimal.Decimal `yaml:"rate"`
 }
 
+type Finam struct {
+	BaseURL     string `yaml:"base_url"`
+	SecretToken string `yaml:"-"`
+}
+
 const (
 	BrokerPaper   = "paper"
 	BrokerTinkoff = "tinkoff"
@@ -62,6 +68,7 @@ const (
 	defaultOllamaTimeout    = Duration(10 * time.Second)
 	defaultMOEXISSBaseURL   = "https://iss.moex.com/iss"
 	defaultAlgoPackBaseURL  = "https://apim.moex.com/iss/datashop"
+	defaultFinamBaseURL     = "https://api.finam.ru"
 	defaultPollInterval     = Duration(5 * time.Minute)
 	defaultRiskMaxLots      = 1
 	defaultCommissionBroker = "finam"
@@ -81,6 +88,9 @@ func Default() *Config {
 		Commission: Commission{
 			Broker: defaultCommissionBroker,
 			Rate:   decimal.New(1, -4),
+		},
+		Finam: Finam{
+			BaseURL: defaultFinamBaseURL,
 		},
 		Broker:         BrokerPaper,
 		IsPaperTrading: true,
@@ -134,6 +144,9 @@ func (c *Config) Validate() error {
 	if strings.TrimSpace(c.AlgoPackBaseURL) == "" {
 		return fmt.Errorf("algopack_base_url must not be empty")
 	}
+	if strings.TrimSpace(c.Finam.BaseURL) == "" {
+		return fmt.Errorf("finam.base_url must not be empty")
+	}
 	if strings.TrimSpace(c.Storage.Path) == "" {
 		return fmt.Errorf("storage.path must not be empty")
 	}
@@ -180,6 +193,12 @@ func applyEnv(cfg *Config) error {
 	if v := os.Getenv("MOEX_TRADER_ALGOPACK_TOKEN"); v != "" {
 		cfg.AlgoPackToken = v
 	}
+	if v := os.Getenv("MOEX_TRADER_FINAM_BASE_URL"); v != "" {
+		cfg.Finam.BaseURL = v
+	}
+	if v := os.Getenv("MOEX_TRADER_FINAM_SECRET_TOKEN"); v != "" {
+		cfg.Finam.SecretToken = v
+	}
 	if v := os.Getenv("MOEX_TRADER_STORAGE_PATH"); v != "" {
 		cfg.Storage.Path = v
 	}
@@ -222,6 +241,9 @@ func applyEnv(cfg *Config) error {
 			return fmt.Errorf("parse MOEX_TRADER_COMMISSION_RATE: %w", err)
 		}
 		cfg.Commission.Rate = rate
+	}
+	if v := os.Getenv("MOEX_TRADER_COMMISSION_BROKER"); v != "" {
+		cfg.Commission.Broker = v
 	}
 	return nil
 }

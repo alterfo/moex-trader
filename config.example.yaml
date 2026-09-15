@@ -33,6 +33,9 @@ risk:
 commission:
   broker: "finam"
   rate: "0.0001"   # 0.01%, Finam "Единый дневной"
+finam:
+  base_url: "https://api.finam.ru"
+  secret_token: ""  # env-only: MOEX_TRADER_FINAM_SECRET_TOKEN
 broker: "paper"     # paper | tinkoff | finam
 is_paper_trading: true
 poll_interval: 5m

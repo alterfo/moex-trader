@@ -18,7 +18,9 @@ internal bus for later process splitting, not a requirement for the system to wo
   and bounded retry
 - Hardened risk gate: max position size, fat-finger price check, and persisted kill
   switch; daily-loss and drawdown limits require a live account snapshot (not wired yet)
-- Paper executor plus idempotent Tinkoff and Finam live executors using UUID v4 order IDs
+- Paper executor plus a live executor for Tinkoff and Finam; Tinkoff orders are
+  idempotent via UUID v4 order IDs, while Finam order idempotency is pending Finam
+  API confirmation
 - Full audit trail in SQLite
 - Prometheus metrics, optional Telegram alerting, and an hourly verifier report
 
@@ -60,6 +62,7 @@ ollama:
   model: "qwen3.8"
   timeout: 10s
 moex_iss_base_url: "https://iss.moex.com/iss"
+algopack_base_url: "https://apim.moex.com/iss/datashop"
 storage:
   path: "./trader.db"
 risk:
@@ -67,6 +70,8 @@ risk:
 commission:
   broker: "finam"
   rate: "0.0001"   # 0.01%, Finam "Единый дневной"
+finam:
+  base_url: "https://api.finam.ru"
 broker: "paper"     # paper | tinkoff | finam
 is_paper_trading: true
 poll_interval: 5m
@@ -84,9 +89,14 @@ after the YAML is parsed:
 | `ollama.model` | `MOEX_TRADER_OLLAMA_MODEL` |
 | `ollama.timeout` | `MOEX_TRADER_OLLAMA_TIMEOUT` |
 | `moex_iss_base_url` | `MOEX_TRADER_MOEX_ISS_URL` |
+| `algopack_base_url` | `MOEX_TRADER_ALGOPACK_BASE_URL` |
+| `algopack_token` | `MOEX_TRADER_ALGOPACK_TOKEN` (secret, env-only) |
 | `storage.path` | `MOEX_TRADER_STORAGE_PATH` |
 | `risk.max_lots` | `MOEX_TRADER_RISK_MAX_LOTS` |
+| `commission.broker` | `MOEX_TRADER_COMMISSION_BROKER` |
 | `commission.rate` | `MOEX_TRADER_COMMISSION_RATE` |
+| `finam.base_url` | `MOEX_TRADER_FINAM_BASE_URL` |
+| `finam.secret_token` | `MOEX_TRADER_FINAM_SECRET_TOKEN` (secret, env-only) |
 | `broker` | `MOEX_TRADER_BROKER` (`paper` / `tinkoff` / `finam`) |
 | `poll_interval` | `MOEX_TRADER_POLL_INTERVAL` |
 | `is_paper_trading` | `MOEX_TRADER_IS_PAPER_TRADING` |
@@ -113,16 +123,22 @@ client (`internal/ingestion/finam`) authenticates by exchanging a long-lived sec
 token for a JWT, caches the JWT, and refreshes it one minute before its 15-minute
 expiry (or reactively on a 401). Finam publishes a demo account for exercising this
 flow without real money; the secret token is obtained manually from the Finam tokens
-portal and is never committed.
+portal and is never committed. The order-placement response does not include an
+execution price, so the recorded fill price is the signal price used to place the
+market order; treat Finam P&L as an estimate until real fills are reconciled.
+
+Commission is estimated per fill as `price x lots x commission.rate`. The verifier
+reports gross P&L, total commission, and net realized P&L; a trade that is
+gross-positive can still be reported as a loss once commission is subtracted.
 
 ## Commands
 
 - `cmd/trader` — runs the full ingest → features → LLM → risk → executor loop; use
   `-reset-kill-switch` to clear a persisted kill switch and exit
 - `cmd/llmbench` — sends sample feature contexts to Ollama and reports success rate
-  and latency percentiles
+  and latency percentiles; use `-host`, `-model`, `-timeout`, and `-n`
 - `cmd/verifier` — reads audit events and produces a markdown report correlating
-  signals with realized P&L
+  signals with realized P&L; use `-db`, `-since`, `-interval`, and `-out`
 
 Example:
 
