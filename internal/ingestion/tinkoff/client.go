@@ -34,10 +34,12 @@ type Config struct {
 }
 
 type Client struct {
-	conn    *grpc.ClientConn
-	md      pb.MarketDataServiceClient
-	stream  pb.MarketDataStreamServiceClient
-	enabled bool
+	conn        *grpc.ClientConn
+	md          pb.MarketDataServiceClient
+	stream      pb.MarketDataStreamServiceClient
+	instruments pb.InstrumentsServiceClient
+	sandbox     pb.SandboxServiceClient
+	enabled     bool
 }
 
 type Quote struct {
@@ -105,10 +107,12 @@ func dial(ctx context.Context, endpoint, token, appName string, baseOpts ...grpc
 
 func newClientFromConn(conn *grpc.ClientConn) *Client {
 	return &Client{
-		conn:    conn,
-		md:      pb.NewMarketDataServiceClient(conn),
-		stream:  pb.NewMarketDataStreamServiceClient(conn),
-		enabled: true,
+		conn:        conn,
+		md:          pb.NewMarketDataServiceClient(conn),
+		stream:      pb.NewMarketDataStreamServiceClient(conn),
+		instruments: pb.NewInstrumentsServiceClient(conn),
+		sandbox:     pb.NewSandboxServiceClient(conn),
+		enabled:     true,
 	}
 }
 
@@ -229,6 +233,179 @@ func (c *Client) OrderBook(ctx context.Context, instrumentID string, depth int32
 	}, nil
 }
 
+func (c *Client) TradingStatus(ctx context.Context, instrumentID string) (*pb.GetTradingStatusResponse, error) {
+	if !c.enabled {
+		return nil, ErrPaperTrading
+	}
+	if err := validateInstrumentID(instrumentID); err != nil {
+		return nil, err
+	}
+	response, err := c.md.GetTradingStatus(ctx, &pb.GetTradingStatusRequest{InstrumentId: instrumentID})
+	if err != nil {
+		return nil, fmt.Errorf("tinkoff get trading status %q: %w", instrumentID, err)
+	}
+	if response == nil {
+		return nil, errors.New("tinkoff get trading status: nil response")
+	}
+	return response, nil
+}
+
+func (c *Client) ResolveInstrumentUID(ctx context.Context, ticker string) (string, error) {
+	if !c.enabled {
+		return "", ErrPaperTrading
+	}
+	ticker = strings.TrimSpace(ticker)
+	if ticker == "" {
+		return "", errors.New("tinkoff: ticker must not be empty")
+	}
+
+	response, err := c.instruments.FindInstrument(ctx, &pb.FindInstrumentRequest{
+		Query:                 ticker,
+		ApiTradeAvailableFlag: true,
+	})
+	if err != nil {
+		return "", fmt.Errorf("tinkoff find instrument %q: %w", ticker, err)
+	}
+
+	var fallback *pb.InstrumentShort
+	for _, instrument := range response.GetInstruments() {
+		if instrument == nil || strings.TrimSpace(instrument.GetUid()) == "" {
+			continue
+		}
+		if !strings.EqualFold(instrument.GetTicker(), ticker) {
+			continue
+		}
+		if instrument.GetInstrumentKind() == pb.InstrumentType_INSTRUMENT_TYPE_SHARE {
+			return instrument.GetUid(), nil
+		}
+		if fallback == nil {
+			fallback = instrument
+		}
+	}
+	if fallback != nil {
+		return fallback.GetUid(), nil
+	}
+	return "", fmt.Errorf("tinkoff find instrument %q: no match", ticker)
+}
+
+func (c *Client) SandboxAccounts(ctx context.Context) ([]*pb.Account, error) {
+	if !c.enabled {
+		return nil, ErrPaperTrading
+	}
+	response, err := c.sandbox.GetSandboxAccounts(ctx, &pb.GetAccountsRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("tinkoff get sandbox accounts: %w", err)
+	}
+	return response.GetAccounts(), nil
+}
+
+func (c *Client) OpenSandboxAccount(ctx context.Context) (string, error) {
+	if !c.enabled {
+		return "", ErrPaperTrading
+	}
+	response, err := c.sandbox.OpenSandboxAccount(ctx, &pb.OpenSandboxAccountRequest{})
+	if err != nil {
+		return "", fmt.Errorf("tinkoff open sandbox account: %w", err)
+	}
+	accountID := strings.TrimSpace(response.GetAccountId())
+	if accountID == "" {
+		return "", errors.New("tinkoff open sandbox account: empty account id")
+	}
+	return accountID, nil
+}
+
+func (c *Client) SandboxPayIn(ctx context.Context, accountID string, amount decimal.Decimal) (decimal.Decimal, error) {
+	if !c.enabled {
+		return decimal.Zero, ErrPaperTrading
+	}
+	if err := validateAccountID(accountID); err != nil {
+		return decimal.Zero, err
+	}
+	if !amount.IsPositive() {
+		return decimal.Zero, errors.New("tinkoff: pay in amount must be positive")
+	}
+	response, err := c.sandbox.SandboxPayIn(ctx, &pb.SandboxPayInRequest{
+		AccountId: accountID,
+		Amount:    decimalToMoneyValue(amount, "rub"),
+	})
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("tinkoff sandbox pay in %q: %w", accountID, err)
+	}
+	balance, err := MoneyValueToDecimal(response.GetBalance())
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("tinkoff sandbox pay in %q: %w", accountID, err)
+	}
+	return balance, nil
+}
+
+func (c *Client) PostSandboxOrder(ctx context.Context, request *pb.PostOrderRequest) (*pb.PostOrderResponse, error) {
+	if !c.enabled {
+		return nil, ErrPaperTrading
+	}
+	if request == nil {
+		return nil, errors.New("tinkoff: post sandbox order request is nil")
+	}
+	if err := validateAccountID(request.GetAccountId()); err != nil {
+		return nil, err
+	}
+	response, err := c.sandbox.PostSandboxOrder(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("tinkoff post sandbox order: %w", err)
+	}
+	if response == nil {
+		return nil, errors.New("tinkoff post sandbox order: nil response")
+	}
+	return response, nil
+}
+
+func (c *Client) GetSandboxPortfolio(ctx context.Context, accountID string) (*pb.PortfolioResponse, error) {
+	if !c.enabled {
+		return nil, ErrPaperTrading
+	}
+	if err := validateAccountID(accountID); err != nil {
+		return nil, err
+	}
+	response, err := c.sandbox.GetSandboxPortfolio(ctx, &pb.PortfolioRequest{AccountId: accountID})
+	if err != nil {
+		return nil, fmt.Errorf("tinkoff get sandbox portfolio %q: %w", accountID, err)
+	}
+	if response == nil {
+		return nil, errors.New("tinkoff get sandbox portfolio: nil response")
+	}
+	return response, nil
+}
+
+func (c *Client) GetSandboxOrders(ctx context.Context, accountID string) ([]*pb.OrderState, error) {
+	if !c.enabled {
+		return nil, ErrPaperTrading
+	}
+	if err := validateAccountID(accountID); err != nil {
+		return nil, err
+	}
+	response, err := c.sandbox.GetSandboxOrders(ctx, &pb.GetOrdersRequest{AccountId: accountID})
+	if err != nil {
+		return nil, fmt.Errorf("tinkoff get sandbox orders %q: %w", accountID, err)
+	}
+	return response.GetOrders(), nil
+}
+
+func (c *Client) CancelSandboxOrder(ctx context.Context, accountID, orderID string) error {
+	if !c.enabled {
+		return ErrPaperTrading
+	}
+	if err := validateAccountID(accountID); err != nil {
+		return err
+	}
+	orderID = strings.TrimSpace(orderID)
+	if orderID == "" {
+		return errors.New("tinkoff: order id must not be empty")
+	}
+	if _, err := c.sandbox.CancelSandboxOrder(ctx, &pb.CancelOrderRequest{AccountId: accountID, OrderId: orderID}); err != nil {
+		return fmt.Errorf("tinkoff cancel sandbox order %q: %w", orderID, err)
+	}
+	return nil
+}
+
 func (c *Client) StreamLastPrices(ctx context.Context, instrumentID string) (<-chan Quote, <-chan error) {
 	quotes := make(chan Quote)
 	errs := make(chan error, 1)
@@ -322,6 +499,33 @@ func validateInstrumentID(instrumentID string) error {
 		return errors.New("tinkoff: instrument id must not be empty")
 	}
 	return nil
+}
+
+func validateAccountID(accountID string) error {
+	if strings.TrimSpace(accountID) == "" {
+		return errors.New("tinkoff: account id must not be empty")
+	}
+	return nil
+}
+
+func decimalToMoneyValue(value decimal.Decimal, currency string) *pb.MoneyValue {
+	units := value.IntPart()
+	remainder := value.Sub(decimal.NewFromInt(units))
+	nano := remainder.Mul(decimal.NewFromInt(quotationPrecision)).Round(0).IntPart()
+	return &pb.MoneyValue{
+		Currency: currency,
+		Units:    units,
+		Nano:     int32(nano),
+	}
+}
+
+func MoneyValueToDecimal(value *pb.MoneyValue) (decimal.Decimal, error) {
+	if value == nil {
+		return decimal.Zero, errors.New("tinkoff: nil money value")
+	}
+	whole := decimal.NewFromInt(value.GetUnits())
+	fraction := decimal.NewFromInt(int64(value.GetNano())).Div(decimal.NewFromInt(quotationPrecision))
+	return whole.Add(fraction), nil
 }
 
 func convertCandle(candle *pb.HistoricCandle) (Candle, error) {

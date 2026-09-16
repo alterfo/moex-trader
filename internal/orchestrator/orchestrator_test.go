@@ -261,6 +261,271 @@ func TestRunOnceCallsCyclePreparer(t *testing.T) {
 	}
 }
 
+type fakeGate struct {
+	mu       sync.Mutex
+	requests []risk.Request
+	approve  bool
+	err      error
+}
+
+func (g *fakeGate) Approve(_ context.Context, request risk.Request) (bool, error) {
+	g.mu.Lock()
+	g.requests = append(g.requests, request)
+	g.mu.Unlock()
+	if g.err != nil {
+		return false, g.err
+	}
+	return g.approve, nil
+}
+
+func (g *fakeGate) callCount() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return len(g.requests)
+}
+
+func (g *fakeGate) requestAt(index int) risk.Request {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.requests[index]
+}
+
+type fakeAccountSource struct {
+	account risk.Account
+	err     error
+	calls   atomic.Int32
+}
+
+func (s *fakeAccountSource) Snapshot(context.Context) (risk.Account, error) {
+	s.calls.Add(1)
+	if s.err != nil {
+		return risk.Account{}, s.err
+	}
+	return s.account, nil
+}
+
+func TestRunOnceUsesAccountSourceSnapshot(t *testing.T) {
+	store := openTestStore(t)
+	now := func() time.Time { return time.Date(2024, 1, 11, 12, 30, 0, 0, time.UTC) }
+	ingestor := &fakeIngestor{inputs: map[string]features.Input{
+		"SBER": fixtureInput("SBER"),
+		"YDEX": fixtureInput("YDEX"),
+	}}
+	source := &fakeSource{
+		signal: domain.TradeSignal{
+			Action:      domain.ActionHold,
+			Confidence:  decimal.NewFromFloat(0.5),
+			Reasoning:   "hold",
+			GeneratedAt: now(),
+		},
+		now: now,
+	}
+	exec := &fakeExecutor{store: store, now: now}
+	gate := &fakeGate{approve: true}
+	liveAccount := risk.Account{
+		Deposit:        decimal.RequireFromString("100000"),
+		DayStartEquity: decimal.RequireFromString("99000"),
+		CurrentEquity:  decimal.RequireFromString("98500"),
+	}
+	accountSource := &fakeAccountSource{account: liveAccount}
+
+	orch, err := New(Options{
+		Tickers:       []string{"SBER", "YDEX"},
+		Ingestor:      ingestor,
+		Source:        source,
+		Gate:          gate,
+		Executor:      exec,
+		Audit:         store,
+		PollInterval:  time.Second,
+		Now:           now,
+		Account:       risk.Account{Deposit: decimal.RequireFromString("1")},
+		AccountSource: accountSource,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	orch.RunOnce(context.Background())
+
+	if accountSource.calls.Load() != 1 {
+		t.Fatalf("account source calls = %d, want 1", accountSource.calls.Load())
+	}
+	if gate.callCount() != 2 {
+		t.Fatalf("gate calls = %d, want 2", gate.callCount())
+	}
+	for i := 0; i < gate.callCount(); i++ {
+		request := gate.requestAt(i)
+		if !request.Account.Deposit.Equal(liveAccount.Deposit) ||
+			!request.Account.DayStartEquity.Equal(liveAccount.DayStartEquity) ||
+			!request.Account.CurrentEquity.Equal(liveAccount.CurrentEquity) {
+			t.Fatalf("gate request %d account = %+v, want %+v", i, request.Account, liveAccount)
+		}
+	}
+}
+
+func TestRunOnceAccountSourceErrorSkipsCycle(t *testing.T) {
+	store := openTestStore(t)
+	now := func() time.Time { return time.Date(2024, 1, 11, 12, 30, 0, 0, time.UTC) }
+	ingestor := &fakeIngestor{inputs: map[string]features.Input{
+		"SBER": fixtureInput("SBER"),
+		"YDEX": fixtureInput("YDEX"),
+	}}
+	source := &fakeSource{
+		signal: domain.TradeSignal{
+			Action:     domain.ActionBuy,
+			TargetLots: 1,
+			Reasoning:  "fixture buy",
+		},
+		now: now,
+	}
+	exec := &fakeExecutor{store: store, now: now}
+	gate := &fakeGate{approve: true}
+	accountSource := &fakeAccountSource{err: fmt.Errorf("sandbox portfolio unavailable")}
+
+	orch, err := New(Options{
+		Tickers:       []string{"SBER", "YDEX"},
+		Ingestor:      ingestor,
+		Source:        source,
+		Gate:          gate,
+		Executor:      exec,
+		Audit:         store,
+		PollInterval:  time.Second,
+		Now:           now,
+		AccountSource: accountSource,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	orch.RunOnce(context.Background())
+
+	if ingestor.calls.Load() != 0 {
+		t.Fatalf("ingestor calls = %d, want 0", ingestor.calls.Load())
+	}
+	if gate.callCount() != 0 {
+		t.Fatalf("gate calls = %d, want 0", gate.callCount())
+	}
+	if exec.callCount() != 0 {
+		t.Fatalf("executor calls = %d, want 0", exec.callCount())
+	}
+}
+
+type recordingObserver struct {
+	mu        sync.Mutex
+	decisions []Decision
+}
+
+func (o *recordingObserver) Observe(_ context.Context, decision Decision) {
+	o.mu.Lock()
+	o.decisions = append(o.decisions, decision)
+	o.mu.Unlock()
+}
+
+func (o *recordingObserver) all() []Decision {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]Decision(nil), o.decisions...)
+}
+
+func TestRunOnceNotifiesApprovedDecision(t *testing.T) {
+	store := openTestStore(t)
+	now := func() time.Time { return time.Date(2024, 1, 11, 12, 30, 0, 0, time.UTC) }
+	ingestor := &fakeIngestor{inputs: map[string]features.Input{"SBER": fixtureInput("SBER")}}
+	source := &fakeSource{
+		signal: domain.TradeSignal{
+			Action:     domain.ActionBuy,
+			Confidence: decimal.NewFromFloat(0.8),
+			TargetLots: 1,
+			Reasoning:  "fixture buy",
+		},
+		now: now,
+	}
+	exec := &fakeExecutor{store: store, now: now}
+	gate := &fakeGate{approve: true}
+	observer := &recordingObserver{}
+
+	orch, err := New(Options{
+		Tickers:      []string{"SBER"},
+		Ingestor:     ingestor,
+		Source:       source,
+		Gate:         gate,
+		Executor:     exec,
+		Audit:        store,
+		PollInterval: time.Second,
+		Now:          now,
+		Observer:     observer,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	orch.RunOnce(context.Background())
+
+	decisions := observer.all()
+	if len(decisions) != 1 {
+		t.Fatalf("observed decisions = %d, want 1", len(decisions))
+	}
+	decision := decisions[0]
+	if decision.Ticker != "SBER" || !decision.Approved || decision.Err != nil {
+		t.Fatalf("unexpected decision: %+v", decision)
+	}
+	if decision.Signal.Action != domain.ActionBuy {
+		t.Fatalf("signal action = %s, want BUY", decision.Signal.Action)
+	}
+	if !decision.Price.Equal(decimal.NewFromFloat(110)) {
+		t.Fatalf("decision price = %s, want 110", decision.Price)
+	}
+	if decision.Fill.Lots != 1 {
+		t.Fatalf("fill lots = %d, want 1", decision.Fill.Lots)
+	}
+}
+
+func TestRunOnceNotifiesRejectedDecision(t *testing.T) {
+	store := openTestStore(t)
+	now := func() time.Time { return time.Date(2024, 1, 11, 12, 30, 0, 0, time.UTC) }
+	ingestor := &fakeIngestor{inputs: map[string]features.Input{"SBER": fixtureInput("SBER")}}
+	source := &fakeSource{
+		signal: domain.TradeSignal{
+			Action:     domain.ActionBuy,
+			Confidence: decimal.NewFromFloat(0.8),
+			TargetLots: 1,
+			Reasoning:  "fixture buy",
+		},
+		now: now,
+	}
+	exec := &fakeExecutor{store: store, now: now}
+	gate := &fakeGate{approve: false}
+	observer := &recordingObserver{}
+
+	orch, err := New(Options{
+		Tickers:      []string{"SBER"},
+		Ingestor:     ingestor,
+		Source:       source,
+		Gate:         gate,
+		Executor:     exec,
+		Audit:        store,
+		PollInterval: time.Second,
+		Now:          now,
+		Observer:     observer,
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	orch.RunOnce(context.Background())
+
+	decisions := observer.all()
+	if len(decisions) != 1 {
+		t.Fatalf("observed decisions = %d, want 1", len(decisions))
+	}
+	if decisions[0].Approved {
+		t.Fatalf("decision approved = true, want false: %+v", decisions[0])
+	}
+	if exec.callCount() != 0 {
+		t.Fatalf("executor calls = %d, want 0 for a rejected signal", exec.callCount())
+	}
+}
+
 func TestOrchestratorKillSwitchBlocksNextCycle(t *testing.T) {
 	store := openTestStore(t)
 	now := func() time.Time { return time.Date(2024, 1, 11, 12, 30, 0, 0, time.UTC) }
@@ -480,7 +745,7 @@ func TestProcessTickerRecordsIngestFailure(t *testing.T) {
 	exec := &fakeExecutor{store: store, now: now}
 	orch := newTestOrchestrator(t, store, ingestor, source, now, exec)
 
-	err := orch.processTicker(context.Background(), "SBER")
+	err := orch.processTicker(context.Background(), "SBER", risk.Account{})
 	if err == nil {
 		t.Fatal("expected error for failed ingest")
 	}
@@ -521,7 +786,7 @@ func TestProcessTickerPropagatesAuditWriteFailure(t *testing.T) {
 	orch := newTestOrchestrator(t, store, ingestor, source, now, exec)
 	orch.audit = failingAuditWriter{}
 
-	err := orch.processTicker(context.Background(), "SBER")
+	err := orch.processTicker(context.Background(), "SBER", risk.Account{})
 	if err == nil {
 		t.Fatal("expected audit write error, got nil")
 	}
@@ -550,7 +815,7 @@ func TestProcessTickerRejectsMismatchedSignalTicker(t *testing.T) {
 	exec := &fakeExecutor{store: store, now: now}
 	orch := newTestOrchestrator(t, store, ingestor, source, now, exec)
 
-	err := orch.processTicker(context.Background(), "SBER")
+	err := orch.processTicker(context.Background(), "SBER", risk.Account{})
 	if err == nil {
 		t.Fatal("expected mismatch error, got nil")
 	}

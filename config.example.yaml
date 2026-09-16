@@ -22,11 +22,6 @@ tickers:
   - CNYRUB_TOM
 model:
   path: "model.json"
-# Offline tools only: cmd/llmbench and cmd/backtest -signal-source=llm.
-ollama:
-  host: "192.168.88.193:11434"
-  model: "qwen3.8"
-  timeout: 10s
 moex_iss_base_url: "https://iss.moex.com/iss"
 algopack_base_url: "https://apim.moex.com/iss/datashop"
 storage:
@@ -35,13 +30,53 @@ risk:
   max_lots: 1
 commission:
   broker: "tinkoff"
-  rate: "0.003"    # 0.3%, T-Bank "Инвестор" tariff — flat rate, no per-trade minimum
+  rate: "0.0005"    # 0.05%, T-Bank "Трейдер" tariff — flat rate, no per-trade minimum
 
 finam:
   base_url: "https://api.finam.ru"
   secret_token: ""  # env-only: MOEX_TRADER_FINAM_SECRET_TOKEN
+
+# Sandbox execution: broker: tinkoff + is_paper_trading: false + sandbox: true.
+# Orders go to the T-Bank sandbox contour (virtual money, no real trades).
+tinkoff:
+  endpoint: "sandbox-invest-public-api.tbank.ru:443"
+  sandbox: true
+  account_id: ""      # pin an existing sandbox account; empty reuses the first one or opens a new one
+  pay_in: "1000000"   # rubles; funds a new sandbox account and sets the risk drawdown baseline
+  order_type: "market" # limit | market; market fills at the sandbox last price
+  token: ""           # env-only: MOEX_TRADER_TINKOFF_TOKEN
+
+# Preflight: replay the current configuration over recent MOEX history before start.
+# The trader refuses to start when the backtest net P&L is below min_net_pnl.
+preflight:
+  enabled: true
+  days: 90
+  deposit: "100000"
+  min_net_pnl: "0"
+
 broker: "paper"     # paper | tinkoff | finam
 is_paper_trading: true
 poll_interval: 5m
 telegram:
   chat_id: ""
+  # Notifications on BUY/SELL decisions with the execution result (filled /
+  # not executed); empty list notifies about every ticker.
+  signal_tickers: []
+  # Telegram API is blocked in some networks; route it through a proxy, e.g. "socks5://127.0.0.1:3333".
+  proxy: ""
+
+# Historical news archive (finanalys format) used to backfill news_sentiment/news_count
+# in cmd/exportdataset, cmd/trainmodel and cmd/calibrate (-news-history flag).
+# Raw JSONL archive collected by cmd/newsfetch; telegram_channels limit collection.
+news:
+  # Veto gate: a conflicting real-time news item (sentiment below -veto_sentiment for a BUY,
+  # above +veto_sentiment for a SELL, with at least veto_min_count articles) overrides the
+  # action to HOLD. Disable with veto_enabled: false.
+  veto_enabled: true
+  veto_sentiment: "0.5"
+  veto_min_count: 1
+  # Proxy for t.me/s; falls back to telegram.proxy when empty.
+  proxy: ""
+  history_path: ""
+  raw_path: ""
+  telegram_channels: []

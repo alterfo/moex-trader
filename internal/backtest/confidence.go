@@ -10,7 +10,7 @@ import (
 
 // ConfidenceGateSource wraps another SignalSource and demotes any BUY/SELL
 // whose confidence falls below MinConfidence to HOLD. The gate sits above the
-// cache layer so a single LLM decision cache can be replayed against several
+// cache layer so a single decision cache can be replayed against several
 // confidence thresholds without re-invoking the model.
 type ConfidenceGateSource struct {
 	Inner         SignalSource

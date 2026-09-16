@@ -47,6 +47,7 @@ type options struct {
 	valDays      int
 	maxLots      int
 	outPath      string
+	newsHistory  string
 }
 
 func main() {
@@ -115,6 +116,7 @@ func run(args []string, stdout io.Writer) error {
 		deposit:        deposit,
 		commissionRate: cfg.Commission.Rate,
 		outPath:        opts.outPath,
+		newsHistory:    opts.newsHistory,
 		now:            time.Now,
 	}, source, stdout)
 	return err
@@ -148,6 +150,7 @@ func parseOptions(args []string) (options, error) {
 	fs.IntVar(&opts.valDays, "val-days", opts.valDays, "validation window length when split-date is not set")
 	fs.IntVar(&opts.maxLots, "max-lots", 0, "max lots for validation (default: config risk.max_lots)")
 	fs.StringVar(&opts.outPath, "out", opts.outPath, "path to write trained model JSON")
+	fs.StringVar(&opts.newsHistory, "news-history", "", "path to a finanalys-format news_history.jsonl to override news_sentiment/news_count with real historical values where available")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}
@@ -213,6 +216,7 @@ type pipelineConfig struct {
 	deposit        decimal.Decimal
 	commissionRate decimal.Decimal
 	outPath        string
+	newsHistory    string
 	now            func() time.Time
 }
 
@@ -231,6 +235,16 @@ func runPipeline(ctx context.Context, cfg pipelineConfig, source backtest.Histor
 	}
 	if len(samples) == 0 {
 		return nil, nil, errors.New("no labeled samples in the selected window")
+	}
+
+	if cfg.newsHistory != "" {
+		records, err := model.LoadFinanalysNewsHistory(cfg.newsHistory)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load news history: %w", err)
+		}
+		news := model.AggregateDailySentiment(records)
+		applied := model.ApplyNewsOverride(samples, news)
+		log.Printf("trainmodel: applied real news_sentiment/news_count to %d/%d samples from %d records", applied, len(samples), len(records))
 	}
 
 	trainSamples, valSamples := splitTrainVal(samples, cfg.split)

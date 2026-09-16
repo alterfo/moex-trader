@@ -48,7 +48,7 @@ type persistedOrder struct {
 	Status     string          `json:"status"`
 }
 
-type InstrumentIDResolver func(ticker string) (string, error)
+type InstrumentIDResolver func(ctx context.Context, ticker string) (string, error)
 
 type LiveConfig struct {
 	AccountID           string
@@ -224,7 +224,7 @@ func (l *LiveExecutor) waitPending(ctx context.Context, orderID string, done cha
 }
 
 func (l *LiveExecutor) placeOrder(ctx context.Context, signal domain.TradeSignal, price decimal.Decimal, orderID string) (Fill, error, bool) {
-	instrumentID, err := l.resolve(signal.Ticker)
+	instrumentID, err := l.resolve(ctx, signal.Ticker)
 	if err != nil {
 		return Fill{}, fmt.Errorf("live executor: resolve instrument id for %q: %w", signal.Ticker, err), false
 	}
@@ -331,15 +331,18 @@ func (l *LiveExecutor) orderRequest(signal domain.TradeSignal, price decimal.Dec
 		return nil, fmt.Errorf("live executor: cannot place order for action %q", signal.Action)
 	}
 
-	return &pb.PostOrderRequest{
+	request := &pb.PostOrderRequest{
 		AccountId:    l.accountID,
 		InstrumentId: instrumentID,
 		Quantity:     int64(signal.TargetLots),
-		Price:        decimalToQuotation(price),
 		Direction:    direction,
 		OrderType:    l.orderType,
 		OrderId:      orderID,
-	}, nil
+	}
+	if l.orderType != pb.OrderType_ORDER_TYPE_MARKET {
+		request.Price = decimalToQuotation(price)
+	}
+	return request, nil
 }
 
 func (l *LiveExecutor) record(ctx context.Context, fill Fill) error {

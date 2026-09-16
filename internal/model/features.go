@@ -17,6 +17,10 @@ var defaultFeatureOrder = []string{
 	"dist_ma50_pct",
 	"realized_vol_21d_annualized_pct",
 	"volume_zscore_20d",
+	"macd_hist_pct",
+	"stoch_k_14",
+	"williams_r_14",
+	"alligator_spread_pct",
 }
 
 func ToVector(f domain.FeatureContext) ([]float64, []string) {
@@ -35,6 +39,10 @@ func ToVector(f domain.FeatureContext) ([]float64, []string) {
 		f.DistMA50Pct.InexactFloat64(),
 		f.RealizedVol21d.InexactFloat64(),
 		f.VolumeZScore20d.InexactFloat64(),
+		f.MACDHistPct.InexactFloat64(),
+		f.StochK14.InexactFloat64(),
+		f.WilliamsR14.InexactFloat64(),
+		f.AlligatorSpreadPct.InexactFloat64(),
 	}
 	return values, append([]string(nil), defaultFeatureOrder...)
 }

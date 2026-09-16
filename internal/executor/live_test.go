@@ -44,7 +44,7 @@ func newLiveExecutorForTest(t *testing.T, poster OrderPoster, now time.Time) *Li
 	store := openTestStore(t)
 	exec, err := NewLiveExecutor(poster, LiveConfig{
 		AccountID: "account-1",
-		ResolveInstrumentID: func(ticker string) (string, error) {
+		ResolveInstrumentID: func(_ context.Context, ticker string) (string, error) {
 			return "instrument-" + ticker, nil
 		},
 		Store: store,
@@ -212,7 +212,7 @@ func TestLiveExecutorDoesNotCachePostedOrderWhenAuditWriteFails(t *testing.T) {
 	}
 	exec, err := NewLiveExecutor(poster, LiveConfig{
 		AccountID: "account-1",
-		ResolveInstrumentID: func(ticker string) (string, error) {
+		ResolveInstrumentID: func(_ context.Context, ticker string) (string, error) {
 			return "instrument-" + ticker, nil
 		},
 		Store: store,
@@ -316,7 +316,7 @@ func TestLiveExecutorPersistedFillIsIdempotentAfterRestart(t *testing.T) {
 	}
 	first, err := NewLiveExecutor(poster, LiveConfig{
 		AccountID: "account-1",
-		ResolveInstrumentID: func(ticker string) (string, error) {
+		ResolveInstrumentID: func(_ context.Context, ticker string) (string, error) {
 			return "instrument-" + ticker, nil
 		},
 		Store: store,
@@ -333,7 +333,7 @@ func TestLiveExecutorPersistedFillIsIdempotentAfterRestart(t *testing.T) {
 
 	restarted, err := NewLiveExecutor(&fakeOrderPoster{err: context.DeadlineExceeded}, LiveConfig{
 		AccountID: "account-1",
-		ResolveInstrumentID: func(ticker string) (string, error) {
+		ResolveInstrumentID: func(_ context.Context, ticker string) (string, error) {
 			return "instrument-" + ticker, nil
 		},
 		Store: store,
@@ -421,7 +421,7 @@ func TestLiveExecutorDoesNotRepostUncertainOrderAfterRestart(t *testing.T) {
 
 	first, err := NewLiveExecutor(&fakeOrderPoster{err: context.DeadlineExceeded}, LiveConfig{
 		AccountID: "account-1",
-		ResolveInstrumentID: func(ticker string) (string, error) {
+		ResolveInstrumentID: func(_ context.Context, ticker string) (string, error) {
 			return "instrument-" + ticker, nil
 		},
 		Store: store,
@@ -447,7 +447,7 @@ func TestLiveExecutorDoesNotRepostUncertainOrderAfterRestart(t *testing.T) {
 	}
 	restarted, err := NewLiveExecutor(restartedPoster, LiveConfig{
 		AccountID: "account-1",
-		ResolveInstrumentID: func(ticker string) (string, error) {
+		ResolveInstrumentID: func(_ context.Context, ticker string) (string, error) {
 			return "instrument-" + ticker, nil
 		},
 		Store: store,
@@ -482,9 +482,54 @@ func TestLiveExecutorRejectsZeroLotsBuy(t *testing.T) {
 	}
 }
 
+func TestLiveExecutorMarketOrderOmitsPrice(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	poster := &fakeOrderPoster{
+		responses: []*pb.PostOrderResponse{
+			{
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL,
+				LotsRequested:         1,
+				LotsExecuted:          1,
+				ExecutedOrderPrice:    &pb.MoneyValue{Currency: "RUB", Units: 271, Nano: 250000000},
+			},
+		},
+	}
+	store := openTestStore(t)
+	exec, err := NewLiveExecutor(poster, LiveConfig{
+		AccountID: "account-1",
+		ResolveInstrumentID: func(_ context.Context, ticker string) (string, error) {
+			return "instrument-" + ticker, nil
+		},
+		OrderType: pb.OrderType_ORDER_TYPE_MARKET,
+		Store:     store,
+		Now:       func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewLiveExecutor() error = %v", err)
+	}
+
+	fill, err := exec.Execute(context.Background(), newBuySignal(now), decimal.NewFromFloat(270.5))
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if len(poster.calls) != 1 {
+		t.Fatalf("PostOrder calls = %d, want 1", len(poster.calls))
+	}
+	request := poster.calls[0]
+	if request.GetPrice() != nil {
+		t.Fatalf("market order price = %v, want nil", request.GetPrice())
+	}
+	if request.GetOrderType() != pb.OrderType_ORDER_TYPE_MARKET {
+		t.Fatalf("request OrderType = %s, want MARKET", request.GetOrderType())
+	}
+	if !fill.Price.Equal(decimal.NewFromFloat(271.25)) {
+		t.Fatalf("fill.Price = %s, want 271.25", fill.Price)
+	}
+}
+
 func TestNewLiveExecutorValidatesConfig(t *testing.T) {
 	store := openTestStore(t)
-	resolver := func(ticker string) (string, error) { return ticker, nil }
+	resolver := func(_ context.Context, ticker string) (string, error) { return ticker, nil }
 	tests := []struct {
 		name   string
 		orders OrderPoster
@@ -681,7 +726,7 @@ func TestLiveExecutorComputesCommission(t *testing.T) {
 			store := openTestStore(t)
 			exec, err := NewLiveExecutor(poster, LiveConfig{
 				AccountID: "account-1",
-				ResolveInstrumentID: func(ticker string) (string, error) {
+				ResolveInstrumentID: func(_ context.Context, ticker string) (string, error) {
 					return "instrument-" + ticker, nil
 				},
 				Store:          store,
@@ -718,7 +763,7 @@ func TestLiveExecutorPersistsCommission(t *testing.T) {
 	store := openTestStore(t)
 	exec, err := NewLiveExecutor(poster, LiveConfig{
 		AccountID: "account-1",
-		ResolveInstrumentID: func(ticker string) (string, error) {
+		ResolveInstrumentID: func(_ context.Context, ticker string) (string, error) {
 			return "instrument-" + ticker, nil
 		},
 		Store:          store,

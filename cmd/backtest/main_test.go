@@ -9,10 +9,8 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/olegsidorkin/moex-trader/internal/backtest"
-	"github.com/olegsidorkin/moex-trader/internal/config"
 	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/model"
-	"github.com/olegsidorkin/moex-trader/internal/orchestrator"
 )
 
 func writeValidModel(t *testing.T) string {
@@ -103,75 +101,6 @@ func TestBuildSignalSourceModelMissingWeights(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("buildSignalSource did not return an error for missing model weights")
-	}
-}
-
-func TestBuildSignalSourceLLM(t *testing.T) {
-	cfg := &config.Config{Ollama: config.Ollama{Host: "localhost:11434", Model: "qwen3.8"}}
-	source, save, err := buildSignalSource(cfg, signalSourceOptions{
-		Mode:        signalSourceLLM,
-		LLMTimeout:  time.Second,
-		LLMAttempts: 1,
-	})
-	if err != nil {
-		t.Fatalf("buildSignalSource llm: %v", err)
-	}
-	if save != nil {
-		t.Fatalf("save callback = %T, want nil", save)
-	}
-	if _, ok := source.(*orchestrator.LLMSignalSource); !ok {
-		t.Fatalf("source type = %T, want *orchestrator.LLMSignalSource", source)
-	}
-}
-
-func TestBuildSignalSourceLLMWithRetry(t *testing.T) {
-	cfg := &config.Config{Ollama: config.Ollama{Host: "localhost:11434", Model: "qwen3.8"}}
-	source, _, err := buildSignalSource(cfg, signalSourceOptions{
-		Mode:                   signalSourceLLM,
-		LLMTimeout:             time.Second,
-		LLMAttempts:            3,
-		LLMBackoff:             time.Millisecond,
-		MaxConsecutiveTimeouts: 2,
-	})
-	if err != nil {
-		t.Fatalf("buildSignalSource llm retry: %v", err)
-	}
-	if _, ok := source.(*backtest.RetryingSignalSource); !ok {
-		t.Fatalf("source type = %T, want *backtest.RetryingSignalSource", source)
-	}
-}
-
-func TestBuildSignalSourceLLMWithCache(t *testing.T) {
-	cfg := &config.Config{Ollama: config.Ollama{Host: "localhost:11434", Model: "qwen3.8"}}
-	cachePath := filepath.Join(t.TempDir(), "cache.json")
-	source, save, err := buildSignalSource(cfg, signalSourceOptions{
-		Mode:                   signalSourceLLM,
-		LLMTimeout:             time.Second,
-		LLMAttempts:            3,
-		LLMBackoff:             time.Millisecond,
-		MaxConsecutiveTimeouts: 2,
-		CachePath:              cachePath,
-	})
-	if err != nil {
-		t.Fatalf("buildSignalSource llm cache: %v", err)
-	}
-	if save == nil {
-		t.Fatal("save callback = nil, want non-nil")
-	}
-	if _, ok := source.(*backtest.CachedSignalSource); !ok {
-		t.Fatalf("source type = %T, want *backtest.CachedSignalSource", source)
-	}
-}
-
-func TestBuildSignalSourceLLMBlankOllamaFailsFast(t *testing.T) {
-	cfg := &config.Config{Ollama: config.Ollama{Host: "", Model: ""}}
-	_, _, err := buildSignalSource(cfg, signalSourceOptions{
-		Mode:        signalSourceLLM,
-		LLMTimeout:  time.Second,
-		LLMAttempts: 1,
-	})
-	if err == nil {
-		t.Fatal("buildSignalSource did not return an error for blank ollama host/model")
 	}
 }
 

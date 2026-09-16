@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -13,7 +14,6 @@ import (
 
 type Config struct {
 	Tickers         []string   `yaml:"tickers"`
-	Ollama          Ollama     `yaml:"ollama"`
 	Model           Model      `yaml:"model"`
 	MOEXISSBaseURL  string     `yaml:"moex_iss_base_url"`
 	AlgoPackBaseURL string     `yaml:"algopack_base_url"`
@@ -21,21 +21,19 @@ type Config struct {
 	Storage         Storage    `yaml:"storage"`
 	Risk            Risk       `yaml:"risk"`
 	Telegram        Telegram   `yaml:"telegram"`
+	News            News       `yaml:"news"`
 	Commission      Commission `yaml:"commission"`
 	Finam           Finam      `yaml:"finam"`
+	Tinkoff         Tinkoff    `yaml:"tinkoff"`
+	Preflight       Preflight  `yaml:"preflight"`
 	Broker          string     `yaml:"broker"`
 	IsPaperTrading  bool       `yaml:"is_paper_trading"`
 	PollInterval    Duration   `yaml:"poll_interval"`
 }
 
-type Ollama struct {
-	Host    string   `yaml:"host"`
-	Model   string   `yaml:"model"`
-	Timeout Duration `yaml:"timeout"`
-}
-
 type Model struct {
-	Path string `yaml:"path"`
+	Path         string `yaml:"path"`
+	EnsemblePath string `yaml:"ensemble_path"`
 }
 
 type Storage struct {
@@ -47,8 +45,21 @@ type Risk struct {
 }
 
 type Telegram struct {
-	BotToken string `yaml:"-"`
-	ChatID   string `yaml:"chat_id"`
+	BotToken      string   `yaml:"-"`
+	ChatID        string   `yaml:"chat_id"`
+	SignalTickers []string `yaml:"signal_tickers"`
+	Proxy         string   `yaml:"proxy"`
+}
+
+type News struct {
+	Proxy         string          `yaml:"proxy"`
+	HistoryPath   string          `yaml:"history_path"`
+	RawPath       string          `yaml:"raw_path"`
+	TGChannels    []string        `yaml:"telegram_channels"`
+	RetroPages    int             `yaml:"retro_pages"`
+	VetoEnabled   bool            `yaml:"veto_enabled"`
+	VetoSentiment decimal.Decimal `yaml:"veto_sentiment"`
+	VetoMinCount  int             `yaml:"veto_min_count"`
 }
 
 type Commission struct {
@@ -61,6 +72,22 @@ type Finam struct {
 	SecretToken string `yaml:"-"`
 }
 
+type Tinkoff struct {
+	Endpoint  string          `yaml:"endpoint"`
+	Sandbox   bool            `yaml:"sandbox"`
+	AccountID string          `yaml:"account_id"`
+	PayIn     decimal.Decimal `yaml:"pay_in"`
+	OrderType string          `yaml:"order_type"`
+	Token     string          `yaml:"-"`
+}
+
+type Preflight struct {
+	Enabled   bool            `yaml:"enabled"`
+	Days      int             `yaml:"days"`
+	Deposit   decimal.Decimal `yaml:"deposit"`
+	MinNetPnL decimal.Decimal `yaml:"min_net_pnl"`
+}
+
 const (
 	BrokerPaper   = "paper"
 	BrokerTinkoff = "tinkoff"
@@ -68,13 +95,18 @@ const (
 )
 
 const (
-	defaultOllamaHost       = "192.168.88.193:11434"
-	defaultOllamaModel      = "qwen3.8"
-	defaultOllamaTimeout    = Duration(10 * time.Second)
+	OrderTypeLimit  = "limit"
+	OrderTypeMarket = "market"
+)
+
+const (
 	defaultModelPath        = "model.json"
 	defaultMOEXISSBaseURL   = "https://iss.moex.com/iss"
 	defaultAlgoPackBaseURL  = "https://apim.moex.com/iss/datashop"
 	defaultFinamBaseURL     = "https://api.finam.ru"
+	defaultTinkoffEndpoint  = "sandbox-invest-public-api.tbank.ru:443"
+	defaultTinkoffOrderType = OrderTypeLimit
+	defaultPreflightDays    = 90
 	defaultPollInterval     = Duration(5 * time.Minute)
 	defaultRiskMaxLots      = 1
 	defaultCommissionBroker = "tinkoff"
@@ -82,22 +114,33 @@ const (
 
 func Default() *Config {
 	return &Config{
-		Tickers: append([]string(nil), DefaultTickers()...),
-		Ollama: Ollama{
-			Host:    defaultOllamaHost,
-			Model:   defaultOllamaModel,
-			Timeout: defaultOllamaTimeout,
-		},
+		Tickers:         append([]string(nil), DefaultTickers()...),
 		Model:           Model{Path: defaultModelPath},
 		MOEXISSBaseURL:  defaultMOEXISSBaseURL,
 		AlgoPackBaseURL: defaultAlgoPackBaseURL,
 		Risk:            Risk{MaxLots: defaultRiskMaxLots},
+		Telegram:        Telegram{},
+		News: News{
+			VetoEnabled:   true,
+			VetoSentiment: decimal.NewFromFloat(0.5),
+			VetoMinCount:  1,
+		},
 		Commission: Commission{
 			Broker: defaultCommissionBroker,
-			Rate:   decimal.New(3, -3),
+			Rate:   decimal.New(5, -4), // 0.0005, T-Bank "Трейдер" tariff — flat rate, no per-trade minimum
 		},
 		Finam: Finam{
 			BaseURL: defaultFinamBaseURL,
+		},
+		Tinkoff: Tinkoff{
+			Endpoint:  defaultTinkoffEndpoint,
+			OrderType: defaultTinkoffOrderType,
+		},
+		Preflight: Preflight{
+			Enabled:   true,
+			Days:      defaultPreflightDays,
+			Deposit:   decimal.NewFromInt(100_000),
+			MinNetPnL: decimal.Zero,
 		},
 		Broker:         BrokerPaper,
 		IsPaperTrading: true,
@@ -110,6 +153,9 @@ func Load(path string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read config file %q: %w", path, err)
 	}
+	if err := loadDotEnv(filepath.Dir(path)); err != nil {
+		return nil, err
+	}
 	return Parse(data)
 }
 
@@ -118,6 +164,7 @@ func Parse(data []byte) (*Config, error) {
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("parse config YAML: %w", err)
 	}
+	cfg.normalize()
 	if err := applyEnv(cfg); err != nil {
 		return nil, err
 	}
@@ -125,6 +172,12 @@ func Parse(data []byte) (*Config, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+func (c *Config) normalize() {
+	if strings.TrimSpace(c.Tinkoff.OrderType) == "" {
+		c.Tinkoff.OrderType = defaultTinkoffOrderType
+	}
 }
 
 func (c *Config) Validate() error {
@@ -160,10 +213,43 @@ func (c *Config) Validate() error {
 	if c.Commission.Rate.IsNegative() {
 		return fmt.Errorf("commission.rate must be non-negative")
 	}
+	if c.News.VetoSentiment.IsNegative() || c.News.VetoSentiment.GreaterThan(decimal.NewFromInt(1)) {
+		return fmt.Errorf("news.veto_sentiment must be in [0,1]")
+	}
+	if c.News.VetoMinCount < 0 {
+		return fmt.Errorf("news.veto_min_count must be non-negative")
+	}
 	switch c.Broker {
 	case BrokerPaper, BrokerTinkoff, BrokerFinam:
 	default:
 		return fmt.Errorf("broker must be one of paper, tinkoff, finam")
+	}
+	if strings.TrimSpace(c.Tinkoff.Endpoint) == "" {
+		return fmt.Errorf("tinkoff.endpoint must not be empty")
+	}
+	switch c.Tinkoff.OrderType {
+	case OrderTypeLimit, OrderTypeMarket:
+	default:
+		return fmt.Errorf("tinkoff.order_type must be one of limit, market")
+	}
+	if c.Tinkoff.PayIn.IsNegative() {
+		return fmt.Errorf("tinkoff.pay_in must be non-negative")
+	}
+	if c.Broker == BrokerTinkoff && !c.IsPaperTrading {
+		if !c.Tinkoff.Sandbox {
+			return fmt.Errorf("tinkoff.sandbox must be true: real-money live trading is not wired")
+		}
+		if !c.Tinkoff.PayIn.IsPositive() {
+			return fmt.Errorf("tinkoff.pay_in must be positive in sandbox mode: it funds a new sandbox account and sets the risk drawdown baseline")
+		}
+	}
+	if c.Preflight.Enabled {
+		if c.Preflight.Days <= 0 {
+			return fmt.Errorf("preflight.days must be positive when preflight is enabled")
+		}
+		if !c.Preflight.Deposit.IsPositive() {
+			return fmt.Errorf("preflight.deposit must be positive when preflight is enabled")
+		}
 	}
 	if c.PollInterval <= 0 {
 		return fmt.Errorf("poll_interval must be positive")
@@ -174,19 +260,6 @@ func (c *Config) Validate() error {
 func applyEnv(cfg *Config) error {
 	if v := os.Getenv("MOEX_TRADER_MODEL_PATH"); v != "" {
 		cfg.Model.Path = v
-	}
-	if v := os.Getenv("MOEX_TRADER_OLLAMA_HOST"); v != "" {
-		cfg.Ollama.Host = v
-	}
-	if v := os.Getenv("MOEX_TRADER_OLLAMA_MODEL"); v != "" {
-		cfg.Ollama.Model = v
-	}
-	if v := os.Getenv("MOEX_TRADER_OLLAMA_TIMEOUT"); v != "" {
-		dur, err := time.ParseDuration(v)
-		if err != nil {
-			return fmt.Errorf("parse MOEX_TRADER_OLLAMA_TIMEOUT: %w", err)
-		}
-		cfg.Ollama.Timeout = Duration(dur)
 	}
 	if v := os.Getenv("MOEX_TRADER_MOEX_ISS_URL"); v != "" {
 		cfg.MOEXISSBaseURL = v
@@ -202,6 +275,60 @@ func applyEnv(cfg *Config) error {
 	}
 	if v := os.Getenv("MOEX_TRADER_FINAM_SECRET_TOKEN"); v != "" {
 		cfg.Finam.SecretToken = v
+	}
+	if v := os.Getenv("MOEX_TRADER_TINKOFF_ENDPOINT"); v != "" {
+		cfg.Tinkoff.Endpoint = v
+	}
+	if v := os.Getenv("MOEX_TRADER_TINKOFF_TOKEN"); v != "" {
+		cfg.Tinkoff.Token = v
+	}
+	if v := os.Getenv("MOEX_TRADER_TINKOFF_SANDBOX"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return fmt.Errorf("parse MOEX_TRADER_TINKOFF_SANDBOX: %w", err)
+		}
+		cfg.Tinkoff.Sandbox = b
+	}
+	if v := os.Getenv("MOEX_TRADER_TINKOFF_ACCOUNT_ID"); v != "" {
+		cfg.Tinkoff.AccountID = v
+	}
+	if v := os.Getenv("MOEX_TRADER_TINKOFF_PAY_IN"); v != "" {
+		payIn, err := decimal.NewFromString(v)
+		if err != nil {
+			return fmt.Errorf("parse MOEX_TRADER_TINKOFF_PAY_IN: %w", err)
+		}
+		cfg.Tinkoff.PayIn = payIn
+	}
+	if v := os.Getenv("MOEX_TRADER_TINKOFF_ORDER_TYPE"); v != "" {
+		cfg.Tinkoff.OrderType = v
+	}
+	if v := os.Getenv("MOEX_TRADER_PREFLIGHT_ENABLED"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return fmt.Errorf("parse MOEX_TRADER_PREFLIGHT_ENABLED: %w", err)
+		}
+		cfg.Preflight.Enabled = b
+	}
+	if v := os.Getenv("MOEX_TRADER_PREFLIGHT_DAYS"); v != "" {
+		days, err := strconv.Atoi(v)
+		if err != nil {
+			return fmt.Errorf("parse MOEX_TRADER_PREFLIGHT_DAYS: %w", err)
+		}
+		cfg.Preflight.Days = days
+	}
+	if v := os.Getenv("MOEX_TRADER_PREFLIGHT_DEPOSIT"); v != "" {
+		deposit, err := decimal.NewFromString(v)
+		if err != nil {
+			return fmt.Errorf("parse MOEX_TRADER_PREFLIGHT_DEPOSIT: %w", err)
+		}
+		cfg.Preflight.Deposit = deposit
+	}
+	if v := os.Getenv("MOEX_TRADER_PREFLIGHT_MIN_NET_PNL"); v != "" {
+		minNetPnL, err := decimal.NewFromString(v)
+		if err != nil {
+			return fmt.Errorf("parse MOEX_TRADER_PREFLIGHT_MIN_NET_PNL: %w", err)
+		}
+		cfg.Preflight.MinNetPnL = minNetPnL
 	}
 	if v := os.Getenv("MOEX_TRADER_STORAGE_PATH"); v != "" {
 		cfg.Storage.Path = v
@@ -238,6 +365,21 @@ func applyEnv(cfg *Config) error {
 	}
 	if v := os.Getenv("MOEX_TRADER_TELEGRAM_CHAT_ID"); v != "" {
 		cfg.Telegram.ChatID = v
+	}
+	if v := os.Getenv("MOEX_TRADER_TELEGRAM_SIGNAL_TICKERS"); v != "" {
+		cfg.Telegram.SignalTickers = splitComma(v)
+	}
+	if v := os.Getenv("MOEX_TRADER_TELEGRAM_PROXY"); v != "" {
+		cfg.Telegram.Proxy = v
+	}
+	if v := os.Getenv("MOEX_TRADER_NEWS_PROXY"); v != "" {
+		cfg.News.Proxy = v
+	}
+	if v := os.Getenv("MOEX_TRADER_NEWS_HISTORY_PATH"); v != "" {
+		cfg.News.HistoryPath = v
+	}
+	if v := os.Getenv("MOEX_TRADER_NEWS_RAW_PATH"); v != "" {
+		cfg.News.RawPath = v
 	}
 	if v := os.Getenv("MOEX_TRADER_COMMISSION_RATE"); v != "" {
 		rate, err := decimal.NewFromString(v)

@@ -35,6 +35,11 @@ type MOEXIngestor struct {
 	cycleResults map[string]chan algopack.Result
 }
 
+const (
+	newsWindow         = 2 * 24 * time.Hour
+	telegramLiveMaxPages = 3
+)
+
 func NewMOEXIngestor(moexClient *moex.Client, fetcher *news.Fetcher, matcher *news.Matcher, sources []news.Source, algopackFetcher algopack.Fetcher) *MOEXIngestor {
 	if sources == nil {
 		sources = news.DefaultSources()
@@ -198,16 +203,34 @@ func (i *MOEXIngestor) cycleArticles(ctx context.Context) []news.Article {
 
 func (i *MOEXIngestor) fetchArticles(ctx context.Context) []news.Article {
 	articles := make([]news.Article, 0)
+	attempted := 0
+	failures := make([]string, 0)
 	for _, source := range i.sources {
+		if source.Type == "telegram" {
+			attempted++
+			items, err := i.news.FetchTelegram(ctx, source, time.Now().Add(-newsWindow), telegramLiveMaxPages)
+			if err != nil {
+				failures = append(failures, fmt.Sprintf("%s: %v", source.Name, err))
+				continue
+			}
+			for j := range items {
+				articles = append(articles, items[j])
+			}
+			continue
+		}
 		if strings.TrimSpace(source.URL) == "" {
 			continue
 		}
+		attempted++
 		items, err := i.news.Fetch(ctx, source)
 		if err != nil {
-			i.logger.Printf("ingest: fetch news source %s: %v", source.Name, err)
+			failures = append(failures, fmt.Sprintf("%s: %v", source.Name, err))
 			continue
 		}
 		articles = append(articles, items...)
+	}
+	if len(failures) > 0 && ctx.Err() == nil {
+		i.logger.Printf("ingest: news sources failed (%d of %d): %s", len(failures), attempted, strings.Join(failures, "; "))
 	}
 	return articles
 }

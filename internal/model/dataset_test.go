@@ -270,16 +270,20 @@ func TestToVector(t *testing.T) {
 		DistMA50Pct:        decimal.NewFromFloat(11),
 		RealizedVol21d:     decimal.NewFromFloat(12),
 		VolumeZScore20d:    decimal.NewFromFloat(13),
+		MACDHistPct:        decimal.NewFromFloat(14),
+		StochK14:           decimal.NewFromFloat(15),
+		WilliamsR14:        decimal.NewFromFloat(16),
+		AlligatorSpreadPct: decimal.NewFromFloat(17),
 	}
 
 	values, names := ToVector(feature)
-	if len(values) != 14 || len(names) != 14 {
-		t.Fatalf("ToVector returned %d values and %d names, want 14/14", len(values), len(names))
+	if len(values) != 18 || len(names) != 18 {
+		t.Fatalf("ToVector returned %d values and %d names, want 18/18", len(values), len(names))
 	}
 	if !equalStrings(names, defaultFeatureOrder) {
 		t.Fatalf("names = %v, want %v", names, defaultFeatureOrder)
 	}
-	want := []float64{1.25, 2.5, 0.75, 7, -0.4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
+	want := []float64{1.25, 2.5, 0.75, 7, -0.4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}
 	for i := range want {
 		if values[i] != want[i] {
 			t.Fatalf("values[%d] = %v, want %v", i, values[i], want[i])

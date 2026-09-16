@@ -84,6 +84,10 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 		DistMA50Pct:        pf.DistMA50Pct,
 		RealizedVol21d:     pf.RealizedVol21dPct,
 		VolumeZScore20d:    pf.VolumeZScore20d,
+		MACDHistPct:        pf.MACDHistPct,
+		StochK14:           pf.StochK14,
+		WilliamsR14:        pf.WilliamsR14,
+		AlligatorSpreadPct: pf.AlligatorSpreadPct,
 	}, nil
 }
 

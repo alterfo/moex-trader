@@ -26,12 +26,11 @@ func (a Action) IsValid() bool {
 }
 
 // HoldReason distinguishes why a HOLD was emitted. In backtest analytics a
-// HOLD produced by the model must not be conflated with a HOLD produced by an
-// LLM timeout or an unparseable response, otherwise the metrics lie.
+// HOLD produced by the model must not be conflated with a HOLD produced by a
+// signal source error, otherwise the metrics lie.
 const (
 	HoldReasonModel      = "model"      // the model itself chose HOLD
-	HoldReasonTimeout    = "timeout"    // the LLM call timed out (host slow/unreachable)
-	HoldReasonInvalid    = "invalid"    // LLM answered but output failed validation
+	HoldReasonTimeout    = "timeout"    // the signal source call timed out
 	HoldReasonError      = "error"      // signal source errored for another reason
 	HoldReasonConfidence = "confidence" // signal filtered out below min-confidence gate
 )
@@ -57,6 +56,10 @@ type FeatureContext struct {
 	DistMA50Pct        decimal.Decimal `json:"dist_ma50_pct"`
 	RealizedVol21d     decimal.Decimal `json:"realized_vol_21d_annualized_pct"`
 	VolumeZScore20d    decimal.Decimal `json:"volume_zscore_20d"`
+	MACDHistPct        decimal.Decimal `json:"macd_hist_pct"`
+	StochK14           decimal.Decimal `json:"stoch_k_14"`
+	WilliamsR14        decimal.Decimal `json:"williams_r_14"`
+	AlligatorSpreadPct decimal.Decimal `json:"alligator_spread_pct"`
 }
 
 type TradeSignal struct {

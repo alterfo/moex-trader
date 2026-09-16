@@ -4,3 +4,8 @@
 *.db-wal
 .env
 /config.yaml
+/.deploy/
+/watchdog
+/watchdog.yaml
+/watchdog.env
+/.revmux/

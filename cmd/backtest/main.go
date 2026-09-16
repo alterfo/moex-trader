@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -15,18 +18,16 @@ import (
 
 	"github.com/olegsidorkin/moex-trader/internal/backtest"
 	"github.com/olegsidorkin/moex-trader/internal/config"
+	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
-	"github.com/olegsidorkin/moex-trader/internal/llm"
 	"github.com/olegsidorkin/moex-trader/internal/model"
-	"github.com/olegsidorkin/moex-trader/internal/orchestrator"
 )
 
-const defaultLLMTimeout = 90 * time.Second
-
 const (
-	signalSourceModel = "model"
-	signalSourceLLM   = "llm"
-	signalSourceRule  = "rule"
+	signalSourceModel    = "model"
+	signalSourceRule     = "rule"
+	signalSourceCSVProb  = "csvprob"
+	signalSourceEnsemble = "ensemble"
 )
 
 func main() {
@@ -42,10 +43,6 @@ func run() error {
 	var depositStr string
 	var maxLots int
 	var commissionStr string
-	var llmTimeout time.Duration
-	var llmAttempts int
-	var llmBackoff time.Duration
-	var maxConsecutiveTimeouts int
 	var lookbackDays int
 	var cachePath string
 	var outPath string
@@ -54,6 +51,10 @@ func run() error {
 	var modelPath string
 	var reversalThresholdPct float64
 	var minConfidence float64
+	var csvProbPath string
+	var csvProbCol string
+	var csvBuyPct, csvSellPct float64
+	var ensemblePath string
 
 	flag.StringVar(&configPath, "config", "config.yaml", "path to config YAML")
 	flag.StringVar(&fromStr, "from", "", "backtest start date YYYY-MM-DD (default: one year ago)")
@@ -61,19 +62,20 @@ func run() error {
 	flag.StringVar(&tickersStr, "tickers", "", "comma-separated tickers (overrides config)")
 	flag.StringVar(&depositStr, "deposit", "100000", "starting paper deposit in RUB")
 	flag.IntVar(&maxLots, "max-lots", 1, "max position in lots")
-	flag.StringVar(&commissionStr, "commission-rate", "0.003", "commission rate applied to notional per fill")
-	flag.DurationVar(&llmTimeout, "llm-timeout", defaultLLMTimeout, "per-decision LLM timeout")
-	flag.IntVar(&llmAttempts, "llm-attempts", 3, "retries per LLM call on timeout")
-	flag.DurationVar(&llmBackoff, "llm-backoff", 5*time.Second, "initial exponential backoff between retries")
-	flag.IntVar(&maxConsecutiveTimeouts, "max-consecutive-timeouts", 5, "circuit breaker: halt after this many consecutive LLM timeouts")
-	flag.IntVar(&lookbackDays, "lookback-days", 30, "max LLM decision points per ticker (0 = unlimited)")
-	flag.StringVar(&cachePath, "cache", "", "path to persistent LLM decision cache (e.g. .backtest-cache.json)")
+	flag.StringVar(&commissionStr, "commission-rate", "0.0005", "commission rate applied to notional per fill")
+	flag.IntVar(&lookbackDays, "lookback-days", 30, "max decision points per ticker (0 = unlimited)")
+	flag.StringVar(&cachePath, "cache", "", "path to persistent decision cache (e.g. .backtest-cache.json)")
 	flag.StringVar(&outPath, "out", "", "path to write markdown report (default: -)")
 	flag.BoolVar(&killSwitch, "kill-switch", true, "enable drawdown kill switch")
-	flag.StringVar(&signalSourceName, "signal-source", signalSourceModel, "signal source: model, llm or rule")
+	flag.StringVar(&signalSourceName, "signal-source", signalSourceModel, "signal source: model, rule, csvprob or ensemble")
 	flag.StringVar(&modelPath, "model-path", "", "path to trained model JSON (default: model.path from config)")
 	flag.Float64Var(&reversalThresholdPct, "reversal-threshold", 0.5, "rule-only: |reversal_1d| %% required to trade")
 	flag.Float64Var(&minConfidence, "min-confidence", 0, "demote BUY/SELL to HOLD when confidence below threshold (0 = off)")
+	flag.StringVar(&csvProbPath, "csv-prob-path", "", "csvprob: path to ticker,date,p_<col> probability CSV")
+	flag.StringVar(&csvProbCol, "csv-prob-col", "p_logreg", "csvprob: probability column name")
+	flag.Float64Var(&csvBuyPct, "csv-buy-pct", 0.55, "csvprob: probability at/above which to BUY")
+	flag.Float64Var(&csvSellPct, "csv-sell-pct", 0.45, "csvprob: probability at/below which to SELL")
+	flag.StringVar(&ensemblePath, "ensemble-path", "", "ensemble: path to exported LGBM+XGB+LogReg model JSON")
 	flag.Parse()
 
 	deposit, err := decimal.NewFromString(depositStr)
@@ -115,16 +117,17 @@ func run() error {
 	source := backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
 
 	signalSource, saveCache, err := buildSignalSource(cfg, signalSourceOptions{
-		Mode:                   signalSourceName,
-		ModelPath:              modelPath,
-		MaxLots:                maxLots,
-		LLMTimeout:             llmTimeout,
-		LLMAttempts:            llmAttempts,
-		LLMBackoff:             llmBackoff,
-		MaxConsecutiveTimeouts: maxConsecutiveTimeouts,
-		CachePath:              cachePath,
-		ReversalThresholdPct:   reversalThresholdPct,
-		MinConfidence:          minConfidence,
+		Mode:                 signalSourceName,
+		ModelPath:            modelPath,
+		MaxLots:              maxLots,
+		CachePath:            cachePath,
+		ReversalThresholdPct: reversalThresholdPct,
+		MinConfidence:        minConfidence,
+		CSVProbPath:          csvProbPath,
+		CSVProbCol:           csvProbCol,
+		CSVBuyPct:            csvBuyPct,
+		CSVSellPct:           csvSellPct,
+		EnsemblePath:         ensemblePath,
 	})
 	if err != nil {
 		return err
@@ -178,16 +181,17 @@ func run() error {
 }
 
 type signalSourceOptions struct {
-	Mode                   string
-	ModelPath              string
-	MaxLots                int
-	LLMTimeout             time.Duration
-	LLMAttempts            int
-	LLMBackoff             time.Duration
-	MaxConsecutiveTimeouts int
-	CachePath              string
-	ReversalThresholdPct   float64
-	MinConfidence          float64
+	Mode                 string
+	ModelPath            string
+	MaxLots              int
+	CachePath            string
+	ReversalThresholdPct float64
+	MinConfidence        float64
+	CSVProbPath          string
+	CSVProbCol           string
+	CSVBuyPct            float64
+	CSVSellPct           float64
+	EnsemblePath         string
 }
 
 func buildSignalSource(cfg *config.Config, opts signalSourceOptions) (backtest.SignalSource, func() error, error) {
@@ -200,27 +204,29 @@ func buildSignalSource(cfg *config.Config, opts signalSourceOptions) (backtest.S
 			return nil, nil, fmt.Errorf("load model: %w", err)
 		}
 		source = &model.SignalSource{Weights: weights, MaxLots: opts.MaxLots}
-	case signalSourceLLM:
-		if cfg == nil {
-			return nil, nil, fmt.Errorf("load llm signal source: config is nil")
-		}
-		if strings.TrimSpace(cfg.Ollama.Host) == "" || strings.TrimSpace(cfg.Ollama.Model) == "" {
-			return nil, nil, fmt.Errorf("load llm signal source: ollama.host and ollama.model must be set in config for -signal-source=%s", signalSourceLLM)
-		}
-		llmClient := llm.New(cfg.Ollama.Host, cfg.Ollama.Model, opts.LLMTimeout)
-		decisionEngine := llm.NewDecisionEngine(llmClient, llm.NewPromptBuilder(), nil, time.Now)
-		llmSource := orchestrator.NewLLMSignalSource(decisionEngine, opts.LLMTimeout, log.Default())
-
-		source = llmSource
-		if opts.LLMAttempts > 1 {
-			source = backtest.NewRetryingSignalSource(
-				llmSource, opts.LLMAttempts, opts.LLMBackoff, opts.LLMBackoff*8, opts.MaxConsecutiveTimeouts, log.Default())
-		}
 	case signalSourceRule:
 		threshold := backtestDecimal(opts.ReversalThresholdPct)
 		source = &backtest.ReversalRuleSource{Threshold: threshold, MaxLots: opts.MaxLots}
+	case signalSourceCSVProb:
+		if strings.TrimSpace(opts.CSVProbPath) == "" {
+			return nil, nil, fmt.Errorf("csvprob: -csv-prob-path is required")
+		}
+		src, err := newCSVProbSource(opts.CSVProbPath, opts.CSVProbCol, opts.CSVBuyPct, opts.CSVSellPct, opts.MaxLots)
+		if err != nil {
+			return nil, nil, err
+		}
+		source = src
+	case signalSourceEnsemble:
+		if strings.TrimSpace(opts.EnsemblePath) == "" {
+			return nil, nil, fmt.Errorf("ensemble: -ensemble-path is required")
+		}
+		m, err := model.LoadEnsembleModel(opts.EnsemblePath)
+		if err != nil {
+			return nil, nil, err
+		}
+		source = &model.EnsembleSignalSource{Model: m, MaxLots: opts.MaxLots}
 	default:
-		return nil, nil, fmt.Errorf("unknown signal source %q: want %q, %q or %q", opts.Mode, signalSourceModel, signalSourceLLM, signalSourceRule)
+		return nil, nil, fmt.Errorf("unknown signal source %q: want %q, %q, %q or %q", opts.Mode, signalSourceModel, signalSourceRule, signalSourceCSVProb, signalSourceEnsemble)
 	}
 
 	if opts.CachePath != "" {
@@ -243,6 +249,101 @@ func buildSignalSource(cfg *config.Config, opts signalSourceOptions) (backtest.S
 
 func backtestDecimal(v float64) decimal.Decimal {
 	return decimal.NewFromFloat(v)
+}
+
+type csvProbSource struct {
+	probs   map[string]float64
+	buyPct  float64
+	sellPct float64
+	maxLots int
+}
+
+func newCSVProbSource(path, col string, buyPct, sellPct float64, maxLots int) (*csvProbSource, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("csvprob: open %q: %w", path, err)
+	}
+	defer file.Close()
+	rows, err := csv.NewReader(file).ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("csvprob: read %q: %w", path, err)
+	}
+	if len(rows) < 2 {
+		return nil, fmt.Errorf("csvprob: %q has no data rows", path)
+	}
+	header := rows[0]
+	colIdx := -1
+	for i, name := range header {
+		if name == col {
+			colIdx = i
+			break
+		}
+	}
+	if colIdx < 0 {
+		return nil, fmt.Errorf("csvprob: column %q not found in %q (have: %s)", col, path, strings.Join(header, ", "))
+	}
+	tickerIdx, dateIdx := -1, -1
+	for i, name := range header {
+		switch name {
+		case "ticker":
+			tickerIdx = i
+		case "date":
+			dateIdx = i
+		}
+	}
+	if tickerIdx < 0 || dateIdx < 0 {
+		return nil, fmt.Errorf("csvprob: %q must have ticker and date columns", path)
+	}
+	probs := make(map[string]float64, len(rows)-1)
+	for _, row := range rows[1:] {
+		if len(row) <= colIdx || len(row) <= tickerIdx || len(row) <= dateIdx {
+			continue
+		}
+		value, err := strconv.ParseFloat(strings.TrimSpace(row[colIdx]), 64)
+		if err != nil {
+			return nil, fmt.Errorf("csvprob: row with date %q: parse %q: %w", row[dateIdx], row[colIdx], err)
+		}
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			continue
+		}
+		key := strings.ToUpper(strings.TrimSpace(row[tickerIdx])) + "|" + strings.TrimSpace(row[dateIdx])
+		probs[key] = value
+	}
+	return &csvProbSource{probs: probs, buyPct: buyPct, sellPct: sellPct, maxLots: maxLots}, nil
+}
+
+func (s *csvProbSource) Generate(_ context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
+	key := strings.ToUpper(strings.TrimSpace(feature.Ticker)) + "|" + feature.GeneratedAt.Format("2006-01-02")
+	probability, ok := s.probs[key]
+	if !ok {
+		return domain.TradeSignal{
+			Ticker:      feature.Ticker,
+			Action:      domain.ActionHold,
+			Confidence:  decimal.Zero,
+			TargetLots:  0,
+			GeneratedAt: feature.GeneratedAt,
+			HoldReason:  domain.HoldReasonModel,
+		}, nil
+	}
+	signal := domain.TradeSignal{
+		Ticker:      feature.Ticker,
+		Action:      domain.ActionHold,
+		Confidence:  decimal.NewFromFloat(math.Abs(probability-0.5) * 2),
+		TargetLots:  0,
+		GeneratedAt: feature.GeneratedAt,
+		Reasoning:   fmt.Sprintf("csvprob:p=%.4f", probability),
+	}
+	switch {
+	case probability >= s.buyPct:
+		signal.Action = domain.ActionBuy
+		signal.TargetLots = s.maxLots
+	case probability <= s.sellPct:
+		signal.Action = domain.ActionSell
+		signal.TargetLots = s.maxLots
+	default:
+		signal.HoldReason = domain.HoldReasonModel
+	}
+	return signal, nil
 }
 
 func splitComma(s string) []string {

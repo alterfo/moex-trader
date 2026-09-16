@@ -1,0 +1,61 @@
+# Project rules
+
+## Multi-session ownership (agreed 2026-09-16)
+
+Two agent sessions share this repo. Zone boundaries:
+
+1. **Ensemble + model zone:** ensemble lgbm+xgb+logreg @ buy/sell 0.60/0.40 and its Go inference, `internal/model/**`, `cmd/trainmodel`, `cmd/calibrate`, `cmd/exportdataset`, `internal/features/**`, `scripts/*.py`.
+2. **Broker/sandbox zone:** `internal/broker/tinkoff/**`, `internal/ingestion/tinkoff/**`, `cmd/sandboxcheck/**`, `config.sandbox.yaml`, sandbox wiring in `cmd/trader` (`newBrokerRuntime`), Telegram alerting. Signal-source selection inside `cmd/trader` belongs to the ensemble/model zone.
+3. The live/backtest signal source MUST implement both `orchestrator.SignalSource` (`Generate(ctx, feature) → BUY/SELL/HOLD`) and `backtest.SignalSource`, so it works in live sandbox and backtest without changes to executor/risk.
+4. LLM/qwen/Ollama has been fully removed from the codebase (2026-09-16) — `internal/llm`, `internal/llmbench`, `cmd/llmbench`, `internal/orchestrator/llm_source.go`, `internal/backtest/retry.go`, and the `ollama` config section are gone. Do not add an LLM signal source back to `cmd/backtest` or anywhere else without new explicit sign-off.
+5. `cmd/trader` runs the preflight backtest gate before the live loop (`preflight.*` in the config): the current configuration is replayed over recent MOEX history and the trader refuses to start when net P&L is below `preflight.min_net_pnl` or when history is unavailable for every ticker. The gate MUST use the same signal source as the live loop; do not bypass it or point it at a different source. The gate must also refuse to start (not silently "pass") when every decision in the replay errors out — a feature-count mismatch between `ensemble_model.json` and the current feature vector once made every decision fail, which looked like "0 trades, P&L 0, gate passed" instead of a hard failure.
+6. Cross-session consultation goes through the user relaying messages (or agterm typing between panes) — headless `claude -p` returns 403 in this environment, there is no direct programmatic channel between the two agents.
+7. **Failover zone:** `cmd/watchdog/**`, `cmd/witness/**`, `internal/failover/**`, `deploy/**`, `scripts/deploy-failover.sh`, `watchdog.yaml`/`watchdog.env` on the machines. Before touching election/witness logic run `go test ./internal/failover/ ./cmd/witness/ ./cmd/watchdog/`; the invariants below are load-bearing.
+
+## Hard invariants
+
+- All money is `decimal.Decimal`, never `float64` (GO_LIVE_CHECKLIST #1).
+- Real-money live execution stays intentionally disabled — `cmd/trader` refuses to start against a non-sandbox account. Only paper mode and the T-Bank sandbox run today. Don't wire real order placement without an explicit go-ahead and a full go-live checklist pass.
+- Automatic daily retraining with atomic replacement of the live model artifact (cron → walk-forward gate → hot-swap, no human review) was explicitly declined by the user on 2026-09-16: current baseline AUC (~0.50-0.52) is too close to noise for an ungated auto-swap to be safe with real money. Feature-drift/PSI diagnostics and a per-ticker circuit breaker are fine to build; the atomic auto-swap step needs new explicit sign-off before it's implemented.
+- Two nodes (Mac primary, ai-box standby) share one sandbox account, so **only one may run `cmd/trader` at a time**. The right to trade is a lease from the VPS witness (`cmd/witness`); a node must stop its trader (fence) the moment its lease expires or is lost, and must never start the trader without holding a lease. Do not "fix" a fencing node by bypassing the witness or starting the trader by hand — a manual `./trader` on the non-lease-holding machine is exactly the double-trading failure the witness exists to prevent.
+- Never pick the authoritative `trader-sandbox.db` by file mtime: a freshly created empty DB has a newer mtime than the working one and will clobber it (this happened on 2026-09-16, wiping the sandbox audit history; the account was flat, so only statistics were lost). The source is the node whose trader started last (`trader.last_start_at` in the heartbeat); a DB accepted from the peer is marked synced and the local node reclaims ownership when its own trader starts. Downloads are validated as SQLite before replacing the local file.
+- A node that fails to start its trader `trader.max_failures` times releases the lease and stays in `error` (not `standby`) while its `post_failure_cooldown` lasts — otherwise the peer sees a healthy-looking standby and never takes over. The cooldown (30 min) is deliberate anti-ping-pong for a globally broken model.
+- The watchdog on the Mac runs `./trader` from the repo root; `scripts/deploy-failover.sh mac` rebuilds it. The ai-box runs its own linux/amd64 build with `SSL_CERT_FILE=certs/ca-bundle.pem` (system CAs + Russian Trusted Root/Sub CA, needed because T-Bank uses the Russian CA chain and Ubuntu does not ship it).
+
+## Feature pipeline
+
+- The feature vector order is defined once in `internal/model/features.go` (`defaultFeatureOrder`/`ToVector`) and must stay mirrored in `cmd/exportdataset/main.go`'s CSV header/row sizing and in the Python side (`scripts/compare_models.py` `FEATURES`, `scripts/export_ensemble.py`). Update all three together — a silent mismatch here is exactly the failure mode in rule 5 above.
+- Current feature set (18, as of 2026-09-16): the original 14 — `return_pct, realized_volatility, news_sentiment, news_count, order_book_imbalance, mom_5d, mom_21d, mom_63d, reversal_1d, rsi_14, dist_ma20_pct, dist_ma50_pct, realized_vol_21d_annualized_pct, volume_zscore_20d` — plus `macd_hist_pct, stoch_k_14, williams_r_14, alligator_spread_pct` (Bill Williams Alligator: Lips-vs-Jaw spread on median price, computed in `internal/features/price_features.go`).
+- `order_book_imbalance` is structurally always 0 in `cmd/exportdataset`'s historical CSV export — no historical order-book snapshots exist. `news_sentiment` / `news_count` default to 0 too, but `cmd/exportdataset -news-history <path>` (added 2026-09-16, mirrors `cmd/trainmodel -news-history`) will backfill real values from a finanalys-format `news_history.jsonl` (see `cmd/newsfetch`) via `model.LoadFinanalysNewsHistory`/`AggregateDailySentiment`, matched by ticker+date. Without that flag, or for dates/tickers missing from the archive, both still fall back to 0 — a feature-importance run on a dataset built without `-news-history` will still show them as dead weight for that reason alone.
+- `SBMM` (ETF "Первая – Фонд Сберегательный") is NOT tradable via the T-Invest API (`apiTradeAvailableFlag=false`) — dropped from the ticker list and replaced with `POSI`. Don't reintroduce it as an order target.
+
+## XGBoost/LGBM → Go inference (solved — don't re-derive)
+
+- Export with `booster.save_model("model.json")` (full native format). Never `dump_model()` (lossy, different node schema, no `base_score`) or `save_raw()` without `raw_format="json"` (defaults to a UBJSON binary in modern xgboost — feeding that to a JSON parser is what caused a parse hang during development).
+- `learner.learner_model_param.base_score` in that JSON is a **string wrapped in brackets**, e.g. `"[4.7E-1]"` — strip the brackets before parsing as float.
+- With `boost_from_average` (xgboost's default), `base_score` is stored in **probability space** (the label mean), not margin space — transform via `base_logit = log(bs/(1-bs))` before summing with tree outputs. This was independently re-derived and confirmed twice (both agent sessions, separately) against `predict_proba` — trust it without re-deriving again unless a fresh accuracy check disagrees.
+- Leaf value = `split_conditions[node]` at a **leaf** node (`left_children[node] == -1`). `base_weights[node]` only equals it at leaves; at internal nodes it is neither the split threshold nor a usable leaf value.
+- XGBoost's internal split comparisons are float32; LGBM's are float64. Quantize XGB tree inputs to float32 before comparing against split thresholds, or you'll see ~0.01-level mismatches at certain boundaries. Verified end-to-end accuracy vs Python `predict_proba`: 6.4e-8 max abs error on the full validation set.
+- Final probability = `sigmoid(base_logit + Σ leaf values across all trees)` for `binary:logistic`.
+- LGBM tree JSON recursive builder gotcha: append a `-1` placeholder for a child index **before** recursing, then overwrite it (`lc[i] = walk(...)`). Appending the recursive call's result directly (`lc.append(walk(...))`) executes children out of order and corrupts the flat array indices.
+
+## GDELT — tried and abandoned, don't reintroduce
+
+- Fully removed (`cmd/gdeltnews`, `internal/ingestion/gdelt`, related flags in `trainmodel`/`calibrate`) after repeated instability: geo-blocked without a SOCKS proxy, a strict 1-request/5s rate limit, and still sporadic 429s needing 55-90s backoff even through the proxy. Historical news now goes through `internal/ingestion/news` (RSS) instead. Don't re-add a GDELT dependency without solving the rate-limit problem first.
+- `Kasymkhan/RussianFinancialNews` (HuggingFace; mirrored on Kaggle as `kkhubiev/russian-financial-news`) is a candidate historical news dataset, but it only covers 2009-06-19..2024-12-16 — it does not overlap the current training window (2024-09..present) and is not a substitute for live news history.
+
+## Model quality / current state (as of 2026-09-16)
+
+- Ensemble (lgbm+xgb+logreg average) at buy/sell thresholds 0.60/0.40 is the live signal source (`internal/model/ensemble.go`, `ensemble_model.json`, config `model.ensemble_path`).
+- Baseline classification AUC for all three underlying models is only ~0.50-0.52 on the current validation split — barely better than noise. Strong in-sample P&L (e.g. +8566₽ over 365d) next to negative out-of-sample P&L (-497₽ on the actual validation window) is a data-scarcity/overfitting symptom, not a bug — confirmed independently via an AUC comparison and via the sandbox preflight gate correctly refusing to start.
+- Adding features (MACD/Stochastic/Williams %R oscillators, Bill Williams Alligator) did **not** move validation AUC beyond noise (±0.005) — the bottleneck is data volume/breadth, not feature engineering. Priority order: (1) widen the ticker universe for more training rows, (2) more history where available, before (3) more features or threshold tuning. Walk-forward threshold tuning is premature while baseline AUC sits at ~0.5 — it would just fit noise.
+- Real T-Bank commission tariff is **"Трейдер": 0.05% per trade** (`commission.rate: "0.0005"` in `config.yaml`/`config.example.yaml`). It was previously mis-configured at 0.3% (the older "Инвестор" tariff) — if you see `0.003` anywhere, it's stale.
+
+## Live/sandbox operational notes
+
+- Kill switch must only cancel orders for instruments the bot actually trades (its own ticker set) — it must never touch a human's manual orders on the same account. (Regression test: `TestCancelOpenOrdersLeavesForeignOrdersAlone`, added after it was found cancelling unrelated manual orders.)
+- The bot only tracks positions from its own fills — it has no visibility into shares a human holds manually on the same account. A SELL signal on a ticker the human also holds manually will be interpreted as opening a short, not "selling the human's shares." This matters before ever wiring live execution onto an account that already has manual positions.
+- Telegram: `api.telegram.org` is blocked directly from this environment — route through `telegram.proxy: "socks5://127.0.0.1:3333"`.
+- Finmarket's RSS feed is Windows-1251, not UTF-8 (`internal/ingestion/news/news.go` decodes via `charset.NewReaderLabel`) — don't assume every feed is UTF-8.
+- AlgoPack enrichment silently disables itself (one log line) when `MOEX_TRADER_ALGOPACK_TOKEN` is unset, instead of logging a 401 per ticker per cycle.
+- Orders are guarded by `TradingStatus` — the bot checks whether the MOEX session is open before submitting, instead of hitting error `30079` (`Instrument is not available for trading`) or burning API rate limit outside trading hours.

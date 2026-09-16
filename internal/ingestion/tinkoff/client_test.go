@@ -21,9 +21,10 @@ import (
 
 type fakeMarketDataServer struct {
 	pb.UnimplementedMarketDataServiceServer
-	lastPrices func(context.Context, *pb.GetLastPricesRequest) (*pb.GetLastPricesResponse, error)
-	candles    func(context.Context, *pb.GetCandlesRequest) (*pb.GetCandlesResponse, error)
-	orderBook  func(context.Context, *pb.GetOrderBookRequest) (*pb.GetOrderBookResponse, error)
+	lastPrices    func(context.Context, *pb.GetLastPricesRequest) (*pb.GetLastPricesResponse, error)
+	candles       func(context.Context, *pb.GetCandlesRequest) (*pb.GetCandlesResponse, error)
+	orderBook     func(context.Context, *pb.GetOrderBookRequest) (*pb.GetOrderBookResponse, error)
+	tradingStatus func(context.Context, *pb.GetTradingStatusRequest) (*pb.GetTradingStatusResponse, error)
 }
 
 func (s *fakeMarketDataServer) GetLastPrices(ctx context.Context, req *pb.GetLastPricesRequest) (*pb.GetLastPricesResponse, error) {
@@ -43,6 +44,13 @@ func (s *fakeMarketDataServer) GetCandles(ctx context.Context, req *pb.GetCandle
 func (s *fakeMarketDataServer) GetOrderBook(ctx context.Context, req *pb.GetOrderBookRequest) (*pb.GetOrderBookResponse, error) {
 	if s.orderBook != nil {
 		return s.orderBook(ctx, req)
+	}
+	return nil, status.Error(codes.Unimplemented, "unimplemented")
+}
+
+func (s *fakeMarketDataServer) GetTradingStatus(ctx context.Context, req *pb.GetTradingStatusRequest) (*pb.GetTradingStatusResponse, error) {
+	if s.tradingStatus != nil {
+		return s.tradingStatus(ctx, req)
 	}
 	return nil, status.Error(codes.Unimplemented, "unimplemented")
 }
@@ -384,6 +392,389 @@ func TestStreamLastPricesReconnectsAfterDisconnect(t *testing.T) {
 	server.mu.Unlock()
 	if calls < 2 {
 		t.Fatalf("server calls = %d, want at least 2", calls)
+	}
+}
+
+type fakeInstrumentsServer struct {
+	pb.UnimplementedInstrumentsServiceServer
+	findInstrument func(context.Context, *pb.FindInstrumentRequest) (*pb.FindInstrumentResponse, error)
+}
+
+func (s *fakeInstrumentsServer) FindInstrument(ctx context.Context, req *pb.FindInstrumentRequest) (*pb.FindInstrumentResponse, error) {
+	if s.findInstrument != nil {
+		return s.findInstrument(ctx, req)
+	}
+	return nil, status.Error(codes.Unimplemented, "unimplemented")
+}
+
+type fakeSandboxServer struct {
+	pb.UnimplementedSandboxServiceServer
+	accounts    func(context.Context, *pb.GetAccountsRequest) (*pb.GetAccountsResponse, error)
+	openAccount func(context.Context, *pb.OpenSandboxAccountRequest) (*pb.OpenSandboxAccountResponse, error)
+	payIn       func(context.Context, *pb.SandboxPayInRequest) (*pb.SandboxPayInResponse, error)
+	postOrder   func(context.Context, *pb.PostOrderRequest) (*pb.PostOrderResponse, error)
+	portfolio   func(context.Context, *pb.PortfolioRequest) (*pb.PortfolioResponse, error)
+	orders      func(context.Context, *pb.GetOrdersRequest) (*pb.GetOrdersResponse, error)
+	cancel      func(context.Context, *pb.CancelOrderRequest) (*pb.CancelOrderResponse, error)
+}
+
+func (s *fakeSandboxServer) GetSandboxAccounts(ctx context.Context, req *pb.GetAccountsRequest) (*pb.GetAccountsResponse, error) {
+	if s.accounts != nil {
+		return s.accounts(ctx, req)
+	}
+	return nil, status.Error(codes.Unimplemented, "unimplemented")
+}
+
+func (s *fakeSandboxServer) OpenSandboxAccount(ctx context.Context, req *pb.OpenSandboxAccountRequest) (*pb.OpenSandboxAccountResponse, error) {
+	if s.openAccount != nil {
+		return s.openAccount(ctx, req)
+	}
+	return nil, status.Error(codes.Unimplemented, "unimplemented")
+}
+
+func (s *fakeSandboxServer) SandboxPayIn(ctx context.Context, req *pb.SandboxPayInRequest) (*pb.SandboxPayInResponse, error) {
+	if s.payIn != nil {
+		return s.payIn(ctx, req)
+	}
+	return nil, status.Error(codes.Unimplemented, "unimplemented")
+}
+
+func (s *fakeSandboxServer) PostSandboxOrder(ctx context.Context, req *pb.PostOrderRequest) (*pb.PostOrderResponse, error) {
+	if s.postOrder != nil {
+		return s.postOrder(ctx, req)
+	}
+	return nil, status.Error(codes.Unimplemented, "unimplemented")
+}
+
+func (s *fakeSandboxServer) GetSandboxPortfolio(ctx context.Context, req *pb.PortfolioRequest) (*pb.PortfolioResponse, error) {
+	if s.portfolio != nil {
+		return s.portfolio(ctx, req)
+	}
+	return nil, status.Error(codes.Unimplemented, "unimplemented")
+}
+
+func (s *fakeSandboxServer) GetSandboxOrders(ctx context.Context, req *pb.GetOrdersRequest) (*pb.GetOrdersResponse, error) {
+	if s.orders != nil {
+		return s.orders(ctx, req)
+	}
+	return nil, status.Error(codes.Unimplemented, "unimplemented")
+}
+
+func (s *fakeSandboxServer) CancelSandboxOrder(ctx context.Context, req *pb.CancelOrderRequest) (*pb.CancelOrderResponse, error) {
+	if s.cancel != nil {
+		return s.cancel(ctx, req)
+	}
+	return nil, status.Error(codes.Unimplemented, "unimplemented")
+}
+
+func startSandboxTestServer(t *testing.T, instruments *fakeInstrumentsServer, sandbox *fakeSandboxServer) *Client {
+	t.Helper()
+	conn := startTestServer(t, func(s *grpc.Server) {
+		pb.RegisterInstrumentsServiceServer(s, instruments)
+		pb.RegisterSandboxServiceServer(s, sandbox)
+	})
+	return newClientFromConn(conn)
+}
+
+func TestResolveInstrumentUIDPrefersShare(t *testing.T) {
+	instruments := &fakeInstrumentsServer{
+		findInstrument: func(ctx context.Context, req *pb.FindInstrumentRequest) (*pb.FindInstrumentResponse, error) {
+			if req.GetQuery() != "SBER" || !req.GetApiTradeAvailableFlag() {
+				t.Fatalf("unexpected request: %+v", req)
+			}
+			return &pb.FindInstrumentResponse{
+				Instruments: []*pb.InstrumentShort{
+					{Ticker: "SBER", Uid: "currency-uid", InstrumentKind: pb.InstrumentType_INSTRUMENT_TYPE_CURRENCY},
+					{Ticker: "sber", Uid: "share-uid", InstrumentKind: pb.InstrumentType_INSTRUMENT_TYPE_SHARE},
+					{Ticker: "SBERP", Uid: "other-uid", InstrumentKind: pb.InstrumentType_INSTRUMENT_TYPE_SHARE},
+				},
+			}, nil
+		},
+	}
+	client := startSandboxTestServer(t, instruments, &fakeSandboxServer{})
+
+	uid, err := client.ResolveInstrumentUID(context.Background(), " SBER ")
+	if err != nil {
+		t.Fatalf("ResolveInstrumentUID returned error: %v", err)
+	}
+	if uid != "share-uid" {
+		t.Fatalf("uid = %q, want share-uid", uid)
+	}
+}
+
+func TestResolveInstrumentUIDFallsBackToExactNonShare(t *testing.T) {
+	instruments := &fakeInstrumentsServer{
+		findInstrument: func(context.Context, *pb.FindInstrumentRequest) (*pb.FindInstrumentResponse, error) {
+			return &pb.FindInstrumentResponse{
+				Instruments: []*pb.InstrumentShort{
+					{Ticker: "GLDRUB_TOM", Uid: "gold-uid", InstrumentKind: pb.InstrumentType_INSTRUMENT_TYPE_CURRENCY},
+				},
+			}, nil
+		},
+	}
+	client := startSandboxTestServer(t, instruments, &fakeSandboxServer{})
+
+	uid, err := client.ResolveInstrumentUID(context.Background(), "GLDRUB_TOM")
+	if err != nil {
+		t.Fatalf("ResolveInstrumentUID returned error: %v", err)
+	}
+	if uid != "gold-uid" {
+		t.Fatalf("uid = %q, want gold-uid", uid)
+	}
+}
+
+func TestResolveInstrumentUIDNoMatch(t *testing.T) {
+	instruments := &fakeInstrumentsServer{
+		findInstrument: func(context.Context, *pb.FindInstrumentRequest) (*pb.FindInstrumentResponse, error) {
+			return &pb.FindInstrumentResponse{
+				Instruments: []*pb.InstrumentShort{
+					{Ticker: "SBERP", Uid: "other-uid", InstrumentKind: pb.InstrumentType_INSTRUMENT_TYPE_SHARE},
+					{Ticker: "SBER", Uid: "", InstrumentKind: pb.InstrumentType_INSTRUMENT_TYPE_SHARE},
+				},
+			}, nil
+		},
+	}
+	client := startSandboxTestServer(t, instruments, &fakeSandboxServer{})
+
+	if _, err := client.ResolveInstrumentUID(context.Background(), "SBER"); err == nil {
+		t.Fatal("ResolveInstrumentUID returned nil error for no match")
+	}
+	if _, err := client.ResolveInstrumentUID(context.Background(), "  "); err == nil {
+		t.Fatal("ResolveInstrumentUID returned nil error for empty ticker")
+	}
+}
+
+func TestSandboxAccountLifecycle(t *testing.T) {
+	var opened bool
+	var paidIn *pb.SandboxPayInRequest
+	sandbox := &fakeSandboxServer{
+		accounts: func(context.Context, *pb.GetAccountsRequest) (*pb.GetAccountsResponse, error) {
+			return &pb.GetAccountsResponse{
+				Accounts: []*pb.Account{{Id: "acc-1"}, {Id: "acc-2"}},
+			}, nil
+		},
+		openAccount: func(ctx context.Context, req *pb.OpenSandboxAccountRequest) (*pb.OpenSandboxAccountResponse, error) {
+			opened = true
+			return &pb.OpenSandboxAccountResponse{AccountId: "acc-new"}, nil
+		},
+		payIn: func(ctx context.Context, req *pb.SandboxPayInRequest) (*pb.SandboxPayInResponse, error) {
+			paidIn = req
+			return &pb.SandboxPayInResponse{
+				Balance: &pb.MoneyValue{Currency: "rub", Units: 100000},
+			}, nil
+		},
+	}
+	client := startSandboxTestServer(t, &fakeInstrumentsServer{}, sandbox)
+	ctx := context.Background()
+
+	accounts, err := client.SandboxAccounts(ctx)
+	if err != nil {
+		t.Fatalf("SandboxAccounts returned error: %v", err)
+	}
+	if len(accounts) != 2 || accounts[0].GetId() != "acc-1" {
+		t.Fatalf("unexpected accounts: %+v", accounts)
+	}
+
+	accountID, err := client.OpenSandboxAccount(ctx)
+	if err != nil {
+		t.Fatalf("OpenSandboxAccount returned error: %v", err)
+	}
+	if !opened || accountID != "acc-new" {
+		t.Fatalf("accountID = %q, opened = %v", accountID, opened)
+	}
+
+	balance, err := client.SandboxPayIn(ctx, "acc-new", decimal.RequireFromString("100000.5"))
+	if err != nil {
+		t.Fatalf("SandboxPayIn returned error: %v", err)
+	}
+	requireDecimal(t, balance, "100000")
+	if paidIn.GetAccountId() != "acc-new" {
+		t.Fatalf("pay in account = %q, want acc-new", paidIn.GetAccountId())
+	}
+	requireDecimal(t, moneyValueToDecimalMust(t, paidIn.GetAmount()), "100000.5")
+	if paidIn.GetAmount().GetCurrency() != "rub" {
+		t.Fatalf("pay in currency = %q, want rub", paidIn.GetAmount().GetCurrency())
+	}
+}
+
+func moneyValueToDecimalMust(t *testing.T, value *pb.MoneyValue) decimal.Decimal {
+	t.Helper()
+	converted, err := MoneyValueToDecimal(value)
+	if err != nil {
+		t.Fatalf("MoneyValueToDecimal: %v", err)
+	}
+	return converted
+}
+
+func TestSandboxAccountErrors(t *testing.T) {
+	client := startSandboxTestServer(t, &fakeInstrumentsServer{}, &fakeSandboxServer{
+		openAccount: func(context.Context, *pb.OpenSandboxAccountRequest) (*pb.OpenSandboxAccountResponse, error) {
+			return &pb.OpenSandboxAccountResponse{}, nil
+		},
+	})
+	ctx := context.Background()
+
+	if _, err := client.OpenSandboxAccount(ctx); err == nil {
+		t.Fatal("OpenSandboxAccount returned nil error for empty account id")
+	}
+	if _, err := client.SandboxPayIn(ctx, "acc-1", decimal.Zero); err == nil {
+		t.Fatal("SandboxPayIn returned nil error for non-positive amount")
+	}
+	if _, err := client.SandboxPayIn(ctx, "", decimal.NewFromInt(1)); err == nil {
+		t.Fatal("SandboxPayIn returned nil error for empty account id")
+	}
+}
+
+func TestSandboxOrdersAndPortfolio(t *testing.T) {
+	var cancelled *pb.CancelOrderRequest
+	sandbox := &fakeSandboxServer{
+		postOrder: func(ctx context.Context, req *pb.PostOrderRequest) (*pb.PostOrderResponse, error) {
+			if req.GetAccountId() != "acc-1" || req.GetOrderId() != "order-1" {
+				t.Fatalf("unexpected post order request: %+v", req)
+			}
+			return &pb.PostOrderResponse{
+				OrderId:               "broker-order-1",
+				ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL,
+				LotsExecuted:          1,
+			}, nil
+		},
+		portfolio: func(ctx context.Context, req *pb.PortfolioRequest) (*pb.PortfolioResponse, error) {
+			return &pb.PortfolioResponse{
+				AccountId:            req.GetAccountId(),
+				TotalAmountPortfolio: &pb.MoneyValue{Currency: "rub", Units: 99000, Nano: 500000000},
+			}, nil
+		},
+		orders: func(ctx context.Context, req *pb.GetOrdersRequest) (*pb.GetOrdersResponse, error) {
+			return &pb.GetOrdersResponse{
+				Orders: []*pb.OrderState{{OrderId: "order-1"}, {OrderId: "order-2"}},
+			}, nil
+		},
+		cancel: func(ctx context.Context, req *pb.CancelOrderRequest) (*pb.CancelOrderResponse, error) {
+			cancelled = req
+			return &pb.CancelOrderResponse{}, nil
+		},
+	}
+	client := startSandboxTestServer(t, &fakeInstrumentsServer{}, sandbox)
+	ctx := context.Background()
+
+	response, err := client.PostSandboxOrder(ctx, &pb.PostOrderRequest{
+		AccountId:    "acc-1",
+		InstrumentId: "uid-1",
+		Quantity:     1,
+		OrderId:      "order-1",
+	})
+	if err != nil {
+		t.Fatalf("PostSandboxOrder returned error: %v", err)
+	}
+	if response.GetExecutionReportStatus() != pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL {
+		t.Fatalf("unexpected status: %s", response.GetExecutionReportStatus())
+	}
+
+	portfolio, err := client.GetSandboxPortfolio(ctx, "acc-1")
+	if err != nil {
+		t.Fatalf("GetSandboxPortfolio returned error: %v", err)
+	}
+	requireDecimal(t, moneyValueToDecimalMust(t, portfolio.GetTotalAmountPortfolio()), "99000.5")
+
+	orders, err := client.GetSandboxOrders(ctx, "acc-1")
+	if err != nil {
+		t.Fatalf("GetSandboxOrders returned error: %v", err)
+	}
+	if len(orders) != 2 {
+		t.Fatalf("len(orders) = %d, want 2", len(orders))
+	}
+
+	if err := client.CancelSandboxOrder(ctx, "acc-1", "order-2"); err != nil {
+		t.Fatalf("CancelSandboxOrder returned error: %v", err)
+	}
+	if cancelled.GetAccountId() != "acc-1" || cancelled.GetOrderId() != "order-2" {
+		t.Fatalf("unexpected cancel request: %+v", cancelled)
+	}
+	if err := client.CancelSandboxOrder(ctx, "acc-1", " "); err == nil {
+		t.Fatal("CancelSandboxOrder returned nil error for empty order id")
+	}
+	if _, err := client.PostSandboxOrder(ctx, nil); err == nil {
+		t.Fatal("PostSandboxOrder returned nil error for nil request")
+	}
+}
+
+func TestTradingStatus(t *testing.T) {
+	server := &fakeMarketDataServer{
+		tradingStatus: func(ctx context.Context, req *pb.GetTradingStatusRequest) (*pb.GetTradingStatusResponse, error) {
+			if req.GetInstrumentId() != "uid-1" {
+				t.Fatalf("instrument id = %q, want uid-1", req.GetInstrumentId())
+			}
+			return &pb.GetTradingStatusResponse{
+				InstrumentUid:            "uid-1",
+				TradingStatus:            pb.SecurityTradingStatus_SECURITY_TRADING_STATUS_NORMAL_TRADING,
+				LimitOrderAvailableFlag:  true,
+				MarketOrderAvailableFlag: true,
+				ApiTradeAvailableFlag:    true,
+			}, nil
+		},
+	}
+	conn := startTestServer(t, func(s *grpc.Server) { pb.RegisterMarketDataServiceServer(s, server) })
+	client := newClientFromConn(conn)
+
+	response, err := client.TradingStatus(context.Background(), "uid-1")
+	if err != nil {
+		t.Fatalf("TradingStatus returned error: %v", err)
+	}
+	if response.GetTradingStatus() != pb.SecurityTradingStatus_SECURITY_TRADING_STATUS_NORMAL_TRADING {
+		t.Fatalf("trading status = %s, want normal trading", response.GetTradingStatus())
+	}
+	if !response.GetMarketOrderAvailableFlag() || !response.GetLimitOrderAvailableFlag() {
+		t.Fatalf("unexpected availability flags: %+v", response)
+	}
+
+	if _, err := client.TradingStatus(context.Background(), " "); err == nil {
+		t.Fatal("TradingStatus returned nil error for empty instrument id")
+	}
+}
+
+func TestTradingStatusDisabledInPaperTrading(t *testing.T) {
+	client, err := New(context.Background(), Config{IsPaperTrading: true})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	defer client.Close()
+
+	if _, err := client.TradingStatus(context.Background(), "uid-1"); err != ErrPaperTrading {
+		t.Fatalf("TradingStatus error = %v, want ErrPaperTrading", err)
+	}
+}
+
+func TestSandboxMethodsDisabledInPaperTrading(t *testing.T) {
+	client, err := New(context.Background(), Config{IsPaperTrading: true})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	defer client.Close()
+	ctx := context.Background()
+
+	if _, err := client.ResolveInstrumentUID(ctx, "SBER"); err != ErrPaperTrading {
+		t.Fatalf("ResolveInstrumentUID error = %v, want ErrPaperTrading", err)
+	}
+	if _, err := client.SandboxAccounts(ctx); err != ErrPaperTrading {
+		t.Fatalf("SandboxAccounts error = %v, want ErrPaperTrading", err)
+	}
+	if _, err := client.OpenSandboxAccount(ctx); err != ErrPaperTrading {
+		t.Fatalf("OpenSandboxAccount error = %v, want ErrPaperTrading", err)
+	}
+	if _, err := client.SandboxPayIn(ctx, "acc-1", decimal.NewFromInt(1)); err != ErrPaperTrading {
+		t.Fatalf("SandboxPayIn error = %v, want ErrPaperTrading", err)
+	}
+	if _, err := client.PostSandboxOrder(ctx, &pb.PostOrderRequest{AccountId: "acc-1"}); err != ErrPaperTrading {
+		t.Fatalf("PostSandboxOrder error = %v, want ErrPaperTrading", err)
+	}
+	if _, err := client.GetSandboxPortfolio(ctx, "acc-1"); err != ErrPaperTrading {
+		t.Fatalf("GetSandboxPortfolio error = %v, want ErrPaperTrading", err)
+	}
+	if _, err := client.GetSandboxOrders(ctx, "acc-1"); err != ErrPaperTrading {
+		t.Fatalf("GetSandboxOrders error = %v, want ErrPaperTrading", err)
+	}
+	if err := client.CancelSandboxOrder(ctx, "acc-1", "order-1"); err != ErrPaperTrading {
+		t.Fatalf("CancelSandboxOrder error = %v, want ErrPaperTrading", err)
 	}
 }
 

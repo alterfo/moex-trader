@@ -356,3 +356,78 @@ func TestComputePriceFeatures(t *testing.T) {
 		t.Fatal("expected positive realized vol")
 	}
 }
+
+func TestStochasticK(t *testing.T) {
+	candles := make([]moex.Candle, 14)
+	candles[0] = moex.Candle{High: decimal.NewFromFloat(110), Low: decimal.NewFromFloat(100), Close: decimal.NewFromFloat(105)}
+	for i := 1; i < 13; i++ {
+		candles[i] = moex.Candle{High: decimal.NewFromFloat(100), Low: decimal.NewFromFloat(100), Close: decimal.NewFromFloat(100)}
+	}
+	candles[13] = moex.Candle{High: decimal.NewFromFloat(100), Low: decimal.NewFromFloat(90), Close: decimal.NewFromFloat(105)}
+
+	got := stochasticK(candles, 14)
+	want := decimal.NewFromFloat(75)
+	if got.Sub(want).Abs().GreaterThan(decimal.NewFromFloat(0.0001)) {
+		t.Fatalf("stochasticK = %s, want %s", got, want)
+	}
+	if !stochasticK(candles[:5], 14).IsZero() {
+		t.Fatal("stochasticK with insufficient data should be zero")
+	}
+}
+
+func TestWilliamsR(t *testing.T) {
+	candles := make([]moex.Candle, 14)
+	candles[0] = moex.Candle{High: decimal.NewFromFloat(110), Low: decimal.NewFromFloat(100), Close: decimal.NewFromFloat(105)}
+	for i := 1; i < 13; i++ {
+		candles[i] = moex.Candle{High: decimal.NewFromFloat(100), Low: decimal.NewFromFloat(100), Close: decimal.NewFromFloat(100)}
+	}
+	candles[13] = moex.Candle{High: decimal.NewFromFloat(100), Low: decimal.NewFromFloat(90), Close: decimal.NewFromFloat(105)}
+
+	got := williamsR(candles, 14)
+	want := decimal.NewFromFloat(-25)
+	if got.Sub(want).Abs().GreaterThan(decimal.NewFromFloat(0.0001)) {
+		t.Fatalf("williamsR = %s, want %s", got, want)
+	}
+	if !williamsR(candles[:5], 14).IsZero() {
+		t.Fatal("williamsR with insufficient data should be zero")
+	}
+}
+
+func TestMACDHistPct(t *testing.T) {
+	if !macdHistPct(nil, 12, 26, 9).IsZero() {
+		t.Fatal("macdHistPct with no data should be zero")
+	}
+	// Flat prices followed by a sustained rally: the MACD line rises faster
+	// than its (lagging) signal line during the acceleration, so the
+	// histogram should be genuinely positive rather than converged to ~0
+	// (a pure constant-slope ramp converges fast/slow EMAs to a fixed gap,
+	// making the histogram numerically indistinguishable from zero).
+	var closes []decimal.Decimal
+	for i := 0; i < 30; i++ {
+		closes = append(closes, decimal.NewFromFloat(100))
+	}
+	for i := 0; i < 40; i++ {
+		closes = append(closes, decimal.NewFromFloat(float64(100+i)))
+	}
+	got := macdHistPct(closes, 12, 26, 9)
+	if got.Sign() <= 0 {
+		t.Fatalf("expected positive macd histogram during a rally, got %s", got)
+	}
+}
+
+func TestAlligatorSpreadPct(t *testing.T) {
+	if !alligatorSpreadPct(nil).IsZero() {
+		t.Fatal("alligatorSpreadPct with no data should be zero")
+	}
+	candles := make([]moex.Candle, 60)
+	for i := range candles {
+		candles[i] = moex.Candle{
+			High: decimal.NewFromFloat(float64(101 + i)),
+			Low:  decimal.NewFromFloat(float64(99 + i)),
+		}
+	}
+	got := alligatorSpreadPct(candles)
+	if got.Sign() <= 0 {
+		t.Fatalf("expected positive alligator spread (lips above jaw) in an uptrend, got %s", got)
+	}
+}
