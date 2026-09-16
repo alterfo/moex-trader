@@ -51,6 +51,14 @@ Two agent sessions share this repo. Zone boundaries:
 - Adding features (MACD/Stochastic/Williams %R oscillators, Bill Williams Alligator) did **not** move validation AUC beyond noise (±0.005) — the bottleneck is data volume/breadth, not feature engineering. Priority order: (1) widen the ticker universe for more training rows, (2) more history where available, before (3) more features or threshold tuning. Walk-forward threshold tuning is premature while baseline AUC sits at ~0.5 — it would just fit noise.
 - Real T-Bank commission tariff is **"Трейдер": 0.05% per trade** (`commission.rate: "0.0005"` in `config.yaml`/`config.example.yaml`). It was previously mis-configured at 0.3% (the older "Инвестор" tariff) — if you see `0.003` anywhere, it's stale.
 
+## Strategy research: absolute label + target-position sizing (2026-09-16, H1+H2)
+
+- **Label vs execution mismatch (H1)**: training labels are excess-to-IMOEX while execution takes absolute long/short positions. `BuildSamples`/`cmd/exportdataset`/`cmd/trainmodel` support `-label-mode absolute`; on a 6-quarter walk-forward (18 equities, 1M deposit, 0.05% commission) the absolute label turned the OOS result from ~0 (excess: +235₽ total, 2/6 quarters positive) into consistently positive P&L. FX tickers (`GLDRUB_TOM`, `SLVRUB_TOM`, `CNYRUB_TOM`) must not be traded: the IMOEX-relative label is meaningless for them and every model that traded them lost 1.2-1.5k₽ on a single gold short.
+- **Best found recipe** (walk-forward, 6 quarters, kill-switch on): absolute **10-day** label, deadband 0.5%, thresholds 0.60/0.40, flat **15000₽ notional per position** via `-target-notional` + target-position execution. Result: realized +110742₽ over 18 months (5/6 quarters positive, worst quarter -6238₽), max DD 2.91%, kill switch never tripped (~7%/yr at ~27% max exposure).
+- **Rejected after walk-forward**: 1d/3d/5d horizons (weaker than 10d); thresholds 0.65/0.35 (worse than 0.60/0.40); confidence-scaled sizing `min(1, |p-0.5|/0.2)` (churns 300+ trades, loses vs flat notional); notional 20000₽ and the 42-ticker universe (DD 3.8-3.9% breaches the 3% kill-switch limit).
+- **Risk gate limits bind sizing**: 0.5% daily loss / 3% drawdown of deposit cap P&L at larger notionals — P&L scales sub-linearly; pick size so max DD stays under 3%.
+- **Not yet deployed**: live wiring for target notional in `cmd/trader`, `risk.max_lots`, and broker lot size; the live `ensemble_model.json` is still the old excess-label artifact.
+
 ## Live/sandbox operational notes
 
 - Kill switch must only cancel orders for instruments the bot actually trades (its own ticker set) — it must never touch a human's manual orders on the same account. (Regression test: `TestCancelOpenOrdersLeavesForeignOrdersAlone`, added after it was found cancelling unrelated manual orders.)
@@ -59,3 +67,4 @@ Two agent sessions share this repo. Zone boundaries:
 - Finmarket's RSS feed is Windows-1251, not UTF-8 (`internal/ingestion/news/news.go` decodes via `charset.NewReaderLabel`) — don't assume every feed is UTF-8.
 - AlgoPack enrichment silently disables itself (one log line) when `MOEX_TRADER_ALGOPACK_TOKEN` is unset, instead of logging a 401 per ticker per cycle.
 - Orders are guarded by `TradingStatus` — the bot checks whether the MOEX session is open before submitting, instead of hitting error `30079` (`Instrument is not available for trading`) or burning API rate limit outside trading hours.
+- Heavy compute (model training, multi-ticker dataset export: `cmd/exportdataset`, `cmd/trainmodel`, `cmd/calibrate`, news-history aggregation) must run on the ai-box (`ssh oleg@192.168.88.193`, repo at `/home/oleg/moex-trader`), not on the Mac. Two parallel `exportdataset` runs (171%/157% CPU) once spun up the Mac to full tilt; kill with `pkill -f exportdataset` and re-run remotely.
