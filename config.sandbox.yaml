@@ -1,0 +1,55 @@
+tickers:
+  # SBMM is excluded: its api_trade_available_flag is false, so T-Invest API cannot trade it.
+  - YDEX
+  - OZON
+  - SBER
+  - LKOH
+  - GAZP
+  - GMKN
+  - ROSN
+  - NVTK
+  - TATN
+  - MTSS
+  - MGNT
+  - PLZL
+  - CHMF
+  - DATA
+  - T
+  - VTBR
+  - RUAL
+  - GLDRUB_TOM
+  - SLVRUB_TOM
+  - CNYRUB_TOM
+  - POSI
+model:
+  path: "model.json"
+  ensemble_path: "ensemble_model.json"
+moex_iss_base_url: "https://iss.moex.com/iss"
+algopack_base_url: "https://apim.moex.com/iss/datashop"
+storage:
+  path: "./trader-sandbox.db"
+risk:
+  max_lots: 1
+commission:
+  broker: "tinkoff"
+  rate: "0.0005"    # T-Bank sandbox charges a flat 0.05% per trade
+finam:
+  base_url: "https://api.finam.ru"
+tinkoff:
+  endpoint: "sandbox-invest-public-api.tbank.ru:443"
+  sandbox: true
+  account_id: "39f02dbf-0979-4e28-b005-d3f151749f40"
+  pay_in: "1000000"
+  order_type: "market"
+preflight:
+  enabled: true
+  days: 90
+  deposit: "1000000"
+  min_net_pnl: "0"
+broker: "tinkoff"
+is_paper_trading: false
+poll_interval: 5m
+telegram:
+  chat_id: "235507371"
+  signal_tickers: []
+  proxy: "socks5://127.0.0.1:3333"
