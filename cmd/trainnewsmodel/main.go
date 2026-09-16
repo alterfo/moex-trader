@@ -24,13 +24,17 @@ import (
 const defaultConfigPath = "config.yaml"
 
 type options struct {
-	configPath  string
-	newsPath    string
-	splitStr    string
-	horizonDays int
-	vocabSize   int
-	minDocFreq  int
-	outPath     string
+	configPath           string
+	newsPath             string
+	splitStr             string
+	horizonDays          int
+	vocabSize            int
+	minDocFreq           int
+	maxTickersPerArticle int
+	learningRate         float64
+	l2Lambda             float64
+	epochs               int
+	outPath              string
 }
 
 func main() {
@@ -59,8 +63,14 @@ func run(args []string, stdout io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("load news: %w", err)
 	}
+	if opts.maxTickersPerArticle > 0 {
+		before := len(articles)
+		articles = filterBySpecificity(articles, opts.maxTickersPerArticle)
+		log.Printf("trainnewsmodel: -max-tickers-per-article=%d dropped %d broad-market pairs (%d -> %d)",
+			opts.maxTickersPerArticle, before-len(articles), before, len(articles))
+	}
 	if len(articles) == 0 {
-		return errors.New("no usable articles found (missing title/ticker/published_ts?)")
+		return errors.New("no usable articles found (missing title/ticker/published_ts, or all filtered out)")
 	}
 	log.Printf("trainnewsmodel: loaded %d ticker-headline pairs from %s", len(articles), opts.newsPath)
 
@@ -75,7 +85,11 @@ func run(args []string, stdout io.Writer) error {
 		VocabSize:   opts.vocabSize,
 		MinDocFreq:  opts.minDocFreq,
 		Split:       split,
-		TrainCfg:    model.DefaultTrainConfig(),
+		TrainCfg: model.TrainConfig{
+			LearningRate: opts.learningRate,
+			L2Lambda:     opts.l2Lambda,
+			Epochs:       opts.epochs,
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("train news classifier: %w", err)
@@ -131,13 +145,36 @@ func loadNewsArticles(path string) ([]model.NewsArticle, error) {
 	return articles, nil
 }
 
+func filterBySpecificity(articles []model.NewsArticle, maxTickers int) []model.NewsArticle {
+	tickersPerArticle := make(map[string]map[string]struct{})
+	for _, a := range articles {
+		set, ok := tickersPerArticle[a.ArticleID]
+		if !ok {
+			set = make(map[string]struct{})
+			tickersPerArticle[a.ArticleID] = set
+		}
+		set[a.Ticker] = struct{}{}
+	}
+	out := make([]model.NewsArticle, 0, len(articles))
+	for _, a := range articles {
+		if len(tickersPerArticle[a.ArticleID]) <= maxTickers {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
 func parseOptions(args []string) (options, error) {
+	defaultTrain := model.DefaultTrainConfig()
 	opts := options{
-		configPath:  defaultConfigPath,
-		horizonDays: 3,
-		vocabSize:   3000,
-		minDocFreq:  3,
-		outPath:     "news_classifier.json",
+		configPath:   defaultConfigPath,
+		horizonDays:  3,
+		vocabSize:    3000,
+		minDocFreq:   3,
+		learningRate: defaultTrain.LearningRate,
+		l2Lambda:     defaultTrain.L2Lambda,
+		epochs:       defaultTrain.Epochs,
+		outPath:      "news_classifier.json",
 	}
 	fs := flag.NewFlagSet("trainnewsmodel", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -147,6 +184,10 @@ func parseOptions(args []string) (options, error) {
 	fs.IntVar(&opts.horizonDays, "horizon-days", opts.horizonDays, "forward excess-return horizon in trading days")
 	fs.IntVar(&opts.vocabSize, "vocab-size", opts.vocabSize, "max bag-of-words vocabulary size")
 	fs.IntVar(&opts.minDocFreq, "min-doc-freq", opts.minDocFreq, "minimum document frequency for a token to enter the vocabulary")
+	fs.IntVar(&opts.maxTickersPerArticle, "max-tickers-per-article", 0, "drop ticker-headline pairs whose article maps to more than N tickers (0 = no filter); low values keep only company-specific news")
+	fs.Float64Var(&opts.learningRate, "learning-rate", opts.learningRate, "logistic regression learning rate")
+	fs.Float64Var(&opts.l2Lambda, "l2", opts.l2Lambda, "logistic regression L2 regularization strength")
+	fs.IntVar(&opts.epochs, "epochs", opts.epochs, "logistic regression training epochs")
 	fs.StringVar(&opts.outPath, "out", opts.outPath, "output path for the trained classifier JSON")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err

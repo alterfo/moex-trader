@@ -4,6 +4,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/olegsidorkin/moex-trader/internal/model"
 )
 
 func TestParseOptionsRequiresNewsAndSplit(t *testing.T) {
@@ -61,6 +63,30 @@ func TestLoadNewsArticlesFiltersInvalidRows(t *testing.T) {
 	}
 	if articles[1].Ticker != "GAZP" || articles[1].Title != "падение выручки" {
 		t.Errorf("articles[1] = %+v, unexpected", articles[1])
+	}
+}
+
+func TestFilterBySpecificityDropsBroadMarketArticles(t *testing.T) {
+	articles := []model.NewsArticle{
+		{Ticker: "SBER", ArticleID: "broad", Title: "рынок в целом"},
+		{Ticker: "GAZP", ArticleID: "broad", Title: "рынок в целом"},
+		{Ticker: "LKOH", ArticleID: "broad", Title: "рынок в целом"},
+		{Ticker: "SBER", ArticleID: "specific", Title: "сбербанк отчитался"},
+	}
+	got := filterBySpecificity(articles, 2)
+	if len(got) != 1 || got[0].ArticleID != "specific" {
+		t.Fatalf("filterBySpecificity() = %+v, want only the specific (<=2 tickers) article", got)
+	}
+}
+
+func TestFilterBySpecificityNoopWhenUnderLimit(t *testing.T) {
+	articles := []model.NewsArticle{
+		{Ticker: "SBER", ArticleID: "a", Title: "x"},
+		{Ticker: "GAZP", ArticleID: "b", Title: "y"},
+	}
+	got := filterBySpecificity(articles, 5)
+	if len(got) != 2 {
+		t.Fatalf("filterBySpecificity() = %+v, want both articles kept", got)
 	}
 }
 
