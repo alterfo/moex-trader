@@ -78,6 +78,7 @@ func TestBuildSamplesUpAndDownLabels(t *testing.T) {
 		5,
 		0.5,
 		LabelModeExcess,
+		0,
 	)
 	if err != nil {
 		t.Fatalf("BuildSamples failed: %v", err)
@@ -121,6 +122,7 @@ func TestBuildSamplesSkipsInsufficientFutureData(t *testing.T) {
 		10,
 		0.5,
 		LabelModeExcess,
+		0,
 	)
 	if err != nil {
 		t.Fatalf("BuildSamples failed: %v", err)
@@ -152,6 +154,7 @@ func TestBuildSamplesDeadbandExclusion(t *testing.T) {
 		5,
 		0.5,
 		LabelModeExcess,
+		0,
 	)
 	if err != nil {
 		t.Fatalf("BuildSamples failed: %v", err)
@@ -169,6 +172,7 @@ func TestBuildSamplesDeadbandExclusion(t *testing.T) {
 		5,
 		0,
 		LabelModeExcess,
+		0,
 	)
 	if err != nil {
 		t.Fatalf("BuildSamples failed: %v", err)
@@ -180,6 +184,62 @@ func TestBuildSamplesDeadbandExclusion(t *testing.T) {
 		if sample.Label != 0 {
 			t.Fatalf("zero-return sample label = %v, want 0", sample.Label)
 		}
+	}
+}
+
+func TestBuildSamplesCommissionWidensDeadZone(t *testing.T) {
+	// Every candle opens at 100 and closes +0.25%, with a wide enough
+	// High/Low that the entry bar's spread proxy is a non-trivial ~0.4%.
+	small := trendCandles(80, true)
+	for i := range small {
+		small[i].Open = decimal.NewFromFloat(100)
+		small[i].Close = decimal.NewFromFloat(100.25)
+		small[i].High = decimal.NewFromFloat(100.3)
+		small[i].Low = decimal.NewFromFloat(99.9)
+	}
+	source := datasetSource{series: map[string][]moex.Candle{"SMALL": small}}
+
+	uncosted, err := BuildSamples(
+		context.Background(),
+		source,
+		[]string{"SMALL"},
+		time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
+		1,
+		0,
+		LabelModeAbsolute,
+		0,
+	)
+	if err != nil {
+		t.Fatalf("BuildSamples failed: %v", err)
+	}
+	if len(uncosted) == 0 {
+		t.Fatal("commissionPct=0 excluded a +0.25%% move with zero deadband, want it included")
+	}
+	for _, sample := range uncosted {
+		if sample.Label != 1 {
+			t.Fatalf("uncosted +0.25%% move label = %v, want 1", sample.Label)
+		}
+	}
+
+	// 0.05% one-way commission -> 0.1% round trip, plus the ~0.4% spread
+	// proxy from this bar's High/Low, comfortably exceeds the 0.25% move.
+	costed, err := BuildSamples(
+		context.Background(),
+		source,
+		[]string{"SMALL"},
+		time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
+		1,
+		0,
+		LabelModeAbsolute,
+		0.0005,
+	)
+	if err != nil {
+		t.Fatalf("BuildSamples failed: %v", err)
+	}
+	if len(costed) != 0 {
+		t.Fatalf("commissionPct=0.0005 kept %d samples, want 0 (a +0.25%% move can't clear round-trip cost + spread)", len(costed))
 	}
 }
 
@@ -207,6 +267,7 @@ func TestBuildSamplesLabelIsExcessOverBenchmark(t *testing.T) {
 		5,
 		0,
 		LabelModeExcess,
+		0,
 	)
 	if err != nil {
 		t.Fatalf("BuildSamples failed: %v", err)
@@ -235,6 +296,7 @@ func TestBuildSamplesAbsoluteModeDoesNotRequireBenchmark(t *testing.T) {
 		5,
 		0.5,
 		LabelModeAbsolute,
+		0,
 	)
 	if err != nil {
 		t.Fatalf("BuildSamples failed: %v", err)
@@ -272,6 +334,7 @@ func TestBuildSamplesAbsoluteLabelDiffersFromExcess(t *testing.T) {
 		5,
 		0,
 		LabelModeAbsolute,
+		0,
 	)
 	if err != nil {
 		t.Fatalf("BuildSamples failed: %v", err)
@@ -297,6 +360,7 @@ func TestBuildSamplesMissingBenchmarkFails(t *testing.T) {
 		5,
 		0.5,
 		LabelModeExcess,
+		0,
 	)
 	if err == nil {
 		t.Fatal("missing IMOEX benchmark history did not return an error")
@@ -311,19 +375,19 @@ func TestBuildSamplesValidation(t *testing.T) {
 	from := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	till := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
 
-	if _, err := BuildSamples(context.Background(), nil, []string{"UP"}, from, till, 5, 0.5, LabelModeExcess); err == nil {
+	if _, err := BuildSamples(context.Background(), nil, []string{"UP"}, from, till, 5, 0.5, LabelModeExcess, 0); err == nil {
 		t.Fatal("nil source did not return an error")
 	}
-	if _, err := BuildSamples(context.Background(), source, nil, from, till, 5, 0.5, LabelModeExcess); err == nil {
+	if _, err := BuildSamples(context.Background(), source, nil, from, till, 5, 0.5, LabelModeExcess, 0); err == nil {
 		t.Fatal("empty tickers did not return an error")
 	}
-	if _, err := BuildSamples(context.Background(), source, []string{"UP"}, from, till, 0, 0.5, LabelModeExcess); err == nil {
+	if _, err := BuildSamples(context.Background(), source, []string{"UP"}, from, till, 0, 0.5, LabelModeExcess, 0); err == nil {
 		t.Fatal("non-positive horizon did not return an error")
 	}
-	if _, err := BuildSamples(context.Background(), source, []string{"UP"}, from, till, 5, -1, LabelModeExcess); err == nil {
+	if _, err := BuildSamples(context.Background(), source, []string{"UP"}, from, till, 5, -1, LabelModeExcess, 0); err == nil {
 		t.Fatal("negative deadband did not return an error")
 	}
-	if _, err := BuildSamples(context.Background(), source, []string{"UP"}, from, till, 5, 0.5, LabelMode("bogus")); err == nil {
+	if _, err := BuildSamples(context.Background(), source, []string{"UP"}, from, till, 5, 0.5, LabelMode("bogus"), 0); err == nil {
 		t.Fatal("unknown label mode did not return an error")
 	}
 }

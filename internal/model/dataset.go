@@ -34,7 +34,16 @@ const (
 	LabelModeAbsolute LabelMode = "absolute"
 )
 
-func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64, mode LabelMode) ([]LabeledSample, error) {
+// BuildSamples labels each decision day/bar by the sign of its forward
+// return (see LabelMode). commissionPct is the one-way commission rate (e.g.
+// 0.0005 for 0.05%); pass 0 to disable cost-adjustment and keep prior
+// behavior exactly. When positive, a sample's dead zone is widened by the
+// round-trip commission (2x) plus that bar's own (High-Low)/Close spread
+// proxy, so labels aren't assigned to moves too small to trade profitably -
+// important on short (intraday) horizons where typical moves can be
+// comparable to round-trip costs; on multi-day horizons this cost floor is
+// negligible next to deadbandPct and changes nothing in practice.
+func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64, mode LabelMode, commissionPct float64) ([]LabeledSample, error) {
 	if source == nil {
 		return nil, fmt.Errorf("model: historical source is required")
 	}
@@ -43,6 +52,9 @@ func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 	}
 	if deadbandPct < 0 {
 		return nil, fmt.Errorf("model: deadband pct must be non-negative, got %v", deadbandPct)
+	}
+	if commissionPct < 0 {
+		return nil, fmt.Errorf("model: commission pct must be non-negative, got %v", commissionPct)
 	}
 	if mode == "" {
 		mode = LabelModeExcess
@@ -125,7 +137,15 @@ func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 				labelReturn = forwardReturn.Sub(indexForwardReturn)
 			}
 			labelPct, _ := labelReturn.Float64()
-			if math.Abs(labelPct) < deadbandPct {
+			threshold := deadbandPct
+			if commissionPct > 0 {
+				spreadPct := 0.0
+				if entryCandle.Close.Sign() > 0 {
+					spreadPct, _ = entryCandle.High.Sub(entryCandle.Low).Div(entryCandle.Close).Mul(decimal.NewFromInt(100)).Float64()
+				}
+				threshold += 2*commissionPct*100 + spreadPct
+			}
+			if math.Abs(labelPct) < threshold {
 				continue
 			}
 			label := 0.0

@@ -34,21 +34,22 @@ const (
 )
 
 type options struct {
-	configPath   string
-	tickersFlag  string
-	fromStr      string
-	tillStr      string
-	horizonDays  int
-	deadbandPct  float64
-	learningRate float64
-	l2Lambda     float64
-	epochs       int
-	splitDateStr string
-	valDays      int
-	maxLots      int
-	outPath      string
-	newsHistory  string
-	labelMode    string
+	configPath         string
+	tickersFlag        string
+	fromStr            string
+	tillStr            string
+	horizonDays        int
+	deadbandPct        float64
+	labelCommissionPct float64
+	learningRate       float64
+	l2Lambda           float64
+	epochs             int
+	splitDateStr       string
+	valDays            int
+	maxLots            int
+	outPath            string
+	newsHistory        string
+	labelMode          string
 }
 
 func main() {
@@ -102,12 +103,13 @@ func run(args []string, stdout io.Writer) error {
 	defer stop()
 
 	_, _, err = runPipeline(ctx, pipelineConfig{
-		tickers:     tickers,
-		from:        from,
-		till:        till,
-		split:       split,
-		horizonDays: opts.horizonDays,
-		deadbandPct: opts.deadbandPct,
+		tickers:            tickers,
+		from:               from,
+		till:               till,
+		split:              split,
+		horizonDays:        opts.horizonDays,
+		deadbandPct:        opts.deadbandPct,
+		labelCommissionPct: opts.labelCommissionPct,
 		trainCfg: model.TrainConfig{
 			LearningRate: opts.learningRate,
 			L2Lambda:     opts.l2Lambda,
@@ -145,6 +147,7 @@ func parseOptions(args []string) (options, error) {
 	fs.StringVar(&opts.tillStr, "till", "", "training end date YYYY-MM-DD (default: today)")
 	fs.IntVar(&opts.horizonDays, "horizon-days", opts.horizonDays, "forward-return horizon in trading days")
 	fs.Float64Var(&opts.deadbandPct, "deadband-pct", opts.deadbandPct, "exclude labels with absolute forward return below this percent")
+	fs.Float64Var(&opts.labelCommissionPct, "label-commission-pct", 0, "one-way commission rate to bake into the label dead zone (e.g. 0.0005); 0 disables cost-adjustment and matches prior behavior")
 	fs.Float64Var(&opts.learningRate, "learning-rate", opts.learningRate, "gradient descent learning rate")
 	fs.Float64Var(&opts.l2Lambda, "l2-lambda", opts.l2Lambda, "L2 regularization strength")
 	fs.IntVar(&opts.epochs, "epochs", opts.epochs, "gradient descent epochs")
@@ -208,20 +211,21 @@ func computeSplitDate(till time.Time, splitDateStr string, valDays int) (time.Ti
 }
 
 type pipelineConfig struct {
-	tickers        []string
-	from           time.Time
-	till           time.Time
-	split          time.Time
-	horizonDays    int
-	deadbandPct    float64
-	trainCfg       model.TrainConfig
-	maxLots        int
-	deposit        decimal.Decimal
-	commissionRate decimal.Decimal
-	outPath        string
-	newsHistory    string
-	labelMode      model.LabelMode
-	now            func() time.Time
+	tickers            []string
+	from               time.Time
+	till               time.Time
+	split              time.Time
+	horizonDays        int
+	deadbandPct        float64
+	labelCommissionPct float64
+	trainCfg           model.TrainConfig
+	maxLots            int
+	deposit            decimal.Decimal
+	commissionRate     decimal.Decimal
+	outPath            string
+	newsHistory        string
+	labelMode          model.LabelMode
+	now                func() time.Time
 }
 
 func runPipeline(ctx context.Context, cfg pipelineConfig, source backtest.HistoricalSource, stdout io.Writer) (*model.Weights, *backtest.Result, error) {
@@ -233,7 +237,7 @@ func runPipeline(ctx context.Context, cfg pipelineConfig, source backtest.Histor
 		now = time.Now
 	}
 
-	samples, err := model.BuildSamples(ctx, source, cfg.tickers, cfg.from, cfg.till, cfg.horizonDays, cfg.deadbandPct, cfg.labelMode)
+	samples, err := model.BuildSamples(ctx, source, cfg.tickers, cfg.from, cfg.till, cfg.horizonDays, cfg.deadbandPct, cfg.labelMode, cfg.labelCommissionPct)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build samples: %w", err)
 	}

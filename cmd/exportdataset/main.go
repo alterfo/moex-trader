@@ -31,16 +31,17 @@ const (
 )
 
 type options struct {
-	configPath  string
-	tickersFlag string
-	fromStr     string
-	tillStr     string
-	splitStr    string
-	horizonDays int
-	deadbandPct float64
-	labelMode   string
-	outPath     string
-	newsHistory string
+	configPath    string
+	tickersFlag   string
+	fromStr       string
+	tillStr       string
+	splitStr      string
+	horizonDays   int
+	deadbandPct   float64
+	labelMode     string
+	commissionPct float64
+	outPath       string
+	newsHistory   string
 }
 
 func main() {
@@ -96,7 +97,7 @@ func run(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	samples, err := model.BuildSamples(ctx, source, tickers, from, till, opts.horizonDays, opts.deadbandPct, model.LabelMode(opts.labelMode))
+	samples, err := model.BuildSamples(ctx, source, tickers, from, till, opts.horizonDays, opts.deadbandPct, model.LabelMode(opts.labelMode), opts.commissionPct)
 	if err != nil {
 		return fmt.Errorf("build labeled samples: %w", err)
 	}
@@ -249,6 +250,7 @@ func parseOptions(args []string) (options, error) {
 	fs.IntVar(&opts.horizonDays, "horizon-days", opts.horizonDays, "forward-return horizon")
 	fs.Float64Var(&opts.deadbandPct, "deadband-pct", opts.deadbandPct, "label deadband percent")
 	fs.StringVar(&opts.labelMode, "label-mode", "excess", "label target: excess (vs IMOEX) or absolute forward return")
+	fs.Float64Var(&opts.commissionPct, "commission-pct", 0, "one-way commission rate (e.g. 0.0005); widens the dead zone by round-trip cost plus the entry bar's spread proxy (0 = disabled, matches prior behavior)")
 	fs.StringVar(&opts.outPath, "out", "dataset.csv", "output CSV path")
 	fs.StringVar(&opts.newsHistory, "news-history", "", "path to a finanalys-format news_history.jsonl to override news_sentiment/news_count with real historical values where available")
 	if err := fs.Parse(args); err != nil {
