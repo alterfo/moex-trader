@@ -80,6 +80,36 @@ func TestFetchValidRSS(t *testing.T) {
 	}
 }
 
+func TestFetchWindows1251RSS(t *testing.T) {
+	body := []byte("<?xml version=\"1.0\" encoding=\"windows-1251\"?>" +
+		"<rss version=\"2.0\"><channel><item>" +
+		"<title>\xcf\xf0\xe8\xe2\xe5\xf2</title>" +
+		"<link>https://example.com/cp1251</link>" +
+		"<description>\xd1\xee\xe1\xfb\xf2\xe8\xff</description>" +
+		"<pubDate>Mon, 09 Jan 2024 10:00:00 +0300</pubDate>" +
+		"</item></channel></rss>")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/rss+xml; charset=windows-1251")
+		_, _ = w.Write(body)
+	}))
+	defer server.Close()
+
+	fetcher := NewFetcher(nil)
+	articles, err := fetcher.Fetch(context.Background(), Source{Name: "finmarket", URL: server.URL})
+	if err != nil {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+	if len(articles) != 1 {
+		t.Fatalf("expected 1 article, got %d", len(articles))
+	}
+	if articles[0].Title != "Привет" {
+		t.Fatalf("title = %q, want Привет", articles[0].Title)
+	}
+	if articles[0].Description != "События" {
+		t.Fatalf("description = %q, want События", articles[0].Description)
+	}
+}
+
 func TestFetchSkipsMalformedPubDateItem(t *testing.T) {
 	body := `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
@@ -210,7 +240,7 @@ func TestMatcherDoesNotMatchDataTickerOnOrdinaryWordData(t *testing.T) {
 
 func TestDefaultAliasesCoverEveryTicker(t *testing.T) {
 	aliases := DefaultAliases()
-	for _, ticker := range []string{"YDEX", "OZON", "SBER", "LKOH", "GAZP", "GMKN", "ROSN", "NVTK", "TATN", "MTSS", "MGNT", "PLZL", "CHMF", "DATA", "T", "SBMM", "VTBR", "RUAL", "GLDRUB_TOM", "SLVRUB_TOM", "CNYRUB_TOM"} {
+	for _, ticker := range []string{"YDEX", "OZON", "SBER", "LKOH", "GAZP", "GMKN", "ROSN", "NVTK", "TATN", "MTSS", "MGNT", "PLZL", "CHMF", "DATA", "T", "VTBR", "RUAL", "GLDRUB_TOM", "SLVRUB_TOM", "CNYRUB_TOM", "POSI", "SNGSP", "SBERP", "NLMK", "MAGN", "AFLT", "ALRS", "SIBN", "RASP", "TRMK", "MTLR", "PHOR", "MOEX", "AFKS", "HYDR", "IRAO", "PIKK", "FEES", "ENPG", "SVCB", "SFIN", "SMLT", "VKCO", "TATNP", "BANEP"} {
 		if len(aliases[ticker]) == 0 {
 			t.Fatalf("ticker %q has no aliases", ticker)
 		}
