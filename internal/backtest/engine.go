@@ -85,6 +85,7 @@ type Config struct {
 	KillSwitch            bool
 	SignalSource          SignalSource
 	Source                HistoricalSource
+	FeatureConfig         features.PriceFeatureConfig
 	Logger                *log.Logger
 	NewsOverrides         map[string]map[string]NewsAggregate
 	EventOverrides        map[string]map[string]features.EventFlags
@@ -324,7 +325,7 @@ func (e *Engine) runTicker(ctx context.Context, ticker string) (map[time.Time]de
 		return map[time.Time]decimal.Decimal{}, nil
 	}
 
-	builder := features.NewBuilder(time.Now)
+	builder := features.NewBuilderWithConfig(time.Now, e.cfg.FeatureConfig)
 	curve := make(map[time.Time]decimal.Decimal)
 
 	tradeable := make([]int, 0, 64)

@@ -57,6 +57,7 @@ func run() error {
 	var csvBuyPct, csvSellPct float64
 	var ensemblePath string
 	var newsHistory string
+	var intervalMin int
 
 	flag.StringVar(&configPath, "config", "config.yaml", "path to config YAML")
 	flag.StringVar(&fromStr, "from", "", "backtest start date YYYY-MM-DD (default: one year ago)")
@@ -79,6 +80,7 @@ func run() error {
 	flag.Float64Var(&csvSellPct, "csv-sell-pct", 0.45, "csvprob: probability at/below which to SELL")
 	flag.StringVar(&ensemblePath, "ensemble-path", "", "ensemble: path to exported LGBM+XGB+LogReg model JSON")
 	flag.StringVar(&newsHistory, "news-history", "", "load historical news sentiment/count overrides from finanalys-format JSONL")
+	flag.IntVar(&intervalMin, "interval-min", 0, "candle interval in minutes for intraday bars (24 or 0 = daily; ISS supports 1/10/60); scales feature windows via bars-per-session")
 	flag.Parse()
 
 	deposit, err := decimal.NewFromString(depositStr)
@@ -117,7 +119,13 @@ func run() error {
 	}
 
 	moexClient := moex.NewClient(cfg.MOEXISSBaseURL, nil)
-	source := backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
+	var source backtest.HistoricalSource
+	if intervalMin > 0 && intervalMin != 24 {
+		source = backtest.NewISSSourceInterval(cfg.MOEXISSBaseURL, moexClient, intervalMin)
+		log.Printf("backtest: using intraday interval %d min (%d bars/session)", intervalMin, features.BarsPerDayForInterval(intervalMin))
+	} else {
+		source = backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
+	}
 
 	var newsOverrides map[string]map[string]backtest.NewsAggregate
 	var eventOverrides map[string]map[string]features.EventFlags
@@ -165,6 +173,7 @@ func run() error {
 		KillSwitch:            killSwitch,
 		SignalSource:          signalSource,
 		Source:                source,
+		FeatureConfig:         features.ConfigForInterval(intervalMin),
 		NewsOverrides:         newsOverrides,
 		EventOverrides:        eventOverrides,
 	})

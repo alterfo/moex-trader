@@ -18,6 +18,7 @@ import (
 
 	"github.com/olegsidorkin/moex-trader/internal/backtest"
 	"github.com/olegsidorkin/moex-trader/internal/config"
+	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/model"
 )
@@ -47,6 +48,7 @@ type options struct {
 	splitDateStr       string
 	valDays            int
 	maxLots            int
+	intervalMin        int
 	outPath            string
 	newsHistory        string
 	labelMode          string
@@ -97,7 +99,13 @@ func run(args []string, stdout io.Writer) error {
 	}
 
 	moexClient := moex.NewClient(cfg.MOEXISSBaseURL, nil)
-	source := backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
+	var source backtest.HistoricalSource
+	if opts.intervalMin > 0 && opts.intervalMin != 24 {
+		source = backtest.NewISSSourceInterval(cfg.MOEXISSBaseURL, moexClient, opts.intervalMin)
+		log.Printf("trainmodel: using intraday interval %d min (%d bars/session)", opts.intervalMin, features.BarsPerDayForInterval(opts.intervalMin))
+	} else {
+		source = backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -110,6 +118,7 @@ func run(args []string, stdout io.Writer) error {
 		horizonDays:        opts.horizonDays,
 		deadbandPct:        opts.deadbandPct,
 		labelCommissionPct: opts.labelCommissionPct,
+		intervalMin:        opts.intervalMin,
 		trainCfg: model.TrainConfig{
 			LearningRate: opts.learningRate,
 			L2Lambda:     opts.l2Lambda,
@@ -148,6 +157,7 @@ func parseOptions(args []string) (options, error) {
 	fs.IntVar(&opts.horizonDays, "horizon-days", opts.horizonDays, "forward-return horizon in trading days")
 	fs.Float64Var(&opts.deadbandPct, "deadband-pct", opts.deadbandPct, "exclude labels with absolute forward return below this percent")
 	fs.Float64Var(&opts.labelCommissionPct, "label-commission-pct", 0, "one-way commission rate to bake into the label dead zone (e.g. 0.0005); 0 disables cost-adjustment and matches prior behavior")
+	fs.IntVar(&opts.intervalMin, "interval-min", 0, "candle interval in minutes for intraday bars (24 or 0 = daily; ISS supports 1/10/60); scales feature windows via bars-per-session")
 	fs.Float64Var(&opts.learningRate, "learning-rate", opts.learningRate, "gradient descent learning rate")
 	fs.Float64Var(&opts.l2Lambda, "l2-lambda", opts.l2Lambda, "L2 regularization strength")
 	fs.IntVar(&opts.epochs, "epochs", opts.epochs, "gradient descent epochs")
@@ -218,6 +228,7 @@ type pipelineConfig struct {
 	horizonDays        int
 	deadbandPct        float64
 	labelCommissionPct float64
+	intervalMin        int
 	trainCfg           model.TrainConfig
 	maxLots            int
 	deposit            decimal.Decimal
@@ -237,7 +248,7 @@ func runPipeline(ctx context.Context, cfg pipelineConfig, source backtest.Histor
 		now = time.Now
 	}
 
-	samples, err := model.BuildSamples(ctx, source, cfg.tickers, cfg.from, cfg.till, cfg.horizonDays, cfg.deadbandPct, cfg.labelMode, cfg.labelCommissionPct)
+	samples, err := model.BuildSamplesWithFeatureConfig(ctx, source, cfg.tickers, cfg.from, cfg.till, cfg.horizonDays, cfg.deadbandPct, cfg.labelMode, cfg.labelCommissionPct, features.ConfigForInterval(cfg.intervalMin))
 	if err != nil {
 		return nil, nil, fmt.Errorf("build samples: %w", err)
 	}
