@@ -8,17 +8,18 @@ import (
 	"log"
 	"os"
 
-	"github.com/shopspring/decimal"
 	"github.com/olegsidorkin/moex-trader/internal/features"
+	"github.com/olegsidorkin/moex-trader/internal/model"
+	"github.com/shopspring/decimal"
 )
 
 type rawRecord struct {
-	Ticker       string  `json:"ticker"`
-	ArticleID    string  `json:"article_id"`
-	Title        string  `json:"title"`
-	Source       string  `json:"source"`
-	TrustWeight  float64 `json:"trust_weight"`
-	PublishedTS  int64   `json:"published_ts"`
+	Ticker      string  `json:"ticker"`
+	ArticleID   string  `json:"article_id"`
+	Title       string  `json:"title"`
+	Source      string  `json:"source"`
+	TrustWeight float64 `json:"trust_weight"`
+	PublishedTS int64   `json:"published_ts"`
 }
 
 type finanalysRecord struct {
@@ -37,7 +38,8 @@ type finanalysRecord struct {
 func main() {
 	input := flag.String("in", "", "input raw JSONL")
 	output := flag.String("out", "", "output finanalys-format JSONL")
-	method := flag.String("method", "none", "scoring method: lexicon|regex|none")
+	method := flag.String("method", "none", "scoring method: lexicon|regex|none|model")
+	modelPath := flag.String("model-path", "news_classifier.json", "trained news classifier path (used when -method=model)")
 	flag.Parse()
 
 	if *input == "" || *output == "" {
@@ -52,8 +54,14 @@ func main() {
 		scorer = features.RegexScore
 	case "none":
 		scorer = features.NoneScore
+	case "model":
+		weights, err := model.LoadNewsClassifier(*modelPath)
+		if err != nil {
+			log.Fatalf("load news classifier %q: %v", *modelPath, err)
+		}
+		scorer = weights.Scorer()
 	default:
-		log.Fatalf("unknown method %q (want lexicon|regex|none)", *method)
+		log.Fatalf("unknown method %q (want lexicon|regex|none|model)", *method)
 	}
 
 	inFile, err := os.Open(*input)
