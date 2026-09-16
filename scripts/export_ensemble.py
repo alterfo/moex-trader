@@ -19,6 +19,15 @@ FEATURES = os.environ.get("ENSEMBLE_FEATURES14","").split(",") if os.environ.get
     "event_dividend", "event_buyback", "event_sanctions", "event_ipo",
     "event_report", "event_delisting", "event_mna", "event_default",
 ]
+ORDER = os.environ.get("ENSEMBLE_FEATURE_ORDER", "")
+ORDER = ORDER.split(",") if ORDER else FEATURES
+
+
+def expand(values, default, names):
+    out = [default] * len(ORDER)
+    for name, value in zip(names, values):
+        out[ORDER.index(name)] = value
+    return out
 
 
 def to_flat(tree):
@@ -92,15 +101,15 @@ def main():
     lgb_trees = [lgb_recursive_to_flat(t["tree_structure"]) for t in dump["tree_info"]]
 
     model = {
-        "feature_order": FEATURES,
+        "feature_order": ORDER,
         "buy_threshold": 0.60,
         "sell_threshold": 0.40,
         "lgb_base_logit": 0.0,
         "xgb_base_logit": xgb_base_logit,
         "logistic": {
-            "mean": scaler.mean_.tolist(),
-            "std": scaler.scale_.tolist(),
-            "coef": reg.coef_[0].tolist(),
+            "mean": expand(scaler.mean_.tolist(), 0.0, FEATURES),
+            "std": expand(scaler.scale_.tolist(), 1.0, FEATURES),
+            "coef": expand(reg.coef_[0].tolist(), 0.0, FEATURES),
             "bias": float(reg.intercept_[0]),
         },
         "lgb_trees": lgb_trees,
