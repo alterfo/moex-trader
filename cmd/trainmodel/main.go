@@ -160,7 +160,7 @@ func parseOptions(args []string) (options, error) {
 	fs.StringVar(&opts.tickersFlag, "tickers", "", "comma-separated tickers (default: config tickers)")
 	fs.StringVar(&opts.fromStr, "from", "", "training start date YYYY-MM-DD (default: two years ago)")
 	fs.StringVar(&opts.tillStr, "till", "", "training end date YYYY-MM-DD (default: today)")
-	fs.IntVar(&opts.horizonDays, "horizon-days", opts.horizonDays, "forward-return horizon in trading days")
+	fs.IntVar(&opts.horizonDays, "horizon-days", opts.horizonDays, "forward-return horizon, in trading days on daily bars or in bars when -interval-min is set")
 	fs.Float64Var(&opts.deadbandPct, "deadband-pct", opts.deadbandPct, "exclude labels with absolute forward return below this percent")
 	fs.Float64Var(&opts.labelCommissionPct, "label-commission-pct", 0, "one-way commission rate to bake into the label dead zone (e.g. 0.0005); 0 disables cost-adjustment and matches prior behavior")
 	fs.IntVar(&opts.intervalMin, "interval-min", 0, "candle interval in minutes for intraday bars (24 or 0 = daily; ISS supports 1/10/60)")

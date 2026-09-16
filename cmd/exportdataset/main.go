@@ -272,7 +272,7 @@ func parseOptions(args []string) (options, error) {
 	fs.StringVar(&opts.fromStr, "from", "", "dataset start YYYY-MM-DD")
 	fs.StringVar(&opts.tillStr, "till", "", "dataset end YYYY-MM-DD")
 	fs.StringVar(&opts.splitStr, "split", "", "train/val split YYYY-MM-DD")
-	fs.IntVar(&opts.horizonDays, "horizon-days", opts.horizonDays, "forward-return horizon")
+	fs.IntVar(&opts.horizonDays, "horizon-days", opts.horizonDays, "forward-return horizon, in trading days on daily bars or in bars when -interval-min is set")
 	fs.Float64Var(&opts.deadbandPct, "deadband-pct", opts.deadbandPct, "label deadband percent")
 	fs.StringVar(&opts.labelMode, "label-mode", "excess", "label target: excess (vs IMOEX) or absolute forward return")
 	fs.Float64Var(&opts.commissionPct, "commission-pct", 0, "one-way commission rate (e.g. 0.0005); widens the dead zone by round-trip cost plus the entry bar's spread proxy (0 = disabled, matches prior behavior)")
