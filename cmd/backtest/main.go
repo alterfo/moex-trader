@@ -255,7 +255,7 @@ func buildSignalSource(cfg *config.Config, opts signalSourceOptions) (backtest.S
 		if strings.TrimSpace(opts.CSVProbPath) == "" {
 			return nil, nil, fmt.Errorf("csvprob: -csv-prob-path is required")
 		}
-		src, err := newCSVProbSource(opts.CSVProbPath, opts.CSVProbCol, opts.CSVBuyPct, opts.CSVSellPct, opts.MaxLots)
+		src, err := newCSVProbSource(opts.CSVProbPath, opts.CSVProbCol, opts.CSVBuyPct, opts.CSVSellPct, opts.MaxLots, opts.TargetNotional)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -296,13 +296,14 @@ func backtestDecimal(v float64) decimal.Decimal {
 }
 
 type csvProbSource struct {
-	probs   map[string]float64
-	buyPct  float64
-	sellPct float64
-	maxLots int
+	probs          map[string]float64
+	buyPct         float64
+	sellPct        float64
+	maxLots        int
+	targetNotional decimal.Decimal
 }
 
-func newCSVProbSource(path, col string, buyPct, sellPct float64, maxLots int) (*csvProbSource, error) {
+func newCSVProbSource(path, col string, buyPct, sellPct float64, maxLots int, targetNotional decimal.Decimal) (*csvProbSource, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("csvprob: open %q: %w", path, err)
@@ -353,7 +354,7 @@ func newCSVProbSource(path, col string, buyPct, sellPct float64, maxLots int) (*
 		key := strings.ToUpper(strings.TrimSpace(row[tickerIdx])) + "|" + strings.TrimSpace(row[dateIdx])
 		probs[key] = value
 	}
-	return &csvProbSource{probs: probs, buyPct: buyPct, sellPct: sellPct, maxLots: maxLots}, nil
+	return &csvProbSource{probs: probs, buyPct: buyPct, sellPct: sellPct, maxLots: maxLots, targetNotional: targetNotional}, nil
 }
 
 func (s *csvProbSource) Generate(_ context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
@@ -380,14 +381,32 @@ func (s *csvProbSource) Generate(_ context.Context, feature domain.FeatureContex
 	switch {
 	case probability >= s.buyPct:
 		signal.Action = domain.ActionBuy
-		signal.TargetLots = s.maxLots
+		signal.TargetLots = s.lotsFor(feature)
 	case probability <= s.sellPct:
 		signal.Action = domain.ActionSell
-		signal.TargetLots = s.maxLots
+		signal.TargetLots = s.lotsFor(feature)
 	default:
 		signal.HoldReason = domain.HoldReasonModel
 	}
 	return signal, nil
+}
+
+// lotsFor sizes a position either from the fixed maxLots or, when a target
+// notional is set, from that notional divided by the per-lot price so a
+// cross-sectional book gets roughly equal ruble exposure per name.
+func (s *csvProbSource) lotsFor(feature domain.FeatureContext) int {
+	if !s.targetNotional.IsPositive() || !feature.LastPrice.IsPositive() {
+		return s.maxLots
+	}
+	perUnit := feature.LastPrice
+	if feature.LotSize.IsPositive() {
+		perUnit = feature.LastPrice.Mul(feature.LotSize)
+	}
+	lots := s.targetNotional.Div(perUnit).Round(0).IntPart()
+	if lots < 1 {
+		return 1
+	}
+	return int(lots)
 }
 
 func splitComma(s string) []string {
