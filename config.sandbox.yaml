@@ -17,19 +17,29 @@ tickers:
   - T
   - VTBR
   - RUAL
-  - GLDRUB_TOM
-  - SLVRUB_TOM
-  - CNYRUB_TOM
   - POSI
+  # GLDRUB_TOM/SLVRUB_TOM/CNYRUB_TOM removed: the model's IMOEX-relative
+  # excess-return label is meaningless for FX instruments — walk-forward
+  # showed every model that traded them lost money (see AGENTS.md H1
+  # findings, 2026-09-16).
 model:
   path: "model.json"
+  # ensemble_model.json retrained 2026-09-17 on the absolute-10d recipe
+  # (26-feature schema, buy/sell 0.60/0.40, walk-forward +110741р/18mo,
+  # 5/6 quarters positive, max DD 2.91%; see AGENTS.md H1/H2 notes).
   ensemble_path: "ensemble_model.json"
 moex_iss_base_url: "https://iss.moex.com/iss"
 algopack_base_url: "https://apim.moex.com/iss/datashop"
 storage:
   path: "./trader-sandbox.db"
 risk:
-  max_lots: 1
+  # Sized off the walk-forward-validated recipe: flat 15000₽ notional per
+  # position, target-position execution. max_lots is a risk-gate ceiling,
+  # not the sizing itself (real TargetLots come from target_notional/price);
+  # 1000 covers the priciest observed case (~300 lots on VTBR at ~50₽/share)
+  # with headroom for a price drop.
+  max_lots: 1000
+  target_notional: "15000"
 commission:
   broker: "tinkoff"
   rate: "0.0005"    # T-Bank sandbox charges a flat 0.05% per trade
