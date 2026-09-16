@@ -21,28 +21,41 @@ const (
 	heapMaxPages     = 200
 )
 
-// HistoricalSource fetches the full daily candle history for a ticker within
+// HistoricalSource fetches the full candle history for a ticker within
 // [from, till]. It is self-contained: only the shared moex.LookupSecurity is
 // reused, candle pages are fetched with explicit ISS start/limit paging so the
 // default 100-row/or no-pagination behaviour of the live client never truncates
-// the history.
+// the history. The fetched granularity is controlled by the source's Interval
+// (see NewISSSourceInterval): 24 = daily, 60/10/1 = intraday minutes.
 type HistoricalSource interface {
-	// History returns daily candles sorted by Begin in ascending order.
+	// History returns candles sorted by Begin in ascending order.
 	History(ctx context.Context, ticker string, from, till time.Time) ([]moex.Candle, error)
 }
 
 // ISSSource reads candle history from the MOEX ISS API.
 type ISSSource struct {
-	client  *moex.Client
-	baseURL string
-	http    *http.Client
+	client   *moex.Client
+	baseURL  string
+	http     *http.Client
+	interval int
 }
 
 func NewISSSource(baseURL string, client *moex.Client) *ISSSource {
+	return NewISSSourceInterval(baseURL, client, 24)
+}
+
+// NewISSSourceInterval returns an ISSSource fetching candles at the given ISS
+// interval (24 = daily, 60/10/1 = intraday minutes). interval <= 0 defaults to
+// daily so a misconfigured value degrades to the previous behaviour instead of
+// returning garbage.
+func NewISSSourceInterval(baseURL string, client *moex.Client, interval int) *ISSSource {
 	if client == nil {
 		client = moex.NewClient(baseURL, nil)
 	}
-	return &ISSSource{client: client, baseURL: strings.TrimRight(baseURL, "/"), http: &http.Client{Timeout: 30 * time.Second}}
+	if interval <= 0 {
+		interval = 24
+	}
+	return &ISSSource{client: client, baseURL: strings.TrimRight(baseURL, "/"), http: &http.Client{Timeout: 30 * time.Second}, interval: interval}
 }
 
 func (s *ISSSource) History(ctx context.Context, ticker string, from, till time.Time) ([]moex.Candle, error) {
@@ -57,7 +70,7 @@ func (s *ISSSource) History(ctx context.Context, ticker string, from, till time.
 	start, limit := 0, heapDefaultLimit
 	for page := 0; page < heapMaxPages; page++ {
 		query := url.Values{}
-		query.Set("interval", "24")
+		query.Set("interval", strconv.Itoa(s.interval))
 		query.Set("start", strconv.Itoa(start))
 		query.Set("limit", strconv.Itoa(limit))
 		query.Set("iss.meta", "off")

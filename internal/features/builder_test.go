@@ -402,6 +402,47 @@ func TestComputePriceFeaturesLookbackIsBoundedAndConverged(t *testing.T) {
 	}
 }
 
+func TestComputePriceFeaturesScalesWindowsByBarsPerDay(t *testing.T) {
+	// With BarsPerDay=105 (roughly a MOEX 5-min session), Mom5d must span
+	// 5*105 bars of history, not 5 raw bars. Verify with a plateau that only
+	// makes sense at the scaled window.
+	const bpd = 105
+	candles := make([]moex.Candle, 8*bpd+50)
+	for i := range candles {
+		candles[i] = moex.Candle{Close: decimal.NewFromFloat(100)}
+	}
+	for i := 8*bpd + 1; i < len(candles); i++ {
+		candles[i] = moex.Candle{Close: decimal.NewFromFloat(200)}
+	}
+
+	daily := ComputePriceFeaturesWithConfig(candles, PriceFeatureConfig{})
+	scaled := ComputePriceFeaturesWithConfig(candles, PriceFeatureConfig{BarsPerDay: bpd})
+
+	// Daily window (5 bars) still sits on the recent plateau -> ~0 momentum.
+	if daily.Mom5d.Abs().GreaterThan(decimal.NewFromFloat(1)) {
+		t.Fatalf("daily Mom5d expected ~0 on a recent plateau, got %s", daily.Mom5d)
+	}
+	// Scaled window (5*105 bars) reaches back to the old price level -> big momentum.
+	if scaled.Mom5d.LessThanOrEqual(decimal.NewFromFloat(20)) {
+		t.Fatalf("scaled Mom5d expected >20%% (5-day momentum over a 100->200 move), got %s", scaled.Mom5d)
+	}
+}
+
+func TestConfigForIntervalMapsToBarsPerDay(t *testing.T) {
+	if got := ConfigForInterval(24); got.BarsPerDay != 0 {
+		t.Fatalf("daily interval should map to zero config, got %+v", got)
+	}
+	if got := ConfigForInterval(0); got.BarsPerDay != 0 {
+		t.Fatalf("zero interval should map to zero config, got %+v", got)
+	}
+	if got := BarsPerDayForInterval(5); got < 80 || got > 150 {
+		t.Fatalf("5-min interval expected ~100 bars/session, got %d", got)
+	}
+	if got := BarsPerDayForInterval(1440); got != 1 {
+		t.Fatalf(">=1440-min interval expected 1 bar/session, got %d", got)
+	}
+}
+
 func TestStochasticK(t *testing.T) {
 	candles := make([]moex.Candle, 14)
 	candles[0] = moex.Candle{High: decimal.NewFromFloat(110), Low: decimal.NewFromFloat(100), Close: decimal.NewFromFloat(105)}
@@ -461,7 +502,7 @@ func TestMACDHistPct(t *testing.T) {
 }
 
 func TestAlligatorSpreadPct(t *testing.T) {
-	if !alligatorSpreadPct(nil).IsZero() {
+	if !alligatorSpreadPct(nil, PriceFeatureConfig{}).IsZero() {
 		t.Fatal("alligatorSpreadPct with no data should be zero")
 	}
 	candles := make([]moex.Candle, 60)
@@ -471,7 +512,7 @@ func TestAlligatorSpreadPct(t *testing.T) {
 			Low:  decimal.NewFromFloat(float64(99 + i)),
 		}
 	}
-	got := alligatorSpreadPct(candles)
+	got := alligatorSpreadPct(candles, PriceFeatureConfig{})
 	if got.Sign() <= 0 {
 		t.Fatalf("expected positive alligator spread (lips above jaw) in an uptrend, got %s", got)
 	}

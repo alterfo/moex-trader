@@ -30,7 +30,8 @@ type Input struct {
 }
 
 type Builder struct {
-	now func() time.Time
+	now  func() time.Time
+	conf PriceFeatureConfig
 }
 
 func NewBuilder(now func() time.Time) *Builder {
@@ -38,6 +39,16 @@ func NewBuilder(now func() time.Time) *Builder {
 		now = time.Now
 	}
 	return &Builder{now: now}
+}
+
+// NewBuilderWithConfig returns a builder that scales day-denominated indicator
+// windows to the given candle interval (see PriceFeatureConfig). It matches
+// NewBuilder exactly for the zero config (daily bars).
+func NewBuilderWithConfig(now func() time.Time, conf PriceFeatureConfig) *Builder {
+	if now == nil {
+		now = time.Now
+	}
+	return &Builder{now: now, conf: conf}
 }
 
 func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
@@ -62,7 +73,7 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 		generatedAt = input.Price.AsOf
 	}
 
-	pf := ComputePriceFeatures(input.Candles)
+	pf := ComputePriceFeaturesWithConfig(input.Candles, b.conf)
 
 	return domain.FeatureContext{
 		Ticker:             ticker,

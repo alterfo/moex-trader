@@ -40,6 +40,7 @@ type options struct {
 	deadbandPct   float64
 	labelMode     string
 	commissionPct float64
+	intervalMin   int
 	outPath       string
 	newsHistory   string
 }
@@ -92,12 +93,19 @@ func run(args []string) error {
 	}
 
 	moexClient := moex.NewClient(cfg.MOEXISSBaseURL, nil)
-	source := backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
+	var source backtest.HistoricalSource
+	featureCfg := features.ConfigForInterval(opts.intervalMin)
+	if opts.intervalMin > 0 && opts.intervalMin != 24 {
+		source = backtest.NewISSSourceInterval(cfg.MOEXISSBaseURL, moexClient, opts.intervalMin)
+		log.Printf("exportdataset: using intraday interval %d min (%d bars/session), feature windows scaled accordingly", opts.intervalMin, features.BarsPerDayForInterval(opts.intervalMin))
+	} else {
+		source = backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	samples, err := model.BuildSamples(ctx, source, tickers, from, till, opts.horizonDays, opts.deadbandPct, model.LabelMode(opts.labelMode), opts.commissionPct)
+	samples, err := model.BuildSamplesWithFeatureConfig(ctx, source, tickers, from, till, opts.horizonDays, opts.deadbandPct, model.LabelMode(opts.labelMode), opts.commissionPct, featureCfg)
 	if err != nil {
 		return fmt.Errorf("build labeled samples: %w", err)
 	}
@@ -130,7 +138,7 @@ func run(args []string) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		builder := features.NewBuilder(time.Now)
+		builder := features.NewBuilderWithConfig(time.Now, featureCfg)
 		if err := writeTicker(ctx, writer, source, builder, ticker, fetchFrom, till, from, split, opts.horizonDays, labelByKey, newsHistory, eventHistory, header); err != nil {
 			return err
 		}
@@ -251,6 +259,7 @@ func parseOptions(args []string) (options, error) {
 	fs.Float64Var(&opts.deadbandPct, "deadband-pct", opts.deadbandPct, "label deadband percent")
 	fs.StringVar(&opts.labelMode, "label-mode", "excess", "label target: excess (vs IMOEX) or absolute forward return")
 	fs.Float64Var(&opts.commissionPct, "commission-pct", 0, "one-way commission rate (e.g. 0.0005); widens the dead zone by round-trip cost plus the entry bar's spread proxy (0 = disabled, matches prior behavior)")
+	fs.IntVar(&opts.intervalMin, "interval-min", 0, "candle interval in minutes for intraday bars (24 or 0 = daily; ISS supports 1/10/60); scales feature windows via bars-per-session")
 	fs.StringVar(&opts.outPath, "out", "dataset.csv", "output CSV path")
 	fs.StringVar(&opts.newsHistory, "news-history", "", "path to a finanalys-format news_history.jsonl to override news_sentiment/news_count with real historical values where available")
 	if err := fs.Parse(args); err != nil {

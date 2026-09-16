@@ -49,7 +49,10 @@ func rsi(closes []decimal.Decimal, period int) decimal.Decimal {
 	return decimal.NewFromInt(100).Sub(decimal.NewFromInt(100).Div(decimal.NewFromInt(1).Add(rs)))
 }
 
-func realizedVolPct(closes []decimal.Decimal, window int) decimal.Decimal {
+func realizedVolPct(closes []decimal.Decimal, window, barsPerYear int) decimal.Decimal {
+	if barsPerYear <= 0 {
+		barsPerYear = 252
+	}
 	if len(closes) < window+1 {
 		return decimal.Zero
 	}
@@ -78,7 +81,7 @@ func realizedVolPct(closes []decimal.Decimal, window int) decimal.Decimal {
 	if v <= 0 {
 		return decimal.Zero
 	}
-	return decimal.NewFromFloat(math.Sqrt(v) * math.Sqrt(252) * 100)
+	return decimal.NewFromFloat(math.Sqrt(v) * math.Sqrt(float64(barsPerYear)) * 100)
 }
 
 func distFromMAPct(closes []decimal.Decimal, window int) decimal.Decimal {
@@ -142,10 +145,74 @@ type PriceFeatures struct {
 // would otherwise pay O(history_length) per day, i.e. O(n^2) overall.
 const maxIndicatorLookbackCandles = 300
 
-func ComputePriceFeatures(candles []moex.Candle) PriceFeatures {
-	if len(candles) > maxIndicatorLookbackCandles {
-		candles = candles[len(candles)-maxIndicatorLookbackCandles:]
+// PriceFeatureConfig scales day-denominated indicator windows to the candle
+// interval actually in use. A zero value behaves exactly like the original
+// daily series: every window (Mom5d = 5 bars, RSI14 = 14 bars, ...) is the
+// day count itself. For intraday candles, set BarsPerDay to the number of
+// bars in one trading session so e.g. Mom5d means 5 * BarsPerDay bars - the
+// same calendar window expressed in the current granularity. This is
+// deliberate: shorting the lookback windows on 1/5-min bars would collapse
+// the momentum/reversal features to minutes of market time and quietly
+// change what the model is learning.
+type PriceFeatureConfig struct {
+	BarsPerDay int
+}
+
+// barsPerDay returns at least 1 so a zero config stays the daily default.
+func (c PriceFeatureConfig) barsPerDay() int {
+	if c.BarsPerDay <= 0 {
+		return 1
 	}
+	return c.BarsPerDay
+}
+
+// BarsPerDayForInterval converts an ISS candle interval (minutes; 24 = daily)
+// into the number of bars per trading session, so Callers can build a
+// PriceFeatureConfig for an intraday source. MOEX's main session is roughly
+// 500 minutes (10:00-18:25), so a 5-min interval yields ~100 bars/day; large
+// intervals like 60 or 24 collapse to a handful or exactly 1.
+func BarsPerDayForInterval(intervalMin int) int {
+	if intervalMin <= 0 || intervalMin >= 1440 {
+		return 1
+	}
+	const sessionMinutes = 500
+	bpd := sessionMinutes / intervalMin
+	if bpd < 1 {
+		bpd = 1
+	}
+	return bpd
+}
+
+// ConfigForInterval returns a PriceFeatureConfig matching an ISS candle
+// interval in minutes (24 = daily, per MOEX ISS semantics) - the zero config
+// for daily, or a BarsPerDay-scaled one for intraday.
+func ConfigForInterval(intervalMin int) PriceFeatureConfig {
+	if intervalMin <= 0 || intervalMin == 24 {
+		return PriceFeatureConfig{}
+	}
+	return PriceFeatureConfig{BarsPerDay: BarsPerDayForInterval(intervalMin)}
+}
+
+// lookbackBounds returns the number of trailing candles needed so that every
+// window - including the largest (Mom63d) plus the EMA/SMMA convergence
+// margin - fits, while keeping the daily (BarsPerDay=1) cost bound unchanged.
+func (c PriceFeatureConfig) lookbackBounds() int {
+	if c.barsPerDay() == 1 {
+		return maxIndicatorLookbackCandles
+	}
+	return 63*c.barsPerDay() + maxIndicatorLookbackCandles
+}
+
+func ComputePriceFeatures(candles []moex.Candle) PriceFeatures {
+	return ComputePriceFeaturesWithConfig(candles, PriceFeatureConfig{})
+}
+
+func ComputePriceFeaturesWithConfig(candles []moex.Candle, cfg PriceFeatureConfig) PriceFeatures {
+	lookback := cfg.lookbackBounds()
+	if len(candles) > lookback {
+		candles = candles[len(candles)-lookback:]
+	}
+	bpd := cfg.barsPerDay()
 	closes := make([]decimal.Decimal, 0, len(candles))
 	volumes := make([]decimal.Decimal, 0, len(candles))
 	for _, c := range candles {
@@ -153,19 +220,19 @@ func ComputePriceFeatures(candles []moex.Candle) PriceFeatures {
 		volumes = append(volumes, c.Volume)
 	}
 	return PriceFeatures{
-		Mom5d:              pctChange(closes, 5),
-		Mom21d:             pctChange(closes, 21),
-		Mom63d:             pctChange(closes, 63),
-		Reversal1d:         pctChange(closes, 1),
-		RSI14:              rsi(closes, 14),
-		DistMA20Pct:        distFromMAPct(closes, 20),
-		DistMA50Pct:        distFromMAPct(closes, 50),
-		RealizedVol21dPct:  realizedVolPct(closes, 21),
-		VolumeZScore20d:    volumeZScore(volumes, 20),
-		MACDHistPct:        macdHistPct(closes, 12, 26, 9),
-		StochK14:           stochasticK(candles, 14),
-		WilliamsR14:        williamsR(candles, 14),
-		AlligatorSpreadPct: alligatorSpreadPct(candles),
+		Mom5d:              pctChange(closes, 5*bpd),
+		Mom21d:             pctChange(closes, 21*bpd),
+		Mom63d:             pctChange(closes, 63*bpd),
+		Reversal1d:         pctChange(closes, 1*bpd),
+		RSI14:              rsi(closes, 14*bpd),
+		DistMA20Pct:        distFromMAPct(closes, 20*bpd),
+		DistMA50Pct:        distFromMAPct(closes, 50*bpd),
+		RealizedVol21dPct:  realizedVolPct(closes, 21*bpd, 252*bpd),
+		VolumeZScore20d:    volumeZScore(volumes, 20*bpd),
+		MACDHistPct:        macdHistPct(closes, 12*bpd, 26*bpd, 9*bpd),
+		StochK14:           stochasticK(candles, 14*bpd),
+		WilliamsR14:        williamsR(candles, 14*bpd),
+		AlligatorSpreadPct: alligatorSpreadPct(candles, cfg),
 	}
 }
 
@@ -272,9 +339,15 @@ func williamsR(candles []moex.Candle, period int) decimal.Decimal {
 // Lips = SMMA(5) shifted 3. The shift means the line's "current" plotted value
 // was computed that many bars ago, so we index each SMMA series accordingly.
 // The feature is the Lips-vs-Jaw spread (%): positive and widening signals an
-// open, upward mouth (uptrend); negative signals a downtrend.
-func alligatorSpreadPct(candles []moex.Candle) decimal.Decimal {
-	const minCandles = 30
+// open, upward mouth (uptrend); negative signals a downtrend. Window/shift
+// counts are day-denominated and scaled by cfg like everything else.
+func alligatorSpreadPct(candles []moex.Candle, cfg PriceFeatureConfig) decimal.Decimal {
+	const jawBars, teethBars, lipsBars = 13, 8, 5
+	const jawShift, teethShift, lipsShift = 8, 5, 3
+	bpd := cfg.barsPerDay()
+	jaw, teeth, lips := jawBars*bpd, teethBars*bpd, lipsBars*bpd
+	shiftJ, shiftL := jawShift*bpd, lipsShift*bpd
+	minCandles := jaw + shiftJ
 	if len(candles) < minCandles {
 		return decimal.Zero
 	}
@@ -282,13 +355,18 @@ func alligatorSpreadPct(candles []moex.Candle) decimal.Decimal {
 	for i, c := range candles {
 		median[i] = c.High.Add(c.Low).Div(decimal.NewFromInt(2))
 	}
-	jawSeries := smma(median, 13)
-	lipsSeries := smma(median, 5)
-	jawIdx := len(median) - 1 - 8
-	lipsIdx := len(median) - 1 - 3
-	if jawIdx < 12 || lipsIdx < 4 {
+	jawSeries := smma(median, jaw)
+	lipsSeries := smma(median, lips)
+	jawIdx := len(median) - 1 - shiftJ
+	lipsIdx := len(median) - 1 - shiftL
+	if jawIdx < jaw-1 || lipsIdx < lips-1 {
 		return decimal.Zero
 	}
+	_ = teeth // teeth line is unused in the chosen spread feature (Lips vs Jaw)
+	return lipsSubJaw(jawSeries, lipsSeries, jawIdx, lipsIdx)
+}
+
+func lipsSubJaw(jawSeries, lipsSeries []decimal.Decimal, jawIdx, lipsIdx int) decimal.Decimal {
 	jaw := jawSeries[jawIdx]
 	lips := lipsSeries[lipsIdx]
 	if jaw.Sign() <= 0 {

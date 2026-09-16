@@ -44,6 +44,18 @@ const (
 // comparable to round-trip costs; on multi-day horizons this cost floor is
 // negligible next to deadbandPct and changes nothing in practice.
 func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64, mode LabelMode, commissionPct float64) ([]LabeledSample, error) {
+	return buildSamples(ctx, source, tickers, from, till, horizonDays, deadbandPct, mode, commissionPct, features.PriceFeatureConfig{})
+}
+
+// BuildSamplesWithFeatureConfig behaves exactly like BuildSamples but scales
+// the day-denominated feature windows to the candle interval in use (see
+// features.PriceFeatureConfig) - needed for intraday sources where a bar is
+// minutes, not a day. The zero config is identical to BuildSamples.
+func BuildSamplesWithFeatureConfig(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64, mode LabelMode, commissionPct float64, featureCfg features.PriceFeatureConfig) ([]LabeledSample, error) {
+	return buildSamples(ctx, source, tickers, from, till, horizonDays, deadbandPct, mode, commissionPct, featureCfg)
+}
+
+func buildSamples(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64, mode LabelMode, commissionPct float64, featureCfg features.PriceFeatureConfig) ([]LabeledSample, error) {
 	if source == nil {
 		return nil, fmt.Errorf("model: historical source is required")
 	}
@@ -86,7 +98,7 @@ func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 		indexByDate = indexCandlesByDate(indexCandles)
 	}
 
-	builder := features.NewBuilder(time.Now)
+	builder := features.NewBuilderWithConfig(time.Now, featureCfg)
 	var samples []LabeledSample
 	for _, ticker := range normalized {
 		if ctx.Err() != nil {
