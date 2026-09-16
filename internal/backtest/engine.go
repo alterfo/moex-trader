@@ -81,6 +81,7 @@ type Config struct {
 	CommissionRate        decimal.Decimal
 	WarmupDays            int
 	MaxDecisionsPerTicker int
+	MaxHoldBars           int
 	KillSwitch            bool
 	SignalSource          SignalSource
 	Source                HistoricalSource
@@ -359,6 +360,11 @@ func (e *Engine) runTicker(ctx context.Context, ticker string) (map[time.Time]de
 			continue
 		}
 
+		if e.cfg.MaxHoldBars > 0 && e.expirePosition(ticker, execPrice, decisionDay) {
+			curve[decisionDay] = e.tickerPnL(ticker, candles[d].Close)
+			continue
+		}
+
 		input := features.Input{
 			Ticker: ticker,
 			Price: features.PriceSnapshot{
@@ -458,13 +464,19 @@ func decisionPrice(candles []moex.Candle, d int) decimal.Decimal {
 }
 
 func (e *Engine) recordFill(ticker string, signal domain.TradeSignal, price decimal.Decimal, day time.Time) error {
-	if signal.Action == domain.ActionHold || signal.TargetLots <= 0 {
+	if signal.Action != domain.ActionBuy && signal.Action != domain.ActionSell {
 		return nil
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	pos := e.positions[ticker]
+	if signal.TargetLots <= 0 {
+		if pos != nil {
+			e.closePositionLocked(ticker, pos, price, day, signal.Reasoning)
+		}
+		return nil
+	}
 	if pos == nil {
 		e.positions[ticker] = newPosition(signal.Action, signal.TargetLots, price, e.cfg.CommissionRate, day)
 		return nil
@@ -522,6 +534,28 @@ func (e *Engine) recordFill(ticker string, signal domain.TradeSignal, price deci
 		return nil
 	}
 
+	e.closePositionLocked(ticker, pos, price, day, signal.Reasoning)
+	e.positions[ticker] = newPosition(signal.Action, signal.TargetLots, price, e.cfg.CommissionRate, day)
+	return nil
+}
+
+func (e *Engine) expirePosition(ticker string, price decimal.Decimal, day time.Time) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	pos := e.positions[ticker]
+	if pos == nil {
+		return false
+	}
+	pos.bars++
+	if pos.bars < e.cfg.MaxHoldBars {
+		return false
+	}
+	e.closePositionLocked(ticker, pos, price, day, "time-exit")
+	return true
+}
+
+func (e *Engine) closePositionLocked(ticker string, pos *position, price decimal.Decimal, day time.Time, note string) {
 	entryComm, exitComm, gross := closeTrade(pos, pos.lots, price, e.cfg.CommissionRate)
 	net := gross.Sub(entryComm.Add(exitComm))
 	e.realized[ticker] = e.realized[ticker].Add(net)
@@ -536,11 +570,9 @@ func (e *Engine) recordFill(ticker string, signal domain.TradeSignal, price deci
 		GrossPnl:   gross,
 		Commission: entryComm.Add(exitComm),
 		NetPnl:     net,
-		SignalNote: signal.Reasoning,
+		SignalNote: note,
 	})
 	delete(e.positions, ticker)
-	e.positions[ticker] = newPosition(signal.Action, signal.TargetLots, price, e.cfg.CommissionRate, day)
-	return nil
 }
 
 func absLots(lots int) int {

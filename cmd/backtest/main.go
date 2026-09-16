@@ -45,6 +45,7 @@ func run() error {
 	var maxLots int
 	var commissionStr string
 	var lookbackDays int
+	var maxHoldBars int
 	var cachePath string
 	var outPath string
 	var killSwitch bool
@@ -69,6 +70,7 @@ func run() error {
 	flag.IntVar(&maxLots, "max-lots", 1, "max position in lots")
 	flag.StringVar(&commissionStr, "commission-rate", "0.0005", "commission rate applied to notional per fill")
 	flag.IntVar(&lookbackDays, "lookback-days", 30, "max decision points per ticker (0 = unlimited)")
+	flag.IntVar(&maxHoldBars, "max-hold-bars", 0, "force-close a position after this many decision bars (0 = hold until the signal changes)")
 	flag.StringVar(&cachePath, "cache", "", "path to persistent decision cache (e.g. .backtest-cache.json)")
 	flag.StringVar(&outPath, "out", "", "path to write markdown report (default: -)")
 	flag.BoolVar(&killSwitch, "kill-switch", true, "enable drawdown kill switch")
@@ -186,6 +188,7 @@ func run() error {
 		CommissionRate:        commissionRate,
 		WarmupDays:            100,
 		MaxDecisionsPerTicker: lookbackDays,
+		MaxHoldBars:           maxHoldBars,
 		KillSwitch:            killSwitch,
 		SignalSource:          signalSource,
 		Source:                source,

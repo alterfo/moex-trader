@@ -293,6 +293,103 @@ func TestEngine_ReduceShortTargetInSameDirection(t *testing.T) {
 	}
 }
 
+func TestEngine_MaxHoldBarsClosesPosition(t *testing.T) {
+	engine, err := NewEngine(Config{
+		Tickers:        []string{"TEST"},
+		From:           time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+		Till:           time.Date(2024, 1, 30, 0, 0, 0, 0, time.UTC),
+		Deposit:        decimal.NewFromInt(100000),
+		MaxLots:        100,
+		MaxHoldBars:    3,
+		CommissionRate: decimal.NewFromInt(3).Div(decimal.NewFromInt(1000)),
+		SignalSource:   fixedTargetSignal{action: domain.ActionBuy, lots: 2},
+		Source:         fakeSource{candles: benchCandles(120)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := engine.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ClosedTrades == 0 {
+		t.Fatal("expected time-exit to close positions")
+	}
+	for _, trade := range result.Trades {
+		if trade.SignalNote != "time-exit" {
+			t.Fatalf("expected every close to be a time-exit, got note %q", trade.SignalNote)
+		}
+		if got := trade.ClosedAt.Sub(trade.OpenedAt); got != 72*time.Hour {
+			t.Fatalf("expected a 3-bar hold, got %s", got)
+		}
+	}
+	if result.ClosedTrades < 2 {
+		t.Fatalf("expected repeated time-exits with re-entry, got %d closed trades", result.ClosedTrades)
+	}
+}
+
+func TestEngine_MaxHoldBarsDisabledHoldsPosition(t *testing.T) {
+	engine, err := NewEngine(Config{
+		Tickers:        []string{"TEST"},
+		From:           time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+		Till:           time.Date(2024, 1, 30, 0, 0, 0, 0, time.UTC),
+		Deposit:        decimal.NewFromInt(100000),
+		MaxLots:        100,
+		CommissionRate: decimal.NewFromInt(3).Div(decimal.NewFromInt(1000)),
+		SignalSource:   fixedTargetSignal{action: domain.ActionBuy, lots: 2},
+		Source:         fakeSource{candles: benchCandles(120)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := engine.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ClosedTrades != 0 {
+		t.Fatalf("expected no closed trades without MaxHoldBars, got %d", result.ClosedTrades)
+	}
+}
+
+func TestEngine_FlatSignalClosesPosition(t *testing.T) {
+	engine, err := NewEngine(Config{
+		Tickers:        []string{"TEST"},
+		Deposit:        decimal.NewFromInt(100000),
+		MaxLots:        100,
+		CommissionRate: decimal.NewFromInt(3).Div(decimal.NewFromInt(1000)),
+		SignalSource:   holdSource{},
+		Source:         fakeSource{candles: benchCandles(120)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	day := time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC)
+	flat := domain.TradeSignal{Ticker: "TEST", Action: domain.ActionSell, TargetLots: 0, Reasoning: "flat"}
+	if err := engine.recordFill("TEST", flat, decimal.NewFromInt(100), day); err != nil {
+		t.Fatal(err)
+	}
+	if len(engine.positions) != 0 || len(engine.trades) != 0 {
+		t.Fatalf("flat on an empty book must be a no-op, positions=%d trades=%d", len(engine.positions), len(engine.trades))
+	}
+
+	buy5 := domain.TradeSignal{Ticker: "TEST", Action: domain.ActionBuy, TargetLots: 5, Confidence: decimal.NewFromFloat(0.8)}
+	if err := engine.recordFill("TEST", buy5, decimal.NewFromInt(100), day); err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.recordFill("TEST", flat, decimal.NewFromInt(110), day.AddDate(0, 0, 1)); err != nil {
+		t.Fatal(err)
+	}
+	if len(engine.positions) != 0 {
+		t.Fatalf("flat must close the open position, got %+v", engine.positions["TEST"])
+	}
+	if len(engine.trades) != 1 || engine.trades[0].Lots != 5 {
+		t.Fatalf("expected one closed trade of 5 lots, got %+v", engine.trades)
+	}
+}
+
 type fixedTargetSignal struct {
 	action domain.Action
 	lots   int

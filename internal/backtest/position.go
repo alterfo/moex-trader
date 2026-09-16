@@ -14,6 +14,7 @@ type position struct {
 	avg      decimal.Decimal
 	comm     decimal.Decimal
 	openedAt time.Time
+	bars     int
 }
 
 func commissionAmount(price decimal.Decimal, lots int, rate decimal.Decimal) decimal.Decimal {
