@@ -58,15 +58,19 @@ func TestWriteTickerRowMatchesHeader(t *testing.T) {
 	header := []string{"ticker", "date", "label", "label_date", "split", "return_pct", "realized_volatility",
 		"news_sentiment", "news_count", "order_book_imbalance", "mom_5d", "mom_21d", "mom_63d",
 		"reversal_1d", "rsi_14", "dist_ma20_pct", "dist_ma50_pct", "realized_vol_21d_annualized_pct", "volume_zscore_20d",
-		"macd_hist_pct", "stoch_k_14", "williams_r_14", "alligator_spread_pct"}
+		"macd_hist_pct", "stoch_k_14", "williams_r_14", "alligator_spread_pct",
+		"event_dividend", "event_buyback", "event_sanctions", "event_ipo", "event_report", "event_delisting", "event_mna", "event_default"}
 
 	news := model.AggregateDailySentiment([]model.HistoricalNewsRecord{
 		{Ticker: "TEST", PublishedAt: from, Sentiment: 0.75, TrustWeight: 1},
 	})
+	events := model.AggregateDailyEvents([]model.HistoricalNewsRecord{
+		{Ticker: "TEST", PublishedAt: from, TrustWeight: 1, Title: "Дивиденды и выкуп акций утверждены"},
+	})
 	labels := map[string]labeledRow{}
 
 	err := writeTicker(context.Background(), writer, source, features.NewBuilder(time.Now),
-		"TEST", start, till, from, split, defaultHorizonDays, labels, news, header)
+		"TEST", start, till, from, split, defaultHorizonDays, labels, news, events, header)
 	if err != nil {
 		t.Fatalf("writeTicker: %v", err)
 	}

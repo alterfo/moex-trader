@@ -55,6 +55,7 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 	}
 
 	newsSentiment, newsCount := aggregateNewsSentiment(input.News)
+	events := AggregateEvents(input.News)
 
 	generatedAt := b.now()
 	if !input.Price.AsOf.IsZero() {
@@ -88,6 +89,14 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 		StochK14:           pf.StochK14,
 		WilliamsR14:        pf.WilliamsR14,
 		AlligatorSpreadPct: pf.AlligatorSpreadPct,
+		EventDividend:      events.Dividend,
+		EventBuyback:       events.Buyback,
+		EventSanctions:     events.Sanctions,
+		EventIPO:           events.IPO,
+		EventReport:        events.Report,
+		EventDelisting:     events.Delisting,
+		EventMNA:           events.MNA,
+		EventDefault:       events.Default,
 	}, nil
 }
 

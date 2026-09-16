@@ -48,6 +48,7 @@ type options struct {
 	maxLots      int
 	outPath      string
 	newsHistory  string
+	labelMode    string
 }
 
 func main() {
@@ -117,6 +118,7 @@ func run(args []string, stdout io.Writer) error {
 		commissionRate: cfg.Commission.Rate,
 		outPath:        opts.outPath,
 		newsHistory:    opts.newsHistory,
+		labelMode:      model.LabelMode(opts.labelMode),
 		now:            time.Now,
 	}, source, stdout)
 	return err
@@ -151,6 +153,7 @@ func parseOptions(args []string) (options, error) {
 	fs.IntVar(&opts.maxLots, "max-lots", 0, "max lots for validation (default: config risk.max_lots)")
 	fs.StringVar(&opts.outPath, "out", opts.outPath, "path to write trained model JSON")
 	fs.StringVar(&opts.newsHistory, "news-history", "", "path to a finanalys-format news_history.jsonl to override news_sentiment/news_count with real historical values where available")
+	fs.StringVar(&opts.labelMode, "label-mode", "excess", "label target: excess (vs IMOEX) or absolute forward return")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}
@@ -217,6 +220,7 @@ type pipelineConfig struct {
 	commissionRate decimal.Decimal
 	outPath        string
 	newsHistory    string
+	labelMode      model.LabelMode
 	now            func() time.Time
 }
 
@@ -229,7 +233,7 @@ func runPipeline(ctx context.Context, cfg pipelineConfig, source backtest.Histor
 		now = time.Now
 	}
 
-	samples, err := model.BuildSamples(ctx, source, cfg.tickers, cfg.from, cfg.till, cfg.horizonDays, cfg.deadbandPct)
+	samples, err := model.BuildSamples(ctx, source, cfg.tickers, cfg.from, cfg.till, cfg.horizonDays, cfg.deadbandPct, cfg.labelMode)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build samples: %w", err)
 	}

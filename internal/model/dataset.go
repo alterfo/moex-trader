@@ -27,7 +27,14 @@ type LabeledSample struct {
 	LabelDate time.Time
 }
 
-func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64) ([]LabeledSample, error) {
+type LabelMode string
+
+const (
+	LabelModeExcess   LabelMode = "excess"
+	LabelModeAbsolute LabelMode = "absolute"
+)
+
+func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64, mode LabelMode) ([]LabeledSample, error) {
 	if source == nil {
 		return nil, fmt.Errorf("model: historical source is required")
 	}
@@ -36,6 +43,12 @@ func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 	}
 	if deadbandPct < 0 {
 		return nil, fmt.Errorf("model: deadband pct must be non-negative, got %v", deadbandPct)
+	}
+	if mode == "" {
+		mode = LabelModeExcess
+	}
+	if mode != LabelModeExcess && mode != LabelModeAbsolute {
+		return nil, fmt.Errorf("model: unknown label mode %q", mode)
 	}
 	normalized := normalizeTickers(tickers)
 	if len(normalized) == 0 {
@@ -49,14 +62,17 @@ func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 	}
 	fetchFrom := from.AddDate(0, 0, -backtest.DefaultWarmupDays)
 
-	indexCandles, err := source.History(ctx, benchmarkTicker, fetchFrom, till)
-	if err != nil {
-		return nil, fmt.Errorf("model: history %s: %w", benchmarkTicker, err)
+	var indexByDate map[string]moex.Candle
+	if mode == LabelModeExcess {
+		indexCandles, err := source.History(ctx, benchmarkTicker, fetchFrom, till)
+		if err != nil {
+			return nil, fmt.Errorf("model: history %s: %w", benchmarkTicker, err)
+		}
+		if len(indexCandles) == 0 {
+			return nil, fmt.Errorf("model: benchmark %s has no history in the requested window", benchmarkTicker)
+		}
+		indexByDate = indexCandlesByDate(indexCandles)
 	}
-	if len(indexCandles) == 0 {
-		return nil, fmt.Errorf("model: benchmark %s has no history in the requested window", benchmarkTicker)
-	}
-	indexByDate := indexCandlesByDate(indexCandles)
 
 	builder := features.NewBuilder(time.Now)
 	var samples []LabeledSample
@@ -94,23 +110,26 @@ func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 			}
 
 			indexEntry, ok := indexByDate[dateKey(entryCandle.Begin)]
-			if !ok || indexEntry.Open.Sign() <= 0 {
+			if mode == LabelModeExcess && (!ok || indexEntry.Open.Sign() <= 0) {
 				continue
 			}
 			indexExit, ok := indexByDate[dateKey(exitCandle.Begin)]
-			if !ok || indexExit.Close.Sign() <= 0 {
+			if mode == LabelModeExcess && (!ok || indexExit.Close.Sign() <= 0) {
 				continue
 			}
 
 			forwardReturn := exit.Sub(entry).Div(entry).Mul(decimal.NewFromInt(100))
-			indexForwardReturn := indexExit.Close.Sub(indexEntry.Open).Div(indexEntry.Open).Mul(decimal.NewFromInt(100))
-			excessReturn := forwardReturn.Sub(indexForwardReturn)
-			excessPct, _ := excessReturn.Float64()
-			if math.Abs(excessPct) < deadbandPct {
+			labelReturn := forwardReturn
+			if mode == LabelModeExcess {
+				indexForwardReturn := indexExit.Close.Sub(indexEntry.Open).Div(indexEntry.Open).Mul(decimal.NewFromInt(100))
+				labelReturn = forwardReturn.Sub(indexForwardReturn)
+			}
+			labelPct, _ := labelReturn.Float64()
+			if math.Abs(labelPct) < deadbandPct {
 				continue
 			}
 			label := 0.0
-			if excessPct > 0 {
+			if labelPct > 0 {
 				label = 1
 			}
 

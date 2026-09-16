@@ -38,6 +38,7 @@ type options struct {
 	splitStr    string
 	horizonDays int
 	deadbandPct float64
+	labelMode   string
 	outPath     string
 	newsHistory string
 }
@@ -78,13 +79,15 @@ func run(args []string) error {
 	}
 
 	var newsHistory map[string]map[string]model.NewsAggregate
+	var eventHistory map[string]map[string]model.EventAggregate
 	if opts.newsHistory != "" {
 		records, err := model.LoadFinanalysNewsHistory(opts.newsHistory)
 		if err != nil {
 			return fmt.Errorf("load news history: %w", err)
 		}
 		newsHistory = model.AggregateDailySentiment(records)
-		log.Printf("exportdataset: loaded %d historical news records for real news_sentiment/news_count", len(records))
+		eventHistory = model.AggregateDailyEvents(records)
+		log.Printf("exportdataset: loaded %d historical news records for real news_sentiment/news_count and events", len(records))
 	}
 
 	moexClient := moex.NewClient(cfg.MOEXISSBaseURL, nil)
@@ -93,7 +96,7 @@ func run(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	samples, err := model.BuildSamples(ctx, source, tickers, from, till, opts.horizonDays, opts.deadbandPct)
+	samples, err := model.BuildSamples(ctx, source, tickers, from, till, opts.horizonDays, opts.deadbandPct, model.LabelMode(opts.labelMode))
 	if err != nil {
 		return fmt.Errorf("build labeled samples: %w", err)
 	}
@@ -116,7 +119,8 @@ func run(args []string) error {
 	header := []string{"ticker", "date", "label", "label_date", "split", "return_pct", "realized_volatility",
 		"news_sentiment", "news_count", "order_book_imbalance", "mom_5d", "mom_21d", "mom_63d",
 		"reversal_1d", "rsi_14", "dist_ma20_pct", "dist_ma50_pct", "realized_vol_21d_annualized_pct", "volume_zscore_20d",
-		"macd_hist_pct", "stoch_k_14", "williams_r_14", "alligator_spread_pct"}
+		"macd_hist_pct", "stoch_k_14", "williams_r_14", "alligator_spread_pct",
+		"event_dividend", "event_buyback", "event_sanctions", "event_ipo", "event_report", "event_delisting", "event_mna", "event_default"}
 	if err := writer.Write(header); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
@@ -126,7 +130,7 @@ func run(args []string) error {
 			return ctx.Err()
 		}
 		builder := features.NewBuilder(time.Now)
-		if err := writeTicker(ctx, writer, source, builder, ticker, fetchFrom, till, from, split, opts.horizonDays, labelByKey, newsHistory, header); err != nil {
+		if err := writeTicker(ctx, writer, source, builder, ticker, fetchFrom, till, from, split, opts.horizonDays, labelByKey, newsHistory, eventHistory, header); err != nil {
 			return err
 		}
 	}
@@ -140,7 +144,7 @@ type labeledRow struct {
 
 func writeTicker(ctx context.Context, writer *csv.Writer, source backtest.HistoricalSource, builder *features.Builder,
 	ticker string, fetchFrom, till, from, split time.Time, horizonDays int, labels map[string]labeledRow,
-	newsHistory map[string]map[string]model.NewsAggregate, header []string) error {
+	newsHistory map[string]map[string]model.NewsAggregate, eventHistory map[string]map[string]model.EventAggregate, header []string) error {
 	candles, err := source.History(ctx, ticker, fetchFrom, till)
 	if err != nil {
 		return fmt.Errorf("history %s: %w", ticker, err)
@@ -176,6 +180,18 @@ func writeTicker(ctx context.Context, writer *csv.Writer, source backtest.Histor
 			if agg, ok := byDate[dateKey(decisionDay)]; ok {
 				feature.NewsSentiment = decimal.NewFromFloat(agg.Sentiment)
 				feature.NewsCount = agg.Count
+			}
+		}
+		if byDate, ok := eventHistory[ticker]; ok {
+			if agg, ok := byDate[dateKey(decisionDay)]; ok {
+				feature.EventDividend = agg.Dividend
+				feature.EventBuyback = agg.Buyback
+				feature.EventSanctions = agg.Sanctions
+				feature.EventIPO = agg.IPO
+				feature.EventReport = agg.Report
+				feature.EventDelisting = agg.Delisting
+				feature.EventMNA = agg.MNA
+				feature.EventDefault = agg.Default
 			}
 		}
 		vec, _ := model.ToVector(feature)
@@ -232,6 +248,7 @@ func parseOptions(args []string) (options, error) {
 	fs.StringVar(&opts.splitStr, "split", "", "train/val split YYYY-MM-DD")
 	fs.IntVar(&opts.horizonDays, "horizon-days", opts.horizonDays, "forward-return horizon")
 	fs.Float64Var(&opts.deadbandPct, "deadband-pct", opts.deadbandPct, "label deadband percent")
+	fs.StringVar(&opts.labelMode, "label-mode", "excess", "label target: excess (vs IMOEX) or absolute forward return")
 	fs.StringVar(&opts.outPath, "out", "dataset.csv", "output CSV path")
 	fs.StringVar(&opts.newsHistory, "news-history", "", "path to a finanalys-format news_history.jsonl to override news_sentiment/news_count with real historical values where available")
 	if err := fs.Parse(args); err != nil {

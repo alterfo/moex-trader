@@ -1,11 +1,14 @@
 package backtest
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"math"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -83,6 +86,108 @@ type Config struct {
 	SignalSource          SignalSource
 	Source                HistoricalSource
 	Logger                *log.Logger
+	NewsOverrides         map[string]map[string]NewsAggregate
+	EventOverrides        map[string]map[string]features.EventFlags
+}
+
+type NewsAggregate struct {
+	Sentiment float64
+	Count     int
+}
+
+type EventOverrides struct {
+	News     map[string]map[string]NewsAggregate
+	Events   map[string]map[string]features.EventFlags
+}
+
+func LoadNewsOverrides(path string) (map[string]map[string]NewsAggregate, map[string]map[string]features.EventFlags, error) {
+	type record struct {
+		Ticker    string  `json:"ticker"`
+		Sentiment float64 `json:"sentiment"`
+		PubTS     int64   `json:"published_ts"`
+		Title     string  `json:"title"`
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("backtest: open news history: %w", err)
+	}
+	defer f.Close()
+	type accum struct {
+		wSum float64
+		w    float64
+		n    int
+	}
+	acc := make(map[string]map[string]*accum)
+	evAcc := make(map[string]map[string]*features.EventFlags)
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 1<<20), 1<<20)
+	for scanner.Scan() {
+		var r record
+		if err := json.Unmarshal(scanner.Bytes(), &r); err != nil {
+			continue
+		}
+		if r.Ticker == "" || r.PubTS <= 0 {
+			continue
+		}
+		ticker := strings.ToUpper(strings.TrimSpace(r.Ticker))
+		date := time.Unix(r.PubTS, 0).UTC().Format("2006-01-02")
+		byDate, ok := acc[ticker]
+		if !ok {
+			byDate = make(map[string]*accum)
+			acc[ticker] = byDate
+		}
+		a, ok := byDate[date]
+		if !ok {
+			a = &accum{}
+			byDate[date] = a
+		}
+		a.wSum += r.Sentiment
+		a.w += 1.0
+		a.n++
+		if r.Title != "" {
+			flags := features.DetectEvents(r.Title)
+			evByDate, ok := evAcc[ticker]
+			if !ok {
+				evByDate = make(map[string]*features.EventFlags)
+				evAcc[ticker] = evByDate
+			}
+			ea, ok := evByDate[date]
+			if !ok {
+				ea = &features.EventFlags{}
+				evByDate[date] = ea
+			}
+			ea.Dividend += flags.Dividend
+			ea.Buyback += flags.Buyback
+			ea.Sanctions += flags.Sanctions
+			ea.IPO += flags.IPO
+			ea.Report += flags.Report
+			ea.Delisting += flags.Delisting
+			ea.MNA += flags.MNA
+			ea.Default += flags.Default
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, nil, fmt.Errorf("backtest: read news: %w", err)
+	}
+	out := make(map[string]map[string]NewsAggregate, len(acc))
+	for ticker, byDate := range acc {
+		out[ticker] = make(map[string]NewsAggregate, len(byDate))
+		for d, a := range byDate {
+			sent := 0.0
+			if a.w > 0 {
+				sent = a.wSum / a.w
+			}
+			out[ticker][d] = NewsAggregate{Sentiment: sent, Count: a.n}
+		}
+	}
+	evOut := make(map[string]map[string]features.EventFlags, len(evAcc))
+	for ticker, byDate := range evAcc {
+		evOut[ticker] = make(map[string]features.EventFlags, len(byDate))
+		for d, a := range byDate {
+			evOut[ticker][d] = *a
+		}
+	}
+	return out, evOut, nil
 }
 
 func (c Config) WithDefaults() Config {
@@ -264,6 +369,31 @@ func (e *Engine) runTicker(ctx context.Context, ticker string) (map[time.Time]de
 		if err != nil {
 			e.cfg.Logger.Printf("backtest: %s on %s: build features: %v", ticker, decisionDay.Format("2006-01-02"), err)
 			continue
+		}
+
+		if e.cfg.NewsOverrides != nil {
+			dateKey := decisionDay.Format("2006-01-02")
+			if byDate, ok := e.cfg.NewsOverrides[ticker]; ok {
+				if agg, ok := byDate[dateKey]; ok {
+					feature.NewsSentiment = decimal.NewFromFloat(agg.Sentiment)
+					feature.NewsCount = agg.Count
+				}
+			}
+		}
+		if e.cfg.EventOverrides != nil {
+			dateKey := decisionDay.Format("2006-01-02")
+			if byDate, ok := e.cfg.EventOverrides[ticker]; ok {
+				if ev, ok := byDate[dateKey]; ok {
+					feature.EventDividend = ev.Dividend
+					feature.EventBuyback = ev.Buyback
+					feature.EventSanctions = ev.Sanctions
+					feature.EventIPO = ev.IPO
+					feature.EventReport = ev.Report
+					feature.EventDelisting = ev.Delisting
+					feature.EventMNA = ev.MNA
+					feature.EventDefault = ev.Default
+				}
+			}
 		}
 
 		reason := domain.HoldReasonModel

@@ -60,6 +60,14 @@ type FeatureContext struct {
 	StochK14           decimal.Decimal `json:"stoch_k_14"`
 	WilliamsR14        decimal.Decimal `json:"williams_r_14"`
 	AlligatorSpreadPct decimal.Decimal `json:"alligator_spread_pct"`
+	EventDividend      int             `json:"event_dividend"`
+	EventBuyback       int             `json:"event_buyback"`
+	EventSanctions     int             `json:"event_sanctions"`
+	EventIPO           int             `json:"event_ipo"`
+	EventReport        int             `json:"event_report"`
+	EventDelisting     int             `json:"event_delisting"`
+	EventMNA           int             `json:"event_mna"`
+	EventDefault       int             `json:"event_default"`
 }
 
 type TradeSignal struct {

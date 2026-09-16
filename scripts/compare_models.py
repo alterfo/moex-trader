@@ -18,6 +18,8 @@ FEATURES = [
     "rsi_14", "dist_ma20_pct", "dist_ma50_pct", "realized_vol_21d_annualized_pct",
     "volume_zscore_20d", "macd_hist_pct", "stoch_k_14", "williams_r_14",
     "alligator_spread_pct",
+    "event_dividend", "event_buyback", "event_sanctions", "event_ipo",
+    "event_report", "event_delisting", "event_mna", "event_default",
 ]
 
 DATA = os.environ.get("DATASET", "/tmp/moex-dataset.csv")

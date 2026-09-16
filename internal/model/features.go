@@ -21,6 +21,14 @@ var defaultFeatureOrder = []string{
 	"stoch_k_14",
 	"williams_r_14",
 	"alligator_spread_pct",
+	"event_dividend",
+	"event_buyback",
+	"event_sanctions",
+	"event_ipo",
+	"event_report",
+	"event_delisting",
+	"event_mna",
+	"event_default",
 }
 
 func ToVector(f domain.FeatureContext) ([]float64, []string) {
@@ -43,6 +51,14 @@ func ToVector(f domain.FeatureContext) ([]float64, []string) {
 		f.StochK14.InexactFloat64(),
 		f.WilliamsR14.InexactFloat64(),
 		f.AlligatorSpreadPct.InexactFloat64(),
+		float64(f.EventDividend),
+		float64(f.EventBuyback),
+		float64(f.EventSanctions),
+		float64(f.EventIPO),
+		float64(f.EventReport),
+		float64(f.EventDelisting),
+		float64(f.EventMNA),
+		float64(f.EventDefault),
 	}
 	return values, append([]string(nil), defaultFeatureOrder...)
 }

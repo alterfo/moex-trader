@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/shopspring/decimal"
+
+	"github.com/olegsidorkin/moex-trader/internal/features"
 )
 
 type HistoricalNewsRecord struct {
@@ -17,6 +19,7 @@ type HistoricalNewsRecord struct {
 	PublishedAt time.Time
 	Sentiment   float64
 	TrustWeight float64
+	Title       string
 }
 
 type finanalysNewsLine struct {
@@ -25,6 +28,7 @@ type finanalysNewsLine struct {
 	TrustWeight float64 `json:"trust_weight"`
 	PublishedTS int64   `json:"published_ts"`
 	Sentiment   float64 `json:"sentiment"`
+	Title       string  `json:"title"`
 }
 
 func LoadFinanalysNewsHistory(path string) ([]HistoricalNewsRecord, error) {
@@ -56,13 +60,14 @@ func LoadFinanalysNewsHistory(path string) ([]HistoricalNewsRecord, error) {
 		if trustWeight <= 0 {
 			trustWeight = 1
 		}
-		records = append(records, HistoricalNewsRecord{
-			Ticker:      ticker,
-			ArticleID:   raw.ArticleID,
-			PublishedAt: time.Unix(raw.PublishedTS, 0).UTC(),
-			Sentiment:   raw.Sentiment,
-			TrustWeight: trustWeight,
-		})
+records = append(records, HistoricalNewsRecord{
+		Ticker:      ticker,
+		ArticleID:   raw.ArticleID,
+		PublishedAt: time.Unix(raw.PublishedTS, 0).UTC(),
+		Sentiment:   raw.Sentiment,
+		TrustWeight: trustWeight,
+		Title:       raw.Title,
+	})
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("model: read news history %q: %w", path, err)
@@ -168,4 +173,83 @@ func indexOfName(names []string, target string) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+type EventAggregate struct {
+	Dividend  int
+	Buyback   int
+	Sanctions int
+	IPO       int
+	Report    int
+	Delisting int
+	MNA       int
+	Default   int
+}
+
+func AggregateDailyEvents(records []HistoricalNewsRecord) map[string]map[string]EventAggregate {
+	acc := make(map[string]map[string]*EventAggregate)
+	for _, r := range records {
+		if r.TrustWeight <= 0 || r.Title == "" {
+			continue
+		}
+		events := features.DetectEvents(r.Title)
+		if events == (features.EventFlags{}) {
+			continue
+		}
+		date := dateKey(r.PublishedAt)
+		byDate, ok := acc[r.Ticker]
+		if !ok {
+			byDate = make(map[string]*EventAggregate)
+			acc[r.Ticker] = byDate
+		}
+		a, ok := byDate[date]
+		if !ok {
+			a = &EventAggregate{}
+			byDate[date] = a
+		}
+		a.Dividend += events.Dividend
+		a.Buyback += events.Buyback
+		a.Sanctions += events.Sanctions
+		a.IPO += events.IPO
+		a.Report += events.Report
+		a.Delisting += events.Delisting
+		a.MNA += events.MNA
+		a.Default += events.Default
+	}
+	out := make(map[string]map[string]EventAggregate, len(acc))
+	for ticker, byDate := range acc {
+		out[ticker] = make(map[string]EventAggregate, len(byDate))
+		for d, a := range byDate {
+			out[ticker][d] = EventAggregate{
+				Dividend: a.Dividend, Buyback: a.Buyback, Sanctions: a.Sanctions,
+				IPO: a.IPO, Report: a.Report, Delisting: a.Delisting,
+				MNA: a.MNA, Default: a.Default,
+			}
+		}
+	}
+	return out
+}
+
+func ApplyEventOverrides(samples []LabeledSample, events map[string]map[string]EventAggregate) int {
+	applied := 0
+	for i := range samples {
+		byDate, ok := events[samples[i].Feature.Ticker]
+		if !ok {
+			continue
+		}
+		agg, ok := byDate[dateKey(samples[i].Feature.GeneratedAt)]
+		if !ok {
+			continue
+		}
+		samples[i].Feature.EventDividend = agg.Dividend
+		samples[i].Feature.EventBuyback = agg.Buyback
+		samples[i].Feature.EventSanctions = agg.Sanctions
+		samples[i].Feature.EventIPO = agg.IPO
+		samples[i].Feature.EventReport = agg.Report
+		samples[i].Feature.EventDelisting = agg.Delisting
+		samples[i].Feature.EventMNA = agg.MNA
+		samples[i].Feature.EventDefault = agg.Default
+		applied++
+	}
+	return applied
 }

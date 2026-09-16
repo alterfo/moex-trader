@@ -19,6 +19,7 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/backtest"
 	"github.com/olegsidorkin/moex-trader/internal/config"
 	"github.com/olegsidorkin/moex-trader/internal/domain"
+	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/model"
 )
@@ -55,6 +56,7 @@ func run() error {
 	var csvProbCol string
 	var csvBuyPct, csvSellPct float64
 	var ensemblePath string
+	var newsHistory string
 
 	flag.StringVar(&configPath, "config", "config.yaml", "path to config YAML")
 	flag.StringVar(&fromStr, "from", "", "backtest start date YYYY-MM-DD (default: one year ago)")
@@ -76,6 +78,7 @@ func run() error {
 	flag.Float64Var(&csvBuyPct, "csv-buy-pct", 0.55, "csvprob: probability at/above which to BUY")
 	flag.Float64Var(&csvSellPct, "csv-sell-pct", 0.45, "csvprob: probability at/below which to SELL")
 	flag.StringVar(&ensemblePath, "ensemble-path", "", "ensemble: path to exported LGBM+XGB+LogReg model JSON")
+	flag.StringVar(&newsHistory, "news-history", "", "load historical news sentiment/count overrides from finanalys-format JSONL")
 	flag.Parse()
 
 	deposit, err := decimal.NewFromString(depositStr)
@@ -116,6 +119,16 @@ func run() error {
 	moexClient := moex.NewClient(cfg.MOEXISSBaseURL, nil)
 	source := backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
 
+	var newsOverrides map[string]map[string]backtest.NewsAggregate
+	var eventOverrides map[string]map[string]features.EventFlags
+	if newsHistory != "" {
+		newsOverrides, eventOverrides, err = backtest.LoadNewsOverrides(newsHistory)
+		if err != nil {
+			return err
+		}
+		log.Printf("backtest: loaded %d tickers of news + event overrides from %s", len(newsOverrides), newsHistory)
+	}
+
 	signalSource, saveCache, err := buildSignalSource(cfg, signalSourceOptions{
 		Mode:                 signalSourceName,
 		ModelPath:            modelPath,
@@ -152,6 +165,8 @@ func run() error {
 		KillSwitch:            killSwitch,
 		SignalSource:          signalSource,
 		Source:                source,
+		NewsOverrides:         newsOverrides,
+		EventOverrides:        eventOverrides,
 	})
 	if err != nil {
 		return err

@@ -77,6 +77,7 @@ func TestBuildSamplesUpAndDownLabels(t *testing.T) {
 		time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
 		5,
 		0.5,
+		LabelModeExcess,
 	)
 	if err != nil {
 		t.Fatalf("BuildSamples failed: %v", err)
@@ -119,6 +120,7 @@ func TestBuildSamplesSkipsInsufficientFutureData(t *testing.T) {
 		time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
 		10,
 		0.5,
+		LabelModeExcess,
 	)
 	if err != nil {
 		t.Fatalf("BuildSamples failed: %v", err)
@@ -149,6 +151,7 @@ func TestBuildSamplesDeadbandExclusion(t *testing.T) {
 		time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
 		5,
 		0.5,
+		LabelModeExcess,
 	)
 	if err != nil {
 		t.Fatalf("BuildSamples failed: %v", err)
@@ -165,6 +168,7 @@ func TestBuildSamplesDeadbandExclusion(t *testing.T) {
 		time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
 		5,
 		0,
+		LabelModeExcess,
 	)
 	if err != nil {
 		t.Fatalf("BuildSamples failed: %v", err)
@@ -202,6 +206,7 @@ func TestBuildSamplesLabelIsExcessOverBenchmark(t *testing.T) {
 		time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
 		5,
 		0,
+		LabelModeExcess,
 	)
 	if err != nil {
 		t.Fatalf("BuildSamples failed: %v", err)
@@ -216,6 +221,71 @@ func TestBuildSamplesLabelIsExcessOverBenchmark(t *testing.T) {
 	}
 }
 
+func TestBuildSamplesAbsoluteModeDoesNotRequireBenchmark(t *testing.T) {
+	source := datasetSource{series: map[string][]moex.Candle{
+		"UP": trendCandles(80, true),
+	}}
+
+	samples, err := BuildSamples(
+		context.Background(),
+		source,
+		[]string{"UP"},
+		time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
+		5,
+		0.5,
+		LabelModeAbsolute,
+	)
+	if err != nil {
+		t.Fatalf("BuildSamples failed: %v", err)
+	}
+	if len(samples) == 0 {
+		t.Fatal("absolute mode without benchmark history returned no samples")
+	}
+	for _, sample := range samples {
+		if sample.Label != 1 {
+			t.Fatalf("rising ticker label = %v, want 1 in absolute mode", sample.Label)
+		}
+	}
+}
+
+func TestBuildSamplesAbsoluteLabelDiffersFromExcess(t *testing.T) {
+	flat := trendCandles(80, true)
+	for i := range flat {
+		flat[i].Open = decimal.NewFromInt(100)
+		flat[i].Close = decimal.NewFromInt(100)
+		flat[i].High = decimal.NewFromInt(101)
+		flat[i].Low = decimal.NewFromInt(99)
+	}
+
+	source := datasetSource{series: map[string][]moex.Candle{
+		"FLAT":  flat,
+		"IMOEX": trendCandles(80, false),
+	}}
+
+	absolute, err := BuildSamples(
+		context.Background(),
+		source,
+		[]string{"FLAT"},
+		time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
+		5,
+		0,
+		LabelModeAbsolute,
+	)
+	if err != nil {
+		t.Fatalf("BuildSamples failed: %v", err)
+	}
+	if len(absolute) == 0 {
+		t.Fatal("absolute mode returned no samples")
+	}
+	for _, sample := range absolute {
+		if sample.Label != 0 {
+			t.Fatalf("flat ticker absolute label = %v, want 0 while excess mode labels the same row 1", sample.Label)
+		}
+	}
+}
+
 func TestBuildSamplesMissingBenchmarkFails(t *testing.T) {
 	source := datasetSource{series: map[string][]moex.Candle{"UP": trendCandles(80, true)}}
 	_, err := BuildSamples(
@@ -226,6 +296,7 @@ func TestBuildSamplesMissingBenchmarkFails(t *testing.T) {
 		time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
 		5,
 		0.5,
+		LabelModeExcess,
 	)
 	if err == nil {
 		t.Fatal("missing IMOEX benchmark history did not return an error")
@@ -240,17 +311,20 @@ func TestBuildSamplesValidation(t *testing.T) {
 	from := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	till := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
 
-	if _, err := BuildSamples(context.Background(), nil, []string{"UP"}, from, till, 5, 0.5); err == nil {
+	if _, err := BuildSamples(context.Background(), nil, []string{"UP"}, from, till, 5, 0.5, LabelModeExcess); err == nil {
 		t.Fatal("nil source did not return an error")
 	}
-	if _, err := BuildSamples(context.Background(), source, nil, from, till, 5, 0.5); err == nil {
+	if _, err := BuildSamples(context.Background(), source, nil, from, till, 5, 0.5, LabelModeExcess); err == nil {
 		t.Fatal("empty tickers did not return an error")
 	}
-	if _, err := BuildSamples(context.Background(), source, []string{"UP"}, from, till, 0, 0.5); err == nil {
+	if _, err := BuildSamples(context.Background(), source, []string{"UP"}, from, till, 0, 0.5, LabelModeExcess); err == nil {
 		t.Fatal("non-positive horizon did not return an error")
 	}
-	if _, err := BuildSamples(context.Background(), source, []string{"UP"}, from, till, 5, -1); err == nil {
+	if _, err := BuildSamples(context.Background(), source, []string{"UP"}, from, till, 5, -1, LabelModeExcess); err == nil {
 		t.Fatal("negative deadband did not return an error")
+	}
+	if _, err := BuildSamples(context.Background(), source, []string{"UP"}, from, till, 5, 0.5, LabelMode("bogus")); err == nil {
+		t.Fatal("unknown label mode did not return an error")
 	}
 }
 
@@ -274,16 +348,24 @@ func TestToVector(t *testing.T) {
 		StochK14:           decimal.NewFromFloat(15),
 		WilliamsR14:        decimal.NewFromFloat(16),
 		AlligatorSpreadPct: decimal.NewFromFloat(17),
+		EventDividend:      1,
+		EventBuyback:       2,
+		EventSanctions:     3,
+		EventIPO:           4,
+		EventReport:        5,
+		EventDelisting:     6,
+		EventMNA:           7,
+		EventDefault:       8,
 	}
 
 	values, names := ToVector(feature)
-	if len(values) != 18 || len(names) != 18 {
-		t.Fatalf("ToVector returned %d values and %d names, want 18/18", len(values), len(names))
+	if len(values) != 26 || len(names) != 26 {
+		t.Fatalf("ToVector returned %d values and %d names, want 26/26", len(values), len(names))
 	}
 	if !equalStrings(names, defaultFeatureOrder) {
 		t.Fatalf("names = %v, want %v", names, defaultFeatureOrder)
 	}
-	want := []float64{1.25, 2.5, 0.75, 7, -0.4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}
+	want := []float64{1.25, 2.5, 0.75, 7, -0.4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 1, 2, 3, 4, 5, 6, 7, 8}
 	for i := range want {
 		if values[i] != want[i] {
 			t.Fatalf("values[%d] = %v, want %v", i, values[i], want[i])
