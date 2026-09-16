@@ -116,7 +116,7 @@ func run(args []string) error {
 	}
 	labelByKey := make(map[string]labeledRow, len(samples))
 	for _, sample := range samples {
-		key := sample.Feature.Ticker + "|" + dateKey(sample.Feature.GeneratedAt)
+		key := sample.Feature.Ticker + "|" + barKey(sample.Feature.GeneratedAt)
 		labelByKey[key] = labeledRow{label: sample.Label, date: sample.LabelDate}
 	}
 
@@ -212,7 +212,7 @@ func writeTicker(ctx context.Context, writer *csv.Writer, source backtest.Histor
 			}
 		}
 		vec, _ := model.ToVector(feature)
-		key := ticker + "|" + dateKey(decisionDay)
+		key := ticker + "|" + barKey(decisionDay)
 		row := make([]string, len(header))
 		row[0] = ticker
 		row[1] = dateKey(decisionDay)
@@ -248,6 +248,15 @@ func formatFloat(value float64) string {
 
 func dateKey(t time.Time) string {
 	return t.Format("2006-01-02")
+}
+
+// barKey identifies one candle within a ticker for label matching. It keeps
+// the time of day, unlike dateKey: intraday datasets have many decision bars
+// per calendar date, and a date-only key would collapse them so every bar of
+// a day inherited the same (last) label. News/event overrides keep using
+// dateKey - those are daily by nature.
+func barKey(t time.Time) string {
+	return t.Format("2006-01-02 15:04:05")
 }
 
 func parseOptions(args []string) (options, error) {

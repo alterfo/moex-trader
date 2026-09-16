@@ -44,6 +44,73 @@ func makeCandles(start time.Time, count int, step int) []moex.Candle {
 	return candles
 }
 
+func makeIntradayCandles(start time.Time, count, stepMinutes int) []moex.Candle {
+	candles := make([]moex.Candle, 0, count)
+	price := 100
+	for i := 0; i < count; i++ {
+		open := decimal.NewFromInt(int64(price))
+		price += 1
+		closePx := decimal.NewFromInt(int64(price))
+		begin := start.Add(time.Duration(i*stepMinutes) * time.Minute)
+		candles = append(candles, moex.Candle{
+			Open:   open,
+			High:   closePx.Add(decimal.NewFromInt(1)),
+			Low:    open,
+			Close:  closePx,
+			Volume: decimal.NewFromInt(1000),
+			Begin:  begin,
+			End:    begin,
+		})
+	}
+	return candles
+}
+
+// Regression: intraday datasets have many decision bars per calendar date, so
+// a date-only label key collapsed them and every bar of a day inherited one
+// label. Two bars on the same date must keep their distinct labels.
+func TestWriteTickerKeysLabelsPerBarWithinADay(t *testing.T) {
+	start := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	candles := makeIntradayCandles(start, 14, 10)
+	source := &fakeSource{candles: map[string][]moex.Candle{"TEST": candles}}
+
+	var buf bytes.Buffer
+	writer := csv.NewWriter(&buf)
+	header := []string{"ticker", "date", "label", "label_date", "split", "return_pct", "realized_volatility",
+		"news_sentiment", "news_count", "order_book_imbalance", "mom_5d", "mom_21d", "mom_63d",
+		"reversal_1d", "rsi_14", "dist_ma20_pct", "dist_ma50_pct", "realized_vol_21d_annualized_pct", "volume_zscore_20d",
+		"macd_hist_pct", "stoch_k_14", "williams_r_14", "alligator_spread_pct",
+		"event_dividend", "event_buyback", "event_sanctions", "event_ipo", "event_report", "event_delisting", "event_mna", "event_default"}
+
+	const warmup = 10
+	from := start
+	till := candles[len(candles)-1].Begin
+	labels := map[string]labeledRow{
+		"TEST|" + barKey(candles[warmup].Begin):   {label: 1, date: candles[warmup].Begin},
+		"TEST|" + barKey(candles[warmup+1].Begin): {label: 0, date: candles[warmup+1].Begin},
+	}
+
+	err := writeTicker(context.Background(), writer, source, features.NewBuilder(time.Now),
+		"TEST", start, till, from, from, defaultHorizonDays, warmup, labels, nil, nil, header)
+	if err != nil {
+		t.Fatalf("writeTicker: %v", err)
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		t.Fatalf("writer: %v", err)
+	}
+
+	rows, err := csv.NewReader(strings.NewReader(buf.String())).ReadAll()
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if len(rows) < 2 {
+		t.Fatalf("expected at least 2 labeled rows, got %d rows", len(rows))
+	}
+	if rows[0][2] != "1" || rows[1][2] != "0" {
+		t.Fatalf("same-date bars got labels %q and %q, want 1 and 0 - labels collapsed to a date key", rows[0][2], rows[1][2])
+	}
+}
+
 func TestWriteTickerRowMatchesHeader(t *testing.T) {
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	source := &fakeSource{candles: map[string][]moex.Candle{
