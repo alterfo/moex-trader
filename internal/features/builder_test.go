@@ -1,6 +1,7 @@
 package features
 
 import (
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -354,6 +355,50 @@ func TestComputePriceFeatures(t *testing.T) {
 	}
 	if pf.RealizedVol21dPct.Sign() <= 0 {
 		t.Fatal("expected positive realized vol")
+	}
+}
+
+func TestComputePriceFeaturesLookbackIsBoundedAndConverged(t *testing.T) {
+	// A long, realistic-looking price series (mild upward drift with noise)
+	// so MACD/Alligator have something non-trivial to converge on.
+	const total = 5000
+	candles := make([]moex.Candle, total)
+	price := 100.0
+	for i := 0; i < total; i++ {
+		price += 0.03 + 0.5*math.Sin(float64(i)/17.0)
+		candles[i] = moex.Candle{
+			Close: decimal.NewFromFloat(price),
+			High:  decimal.NewFromFloat(price + 1),
+			Low:   decimal.NewFromFloat(price - 1),
+		}
+	}
+
+	start := time.Now()
+	full := ComputePriceFeatures(candles)
+	elapsed := time.Since(start)
+	if elapsed > 200*time.Millisecond {
+		t.Fatalf("ComputePriceFeatures on %d candles took %s, want it bounded by maxIndicatorLookbackCandles regardless of history length", total, elapsed)
+	}
+
+	// Computing on exactly the bounded tail must give the identical result:
+	// this is what makes truncating inside ComputePriceFeatures safe.
+	truncated := ComputePriceFeatures(candles[total-maxIndicatorLookbackCandles:])
+	if !full.MACDHistPct.Equal(truncated.MACDHistPct) {
+		t.Errorf("MACDHistPct = %s with full history, %s with the bounded tail alone, want equal", full.MACDHistPct, truncated.MACDHistPct)
+	}
+	if !full.AlligatorSpreadPct.Equal(truncated.AlligatorSpreadPct) {
+		t.Errorf("AlligatorSpreadPct = %s with full history, %s with the bounded tail alone, want equal", full.AlligatorSpreadPct, truncated.AlligatorSpreadPct)
+	}
+
+	// And the truncation must not have drifted MACD from what a from-scratch
+	// EMA over a much longer, but still bounded, warmup would produce -
+	// guards against maxIndicatorLookbackCandles being too small to let the
+	// EMA/SMMA seed value decay to numerical irrelevance.
+	longerWarmup := ComputePriceFeatures(candles[total-maxIndicatorLookbackCandles-500:])
+	diff := full.MACDHistPct.Sub(longerWarmup.MACDHistPct).Abs()
+	if diff.GreaterThan(decimal.NewFromFloat(0.01)) {
+		t.Errorf("MACDHistPct = %s at %d-bar lookback vs %s with 500 extra warmup bars, diff %s exceeds tolerance - lookback may be too short to converge",
+			full.MACDHistPct, maxIndicatorLookbackCandles, longerWarmup.MACDHistPct, diff)
 	}
 }
 

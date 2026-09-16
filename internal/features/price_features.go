@@ -130,7 +130,22 @@ type PriceFeatures struct {
 	AlligatorSpreadPct decimal.Decimal
 }
 
+// maxIndicatorLookbackCandles bounds how much history ComputePriceFeatures
+// ever looks at. Every indicator here needs at most 63 trailing candles
+// (Mom63d) except the EMA/SMMA-based ones (MACD, Alligator), which are
+// recursive and technically depend on the entire series — but their seed
+// value's influence decays geometrically (EMA-26/SMMA-13 have a per-step
+// decay around 0.92-0.93), so after a few hundred bars the exact seed is
+// numerically irrelevant. 300 bars leaves a wide convergence margin while
+// keeping this function's cost bounded instead of growing with the ticker's
+// full history — callers that scan history day-by-day (backtests, training)
+// would otherwise pay O(history_length) per day, i.e. O(n^2) overall.
+const maxIndicatorLookbackCandles = 300
+
 func ComputePriceFeatures(candles []moex.Candle) PriceFeatures {
+	if len(candles) > maxIndicatorLookbackCandles {
+		candles = candles[len(candles)-maxIndicatorLookbackCandles:]
+	}
 	closes := make([]decimal.Decimal, 0, len(candles))
 	volumes := make([]decimal.Decimal, 0, len(candles))
 	for _, c := range candles {
