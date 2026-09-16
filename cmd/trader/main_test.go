@@ -3,10 +3,12 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"math"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -67,9 +69,10 @@ func openTraderTestStore(t *testing.T) *storage.Store {
 }
 
 type fakeSandboxClient struct {
-	closed        bool
-	resolveUID    func(ctx context.Context, ticker string) (string, error)
-	tradingStatus func(ctx context.Context, instrumentID string) (*pb.GetTradingStatusResponse, error)
+	closed         bool
+	resolveUID     func(ctx context.Context, ticker string) (string, error)
+	tradingStatus  func(ctx context.Context, instrumentID string) (*pb.GetTradingStatusResponse, error)
+	resolveLotSize func(ctx context.Context, instrumentUID string) (int32, error)
 }
 
 func (f *fakeSandboxClient) ResolveInstrumentUID(ctx context.Context, ticker string) (string, error) {
@@ -84,6 +87,13 @@ func (f *fakeSandboxClient) TradingStatus(ctx context.Context, instrumentID stri
 		return f.tradingStatus(ctx, instrumentID)
 	}
 	return nil, fmt.Errorf("unexpected TradingStatus call")
+}
+
+func (f *fakeSandboxClient) ResolveLotSize(ctx context.Context, instrumentUID string) (int32, error) {
+	if f.resolveLotSize != nil {
+		return f.resolveLotSize(ctx, instrumentUID)
+	}
+	return 0, fmt.Errorf("unexpected ResolveLotSize call")
 }
 
 func (f *fakeSandboxClient) SandboxAccounts(context.Context) ([]*pb.Account, error) {
@@ -697,6 +707,101 @@ func TestNewModelSignalSourceWiresIntoOrchestrator(t *testing.T) {
 	}
 }
 
+func TestNewModelSignalSourceWiresTargetNotionalForEnsemble(t *testing.T) {
+	_, names := model.ToVector(domain.FeatureContext{})
+	ensemble := struct {
+		FeatureOrder  []string `json:"feature_order"`
+		BuyThreshold  float64  `json:"buy_threshold"`
+		SellThreshold float64  `json:"sell_threshold"`
+	}{
+		FeatureOrder:  names,
+		BuyThreshold:  0.6,
+		SellThreshold: 0.4,
+	}
+	raw, err := json.Marshal(ensemble)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	ensemblePath := filepath.Join(t.TempDir(), "ensemble_model.json")
+	if err := os.WriteFile(ensemblePath, raw, 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	cfg := &config.Config{
+		Model: config.Model{EnsemblePath: ensemblePath},
+		Risk:  config.Risk{MaxLots: 100000, TargetNotional: decimal.NewFromInt(15000)},
+	}
+	source, err := newModelSignalSource(cfg)
+	if err != nil {
+		t.Fatalf("newModelSignalSource() error = %v", err)
+	}
+	ensembleSource, ok := source.(*model.EnsembleSignalSource)
+	if !ok {
+		t.Fatalf("newModelSignalSource() returned %T, want *model.EnsembleSignalSource", source)
+	}
+	if !ensembleSource.TargetNotional.Equal(cfg.Risk.TargetNotional) {
+		t.Fatalf("newModelSignalSource() target notional = %s, want %s", ensembleSource.TargetNotional, cfg.Risk.TargetNotional)
+	}
+	if ensembleSource.MaxLots != cfg.Risk.MaxLots {
+		t.Fatalf("newModelSignalSource() max lots = %d, want %d", ensembleSource.MaxLots, cfg.Risk.MaxLots)
+	}
+}
+
+type fakeLotSizeResolver struct {
+	lot decimal.Decimal
+	err error
+}
+
+func (f fakeLotSizeResolver) ResolveLotSize(context.Context, string) (decimal.Decimal, error) {
+	return f.lot, f.err
+}
+
+type featureCapturingSignalSource struct {
+	feature domain.FeatureContext
+}
+
+func (s *featureCapturingSignalSource) Generate(_ context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
+	s.feature = feature
+	return domain.TradeSignal{}, nil
+}
+
+func TestLotSizeSignalSourceFillsMissingLotSize(t *testing.T) {
+	inner := &featureCapturingSignalSource{}
+	source := newLotSizeSignalSource(inner, fakeLotSizeResolver{lot: decimal.NewFromInt(10)}, log.Default())
+
+	if _, err := source.Generate(context.Background(), domain.FeatureContext{Ticker: "SBER"}); err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if !inner.feature.LotSize.Equal(decimal.NewFromInt(10)) {
+		t.Fatalf("LotSize = %s, want 10", inner.feature.LotSize)
+	}
+}
+
+func TestLotSizeSignalSourceDoesNotOverwriteExistingLotSize(t *testing.T) {
+	inner := &featureCapturingSignalSource{}
+	resolver := fakeLotSizeResolver{lot: decimal.NewFromInt(10)}
+	source := newLotSizeSignalSource(inner, resolver, log.Default())
+
+	if _, err := source.Generate(context.Background(), domain.FeatureContext{Ticker: "SBER", LotSize: decimal.NewFromInt(1)}); err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if !inner.feature.LotSize.Equal(decimal.NewFromInt(1)) {
+		t.Fatalf("LotSize = %s, want unchanged 1", inner.feature.LotSize)
+	}
+}
+
+func TestLotSizeSignalSourceContinuesOnResolveError(t *testing.T) {
+	inner := &featureCapturingSignalSource{}
+	source := newLotSizeSignalSource(inner, fakeLotSizeResolver{err: fmt.Errorf("resolve failed")}, log.Default())
+
+	if _, err := source.Generate(context.Background(), domain.FeatureContext{Ticker: "SBER"}); err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if inner.feature.LotSize.IsPositive() {
+		t.Fatalf("LotSize = %s, want zero on resolve error", inner.feature.LotSize)
+	}
+}
+
 type recordingSignalSource struct {
 	signal domain.TradeSignal
 	err    error
@@ -791,8 +896,8 @@ func TestDecisionNotifierRejected(t *testing.T) {
 
 	notifier.Observe(context.Background(), decision)
 
-	if len(alerter.texts) != 1 || !strings.Contains(alerter.texts[0], "не исполнено — риск-гейт") {
-		t.Fatalf("alerts = %v, want risk gate rejection", alerter.texts)
+	if len(alerter.texts) != 0 {
+		t.Fatalf("alerts = %v, want none for an order that never went through (risk gate rejection)", alerter.texts)
 	}
 }
 
@@ -802,8 +907,8 @@ func TestDecisionNotifierSkippedWhenMarketClosed(t *testing.T) {
 
 	notifier.Observe(context.Background(), buyDecision(0))
 
-	if len(alerter.texts) != 1 || !strings.Contains(alerter.texts[0], "биржа закрыта") {
-		t.Fatalf("alerts = %v, want market closed notice", alerter.texts)
+	if len(alerter.texts) != 0 {
+		t.Fatalf("alerts = %v, want none for an order skipped while the market is closed", alerter.texts)
 	}
 }
 
@@ -815,27 +920,38 @@ func TestDecisionNotifierError(t *testing.T) {
 
 	notifier.Observe(context.Background(), decision)
 
-	if len(alerter.texts) != 1 || !strings.Contains(alerter.texts[0], "post order: rejected") {
-		t.Fatalf("alerts = %v, want execution error", alerter.texts)
+	if len(alerter.texts) != 0 {
+		t.Fatalf("alerts = %v, want none for an order that failed to execute", alerter.texts)
 	}
 }
 
-func TestDecisionNotifierDeduplicatesUntilOutcomeChanges(t *testing.T) {
+func TestDecisionNotifierAlertsOnceOrderGoesThroughAfterFailing(t *testing.T) {
 	alerter := &recordingAlerter{}
 	notifier := newDecisionNotifier(alerter, log.Default(), nil)
 
 	notifier.Observe(context.Background(), buyDecision(0))
 	notifier.Observe(context.Background(), buyDecision(0))
-	if len(alerter.texts) != 1 {
-		t.Fatalf("alert count = %d, want 1 for a repeated outcome", len(alerter.texts))
+	if len(alerter.texts) != 0 {
+		t.Fatalf("alert count = %d, want 0 while the order keeps failing to go through", len(alerter.texts))
 	}
 
 	notifier.Observe(context.Background(), buyDecision(1))
-	if len(alerter.texts) != 2 {
-		t.Fatalf("alert count = %d, want 2 after the outcome changed to filled", len(alerter.texts))
+	if len(alerter.texts) != 1 {
+		t.Fatalf("alert count = %d, want 1 once the order is filled", len(alerter.texts))
 	}
-	if !strings.Contains(alerter.texts[1], "исполнено") {
-		t.Fatalf("second alert = %q, want filled status", alerter.texts[1])
+	if !strings.Contains(alerter.texts[0], "исполнено") {
+		t.Fatalf("alert = %q, want filled status", alerter.texts[0])
+	}
+}
+
+func TestDecisionNotifierDeduplicatesRepeatedFill(t *testing.T) {
+	alerter := &recordingAlerter{}
+	notifier := newDecisionNotifier(alerter, log.Default(), nil)
+
+	notifier.Observe(context.Background(), buyDecision(1))
+	notifier.Observe(context.Background(), buyDecision(1))
+	if len(alerter.texts) != 1 {
+		t.Fatalf("alert count = %d, want 1 for a repeated identical fill", len(alerter.texts))
 	}
 }
 

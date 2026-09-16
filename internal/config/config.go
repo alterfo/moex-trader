@@ -41,7 +41,8 @@ type Storage struct {
 }
 
 type Risk struct {
-	MaxLots int `yaml:"max_lots"`
+	MaxLots        int             `yaml:"max_lots"`
+	TargetNotional decimal.Decimal `yaml:"target_notional"`
 }
 
 type Telegram struct {
@@ -207,6 +208,9 @@ func (c *Config) Validate() error {
 	if c.Risk.MaxLots <= 0 {
 		return fmt.Errorf("risk.max_lots must be positive")
 	}
+	if c.Risk.TargetNotional.IsNegative() {
+		return fmt.Errorf("risk.target_notional must be non-negative")
+	}
 	if strings.TrimSpace(c.Commission.Broker) == "" {
 		return fmt.Errorf("commission.broker must not be empty")
 	}
@@ -359,6 +363,13 @@ func applyEnv(cfg *Config) error {
 			return fmt.Errorf("parse MOEX_TRADER_RISK_MAX_LOTS: %w", err)
 		}
 		cfg.Risk.MaxLots = maxLots
+	}
+	if v := os.Getenv("MOEX_TRADER_RISK_TARGET_NOTIONAL"); v != "" {
+		targetNotional, err := decimal.NewFromString(v)
+		if err != nil {
+			return fmt.Errorf("parse MOEX_TRADER_RISK_TARGET_NOTIONAL: %w", err)
+		}
+		cfg.Risk.TargetNotional = targetNotional
 	}
 	if v := os.Getenv("MOEX_TRADER_TELEGRAM_BOT_TOKEN"); v != "" {
 		cfg.Telegram.BotToken = v

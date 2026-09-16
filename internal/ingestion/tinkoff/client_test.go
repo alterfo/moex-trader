@@ -398,11 +398,19 @@ func TestStreamLastPricesReconnectsAfterDisconnect(t *testing.T) {
 type fakeInstrumentsServer struct {
 	pb.UnimplementedInstrumentsServiceServer
 	findInstrument func(context.Context, *pb.FindInstrumentRequest) (*pb.FindInstrumentResponse, error)
+	shareBy        func(context.Context, *pb.InstrumentRequest) (*pb.ShareResponse, error)
 }
 
 func (s *fakeInstrumentsServer) FindInstrument(ctx context.Context, req *pb.FindInstrumentRequest) (*pb.FindInstrumentResponse, error) {
 	if s.findInstrument != nil {
 		return s.findInstrument(ctx, req)
+	}
+	return nil, status.Error(codes.Unimplemented, "unimplemented")
+}
+
+func (s *fakeInstrumentsServer) ShareBy(ctx context.Context, req *pb.InstrumentRequest) (*pb.ShareResponse, error) {
+	if s.shareBy != nil {
+		return s.shareBy(ctx, req)
 	}
 	return nil, status.Error(codes.Unimplemented, "unimplemented")
 }
@@ -541,6 +549,42 @@ func TestResolveInstrumentUIDNoMatch(t *testing.T) {
 	}
 	if _, err := client.ResolveInstrumentUID(context.Background(), "  "); err == nil {
 		t.Fatal("ResolveInstrumentUID returned nil error for empty ticker")
+	}
+}
+
+func TestResolveLotSize(t *testing.T) {
+	instruments := &fakeInstrumentsServer{
+		shareBy: func(ctx context.Context, req *pb.InstrumentRequest) (*pb.ShareResponse, error) {
+			if req.GetIdType() != pb.InstrumentIdType_INSTRUMENT_ID_TYPE_UID || req.GetId() != "share-uid" {
+				t.Fatalf("unexpected request: %+v", req)
+			}
+			return &pb.ShareResponse{Instrument: &pb.Share{Lot: 10}}, nil
+		},
+	}
+	client := startSandboxTestServer(t, instruments, &fakeSandboxServer{})
+
+	lot, err := client.ResolveLotSize(context.Background(), "share-uid")
+	if err != nil {
+		t.Fatalf("ResolveLotSize returned error: %v", err)
+	}
+	if lot != 10 {
+		t.Fatalf("lot = %d, want 10", lot)
+	}
+}
+
+func TestResolveLotSizeRejectsNonPositive(t *testing.T) {
+	instruments := &fakeInstrumentsServer{
+		shareBy: func(context.Context, *pb.InstrumentRequest) (*pb.ShareResponse, error) {
+			return &pb.ShareResponse{Instrument: &pb.Share{Lot: 0}}, nil
+		},
+	}
+	client := startSandboxTestServer(t, instruments, &fakeSandboxServer{})
+
+	if _, err := client.ResolveLotSize(context.Background(), "share-uid"); err == nil {
+		t.Fatal("ResolveLotSize returned nil error for non-positive lot")
+	}
+	if _, err := client.ResolveLotSize(context.Background(), "  "); err == nil {
+		t.Fatal("ResolveLotSize returned nil error for empty uid")
 	}
 }
 

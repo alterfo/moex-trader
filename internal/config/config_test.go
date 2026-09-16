@@ -329,6 +329,38 @@ func TestRiskMaxLotsLoadedAndValidated(t *testing.T) {
 	}
 }
 
+func TestRiskTargetNotionalLoadedAndValidated(t *testing.T) {
+	clearEnv(t)
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\nrisk:\n  max_lots: 100000\n  target_notional: \"15000\"\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if !cfg.Risk.TargetNotional.Equal(decimal.NewFromInt(15000)) {
+		t.Fatalf("unexpected risk target notional: %s", cfg.Risk.TargetNotional)
+	}
+
+	_, err = Parse([]byte("storage:\n  path: ./trader.db\nrisk:\n  target_notional: \"-1\"\n"))
+	if err == nil {
+		t.Fatal("expected error for negative target notional")
+	}
+	if !strings.Contains(err.Error(), "risk.target_notional") {
+		t.Fatalf("expected risk.target_notional error, got: %v", err)
+	}
+}
+
+func TestRiskTargetNotionalEnvOverride(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("MOEX_TRADER_RISK_TARGET_NOTIONAL", "20000")
+
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if !cfg.Risk.TargetNotional.Equal(decimal.NewFromInt(20000)) {
+		t.Fatalf("Risk.TargetNotional = %s, want 20000", cfg.Risk.TargetNotional)
+	}
+}
+
 func TestEnvOverrides(t *testing.T) {
 	clearEnv(t)
 	t.Setenv("MOEX_TRADER_MOEX_ISS_URL", "https://override.example/iss")

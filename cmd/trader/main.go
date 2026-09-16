@@ -100,19 +100,6 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	modelSource, err := newModelSignalSource(cfg)
-	if err != nil {
-		return err
-	}
-	gatedSource := newNewsGateSignalSource(modelSource, cfg.News, telegramClient, log.Default())
-	signalSource := newAlertingSignalSource(gatedSource, telegramClient, log.Default())
-	notifier := newDecisionNotifier(telegramClient, log.Default(), cfg.Telegram.SignalTickers)
-
-	historySource := backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
-	if err := newPreflight(cfg, modelSource, historySource, time.Now).check(ctx); err != nil {
-		return err
-	}
-
 	runtime, err := newBrokerRuntime(ctx, cfg, store, time.Now, defaultBrokerDeps())
 	if err != nil {
 		return err
@@ -125,6 +112,22 @@ func run() error {
 			log.Printf("close broker client: %v", err)
 		}
 	}()
+
+	modelSource, err := newModelSignalSource(cfg)
+	if err != nil {
+		return err
+	}
+	if resolver, ok := runtime.accountSource.(lotSizeResolver); ok {
+		modelSource = newLotSizeSignalSource(modelSource, resolver, log.Default())
+	}
+	gatedSource := newNewsGateSignalSource(modelSource, cfg.News, telegramClient, log.Default())
+	signalSource := newAlertingSignalSource(gatedSource, telegramClient, log.Default())
+	notifier := newDecisionNotifier(telegramClient, log.Default(), cfg.Telegram.SignalTickers)
+
+	historySource := backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
+	if err := newPreflight(cfg, modelSource, historySource, time.Now).check(ctx); err != nil {
+		return err
+	}
 
 	riskConfig := risk.DefaultConfig()
 	riskConfig.MaxLots = cfg.Risk.MaxLots
@@ -187,6 +190,38 @@ func run() error {
 
 type signalFailureAlerter interface {
 	Send(ctx context.Context, text string) error
+}
+
+// lotSizeResolver looks up the exchange lot size for a ticker (shares per
+// lot) so notional-based sizing (Risk.TargetNotional) computes the right
+// number of lots instead of treating price-per-share as price-per-lot.
+type lotSizeResolver interface {
+	ResolveLotSize(ctx context.Context, ticker string) (decimal.Decimal, error)
+}
+
+type lotSizeSignalSource struct {
+	source   orchestrator.SignalSource
+	resolver lotSizeResolver
+	logger   *log.Logger
+}
+
+func newLotSizeSignalSource(source orchestrator.SignalSource, resolver lotSizeResolver, logger *log.Logger) *lotSizeSignalSource {
+	if logger == nil {
+		logger = log.Default()
+	}
+	return &lotSizeSignalSource{source: source, resolver: resolver, logger: logger}
+}
+
+func (l *lotSizeSignalSource) Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
+	if l.resolver != nil && !feature.LotSize.IsPositive() {
+		lot, err := l.resolver.ResolveLotSize(ctx, feature.Ticker)
+		if err != nil {
+			l.logger.Printf("trader: resolve lot size for %s: %v", feature.Ticker, err)
+		} else {
+			feature.LotSize = lot
+		}
+	}
+	return l.source.Generate(ctx, feature)
 }
 
 type alertingSignalSource struct {
@@ -323,12 +358,12 @@ func (n *decisionNotifier) Observe(ctx context.Context, decision orchestrator.De
 	outcome := decisionOutcome(decision)
 	dedupKey := string(decision.Signal.Action) + "|" + outcome
 	n.mu.Lock()
-	if n.last[key] == dedupKey {
-		n.mu.Unlock()
-		return
-	}
+	changed := n.last[key] != dedupKey
 	n.last[key] = dedupKey
 	n.mu.Unlock()
+	if outcome != "filled" || !changed {
+		return
+	}
 
 	text := decisionMessage(decision, outcome)
 	if err := n.alerter.Send(ctx, text); err != nil {
@@ -422,7 +457,7 @@ func newModelSignalSource(cfg *config.Config) (orchestrator.SignalSource, error)
 		if err != nil {
 			return nil, fmt.Errorf("load ensemble model: %w", err)
 		}
-		return &model.EnsembleSignalSource{Model: m, MaxLots: cfg.Risk.MaxLots}, nil
+		return &model.EnsembleSignalSource{Model: m, MaxLots: cfg.Risk.MaxLots, TargetNotional: cfg.Risk.TargetNotional}, nil
 	}
 	weights, err := model.LoadWeights(cfg.Model.Path)
 	if err != nil {

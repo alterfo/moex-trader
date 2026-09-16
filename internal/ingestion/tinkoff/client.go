@@ -288,6 +288,29 @@ func (c *Client) ResolveInstrumentUID(ctx context.Context, ticker string) (strin
 	return "", fmt.Errorf("tinkoff find instrument %q: no match", ticker)
 }
 
+func (c *Client) ResolveLotSize(ctx context.Context, instrumentUID string) (int32, error) {
+	if !c.enabled {
+		return 0, ErrPaperTrading
+	}
+	instrumentUID = strings.TrimSpace(instrumentUID)
+	if instrumentUID == "" {
+		return 0, errors.New("tinkoff: instrument uid must not be empty")
+	}
+
+	response, err := c.instruments.ShareBy(ctx, &pb.InstrumentRequest{
+		IdType: pb.InstrumentIdType_INSTRUMENT_ID_TYPE_UID,
+		Id:     instrumentUID,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("tinkoff share by %q: %w", instrumentUID, err)
+	}
+	lot := response.GetInstrument().GetLot()
+	if lot <= 0 {
+		return 0, fmt.Errorf("tinkoff share by %q: non-positive lot size %d", instrumentUID, lot)
+	}
+	return lot, nil
+}
+
 func (c *Client) SandboxAccounts(ctx context.Context) ([]*pb.Account, error) {
 	if !c.enabled {
 		return nil, ErrPaperTrading

@@ -25,6 +25,7 @@ type Client interface {
 	GetSandboxOrders(ctx context.Context, accountID string) ([]*pb.OrderState, error)
 	CancelSandboxOrder(ctx context.Context, accountID, orderID string) error
 	TradingStatus(ctx context.Context, instrumentID string) (*pb.GetTradingStatusResponse, error)
+	ResolveLotSize(ctx context.Context, instrumentUID string) (int32, error)
 	Close() error
 }
 
@@ -42,6 +43,7 @@ type Sandbox struct {
 
 	mu          sync.Mutex
 	instruments map[string]string
+	lotSizes    map[string]int32
 	day         string
 	dayStart    decimal.Decimal
 }
@@ -63,6 +65,7 @@ func NewSandbox(client Client, cfg Config) (*Sandbox, error) {
 		deposit:     cfg.PayIn,
 		now:         now,
 		instruments: make(map[string]string),
+		lotSizes:    make(map[string]int32),
 	}, nil
 }
 
@@ -131,6 +134,33 @@ func (s *Sandbox) ResolveInstrumentID(ctx context.Context, ticker string) (strin
 	s.instruments[key] = uid
 	s.mu.Unlock()
 	return uid, nil
+}
+
+// ResolveLotSize returns the exchange lot size for ticker (the number of
+// shares per lot Tinkoff order quantities are denominated in) as a decimal
+// suitable for notional-to-lots sizing math.
+func (s *Sandbox) ResolveLotSize(ctx context.Context, ticker string) (decimal.Decimal, error) {
+	uid, err := s.ResolveInstrumentID(ctx, ticker)
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	key := strings.ToUpper(strings.TrimSpace(ticker))
+	s.mu.Lock()
+	lot, ok := s.lotSizes[key]
+	s.mu.Unlock()
+	if ok {
+		return decimal.NewFromInt32(lot), nil
+	}
+
+	lot, err = s.client.ResolveLotSize(ctx, uid)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	s.mu.Lock()
+	s.lotSizes[key] = lot
+	s.mu.Unlock()
+	return decimal.NewFromInt32(lot), nil
 }
 
 func (s *Sandbox) MarketOpen(ctx context.Context, ticker string) (bool, error) {

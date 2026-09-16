@@ -104,7 +104,9 @@ Prometheus-сервер → `orchestrator.Run(ctx)`.
    - `features.Builder.Build` → `FeatureContext`, аудит-событие стадии `ingest`;
    - `SignalSource.Generate` → `TradeSignal`, аудит стадии `llm` (имя стадии историческое);
    - `risk.HardenedGate.Approve`, аудит `risk_gate`; отклонённый сигнал не исполняется;
-   - `Executor.Execute` → `Fill`, аудит `executor`; Telegram-уведомление о решении.
+   - `Executor.Execute` → `Fill`, аудит `executor`; Telegram-уведомление об исполненной заявке
+     (риск-гейт, ошибки исполнения и пропуски из-за закрытой биржи в Telegram не идут — только
+     аудит-лог).
 4. Следующий цикл.
 
 В песочнице исполнение дополнительно обёрнуто в market-hours guard: перед ордером

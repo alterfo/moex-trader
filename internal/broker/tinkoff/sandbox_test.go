@@ -23,6 +23,7 @@ type fakeClient struct {
 	orders        func(ctx context.Context, accountID string) ([]*pb.OrderState, error)
 	cancel        func(ctx context.Context, accountID, orderID string) error
 	tradingStatus func(ctx context.Context, instrumentID string) (*pb.GetTradingStatusResponse, error)
+	lotSize       func(ctx context.Context, instrumentUID string) (int32, error)
 
 	closed bool
 }
@@ -88,6 +89,13 @@ func (f *fakeClient) TradingStatus(ctx context.Context, instrumentID string) (*p
 		return f.tradingStatus(ctx, instrumentID)
 	}
 	return nil, errors.New("unexpected TradingStatus call")
+}
+
+func (f *fakeClient) ResolveLotSize(ctx context.Context, instrumentUID string) (int32, error) {
+	if f.lotSize != nil {
+		return f.lotSize(ctx, instrumentUID)
+	}
+	return 0, errors.New("unexpected ResolveLotSize call")
 }
 
 func (f *fakeClient) Close() error {
@@ -295,6 +303,52 @@ func TestResolveInstrumentIDCachesResults(t *testing.T) {
 
 	if _, err := sandbox.ResolveInstrumentID(context.Background(), "  "); err == nil {
 		t.Fatal("ResolveInstrumentID() error = nil for empty ticker")
+	}
+}
+
+func TestResolveLotSizeCachesResults(t *testing.T) {
+	calls := 0
+	client := &fakeClient{
+		resolveUID: func(_ context.Context, ticker string) (string, error) {
+			if ticker != "SBER" {
+				t.Fatalf("ticker = %q, want SBER", ticker)
+			}
+			return "uid-sber", nil
+		},
+		lotSize: func(_ context.Context, uid string) (int32, error) {
+			calls++
+			if uid != "uid-sber" {
+				t.Fatalf("uid = %q, want uid-sber", uid)
+			}
+			return 10, nil
+		},
+	}
+	sandbox := newSandboxForTest(t, client, Config{})
+
+	for _, ticker := range []string{"SBER", " sber ", "SBER"} {
+		lot, err := sandbox.ResolveLotSize(context.Background(), ticker)
+		if err != nil {
+			t.Fatalf("ResolveLotSize(%q) error = %v", ticker, err)
+		}
+		if !lot.Equal(decimal.NewFromInt(10)) {
+			t.Fatalf("ResolveLotSize(%q) = %s, want 10", ticker, lot)
+		}
+	}
+	if calls != 1 {
+		t.Fatalf("resolve calls = %d, want 1", calls)
+	}
+}
+
+func TestResolveLotSizePropagatesError(t *testing.T) {
+	resolveErr := errors.New("lot lookup failed")
+	client := &fakeClient{
+		resolveUID: func(context.Context, string) (string, error) { return "uid-sber", nil },
+		lotSize:    func(context.Context, string) (int32, error) { return 0, resolveErr },
+	}
+	sandbox := newSandboxForTest(t, client, Config{})
+
+	if _, err := sandbox.ResolveLotSize(context.Background(), "SBER"); !errors.Is(err, resolveErr) {
+		t.Fatalf("ResolveLotSize() error = %v, want %v", err, resolveErr)
 	}
 }
 
