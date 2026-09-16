@@ -185,8 +185,8 @@ func TestHardenedGateEnforcesCurrentPosition(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Approve() error = %v", err)
 	}
-	if approved {
-		t.Fatal("expected one-lot BUY to be rejected when current position is already one lot")
+	if !approved {
+		t.Fatal("expected one-lot BUY to be a no-op (already at target) and pass")
 	}
 
 	request := testRequest()
@@ -197,6 +197,16 @@ func TestHardenedGateEnforcesCurrentPosition(t *testing.T) {
 	}
 	if !approved {
 		t.Fatal("expected one-lot SELL to close the current one-lot position")
+	}
+
+	request = testRequest()
+	request.Signal.TargetLots = 2
+	approved, err = gate.Approve(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Approve() error = %v", err)
+	}
+	if approved {
+		t.Fatal("expected two-lot BUY to be rejected: desired position would exceed max lots")
 	}
 }
 

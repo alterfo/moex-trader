@@ -96,8 +96,8 @@ type NewsAggregate struct {
 }
 
 type EventOverrides struct {
-	News     map[string]map[string]NewsAggregate
-	Events   map[string]map[string]features.EventFlags
+	News   map[string]map[string]NewsAggregate
+	Events map[string]map[string]features.EventFlags
 }
 
 func LoadNewsOverrides(path string) (map[string]map[string]NewsAggregate, map[string]map[string]features.EventFlags, error) {
@@ -466,21 +466,69 @@ func (e *Engine) recordFill(ticker string, signal domain.TradeSignal, price deci
 
 	pos := e.positions[ticker]
 	if pos == nil {
-		e.positions[ticker] = &position{
-			action: signal.Action, lots: signal.TargetLots, avg: price,
-			comm:     commissionAmount(price, signal.TargetLots, e.cfg.CommissionRate),
-			openedAt: day,
-		}
+		e.positions[ticker] = newPosition(signal.Action, signal.TargetLots, price, e.cfg.CommissionRate, day)
 		return nil
 	}
 
-	entryComm, exitComm, gross := closeTrade(pos, signal, price, e.cfg.CommissionRate)
+	current := pos.lots
+	if pos.action == domain.ActionSell {
+		current = -pos.lots
+	}
+	desired := signal.TargetLots
+	if signal.Action == domain.ActionSell {
+		desired = -signal.TargetLots
+	}
+	delta := desired - current
+	if delta == 0 {
+		return nil
+	}
+
+	if pos.action == signal.Action {
+		deltaLots := delta
+		if deltaLots < 0 {
+			deltaLots = -deltaLots
+		}
+		if absLots(desired) > absLots(current) {
+			pos.avg = pos.avg.Mul(decimal.NewFromInt(int64(pos.lots))).
+				Add(price.Mul(decimal.NewFromInt(int64(deltaLots)))).
+				Div(decimal.NewFromInt(int64(pos.lots + deltaLots)))
+			pos.comm = pos.comm.Add(commissionAmount(price, deltaLots, e.cfg.CommissionRate))
+			pos.lots += deltaLots
+			return nil
+		}
+		closingLots := deltaLots
+		entryComm, exitComm, gross := closeTrade(pos, closingLots, price, e.cfg.CommissionRate)
+		net := gross.Sub(entryComm.Add(exitComm))
+		e.realized[ticker] = e.realized[ticker].Add(net)
+		e.trades = append(e.trades, Trade{
+			Ticker:     ticker,
+			Action:     pos.action,
+			Lots:       closingLots,
+			EntryPrice: pos.avg,
+			ExitPrice:  price,
+			OpenedAt:   pos.openedAt,
+			ClosedAt:   day,
+			GrossPnl:   gross,
+			Commission: entryComm.Add(exitComm),
+			NetPnl:     net,
+			SignalNote: signal.Reasoning,
+		})
+		pos.lots -= closingLots
+		if pos.lots == 0 {
+			delete(e.positions, ticker)
+			return nil
+		}
+		pos.comm = pos.comm.Mul(decimal.NewFromInt(int64(pos.lots))).Div(decimal.NewFromInt(int64(pos.lots + closingLots)))
+		return nil
+	}
+
+	entryComm, exitComm, gross := closeTrade(pos, pos.lots, price, e.cfg.CommissionRate)
 	net := gross.Sub(entryComm.Add(exitComm))
 	e.realized[ticker] = e.realized[ticker].Add(net)
 	e.trades = append(e.trades, Trade{
 		Ticker:     ticker,
 		Action:     pos.action,
-		Lots:       signal.TargetLots,
+		Lots:       pos.lots,
 		EntryPrice: pos.avg,
 		ExitPrice:  price,
 		OpenedAt:   pos.openedAt,
@@ -490,14 +538,26 @@ func (e *Engine) recordFill(ticker string, signal domain.TradeSignal, price deci
 		NetPnl:     net,
 		SignalNote: signal.Reasoning,
 	})
-
-	remaining := pos.lots - signal.TargetLots
-	if remaining > 0 {
-		pos.lots = remaining
-		return nil
-	}
 	delete(e.positions, ticker)
+	e.positions[ticker] = newPosition(signal.Action, signal.TargetLots, price, e.cfg.CommissionRate, day)
 	return nil
+}
+
+func absLots(lots int) int {
+	if lots < 0 {
+		return -lots
+	}
+	return lots
+}
+
+func newPosition(action domain.Action, lots int, price decimal.Decimal, rate decimal.Decimal, openedAt time.Time) *position {
+	return &position{
+		action:   action,
+		lots:     lots,
+		avg:      price,
+		comm:     commissionAmount(price, lots, rate),
+		openedAt: openedAt,
+	}
 }
 
 func (e *Engine) recordDecision(signal domain.TradeSignal) {
@@ -514,15 +574,15 @@ func (e *Engine) recordDecision(signal domain.TradeSignal) {
 
 // closeTrade computes entry commission for closing lots, exit commission and
 // gross P&L of the closed portion.
-func closeTrade(pos *position, signal domain.TradeSignal, price decimal.Decimal, rate decimal.Decimal) (entryComm, exitComm, gross decimal.Decimal) {
+func closeTrade(pos *position, closingLots int, price decimal.Decimal, rate decimal.Decimal) (entryComm, exitComm, gross decimal.Decimal) {
 	if pos.action == domain.ActionBuy {
-		gross = price.Sub(pos.avg).Mul(decimal.NewFromInt(int64(signal.TargetLots)))
+		gross = price.Sub(pos.avg).Mul(decimal.NewFromInt(int64(closingLots)))
 	} else {
-		gross = pos.avg.Sub(price).Mul(decimal.NewFromInt(int64(signal.TargetLots)))
+		gross = pos.avg.Sub(price).Mul(decimal.NewFromInt(int64(closingLots)))
 	}
-	port := decimal.NewFromInt(int64(signal.TargetLots)).Div(decimal.NewFromInt(int64(pos.lots)))
+	port := decimal.NewFromInt(int64(closingLots)).Div(decimal.NewFromInt(int64(pos.lots)))
 	entryComm = pos.comm.Mul(port)
-	exitComm = commissionAmount(price, signal.TargetLots, rate)
+	exitComm = commissionAmount(price, closingLots, rate)
 	return entryComm, exitComm, gross
 }
 

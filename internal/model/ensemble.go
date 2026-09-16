@@ -89,8 +89,9 @@ func validateTree(t *treeNode) error {
 }
 
 type EnsembleSignalSource struct {
-	Model   *EnsembleModel
-	MaxLots int
+	Model          *EnsembleModel
+	MaxLots        int
+	TargetNotional decimal.Decimal
 }
 
 func (s *EnsembleSignalSource) Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
@@ -125,15 +126,36 @@ func (s *EnsembleSignalSource) Generate(ctx context.Context, feature domain.Feat
 	switch {
 	case probability >= s.Model.BuyThreshold:
 		signal.Action = domain.ActionBuy
-		signal.TargetLots = s.MaxLots
+		signal.TargetLots = s.targetLots(feature)
 	case probability <= s.Model.SellThreshold:
 		signal.Action = domain.ActionSell
-		signal.TargetLots = s.MaxLots
+		signal.TargetLots = s.targetLots(feature)
 	default:
 		signal.HoldReason = domain.HoldReasonModel
 	}
 
 	return signal, nil
+}
+
+func (s *EnsembleSignalSource) targetLots(feature domain.FeatureContext) int {
+	if !s.TargetNotional.IsPositive() {
+		return s.MaxLots
+	}
+	if !feature.LastPrice.IsPositive() {
+		return s.MaxLots
+	}
+	perUnit := feature.LastPrice
+	if feature.LotSize.IsPositive() {
+		perUnit = feature.LastPrice.Mul(feature.LotSize)
+	}
+	lots := s.TargetNotional.Div(perUnit).Round(0).IntPart()
+	if lots < 1 {
+		return 1
+	}
+	if lots > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	return int(lots)
 }
 
 func (m *EnsembleModel) Probability(vector []float64) float64 {

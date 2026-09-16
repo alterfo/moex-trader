@@ -131,8 +131,11 @@ func TestNewBrokerRuntimePicksPaper(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newBrokerRuntime() error = %v", err)
 	}
-	if _, ok := runtime.exec.(*executor.PaperExecutor); !ok {
-		t.Fatalf("newBrokerRuntime() type = %T, want *executor.PaperExecutor", runtime.exec)
+	if _, ok := runtime.exec.(*executor.TargetPositionExecutor); !ok {
+		t.Fatalf("newBrokerRuntime() type = %T, want *executor.TargetPositionExecutor", runtime.exec)
+	}
+	if _, ok := runtime.exec.(*executor.TargetPositionExecutor).Inner().(*executor.PaperExecutor); !ok {
+		t.Fatalf("newBrokerRuntime() inner type = %T, want *executor.PaperExecutor", runtime.exec.(*executor.TargetPositionExecutor).Inner())
 	}
 	if runtime.accountSource != nil || runtime.canceller != nil {
 		t.Fatalf("paper runtime should not wire account source or canceller: %+v", runtime)
@@ -147,8 +150,11 @@ func TestNewBrokerRuntimeEmptyBrokerDefaultsToPaper(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newBrokerRuntime() error = %v", err)
 	}
-	if _, ok := runtime.exec.(*executor.PaperExecutor); !ok {
-		t.Fatalf("newBrokerRuntime() type = %T, want *executor.PaperExecutor", runtime.exec)
+	if _, ok := runtime.exec.(*executor.TargetPositionExecutor); !ok {
+		t.Fatalf("newBrokerRuntime() type = %T, want *executor.TargetPositionExecutor", runtime.exec)
+	}
+	if _, ok := runtime.exec.(*executor.TargetPositionExecutor).Inner().(*executor.PaperExecutor); !ok {
+		t.Fatalf("newBrokerRuntime() inner type = %T, want *executor.PaperExecutor", runtime.exec.(*executor.TargetPositionExecutor).Inner())
 	}
 }
 
@@ -234,11 +240,15 @@ func TestNewBrokerRuntimeSandboxWiresLiveExecutor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newBrokerRuntime() error = %v", err)
 	}
-	if _, ok := runtime.exec.(*marketHoursExecutor); !ok {
-		t.Fatalf("newBrokerRuntime() executor type = %T, want *marketHoursExecutor", runtime.exec)
+	if _, ok := runtime.exec.(*executor.TargetPositionExecutor); !ok {
+		t.Fatalf("newBrokerRuntime() executor type = %T, want *executor.TargetPositionExecutor", runtime.exec)
 	}
-	if _, ok := runtime.exec.(*marketHoursExecutor).inner.(*executor.LiveExecutor); !ok {
-		t.Fatalf("newBrokerRuntime() inner executor type = %T, want *executor.LiveExecutor", runtime.exec.(*marketHoursExecutor).inner)
+	guarded, ok := runtime.exec.(*executor.TargetPositionExecutor).Inner().(*marketHoursExecutor)
+	if !ok {
+		t.Fatalf("newBrokerRuntime() inner executor type = %T, want *marketHoursExecutor", runtime.exec.(*executor.TargetPositionExecutor).Inner())
+	}
+	if _, ok := guarded.inner.(*executor.LiveExecutor); !ok {
+		t.Fatalf("newBrokerRuntime() guarded inner executor type = %T, want *executor.LiveExecutor", guarded.inner)
 	}
 	if runtime.accountSource == nil {
 		t.Fatal("sandbox runtime account source is nil")

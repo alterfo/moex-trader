@@ -60,6 +60,52 @@ func TestEnsembleMatchesPython(t *testing.T) {
 	}
 }
 
+func TestEnsembleTargetLotsFromNotional(t *testing.T) {
+	src := &EnsembleSignalSource{MaxLots: 1, TargetNotional: decimal.NewFromInt(100000)}
+
+	cases := []struct {
+		name    string
+		price   string
+		lotSize string
+		want    int
+	}{
+		{name: "expensive-ticker-per-share", price: "1800", want: 56},
+		{name: "cheap-ticker-per-share", price: "30", want: 3333},
+		{name: "lot-size-rounded", price: "300", lotSize: "10", want: 33},
+		{name: "below-one-lot-floor", price: "99000", want: 1},
+		{name: "zero-price-fallback-to-maxlots", price: "0", want: 1},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := domain.FeatureContext{
+				Ticker:             "SBER",
+				LastPrice:          decimal.RequireFromString(tc.price),
+				ReturnPct:          decimal.Zero,
+				RealizedVolatility: decimal.Zero,
+				NewsSentiment:      decimal.Zero,
+				NewsCount:          0,
+				OrderBookImbalance: decimal.Zero,
+				Mom5d:              decimal.Zero,
+				Mom21d:             decimal.Zero,
+				Mom63d:             decimal.Zero,
+				Reversal1d:         decimal.Zero,
+				RSI14:              decimal.Zero,
+				DistMA20Pct:        decimal.Zero,
+				DistMA50Pct:        decimal.Zero,
+				RealizedVol21d:     decimal.Zero,
+				VolumeZScore20d:    decimal.Zero,
+			}
+			if tc.lotSize != "" {
+				f.LotSize = decimal.RequireFromString(tc.lotSize)
+			}
+			if got := src.targetLots(f); got != tc.want {
+				t.Fatalf("targetLots = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestEnsembleSignalSourceGenerate(t *testing.T) {
 	modelPath := os.Getenv("ENSEMBLE_MODEL")
 	if modelPath == "" {

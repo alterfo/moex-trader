@@ -164,12 +164,12 @@ func (g *HardenedGate) Approve(ctx context.Context, request Request) (bool, erro
 	return true, nil
 }
 
-func (g *HardenedGate) exceedsMaxPosition(signal domain.TradeSignal, currentLots int) bool {
+func (g *HardenedGate) exceedsMaxPosition(signal domain.TradeSignal, _ int) bool {
 	if signal.Action != domain.ActionBuy && signal.Action != domain.ActionSell {
 		return false
 	}
-	proposed := currentLots + signedLots(signal.Action, signal.TargetLots)
-	return absInt(proposed) > g.maxLots
+	desired := signedLots(signal.Action, signal.TargetLots)
+	return absInt(desired) > g.maxLots
 }
 
 func signedLots(action domain.Action, lots int) int {

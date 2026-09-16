@@ -462,7 +462,8 @@ func newBrokerRuntime(ctx context.Context, cfg *config.Config, store *storage.St
 	if cfg.IsPaperTrading {
 		switch cfg.Broker {
 		case "", config.BrokerPaper:
-			return &brokerRuntime{exec: executor.NewPaperExecutorWithCommission(store, now, cfg.Commission.Rate)}, nil
+			paperExec := executor.NewPaperExecutorWithCommission(store, now, cfg.Commission.Rate)
+			return &brokerRuntime{exec: executor.NewTargetPositionExecutor(paperExec, store, now)}, nil
 		default:
 			return nil, fmt.Errorf("select executor: broker %q is not allowed while is_paper_trading is true; set broker: paper", cfg.Broker)
 		}
@@ -521,7 +522,7 @@ func newBrokerRuntime(ctx context.Context, cfg *config.Config, store *storage.St
 		}
 		log.Printf("tinkoff sandbox: account %s ready; set tinkoff.account_id to reuse it on the next run", accountID)
 		return &brokerRuntime{
-			exec:          guardedExecutor,
+			exec:          executor.NewTargetPositionExecutor(guardedExecutor, store, now),
 			accountSource: sandbox,
 			canceller:     sandbox,
 			closeFn:       sandbox.Close,

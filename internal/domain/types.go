@@ -68,6 +68,7 @@ type FeatureContext struct {
 	EventDelisting     int             `json:"event_delisting"`
 	EventMNA           int             `json:"event_mna"`
 	EventDefault       int             `json:"event_default"`
+	LotSize            decimal.Decimal `json:"lot_size,omitempty"`
 }
 
 type TradeSignal struct {

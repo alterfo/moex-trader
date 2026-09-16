@@ -59,6 +59,7 @@ func run() error {
 	var newsHistory string
 	var intervalMin int
 	var featureBPD int
+	var targetNotionalStr string
 
 	flag.StringVar(&configPath, "config", "config.yaml", "path to config YAML")
 	flag.StringVar(&fromStr, "from", "", "backtest start date YYYY-MM-DD (default: one year ago)")
@@ -83,6 +84,7 @@ func run() error {
 	flag.StringVar(&newsHistory, "news-history", "", "load historical news sentiment/count overrides from finanalys-format JSONL")
 	flag.IntVar(&intervalMin, "interval-min", 0, "candle interval in minutes for intraday bars (24 or 0 = daily; ISS supports 1/10/60)")
 	flag.IntVar(&featureBPD, "feature-bars-per-day", 0, "scale day-named feature windows by this many bars/session (0 = keep raw bar-count windows; -1 = auto/calendar from -interval-min)")
+	flag.StringVar(&targetNotionalStr, "target-notional", "", "ensemble: target ruble notional per position (when set, TargetLots=max(1, round(notional/price)); override MaxLots)")
 	flag.Parse()
 
 	deposit, err := decimal.NewFromString(depositStr)
@@ -92,6 +94,13 @@ func run() error {
 	commissionRate, err := decimal.NewFromString(commissionStr)
 	if err != nil {
 		return fmt.Errorf("parse -commission-rate: %w", err)
+	}
+	var targetNotional decimal.Decimal
+	if targetNotionalStr != "" {
+		targetNotional, err = decimal.NewFromString(targetNotionalStr)
+		if err != nil {
+			return fmt.Errorf("parse -target-notional: %w", err)
+		}
 	}
 
 	cfg, err := config.Load(configPath)
@@ -155,6 +164,7 @@ func run() error {
 		CSVBuyPct:            csvBuyPct,
 		CSVSellPct:           csvSellPct,
 		EnsemblePath:         ensemblePath,
+		TargetNotional:       targetNotional,
 	})
 	if err != nil {
 		return err
@@ -222,6 +232,7 @@ type signalSourceOptions struct {
 	CSVBuyPct            float64
 	CSVSellPct           float64
 	EnsemblePath         string
+	TargetNotional       decimal.Decimal
 }
 
 func buildSignalSource(cfg *config.Config, opts signalSourceOptions) (backtest.SignalSource, func() error, error) {
@@ -254,7 +265,7 @@ func buildSignalSource(cfg *config.Config, opts signalSourceOptions) (backtest.S
 		if err != nil {
 			return nil, nil, err
 		}
-		source = &model.EnsembleSignalSource{Model: m, MaxLots: opts.MaxLots}
+		source = &model.EnsembleSignalSource{Model: m, MaxLots: opts.MaxLots, TargetNotional: opts.TargetNotional}
 	default:
 		return nil, nil, fmt.Errorf("unknown signal source %q: want %q, %q, %q or %q", opts.Mode, signalSourceModel, signalSourceRule, signalSourceCSVProb, signalSourceEnsemble)
 	}

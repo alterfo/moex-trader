@@ -120,6 +120,197 @@ func TestEngine_SellAllDown(t *testing.T) {
 	}
 }
 
+func TestEngine_MultiLotRepeatSignalHoldsPosition(t *testing.T) {
+	candles := benchCandles(120)
+	source := fakeSource{candles: candles}
+
+	sig := &fixedTargetSignal{action: domain.ActionBuy, lots: 3}
+	engine, err := NewEngine(Config{
+		Tickers:        []string{"TEST"},
+		From:           time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+		Till:           time.Date(2024, 1, 30, 0, 0, 0, 0, time.UTC),
+		Deposit:        decimal.NewFromInt(100000),
+		MaxLots:        100,
+		CommissionRate: decimal.NewFromInt(3).Div(decimal.NewFromInt(1000)),
+		KillSwitch:     true,
+		SignalSource:   sig,
+		Source:         source,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := engine.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Decisions == 0 {
+		t.Fatal("expected decisions")
+	}
+	if result.ClosedTrades != 0 {
+		t.Fatalf("expected 0 closed trades (target held), got %d", result.ClosedTrades)
+	}
+}
+
+func TestEngine_ReduceTargetInSameDirection(t *testing.T) {
+	engine, err := NewEngine(Config{
+		Tickers:        []string{"TEST"},
+		Deposit:        decimal.NewFromInt(100000),
+		MaxLots:        100,
+		CommissionRate: decimal.NewFromInt(3).Div(decimal.NewFromInt(1000)),
+		SignalSource:   holdSource{},
+		Source:         fakeSource{candles: benchCandles(120)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	day := time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC)
+	buy5 := domain.TradeSignal{Ticker: "TEST", Action: domain.ActionBuy, TargetLots: 5, Confidence: decimal.NewFromFloat(0.8)}
+	buy2 := domain.TradeSignal{Ticker: "TEST", Action: domain.ActionBuy, TargetLots: 2, Confidence: decimal.NewFromFloat(0.8)}
+
+	if err := engine.recordFill("TEST", buy5, decimal.NewFromInt(100), day); err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.recordFill("TEST", buy2, decimal.NewFromInt(110), day.AddDate(0, 0, 1)); err != nil {
+		t.Fatal(err)
+	}
+
+	pos := engine.positions["TEST"]
+	if pos == nil {
+		t.Fatal("expected open position")
+	}
+	if pos.action != domain.ActionBuy || pos.lots != 2 {
+		t.Fatalf("expected reduced BUY 2, got action=%v lots=%d", pos.action, pos.lots)
+	}
+	if len(engine.trades) != 1 {
+		t.Fatalf("expected exactly 1 closed trade for the 3-lot reduction, got %d", len(engine.trades))
+	}
+	if got := engine.trades[0].Lots; got != 3 {
+		t.Fatalf("expected closed trade of 3 lots, got %d", got)
+	}
+	if got := engine.trades[0].Action; got != domain.ActionBuy {
+		t.Fatalf("expected closed trade action BUY, got %v", got)
+	}
+}
+
+func TestEngine_FlipDirection(t *testing.T) {
+	engine, err := NewEngine(Config{
+		Tickers:        []string{"TEST"},
+		Deposit:        decimal.NewFromInt(100000),
+		MaxLots:        100,
+		CommissionRate: decimal.NewFromInt(3).Div(decimal.NewFromInt(1000)),
+		SignalSource:   holdSource{},
+		Source:         fakeSource{candles: benchCandles(120)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	day := time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC)
+	buy3 := domain.TradeSignal{Ticker: "TEST", Action: domain.ActionBuy, TargetLots: 3, Confidence: decimal.NewFromFloat(0.8)}
+	sell2 := domain.TradeSignal{Ticker: "TEST", Action: domain.ActionSell, TargetLots: 2, Confidence: decimal.NewFromFloat(0.8)}
+
+	if err := engine.recordFill("TEST", buy3, decimal.NewFromInt(100), day); err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.recordFill("TEST", sell2, decimal.NewFromInt(90), day.AddDate(0, 0, 1)); err != nil {
+		t.Fatal(err)
+	}
+
+	pos := engine.positions["TEST"]
+	if pos == nil {
+		t.Fatal("expected open short position")
+	}
+	if pos.action != domain.ActionSell || pos.lots != 2 {
+		t.Fatalf("expected flipped SELL 2, got action=%v lots=%d", pos.action, pos.lots)
+	}
+	if len(engine.trades) != 1 {
+		t.Fatalf("expected 1 closed trade for the flipped long, got %d", len(engine.trades))
+	}
+	if got := engine.trades[0].Lots; got != 3 {
+		t.Fatalf("expected closed trade of 3 lots, got %d", got)
+	}
+}
+
+func TestEngine_ReduceShortTargetInSameDirection(t *testing.T) {
+	engine, err := NewEngine(Config{
+		Tickers:        []string{"TEST"},
+		Deposit:        decimal.NewFromInt(100000),
+		MaxLots:        100,
+		CommissionRate: decimal.NewFromInt(3).Div(decimal.NewFromInt(1000)),
+		SignalSource:   holdSource{},
+		Source:         fakeSource{candles: benchCandles(120)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	day := time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC)
+	sell5 := domain.TradeSignal{Ticker: "TEST", Action: domain.ActionSell, TargetLots: 5, Confidence: decimal.NewFromFloat(0.8)}
+	sell2 := domain.TradeSignal{Ticker: "TEST", Action: domain.ActionSell, TargetLots: 2, Confidence: decimal.NewFromFloat(0.8)}
+
+	if err := engine.recordFill("TEST", sell5, decimal.NewFromInt(100), day); err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.recordFill("TEST", sell2, decimal.NewFromInt(110), day.AddDate(0, 0, 1)); err != nil {
+		t.Fatal(err)
+	}
+
+	pos := engine.positions["TEST"]
+	if pos == nil {
+		t.Fatal("expected open short position")
+	}
+	if pos.action != domain.ActionSell || pos.lots != 2 {
+		t.Fatalf("expected reduced SELL 2, got action=%v lots=%d", pos.action, pos.lots)
+	}
+	if len(engine.trades) != 1 {
+		t.Fatalf("expected exactly 1 closed trade for the 3-lot reduction, got %d", len(engine.trades))
+	}
+	if got := engine.trades[0].Lots; got != 3 {
+		t.Fatalf("expected closed trade of 3 lots, got %d", got)
+	}
+	if got := engine.trades[0].Action; got != domain.ActionSell {
+		t.Fatalf("expected closed trade action SELL, got %v", got)
+	}
+	if got := engine.trades[0].GrossPnl; !got.Equal(decimal.NewFromInt(-30)) {
+		t.Fatalf("expected short reduction gross P&L -30, got %s", got)
+	}
+
+	if err := engine.recordFill("TEST", sell2, decimal.NewFromInt(120), day.AddDate(0, 0, 2)); err != nil {
+		t.Fatal(err)
+	}
+	if len(engine.trades) != 1 {
+		t.Fatalf("repeat signal at target must be a no-op, got %d closed trades", len(engine.trades))
+	}
+
+	if err := engine.recordFill("TEST", sell5, decimal.NewFromInt(120), day.AddDate(0, 0, 3)); err != nil {
+		t.Fatal(err)
+	}
+	pos = engine.positions["TEST"]
+	if pos == nil || pos.lots != 5 {
+		t.Fatalf("expected short built back up to 5 lots, got %+v", pos)
+	}
+}
+
+type fixedTargetSignal struct {
+	action domain.Action
+	lots   int
+}
+
+func (f fixedTargetSignal) Generate(_ context.Context, feat domain.FeatureContext) (domain.TradeSignal, error) {
+	if feat.LastPrice.Sign() <= 0 {
+		return domain.TradeSignal{Action: domain.ActionHold}, nil
+	}
+	return domain.TradeSignal{
+		Ticker:     feat.Ticker,
+		Action:     f.action,
+		Confidence: decimal.RequireFromString("0.8"),
+		TargetLots: f.lots,
+		Reasoning:  "test",
+	}, nil
+}
+
 func TestEngine_HoldNoTrades(t *testing.T) {
 	candles := benchCandles(120)
 	source := fakeSource{candles: candles}
