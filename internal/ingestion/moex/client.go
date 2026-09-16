@@ -14,7 +14,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const defaultHTTPTimeout = 10 * time.Second
+const defaultHTTPTimeout = 30 * time.Second
 
 type Client struct {
 	baseURL    string
