@@ -58,6 +58,7 @@ func run() error {
 	var ensemblePath string
 	var newsHistory string
 	var intervalMin int
+	var featureBPD int
 
 	flag.StringVar(&configPath, "config", "config.yaml", "path to config YAML")
 	flag.StringVar(&fromStr, "from", "", "backtest start date YYYY-MM-DD (default: one year ago)")
@@ -80,7 +81,8 @@ func run() error {
 	flag.Float64Var(&csvSellPct, "csv-sell-pct", 0.45, "csvprob: probability at/below which to SELL")
 	flag.StringVar(&ensemblePath, "ensemble-path", "", "ensemble: path to exported LGBM+XGB+LogReg model JSON")
 	flag.StringVar(&newsHistory, "news-history", "", "load historical news sentiment/count overrides from finanalys-format JSONL")
-	flag.IntVar(&intervalMin, "interval-min", 0, "candle interval in minutes for intraday bars (24 or 0 = daily; ISS supports 1/10/60); scales feature windows via bars-per-session")
+	flag.IntVar(&intervalMin, "interval-min", 0, "candle interval in minutes for intraday bars (24 or 0 = daily; ISS supports 1/10/60)")
+	flag.IntVar(&featureBPD, "feature-bars-per-day", 0, "scale day-named feature windows by this many bars/session (0 = keep raw bar-count windows; -1 = auto/calendar from -interval-min)")
 	flag.Parse()
 
 	deposit, err := decimal.NewFromString(depositStr)
@@ -120,9 +122,13 @@ func run() error {
 
 	moexClient := moex.NewClient(cfg.MOEXISSBaseURL, nil)
 	var source backtest.HistoricalSource
+	resolvedBPD := featureBPD
+	if resolvedBPD < 0 {
+		resolvedBPD = features.ConfigForInterval(intervalMin).BarsPerDay
+	}
 	if intervalMin > 0 && intervalMin != 24 {
 		source = backtest.NewISSSourceInterval(cfg.MOEXISSBaseURL, moexClient, intervalMin)
-		log.Printf("backtest: using intraday interval %d min (%d bars/session)", intervalMin, features.BarsPerDayForInterval(intervalMin))
+		log.Printf("backtest: using intraday interval %d min; feature barsPerDay=%d (0 = raw bar-count windows)", intervalMin, resolvedBPD)
 	} else {
 		source = backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
 	}
@@ -173,7 +179,7 @@ func run() error {
 		KillSwitch:            killSwitch,
 		SignalSource:          signalSource,
 		Source:                source,
-		FeatureConfig:         features.ConfigForInterval(intervalMin),
+		FeatureConfig:         features.PriceFeatureConfig{BarsPerDay: resolvedBPD},
 		NewsOverrides:         newsOverrides,
 		EventOverrides:        eventOverrides,
 	})

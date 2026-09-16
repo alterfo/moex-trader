@@ -41,6 +41,7 @@ type options struct {
 	labelMode     string
 	commissionPct float64
 	intervalMin   int
+	featureBPD    int
 	outPath       string
 	newsHistory   string
 }
@@ -94,10 +95,14 @@ func run(args []string) error {
 
 	moexClient := moex.NewClient(cfg.MOEXISSBaseURL, nil)
 	var source backtest.HistoricalSource
-	featureCfg := features.ConfigForInterval(opts.intervalMin)
+	featureBPD := opts.featureBPD
+	if featureBPD < 0 {
+		featureBPD = features.ConfigForInterval(opts.intervalMin).BarsPerDay
+	}
+	featureCfg := features.PriceFeatureConfig{BarsPerDay: featureBPD}
 	if opts.intervalMin > 0 && opts.intervalMin != 24 {
 		source = backtest.NewISSSourceInterval(cfg.MOEXISSBaseURL, moexClient, opts.intervalMin)
-		log.Printf("exportdataset: using intraday interval %d min (%d bars/session), feature windows scaled accordingly", opts.intervalMin, features.BarsPerDayForInterval(opts.intervalMin))
+		log.Printf("exportdataset: using intraday interval %d min; feature barsPerDay=%d (0 = raw bar-count windows)", opts.intervalMin, featureBPD)
 	} else {
 		source = backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
 	}
@@ -262,7 +267,8 @@ func parseOptions(args []string) (options, error) {
 	fs.Float64Var(&opts.deadbandPct, "deadband-pct", opts.deadbandPct, "label deadband percent")
 	fs.StringVar(&opts.labelMode, "label-mode", "excess", "label target: excess (vs IMOEX) or absolute forward return")
 	fs.Float64Var(&opts.commissionPct, "commission-pct", 0, "one-way commission rate (e.g. 0.0005); widens the dead zone by round-trip cost plus the entry bar's spread proxy (0 = disabled, matches prior behavior)")
-	fs.IntVar(&opts.intervalMin, "interval-min", 0, "candle interval in minutes for intraday bars (24 or 0 = daily; ISS supports 1/10/60); scales feature windows via bars-per-session")
+	fs.IntVar(&opts.intervalMin, "interval-min", 0, "candle interval in minutes for intraday bars (24 or 0 = daily; ISS supports 1/10/60)")
+	fs.IntVar(&opts.featureBPD, "feature-bars-per-day", 0, "scale day-named feature windows by this many bars/session (0 = keep raw bar-count windows; -1 = auto/calendar from -interval-min; positive = explicit)")
 	fs.StringVar(&opts.outPath, "out", "dataset.csv", "output CSV path")
 	fs.StringVar(&opts.newsHistory, "news-history", "", "path to a finanalys-format news_history.jsonl to override news_sentiment/news_count with real historical values where available")
 	if err := fs.Parse(args); err != nil {

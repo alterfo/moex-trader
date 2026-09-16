@@ -49,6 +49,7 @@ type options struct {
 	valDays            int
 	maxLots            int
 	intervalMin        int
+	featureBPD         int
 	outPath            string
 	newsHistory        string
 	labelMode          string
@@ -100,12 +101,16 @@ func run(args []string, stdout io.Writer) error {
 
 	moexClient := moex.NewClient(cfg.MOEXISSBaseURL, nil)
 	var source backtest.HistoricalSource
+	featureBPD := opts.featureBPD
 	if opts.intervalMin > 0 && opts.intervalMin != 24 {
 		source = backtest.NewISSSourceInterval(cfg.MOEXISSBaseURL, moexClient, opts.intervalMin)
-		log.Printf("trainmodel: using intraday interval %d min (%d bars/session)", opts.intervalMin, features.BarsPerDayForInterval(opts.intervalMin))
 	} else {
 		source = backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
 	}
+	if featureBPD < 0 {
+		featureBPD = features.ConfigForInterval(opts.intervalMin).BarsPerDay
+	}
+	log.Printf("trainmodel: interval %d min, feature barsPerDay=%d (0 = raw bar-count windows)", opts.intervalMin, featureBPD)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -119,6 +124,7 @@ func run(args []string, stdout io.Writer) error {
 		deadbandPct:        opts.deadbandPct,
 		labelCommissionPct: opts.labelCommissionPct,
 		intervalMin:        opts.intervalMin,
+		featureBPD:         featureBPD,
 		trainCfg: model.TrainConfig{
 			LearningRate: opts.learningRate,
 			L2Lambda:     opts.l2Lambda,
@@ -157,7 +163,8 @@ func parseOptions(args []string) (options, error) {
 	fs.IntVar(&opts.horizonDays, "horizon-days", opts.horizonDays, "forward-return horizon in trading days")
 	fs.Float64Var(&opts.deadbandPct, "deadband-pct", opts.deadbandPct, "exclude labels with absolute forward return below this percent")
 	fs.Float64Var(&opts.labelCommissionPct, "label-commission-pct", 0, "one-way commission rate to bake into the label dead zone (e.g. 0.0005); 0 disables cost-adjustment and matches prior behavior")
-	fs.IntVar(&opts.intervalMin, "interval-min", 0, "candle interval in minutes for intraday bars (24 or 0 = daily; ISS supports 1/10/60); scales feature windows via bars-per-session")
+	fs.IntVar(&opts.intervalMin, "interval-min", 0, "candle interval in minutes for intraday bars (24 or 0 = daily; ISS supports 1/10/60)")
+	fs.IntVar(&opts.featureBPD, "feature-bars-per-day", 0, "scale day-named feature windows by this many bars/session (0 = keep raw bar-count windows; -1 = auto/calendar from -interval-min; positive = explicit)")
 	fs.Float64Var(&opts.learningRate, "learning-rate", opts.learningRate, "gradient descent learning rate")
 	fs.Float64Var(&opts.l2Lambda, "l2-lambda", opts.l2Lambda, "L2 regularization strength")
 	fs.IntVar(&opts.epochs, "epochs", opts.epochs, "gradient descent epochs")
@@ -229,6 +236,7 @@ type pipelineConfig struct {
 	deadbandPct        float64
 	labelCommissionPct float64
 	intervalMin        int
+	featureBPD         int
 	trainCfg           model.TrainConfig
 	maxLots            int
 	deposit            decimal.Decimal
@@ -248,7 +256,7 @@ func runPipeline(ctx context.Context, cfg pipelineConfig, source backtest.Histor
 		now = time.Now
 	}
 
-	samples, err := model.BuildSamplesWithFeatureConfig(ctx, source, cfg.tickers, cfg.from, cfg.till, cfg.horizonDays, cfg.deadbandPct, cfg.labelMode, cfg.labelCommissionPct, features.ConfigForInterval(cfg.intervalMin))
+	samples, err := model.BuildSamplesWithFeatureConfig(ctx, source, cfg.tickers, cfg.from, cfg.till, cfg.horizonDays, cfg.deadbandPct, cfg.labelMode, cfg.labelCommissionPct, features.PriceFeatureConfig{BarsPerDay: cfg.featureBPD})
 	if err != nil {
 		return nil, nil, fmt.Errorf("build samples: %w", err)
 	}
