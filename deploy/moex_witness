@@ -1,0 +1,23 @@
+#!/bin/sh
+#
+# PROVIDE: moex_witness
+# REQUIRE: NETWORKING
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name="moex_witness"
+rcvar="moex_witness_enable"
+
+load_rc_config $name
+
+: ${moex_witness_enable:="NO"}
+: ${moex_witness_bin:="/usr/local/bin/moex-witness"}
+: ${moex_witness_args:="-listen 127.0.0.1:8090 -token-file /usr/local/etc/moex-witness.token -state /var/db/moex-witness/state.json"}
+
+pidfile="/var/run/${name}.pid"
+procname="${moex_witness_bin}"
+command="/usr/sbin/daemon"
+command_args="-p ${pidfile} -f -- ${moex_witness_bin} ${moex_witness_args}"
+
+run_rc_command "$1"

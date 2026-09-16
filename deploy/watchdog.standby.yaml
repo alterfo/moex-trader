@@ -1,0 +1,56 @@
+role: standby
+node_name: aibox
+peer_name: mac
+listen: ":9091"
+peer_url: "http://192.168.88.251:9091"
+env_file: "watchdog.env"
+
+witness:
+  url: "https://209-131-70-106.sslip.io/witness"
+  ttl: 5m
+
+trader:
+  command: ["./trader", "-config", "config.sandbox.yaml"]
+  working_dir: "."
+  stop_grace: 60s
+  startup_grace: 20m
+  startup_marker: "starting trader:"
+  backoff: [15s, 30s, 1m, 2m]
+  max_failures: 3
+  retry_cooldown: 5m
+
+tunnel:
+  command:
+    - "ssh"
+    - "-N"
+    - "-D"
+    - "127.0.0.1:3333"
+    - "-o"
+    - "ServerAliveInterval=15"
+    - "-o"
+    - "ServerAliveCountMax=3"
+    - "-o"
+    - "ExitOnForwardFailure=yes"
+    - "-o"
+    - "StrictHostKeyChecking=accept-new"
+    - "-i"
+    - "/home/oleg/.ssh/id_moex_tunnel"
+    - "root@209.131.70.106"
+
+db:
+  path: "./trader-sandbox.db"
+  pull_interval: 15s
+
+timing:
+  tick_interval: 5s
+  peer_stale_after: 30s
+  failover_after: 10m
+  peer_error_grace: 2m
+  handover_cooldown: 30m
+  yield_request_cooldown: 60s
+  yield_request_ttl: 2m
+  failure_memory: 30m
+
+telegram:
+  chat_id: "235507371"
+  proxy: "socks5://127.0.0.1:3333"

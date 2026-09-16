@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.oleg.moex-trader.watchdog</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/olegsidorkin/dev/fin/moex-trader/watchdog</string>
+        <string>-config</string>
+        <string>/Users/olegsidorkin/dev/fin/moex-trader/watchdog.yaml</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/olegsidorkin/dev/fin/moex-trader</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>TZ</key>
+        <string>Europe/Moscow</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/olegsidorkin/Library/Logs/moex-trader-watchdog.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/olegsidorkin/Library/Logs/moex-trader-watchdog.err.log</string>
+</dict>
+</plist>

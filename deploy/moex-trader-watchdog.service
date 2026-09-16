@@ -1,0 +1,17 @@
+[Unit]
+Description=MOEX trader failover watchdog (standby)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/moex-trader
+Environment=TZ=Europe/Moscow
+Environment=SSL_CERT_FILE=%h/moex-trader/certs/ca-bundle.pem
+ExecStart=%h/moex-trader/watchdog -config %h/moex-trader/watchdog.yaml
+Restart=always
+RestartSec=5
+TimeoutStopSec=120
+
+[Install]
+WantedBy=default.target
