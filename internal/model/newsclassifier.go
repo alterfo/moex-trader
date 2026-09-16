@@ -117,14 +117,83 @@ func buildVocabIndex(vocab []string) map[string]int {
 	return idx
 }
 
-func vectorizeTitle(title string, vocabIndex map[string]int) []float64 {
-	vec := make([]float64, len(vocabIndex))
+// sparseSample is a bag-of-words training example stored as (index, count)
+// pairs. Headlines touch a handful of vocabulary tokens out of thousands, so
+// this keeps both memory and the training loop proportional to the number of
+// tokens actually present rather than the vocabulary size.
+type sparseSample struct {
+	idx []int
+	val []float64
+	y   float64
+}
+
+func newSparseSample(title string, vocabIndex map[string]int, label float64) sparseSample {
+	counts := make(map[int]float64)
 	for _, tok := range tokenizeTitle(title) {
 		if idx, ok := vocabIndex[tok]; ok {
-			vec[idx]++
+			counts[idx]++
 		}
 	}
-	return vec
+	s := sparseSample{idx: make([]int, 0, len(counts)), val: make([]float64, 0, len(counts)), y: label}
+	for idx, val := range counts {
+		s.idx = append(s.idx, idx)
+		s.val = append(s.val, val)
+	}
+	return s
+}
+
+func onesVector(n int) []float64 {
+	v := make([]float64, n)
+	for i := range v {
+		v[i] = 1
+	}
+	return v
+}
+
+// trainSparseLogistic fits an L2-regularized logistic regression by batch
+// gradient descent over sparse bag-of-words rows, without mean-centering
+// (centering would turn the sparse counts dense, since every absent token
+// would become a nonzero "-mean" value). Cost per epoch is O(sum of nonzero
+// entries + dim) instead of O(samples * dim).
+func trainSparseLogistic(rows []sparseSample, dim int, cfg TrainConfig) (weights []float64, bias float64) {
+	if cfg.LearningRate <= 0 {
+		cfg.LearningRate = defaultLearningRate
+	}
+	if cfg.L2Lambda < 0 {
+		cfg.L2Lambda = defaultL2Lambda
+	}
+	if cfg.Epochs <= 0 {
+		cfg.Epochs = defaultEpochs
+	}
+	weights = make([]float64, dim)
+	n := float64(len(rows))
+	if n == 0 {
+		return weights, 0
+	}
+	regularization := 2 * cfg.L2Lambda
+	gradW := make([]float64, dim)
+	for epoch := 0; epoch < cfg.Epochs; epoch++ {
+		for i := range gradW {
+			gradW[i] = 0
+		}
+		gradBias := 0.0
+		for _, row := range rows {
+			z := bias
+			for k, idx := range row.idx {
+				z += weights[idx] * row.val[k]
+			}
+			errTerm := sigmoid(z) - row.y
+			gradBias += errTerm
+			for k, idx := range row.idx {
+				gradW[idx] += errTerm * row.val[k]
+			}
+		}
+		for i := range weights {
+			weights[i] -= cfg.LearningRate * (gradW[i]/n + regularization*weights[i])
+		}
+		bias -= cfg.LearningRate * gradBias / n
+	}
+	return weights, bias
 }
 
 // BuildNewsLabels looks up, for every article, the trading day it was
@@ -293,15 +362,18 @@ func LoadNewsClassifier(path string) (*NewsClassifierWeights, error) {
 // Scorer returns a PolarityScore/RegexScore-compatible function: it maps a
 // headline to a signed score in [-1, 1] via 2*p-1, p being the trained
 // probability that the headline's forward excess return is positive.
+// Bag-of-words counts are used unstandardized (Mean/Std are kept at 0/1 by
+// the sparse trainer) so scoring only touches the handful of vocabulary
+// tokens a headline actually contains, not the full vocabulary.
 func (w *NewsClassifierWeights) Scorer() func(string) decimal.Decimal {
 	vocabIndex := buildVocabIndex(w.Vocab)
-	mean, std, coef, bias := w.Mean, w.Std, w.Coef, w.Bias
+	coef, bias := w.Coef, w.Bias
 	return func(title string) decimal.Decimal {
-		x := vectorizeTitle(title, vocabIndex)
 		z := bias
-		for i, v := range x {
-			standardized := (v - mean[i]) / std[i]
-			z += standardized * coef[i]
+		for _, tok := range tokenizeTitle(title) {
+			if idx, ok := vocabIndex[tok]; ok {
+				z += coef[idx]
+			}
 		}
 		p := sigmoid(z)
 		return decimal.NewFromFloat(2*p - 1)
@@ -349,20 +421,16 @@ func TrainNewsClassifier(ctx context.Context, source backtest.HistoricalSource, 
 	}
 	vocabIndex := buildVocabIndex(vocab)
 
-	rows := make([]Sample, len(trainSamples))
+	rows := make([]sparseSample, len(trainSamples))
 	for i, s := range trainSamples {
-		rows[i] = Sample{X: vectorizeTitle(s.Article.Title, vocabIndex), Y: s.Label}
+		rows[i] = newSparseSample(s.Article.Title, vocabIndex, s.Label)
 	}
-	mean, std := Standardize(rows)
-	coef, bias, err := Train(rows, cfg.TrainCfg)
-	if err != nil {
-		return nil, fmt.Errorf("model: train news classifier: %w", err)
-	}
+	coef, bias := trainSparseLogistic(rows, len(vocab), cfg.TrainCfg)
 
 	w := &NewsClassifierWeights{
 		Vocab:       vocab,
-		Mean:        mean,
-		Std:         std,
+		Mean:        make([]float64, len(vocab)),
+		Std:         onesVector(len(vocab)),
 		Coef:        coef,
 		Bias:        bias,
 		HorizonDays: cfg.HorizonDays,
