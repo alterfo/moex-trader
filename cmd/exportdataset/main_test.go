@@ -70,7 +70,7 @@ func TestWriteTickerRowMatchesHeader(t *testing.T) {
 	labels := map[string]labeledRow{}
 
 	err := writeTicker(context.Background(), writer, source, features.NewBuilder(time.Now),
-		"TEST", start, till, from, split, defaultHorizonDays, labels, news, events, header)
+		"TEST", start, till, from, split, defaultHorizonDays, minLabelCandles, labels, news, events, header)
 	if err != nil {
 		t.Fatalf("writeTicker: %v", err)
 	}

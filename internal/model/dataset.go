@@ -85,6 +85,9 @@ func buildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 		from = till.AddDate(0, 0, -365)
 	}
 	fetchFrom := from.AddDate(0, 0, -backtest.DefaultWarmupDays)
+	if extra := featureCfg.WarmupCalendarDays(); extra > backtest.DefaultWarmupDays {
+		fetchFrom = from.AddDate(0, 0, -extra)
+	}
 
 	var indexByDate map[string]moex.Candle
 	if mode == LabelModeExcess {
@@ -108,10 +111,11 @@ func buildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 		if err != nil {
 			return nil, fmt.Errorf("model: history %s: %w", ticker, err)
 		}
-		if len(candles) < minFeatureCandles+1 {
+		warmup := featureCfg.WarmupCandles()
+		if len(candles) < warmup+1 {
 			continue
 		}
-		for d := minFeatureCandles; d < len(candles); d++ {
+		for d := warmup; d < len(candles); d++ {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
 			}

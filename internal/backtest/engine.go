@@ -24,7 +24,6 @@ import (
 
 const (
 	DefaultWarmupDays = 100
-	minFeatureCandles = 64
 	periodsPerYear    = 252.0
 )
 
@@ -315,12 +314,16 @@ func (e *Engine) runTicker(ctx context.Context, ticker string) (map[time.Time]de
 		till = time.Now()
 	}
 	fetchFrom := from.AddDate(0, 0, -e.cfg.WarmupDays)
+	if extra := e.cfg.FeatureConfig.WarmupCalendarDays(); extra > e.cfg.WarmupDays {
+		fetchFrom = from.AddDate(0, 0, -extra)
+	}
 
 	candles, err := e.cfg.Source.History(ctx, ticker, fetchFrom, till)
 	if err != nil {
 		return nil, fmt.Errorf("backtest: history %s: %w", ticker, err)
 	}
-	if len(candles) < minFeatureCandles+1 {
+	warmup := e.cfg.FeatureConfig.WarmupCandles()
+	if len(candles) < warmup+1 {
 		e.cfg.Logger.Printf("backtest: %s: only %d candles in history, skipping", ticker, len(candles))
 		return map[time.Time]decimal.Decimal{}, nil
 	}
@@ -329,7 +332,7 @@ func (e *Engine) runTicker(ctx context.Context, ticker string) (map[time.Time]de
 	curve := make(map[time.Time]decimal.Decimal)
 
 	tradeable := make([]int, 0, 64)
-	for d := minFeatureCandles; d < len(candles); d++ {
+	for d := warmup; d < len(candles); d++ {
 		if candles[d].Begin.Before(from) {
 			continue
 		}

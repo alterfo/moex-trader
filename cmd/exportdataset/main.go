@@ -122,6 +122,9 @@ func run(args []string) error {
 	defer out.Close()
 
 	fetchFrom := from.AddDate(0, 0, -backtest.DefaultWarmupDays)
+	if extra := featureCfg.WarmupCalendarDays(); extra > backtest.DefaultWarmupDays {
+		fetchFrom = from.AddDate(0, 0, -extra)
+	}
 	writer := csv.NewWriter(out)
 	defer writer.Flush()
 
@@ -139,7 +142,7 @@ func run(args []string) error {
 			return ctx.Err()
 		}
 		builder := features.NewBuilderWithConfig(time.Now, featureCfg)
-		if err := writeTicker(ctx, writer, source, builder, ticker, fetchFrom, till, from, split, opts.horizonDays, labelByKey, newsHistory, eventHistory, header); err != nil {
+		if err := writeTicker(ctx, writer, source, builder, ticker, fetchFrom, till, from, split, opts.horizonDays, featureCfg.WarmupCandles(), labelByKey, newsHistory, eventHistory, header); err != nil {
 			return err
 		}
 	}
@@ -152,16 +155,16 @@ type labeledRow struct {
 }
 
 func writeTicker(ctx context.Context, writer *csv.Writer, source backtest.HistoricalSource, builder *features.Builder,
-	ticker string, fetchFrom, till, from, split time.Time, horizonDays int, labels map[string]labeledRow,
+	ticker string, fetchFrom, till, from, split time.Time, horizonDays, warmup int, labels map[string]labeledRow,
 	newsHistory map[string]map[string]model.NewsAggregate, eventHistory map[string]map[string]model.EventAggregate, header []string) error {
 	candles, err := source.History(ctx, ticker, fetchFrom, till)
 	if err != nil {
 		return fmt.Errorf("history %s: %w", ticker, err)
 	}
-	if len(candles) < minLabelCandles+1 {
+	if len(candles) < warmup+1 {
 		return nil
 	}
-	for d := minLabelCandles; d < len(candles); d++ {
+	for d := warmup; d < len(candles); d++ {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}

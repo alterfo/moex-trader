@@ -203,6 +203,33 @@ func (c PriceFeatureConfig) lookbackBounds() int {
 	return 63*c.barsPerDay() + maxIndicatorLookbackCandles
 }
 
+// WarmupCandles is the minimum number of candles a caller must feed before a
+// sample's feature vector is fully populated: on daily bars that is the
+// historical 64 (large enough for the 63-bar Mom63d window). On intraday bars
+// the day-denominated windows scale up, so the warmup grows with them -
+// otherwise the first ~63*barsPerDay bars of a scan would emit zeroed
+// momentum/MA/vol features and quietly poison the training set.
+func (c PriceFeatureConfig) WarmupCandles() int {
+	if c.barsPerDay() == 1 {
+		return 64
+	}
+	return c.lookbackBounds()
+}
+
+// WarmupCalendarDays is the calendar-day fetch lead an intraday source needs
+// so WarmupCandles intraday bars actually exist (trading days are ~5/7 of
+// calendar days; a small buffer covers holidays and shortened sessions). It
+// returns 0 for daily bars, where callers already have their own warmup and
+// the intraday scaling must not change the existing chain.
+func (c PriceFeatureConfig) WarmupCalendarDays() int {
+	if c.barsPerDay() == 1 {
+		return 0
+	}
+	bpd := c.barsPerDay()
+	tradingDays := (c.WarmupCandles() + bpd - 1) / bpd
+	return tradingDays*7/5 + 10
+}
+
 func ComputePriceFeatures(candles []moex.Candle) PriceFeatures {
 	return ComputePriceFeaturesWithConfig(candles, PriceFeatureConfig{})
 }

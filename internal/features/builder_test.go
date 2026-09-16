@@ -443,6 +443,29 @@ func TestConfigForIntervalMapsToBarsPerDay(t *testing.T) {
 	}
 }
 
+func TestWarmupCandlesMatchesLookback(t *testing.T) {
+	if got := (PriceFeatureConfig{}).WarmupCandles(); got != 64 {
+		t.Fatalf("daily warmup should stay 64 to preserve the existing chain, got %d", got)
+	}
+	const bpd = 105
+	cfg := PriceFeatureConfig{BarsPerDay: bpd}
+	want := 63*bpd + maxIndicatorLookbackCandles
+	if got := cfg.WarmupCandles(); got != want {
+		t.Fatalf("intraday warmup = %d, want %d (63-day window + EMA margin)", got, want)
+	}
+	if cfg.WarmupCandles() <= 64 {
+		t.Fatal("intraday warmup must exceed the daily 64 or long windows would be zeroed")
+	}
+	if got := (PriceFeatureConfig{}).WarmupCalendarDays(); got != 0 {
+		t.Fatalf("daily warmup calendar days should be 0 (callers keep their own), got %d", got)
+	}
+	cal := cfg.WarmupCalendarDays()
+	trading := (want + bpd - 1) / bpd
+	if cal < trading*7/5 {
+		t.Fatalf("warmup calendar days %d too short to fit %d trading bars of warmup at %d bars/day", cal, trading, bpd)
+	}
+}
+
 func TestStochasticK(t *testing.T) {
 	candles := make([]moex.Candle, 14)
 	candles[0] = moex.Candle{High: decimal.NewFromFloat(110), Low: decimal.NewFromFloat(100), Close: decimal.NewFromFloat(105)}
