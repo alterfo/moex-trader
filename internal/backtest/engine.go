@@ -81,6 +81,8 @@ type Config struct {
 	Deposit               decimal.Decimal
 	MaxLots               int
 	CommissionRate        decimal.Decimal
+	SpreadPct             decimal.Decimal
+	SlippagePct           decimal.Decimal
 	WarmupDays            int
 	MaxDecisionsPerTicker int
 	MaxHoldBars           int
@@ -202,6 +204,12 @@ func (c Config) WithDefaults() Config {
 	}
 	if c.CommissionRate.IsNegative() {
 		c.CommissionRate = decimal.Zero
+	}
+	if c.SpreadPct.IsNegative() {
+		c.SpreadPct = decimal.Zero
+	}
+	if c.SlippagePct.IsNegative() {
+		c.SlippagePct = decimal.Zero
 	}
 	if c.WarmupDays <= 0 {
 		c.WarmupDays = DefaultWarmupDays
@@ -449,7 +457,8 @@ func (e *Engine) runTicker(ctx context.Context, ticker string) (map[time.Time]de
 		}
 
 		if signal.Action != domain.ActionHold && approved {
-			if err := e.recordFill(ticker, signal, execPrice, decisionDay); err != nil {
+			fillPrice := e.fillPrice(execPrice, signal.Action)
+			if err := e.recordFill(ticker, signal, fillPrice, decisionDay); err != nil {
 				e.cfg.Logger.Printf("backtest: %s on %s: record fill: %v", ticker, decisionDay.Format("2006-01-02"), err)
 			}
 		}
@@ -463,6 +472,21 @@ func decisionPrice(candles []moex.Candle, d int) decimal.Decimal {
 		return candles[d+1].Open
 	}
 	return candles[d].Close
+}
+
+// fillPrice applies half-spread and slippage against the trader: a BUY fills
+// above the quoted price, a SELL fills below it. Both costs are modeled as a
+// fraction of price (e.g. 0.0005 = 0.05%) and only affect actual fills, not
+// the mark-to-market curve or the risk gate's price check.
+func (e *Engine) fillPrice(price decimal.Decimal, action domain.Action) decimal.Decimal {
+	cost := e.cfg.SpreadPct.Add(e.cfg.SlippagePct)
+	if cost.Sign() <= 0 {
+		return price
+	}
+	if action == domain.ActionSell {
+		return price.Mul(decimal.NewFromInt(1).Sub(cost))
+	}
+	return price.Mul(decimal.NewFromInt(1).Add(cost))
 }
 
 func (e *Engine) recordFill(ticker string, signal domain.TradeSignal, price decimal.Decimal, day time.Time) error {
@@ -553,7 +577,11 @@ func (e *Engine) expirePosition(ticker string, price decimal.Decimal, day time.T
 	if pos.bars < e.cfg.MaxHoldBars {
 		return false
 	}
-	e.closePositionLocked(ticker, pos, price, day, "time-exit")
+	closeAction := domain.ActionSell
+	if pos.action == domain.ActionSell {
+		closeAction = domain.ActionBuy
+	}
+	e.closePositionLocked(ticker, pos, e.fillPrice(price, closeAction), day, "time-exit")
 	return true
 }
 

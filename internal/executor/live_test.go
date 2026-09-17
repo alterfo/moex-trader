@@ -145,6 +145,51 @@ func TestLiveExecutorPlacesOrder(t *testing.T) {
 	}
 }
 
+func TestLiveExecutorAppliesSlippageCapToLimitPrice(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	price := decimal.NewFromFloat(270.5)
+
+	cases := []struct {
+		name   string
+		signal domain.TradeSignal
+		want   decimal.Decimal
+	}{
+		{"buy caps up", newBuySignal(now), price.Mul(decimal.NewFromFloat(1.003))},
+		{"sell floors down", domain.TradeSignal{
+			Ticker: "SBER", Action: domain.ActionSell, Confidence: decimal.NewFromFloat(0.8),
+			TargetLots: 1, Reasoning: "test", GeneratedAt: now.Add(-time.Second),
+		}, price.Mul(decimal.NewFromFloat(0.997))},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := openTestStore(t)
+			poster := &fakeOrderPoster{
+				responses: []*pb.PostOrderResponse{
+					{ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL, LotsRequested: 1, LotsExecuted: 1},
+				},
+			}
+			exec, err := NewLiveExecutor(poster, LiveConfig{
+				AccountID:           "account-1",
+				ResolveInstrumentID: func(_ context.Context, ticker string) (string, error) { return "instrument-" + ticker, nil },
+				Store:               store,
+				Now:                 func() time.Time { return now },
+				MaxSlippagePct:      decimal.NewFromFloat(0.003),
+			})
+			if err != nil {
+				t.Fatalf("NewLiveExecutor() error = %v", err)
+			}
+			if _, err := exec.Execute(context.Background(), tc.signal, price); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			got := poster.calls[0].GetPrice()
+			gotDecimal := decimal.NewFromInt(got.GetUnits()).Add(decimal.NewFromInt(int64(got.GetNano())).Div(decimal.NewFromInt(quotationScale)))
+			if !gotDecimal.Round(6).Equal(tc.want.Round(6)) {
+				t.Fatalf("request Price = %s, want %s", gotDecimal, tc.want)
+			}
+		})
+	}
+}
+
 func TestLiveExecutorDuplicateOrderIDIsIdempotent(t *testing.T) {
 	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
 	poster := &fakeOrderPoster{

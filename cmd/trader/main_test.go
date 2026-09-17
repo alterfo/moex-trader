@@ -253,9 +253,13 @@ func TestNewBrokerRuntimeSandboxWiresLiveExecutor(t *testing.T) {
 	if _, ok := runtime.exec.(*executor.TargetPositionExecutor); !ok {
 		t.Fatalf("newBrokerRuntime() executor type = %T, want *executor.TargetPositionExecutor", runtime.exec)
 	}
-	guarded, ok := runtime.exec.(*executor.TargetPositionExecutor).Inner().(*marketHoursExecutor)
+	windowed, ok := runtime.exec.(*executor.TargetPositionExecutor).Inner().(*tradingWindowExecutor)
 	if !ok {
-		t.Fatalf("newBrokerRuntime() inner executor type = %T, want *marketHoursExecutor", runtime.exec.(*executor.TargetPositionExecutor).Inner())
+		t.Fatalf("newBrokerRuntime() inner executor type = %T, want *tradingWindowExecutor", runtime.exec.(*executor.TargetPositionExecutor).Inner())
+	}
+	guarded, ok := windowed.inner.(*marketHoursExecutor)
+	if !ok {
+		t.Fatalf("newBrokerRuntime() windowed inner executor type = %T, want *marketHoursExecutor", windowed.inner)
 	}
 	if _, ok := guarded.inner.(*executor.LiveExecutor); !ok {
 		t.Fatalf("newBrokerRuntime() guarded inner executor type = %T, want *executor.LiveExecutor", guarded.inner)
@@ -624,6 +628,82 @@ func TestMarketHoursExecutorValidatesConfig(t *testing.T) {
 	}
 	if _, err := newMarketHoursExecutor(&recordingExecutor{}, nil, time.Now, nil); err == nil {
 		t.Fatal("newMarketHoursExecutor() error = nil for nil sandbox")
+	}
+}
+
+func TestTradingWindowExecutorBlocksDuringOpeningCooldown(t *testing.T) {
+	loc, err := time.LoadLocation("Europe/Moscow")
+	if err != nil {
+		t.Fatalf("LoadLocation() error = %v", err)
+	}
+	inner := &recordingExecutor{}
+	now := time.Date(2026, 9, 17, 10, 5, 0, 0, loc)
+	exec, err := newTradingWindowExecutor(inner, func() time.Time { return now }, 15, nil, log.Default())
+	if err != nil {
+		t.Fatalf("newTradingWindowExecutor() error = %v", err)
+	}
+	if _, err := exec.Execute(context.Background(), marketSignal(domain.ActionBuy), decimal.NewFromInt(100)); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if len(inner.calls) != 0 {
+		t.Fatalf("inner executor calls = %d, want 0 (inside 15-minute opening cooldown)", len(inner.calls))
+	}
+}
+
+func TestTradingWindowExecutorAllowsAfterCooldown(t *testing.T) {
+	loc, err := time.LoadLocation("Europe/Moscow")
+	if err != nil {
+		t.Fatalf("LoadLocation() error = %v", err)
+	}
+	inner := &recordingExecutor{}
+	now := time.Date(2026, 9, 17, 10, 16, 0, 0, loc)
+	exec, err := newTradingWindowExecutor(inner, func() time.Time { return now }, 15, nil, log.Default())
+	if err != nil {
+		t.Fatalf("newTradingWindowExecutor() error = %v", err)
+	}
+	if _, err := exec.Execute(context.Background(), marketSignal(domain.ActionBuy), decimal.NewFromInt(100)); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if len(inner.calls) != 1 {
+		t.Fatalf("inner executor calls = %d, want 1 (past the 15-minute opening cooldown)", len(inner.calls))
+	}
+}
+
+func TestTradingWindowExecutorBlocksDuringBlackoutWindow(t *testing.T) {
+	inner := &recordingExecutor{}
+	now := time.Date(2026, 10, 24, 13, 30, 0, 0, time.UTC)
+	exec, err := newTradingWindowExecutor(inner, func() time.Time { return now }, 0,
+		[]string{"2026-10-24T13:00:00Z/2026-10-24T14:00:00Z"}, log.Default())
+	if err != nil {
+		t.Fatalf("newTradingWindowExecutor() error = %v", err)
+	}
+	if _, err := exec.Execute(context.Background(), marketSignal(domain.ActionSell), decimal.NewFromInt(100)); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if len(inner.calls) != 0 {
+		t.Fatalf("inner executor calls = %d, want 0 (inside blackout window)", len(inner.calls))
+	}
+}
+
+func TestTradingWindowExecutorPassesHoldThrough(t *testing.T) {
+	inner := &recordingExecutor{}
+	loc, _ := time.LoadLocation("Europe/Moscow")
+	now := time.Date(2026, 9, 17, 10, 5, 0, 0, loc)
+	exec, err := newTradingWindowExecutor(inner, func() time.Time { return now }, 15, nil, log.Default())
+	if err != nil {
+		t.Fatalf("newTradingWindowExecutor() error = %v", err)
+	}
+	if _, err := exec.Execute(context.Background(), marketSignal(domain.ActionHold), decimal.NewFromInt(100)); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if len(inner.calls) != 1 {
+		t.Fatalf("inner executor calls = %d, want 1 (HOLD bypasses the trading window gate)", len(inner.calls))
+	}
+}
+
+func TestTradingWindowExecutorRejectsInvalidBlackoutSpec(t *testing.T) {
+	if _, err := newTradingWindowExecutor(&recordingExecutor{}, time.Now, 0, []string{"not-a-window"}, log.Default()); err == nil {
+		t.Fatal("newTradingWindowExecutor() error = nil for invalid blackout spec")
 	}
 }
 

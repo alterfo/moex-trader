@@ -24,9 +24,12 @@ tickers:
   # findings, 2026-09-16).
 model:
   path: "model.json"
-  # ensemble_model.json retrained 2026-09-17 on the absolute-10d recipe
-  # (26-feature schema, buy/sell 0.60/0.40, walk-forward +110741р/18mo,
-  # 5/6 quarters positive, max DD 2.91%; see AGENTS.md H1/H2 notes).
+  # ensemble_model.json retrained 2026-09-17 on the absolute-10d recipe with
+  # real news_sentiment/news_count (6-month Telegram backfill, 18-feature
+  # schema, buy/sell 0.60/0.40). Holdout (2026-06-19..09-17, 1M deposit,
+  # spread+slippage 0.05%+0.05%) vs identical no-news control, realized P&L:
+  # +56379р/253 trades vs +40102р/205 trades, DD 1.60% vs 1.09%. 90-day
+  # no-news preflight check (matches live startup gate) +25699р. See AGENTS.md.
   ensemble_path: "ensemble_model.json"
 moex_iss_base_url: "https://iss.moex.com/iss"
 algopack_base_url: "https://apim.moex.com/iss/datashop"
@@ -40,6 +43,16 @@ risk:
   # with headroom for a price drop.
   max_lots: 1000
   target_notional: "15000"
+  # Marketable-limit slippage cap (requires tinkoff.order_type: limit below):
+  # BUY caps at last_price*(1+pct), SELL floors at last_price*(1-pct). The
+  # order either fills within the band or not at all — never chases the book.
+  max_slippage_pct: "0.003"
+  # Skip new orders for this many minutes after the 10:00 MSK main-session
+  # open, where spreads are at their widest (opening auction settling).
+  no_trade_after_open_minutes: 15
+  # "RFC3339-start/RFC3339-end" pairs, e.g. around CBR key-rate announcements.
+  # Empty by default — fill in known dates as they're scheduled.
+  blackout_windows: []
 commission:
   broker: "tinkoff"
   rate: "0.0005"    # T-Bank sandbox charges a flat 0.05% per trade
@@ -50,7 +63,7 @@ tinkoff:
   sandbox: true
   account_id: "39f02dbf-0979-4e28-b005-d3f151749f40"
   pay_in: "1000000"
-  order_type: "market"
+  order_type: "limit"
 preflight:
   enabled: true
   days: 90

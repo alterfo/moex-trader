@@ -75,6 +75,86 @@ func (s *alternatingSignal) Generate(_ context.Context, feat domain.FeatureConte
 	}, nil
 }
 
+func TestEngine_SpreadAndSlippageWidenFillsAgainstTrader(t *testing.T) {
+	candles := benchCandles(120)
+	engine, err := NewEngine(Config{
+		Tickers:        []string{"TEST"},
+		From:           time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+		Till:           time.Date(2024, 1, 30, 0, 0, 0, 0, time.UTC),
+		Deposit:        decimal.NewFromInt(100000),
+		MaxLots:        1,
+		CommissionRate: decimal.Zero,
+		SpreadPct:      decimal.NewFromFloat(0.001),
+		SlippagePct:    decimal.NewFromFloat(0.0005),
+		KillSwitch:     true,
+		SignalSource:   &alternatingSignal{},
+		Source:         fakeSource{candles: candles},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := engine.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Trades) == 0 {
+		t.Fatal("expected at least one closed trade")
+	}
+
+	cost := decimal.NewFromFloat(0.001).Add(decimal.NewFromFloat(0.0005))
+	base := decimal.NewFromInt(100)
+	wantBuyFill := base.Mul(decimal.NewFromInt(1).Add(cost))
+	wantSellFill := base.Mul(decimal.NewFromInt(1).Sub(cost))
+
+	first := result.Trades[0]
+	if first.Action != domain.ActionBuy {
+		t.Fatalf("expected first closed trade to be the opened long, got action %v", first.Action)
+	}
+	if !first.EntryPrice.Equal(wantBuyFill) {
+		t.Errorf("EntryPrice = %s, want %s (base price + spread + slippage)", first.EntryPrice, wantBuyFill)
+	}
+	if !first.ExitPrice.Equal(wantSellFill) {
+		t.Errorf("ExitPrice = %s, want %s (base price - spread - slippage)", first.ExitPrice, wantSellFill)
+	}
+	if !first.GrossPnl.IsNegative() {
+		t.Errorf("GrossPnl = %s, want negative: flat price plus round-trip cost must lose money", first.GrossPnl)
+	}
+}
+
+func TestEngine_ZeroSpreadSlippageMatchesRawPrice(t *testing.T) {
+	candles := benchCandles(120)
+	engine, err := NewEngine(Config{
+		Tickers:        []string{"TEST"},
+		From:           time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+		Till:           time.Date(2024, 1, 30, 0, 0, 0, 0, time.UTC),
+		Deposit:        decimal.NewFromInt(100000),
+		MaxLots:        1,
+		CommissionRate: decimal.Zero,
+		KillSwitch:     true,
+		SignalSource:   &alternatingSignal{},
+		Source:         fakeSource{candles: candles},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := engine.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Trades) == 0 {
+		t.Fatal("expected at least one closed trade")
+	}
+	first := result.Trades[0]
+	if !first.EntryPrice.Equal(decimal.NewFromInt(100)) || !first.ExitPrice.Equal(decimal.NewFromInt(100)) {
+		t.Errorf("with zero spread/slippage fills should equal the raw candle price, got entry=%s exit=%s", first.EntryPrice, first.ExitPrice)
+	}
+	if !first.GrossPnl.IsZero() {
+		t.Errorf("GrossPnl = %s, want zero at flat price with no costs", first.GrossPnl)
+	}
+}
+
 func TestEngine_RealizedPlusUnrealizedEqualsNet(t *testing.T) {
 	candles := benchCandles(120)
 	engine, err := NewEngine(Config{

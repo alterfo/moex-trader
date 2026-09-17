@@ -28,6 +28,10 @@ storage:
   path: "./trader.db"
 risk:
   max_lots: 1
+  # target_notional: "15000"        # flat notional per position; overrides max_lots sizing when set
+  # max_slippage_pct: "0.003"       # marketable-limit slippage cap (needs tinkoff.order_type: limit)
+  # no_trade_after_open_minutes: 15 # pause new orders around the 10:00 MSK open
+  # blackout_windows: []            # "RFC3339-start/RFC3339-end" pairs, e.g. CBR key-rate announcements
 commission:
   broker: "tinkoff"
   rate: "0.0005"    # 0.05%, T-Bank "Трейдер" tariff — flat rate, no per-trade minimum
@@ -43,7 +47,7 @@ tinkoff:
   sandbox: true
   account_id: ""      # pin an existing sandbox account; empty reuses the first one or opens a new one
   pay_in: "1000000"   # rubles; funds a new sandbox account and sets the risk drawdown baseline
-  order_type: "market" # limit | market; market fills at the sandbox last price
+  order_type: "limit"  # limit | market; market carries no price at all — use limit + risk.max_slippage_pct
   token: ""           # env-only: MOEX_TRADER_TINKOFF_TOKEN
 
 # Preflight: replay the current configuration over recent MOEX history before start.

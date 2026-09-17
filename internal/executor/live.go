@@ -57,6 +57,10 @@ type LiveConfig struct {
 	Store               *storage.Store
 	Now                 func() time.Time
 	CommissionRate      decimal.Decimal
+	// MaxSlippagePct bounds the LIMIT order price against the decision price
+	// (BUY caps at price*(1+pct), SELL floors at price*(1-pct)); ignored for
+	// MARKET orders, which carry no price field at all.
+	MaxSlippagePct decimal.Decimal
 }
 
 type LiveExecutor struct {
@@ -67,6 +71,7 @@ type LiveExecutor struct {
 	store          *storage.Store
 	now            func() time.Time
 	commissionRate decimal.Decimal
+	maxSlippagePct decimal.Decimal
 
 	mu      sync.Mutex
 	sent    map[string]Fill
@@ -104,6 +109,7 @@ func NewLiveExecutor(orders OrderPoster, cfg LiveConfig) (*LiveExecutor, error) 
 		store:          cfg.Store,
 		now:            now,
 		commissionRate: cfg.CommissionRate,
+		maxSlippagePct: cfg.MaxSlippagePct,
 		sent:           make(map[string]Fill),
 		pending:        make(map[string]chan struct{}),
 		results:        make(map[string]orderResult),
@@ -340,9 +346,22 @@ func (l *LiveExecutor) orderRequest(signal domain.TradeSignal, price decimal.Dec
 		OrderId:      orderID,
 	}
 	if l.orderType != pb.OrderType_ORDER_TYPE_MARKET {
-		request.Price = decimalToQuotation(price)
+		request.Price = decimalToQuotation(boundedLimitPrice(price, signal.Action, l.maxSlippagePct))
 	}
 	return request, nil
+}
+
+// boundedLimitPrice caps a LIMIT order at price adjusted by pct against the
+// trader (BUY up, SELL down), mirroring a DEX slippage-tolerance order: it
+// either fills within the band or not at all, never worse.
+func boundedLimitPrice(price decimal.Decimal, action domain.Action, pct decimal.Decimal) decimal.Decimal {
+	if pct.Sign() <= 0 {
+		return price
+	}
+	if action == domain.ActionSell {
+		return price.Mul(decimal.NewFromInt(1).Sub(pct))
+	}
+	return price.Mul(decimal.NewFromInt(1).Add(pct))
 }
 
 func (l *LiveExecutor) record(ctx context.Context, fill Fill) error {

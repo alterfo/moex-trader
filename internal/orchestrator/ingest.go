@@ -36,8 +36,8 @@ type MOEXIngestor struct {
 }
 
 const (
-	newsWindow         = 2 * 24 * time.Hour
-	telegramLiveMaxPages = 3
+	newsWindow           = 10 * 24 * time.Hour
+	telegramLiveMaxPages = 15
 )
 
 func NewMOEXIngestor(moexClient *moex.Client, fetcher *news.Fetcher, matcher *news.Matcher, sources []news.Source, algopackFetcher algopack.Fetcher) *MOEXIngestor {

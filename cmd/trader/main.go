@@ -545,6 +545,7 @@ func newBrokerRuntime(ctx context.Context, cfg *config.Config, store *storage.St
 			Store:               store,
 			Now:                 now,
 			CommissionRate:      cfg.Commission.Rate,
+			MaxSlippagePct:      cfg.Risk.MaxSlippagePct,
 		})
 		if err != nil {
 			_ = sandbox.Close()
@@ -555,9 +556,14 @@ func newBrokerRuntime(ctx context.Context, cfg *config.Config, store *storage.St
 			_ = sandbox.Close()
 			return nil, err
 		}
+		windowedExecutor, err := newTradingWindowExecutor(guardedExecutor, now, cfg.Risk.NoTradeAfterOpenMinutes, cfg.Risk.BlackoutWindows, log.Default())
+		if err != nil {
+			_ = sandbox.Close()
+			return nil, err
+		}
 		log.Printf("tinkoff sandbox: account %s ready; set tinkoff.account_id to reuse it on the next run", accountID)
 		return &brokerRuntime{
-			exec:          executor.NewTargetPositionExecutor(guardedExecutor, store, now),
+			exec:          executor.NewTargetPositionExecutor(windowedExecutor, store, now),
 			accountSource: sandbox,
 			canceller:     sandbox,
 			closeFn:       sandbox.Close,
@@ -635,6 +641,96 @@ func (m *marketHoursExecutor) logClosed(ticker string) {
 	}
 	m.logged[ticker] = day
 	m.logger.Printf("trader: %s is not available for trading, skipping orders until the next session", ticker)
+}
+
+type blackoutWindow struct {
+	start, end time.Time
+}
+
+type tradingWindowExecutor struct {
+	inner      executor.Executor
+	now        func() time.Time
+	loc        *time.Location
+	openWarmup time.Duration
+	blackouts  []blackoutWindow
+	logger     *log.Logger
+
+	mu     sync.Mutex
+	logged map[string]string
+}
+
+func newTradingWindowExecutor(inner executor.Executor, now func() time.Time, noTradeAfterOpenMinutes int, blackoutSpecs []string, logger *log.Logger) (*tradingWindowExecutor, error) {
+	if inner == nil {
+		return nil, fmt.Errorf("trading window executor: inner executor is required")
+	}
+	if now == nil {
+		now = time.Now
+	}
+	if logger == nil {
+		logger = log.Default()
+	}
+	loc, err := time.LoadLocation("Europe/Moscow")
+	if err != nil {
+		loc = time.FixedZone("MSK", 3*3600)
+	}
+	blackouts := make([]blackoutWindow, 0, len(blackoutSpecs))
+	for _, spec := range blackoutSpecs {
+		start, end, err := config.ParseBlackoutWindow(spec)
+		if err != nil {
+			return nil, fmt.Errorf("trading window executor: %w", err)
+		}
+		blackouts = append(blackouts, blackoutWindow{start: start, end: end})
+	}
+	return &tradingWindowExecutor{
+		inner:      inner,
+		now:        now,
+		loc:        loc,
+		openWarmup: time.Duration(noTradeAfterOpenMinutes) * time.Minute,
+		blackouts:  blackouts,
+		logger:     logger,
+		logged:     make(map[string]string),
+	}, nil
+}
+
+func (t *tradingWindowExecutor) Execute(ctx context.Context, signal domain.TradeSignal, price decimal.Decimal) (executor.Fill, error) {
+	if signal.Action == domain.ActionHold {
+		return t.inner.Execute(ctx, signal, price)
+	}
+	now := t.now()
+	if reason, blocked := t.blocked(now); blocked {
+		t.logBlocked(signal.Ticker, reason, now)
+		return executor.Fill{}, nil
+	}
+	return t.inner.Execute(ctx, signal, price)
+}
+
+func (t *tradingWindowExecutor) blocked(now time.Time) (string, bool) {
+	if t.openWarmup > 0 {
+		local := now.In(t.loc)
+		open := time.Date(local.Year(), local.Month(), local.Day(), 10, 0, 0, 0, t.loc)
+		cutoff := open.Add(t.openWarmup)
+		if !local.Before(open) && local.Before(cutoff) {
+			return fmt.Sprintf("opening cooldown until %s MSK", cutoff.Format("15:04:05")), true
+		}
+	}
+	for _, w := range t.blackouts {
+		if !now.Before(w.start) && now.Before(w.end) {
+			return fmt.Sprintf("blackout window %s..%s", w.start.Format(time.RFC3339), w.end.Format(time.RFC3339)), true
+		}
+	}
+	return "", false
+}
+
+func (t *tradingWindowExecutor) logBlocked(ticker, reason string, now time.Time) {
+	key := ticker + "|" + reason
+	slot := now.Truncate(5 * time.Minute).Format(time.RFC3339)
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.logged[key] == slot {
+		return
+	}
+	t.logged[key] = slot
+	t.logger.Printf("trader: %s order skipped: %s", ticker, reason)
 }
 
 type preflight struct {

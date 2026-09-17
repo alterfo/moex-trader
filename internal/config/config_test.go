@@ -348,6 +348,47 @@ func TestRiskTargetNotionalLoadedAndValidated(t *testing.T) {
 	}
 }
 
+func TestRiskSlippageAndTradingWindowLoadedAndValidated(t *testing.T) {
+	clearEnv(t)
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\nrisk:\n  max_lots: 1\n  max_slippage_pct: \"0.003\"\n  no_trade_after_open_minutes: 15\n  blackout_windows:\n    - \"2026-10-24T13:00:00+03:00/2026-10-24T14:00:00+03:00\"\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if !cfg.Risk.MaxSlippagePct.Equal(decimal.RequireFromString("0.003")) {
+		t.Fatalf("unexpected max slippage pct: %s", cfg.Risk.MaxSlippagePct)
+	}
+	if cfg.Risk.NoTradeAfterOpenMinutes != 15 {
+		t.Fatalf("unexpected no_trade_after_open_minutes: %d", cfg.Risk.NoTradeAfterOpenMinutes)
+	}
+	if len(cfg.Risk.BlackoutWindows) != 1 {
+		t.Fatalf("unexpected blackout_windows: %v", cfg.Risk.BlackoutWindows)
+	}
+
+	_, err = Parse([]byte("storage:\n  path: ./trader.db\nrisk:\n  max_lots: 1\n  max_slippage_pct: \"1.5\"\n"))
+	if err == nil {
+		t.Fatal("expected error for max_slippage_pct outside [0,1]")
+	}
+	if !strings.Contains(err.Error(), "risk.max_slippage_pct") {
+		t.Fatalf("expected risk.max_slippage_pct error, got: %v", err)
+	}
+
+	_, err = Parse([]byte("storage:\n  path: ./trader.db\nrisk:\n  max_lots: 1\n  no_trade_after_open_minutes: -1\n"))
+	if err == nil {
+		t.Fatal("expected error for negative no_trade_after_open_minutes")
+	}
+	if !strings.Contains(err.Error(), "risk.no_trade_after_open_minutes") {
+		t.Fatalf("expected risk.no_trade_after_open_minutes error, got: %v", err)
+	}
+
+	_, err = Parse([]byte("storage:\n  path: ./trader.db\nrisk:\n  max_lots: 1\n  blackout_windows:\n    - \"not-a-window\"\n"))
+	if err == nil {
+		t.Fatal("expected error for malformed blackout window")
+	}
+	if !strings.Contains(err.Error(), "risk.blackout_windows[0]") {
+		t.Fatalf("expected risk.blackout_windows[0] error, got: %v", err)
+	}
+}
+
 func TestRiskTargetNotionalEnvOverride(t *testing.T) {
 	clearEnv(t)
 	t.Setenv("MOEX_TRADER_RISK_TARGET_NOTIONAL", "20000")

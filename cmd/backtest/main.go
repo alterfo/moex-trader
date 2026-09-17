@@ -44,6 +44,8 @@ func run() error {
 	var depositStr string
 	var maxLots int
 	var commissionStr string
+	var spreadStr string
+	var slippageStr string
 	var lookbackDays int
 	var maxHoldBars int
 	var cachePath string
@@ -69,6 +71,8 @@ func run() error {
 	flag.StringVar(&depositStr, "deposit", "100000", "starting paper deposit in RUB")
 	flag.IntVar(&maxLots, "max-lots", 1, "max position in lots")
 	flag.StringVar(&commissionStr, "commission-rate", "0.0005", "commission rate applied to notional per fill")
+	flag.StringVar(&spreadStr, "spread-pct", "0", "half-spread cost applied against each fill, as a fraction of price (e.g. 0.0005 = 0.05%)")
+	flag.StringVar(&slippageStr, "slippage-pct", "0", "additional adverse slippage applied against each fill, as a fraction of price (e.g. 0.0005 = 0.05%)")
 	flag.IntVar(&lookbackDays, "lookback-days", 30, "max decision points per ticker (0 = unlimited)")
 	flag.IntVar(&maxHoldBars, "max-hold-bars", 0, "force-close a position after this many decision bars (0 = hold until the signal changes)")
 	flag.StringVar(&cachePath, "cache", "", "path to persistent decision cache (e.g. .backtest-cache.json)")
@@ -96,6 +100,14 @@ func run() error {
 	commissionRate, err := decimal.NewFromString(commissionStr)
 	if err != nil {
 		return fmt.Errorf("parse -commission-rate: %w", err)
+	}
+	spreadPct, err := decimal.NewFromString(spreadStr)
+	if err != nil {
+		return fmt.Errorf("parse -spread-pct: %w", err)
+	}
+	slippagePct, err := decimal.NewFromString(slippageStr)
+	if err != nil {
+		return fmt.Errorf("parse -slippage-pct: %w", err)
 	}
 	var targetNotional decimal.Decimal
 	if targetNotionalStr != "" {
@@ -186,6 +198,8 @@ func run() error {
 		Deposit:               deposit,
 		MaxLots:               maxLots,
 		CommissionRate:        commissionRate,
+		SpreadPct:             spreadPct,
+		SlippagePct:           slippagePct,
 		WarmupDays:            100,
 		MaxDecisionsPerTicker: lookbackDays,
 		MaxHoldBars:           maxHoldBars,
@@ -203,8 +217,8 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	log.Printf("backtest: window=%s..%s tickers=%d deposit=%s lots=%d commission=%s signal_source=%s lookback=%d kill_switch=%v min_confidence=%s",
-		formatFlag(from), formatFlag(till), len(tickers), deposit.String(), maxLots, commissionRate.String(), signalSourceName, lookbackDays, killSwitch, decimal.NewFromFloat(minConfidence).String())
+	log.Printf("backtest: window=%s..%s tickers=%d deposit=%s lots=%d commission=%s spread=%s slippage=%s signal_source=%s lookback=%d kill_switch=%v min_confidence=%s",
+		formatFlag(from), formatFlag(till), len(tickers), deposit.String(), maxLots, commissionRate.String(), spreadPct.String(), slippagePct.String(), signalSourceName, lookbackDays, killSwitch, decimal.NewFromFloat(minConfidence).String())
 
 	result, err := engine.Run(ctx)
 	if err != nil {

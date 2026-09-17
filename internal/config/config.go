@@ -41,8 +41,11 @@ type Storage struct {
 }
 
 type Risk struct {
-	MaxLots        int             `yaml:"max_lots"`
-	TargetNotional decimal.Decimal `yaml:"target_notional"`
+	MaxLots                 int             `yaml:"max_lots"`
+	TargetNotional          decimal.Decimal `yaml:"target_notional"`
+	MaxSlippagePct          decimal.Decimal `yaml:"max_slippage_pct"`
+	NoTradeAfterOpenMinutes int             `yaml:"no_trade_after_open_minutes"`
+	BlackoutWindows         []string        `yaml:"blackout_windows"`
 }
 
 type Telegram struct {
@@ -210,6 +213,17 @@ func (c *Config) Validate() error {
 	}
 	if c.Risk.TargetNotional.IsNegative() {
 		return fmt.Errorf("risk.target_notional must be non-negative")
+	}
+	if c.Risk.MaxSlippagePct.IsNegative() || c.Risk.MaxSlippagePct.GreaterThan(decimal.NewFromInt(1)) {
+		return fmt.Errorf("risk.max_slippage_pct must be in [0,1]")
+	}
+	if c.Risk.NoTradeAfterOpenMinutes < 0 {
+		return fmt.Errorf("risk.no_trade_after_open_minutes must be non-negative")
+	}
+	for i, w := range c.Risk.BlackoutWindows {
+		if _, _, err := parseBlackoutWindow(w); err != nil {
+			return fmt.Errorf("risk.blackout_windows[%d]: %w", i, err)
+		}
 	}
 	if strings.TrimSpace(c.Commission.Broker) == "" {
 		return fmt.Errorf("commission.broker must not be empty")
@@ -403,6 +417,32 @@ func applyEnv(cfg *Config) error {
 		cfg.Commission.Broker = v
 	}
 	return nil
+}
+
+// ParseBlackoutWindow parses a "start/end" pair of RFC3339 timestamps, e.g.
+// "2026-10-24T13:00:00+03:00/2026-10-24T14:00:00+03:00" for a CBR key-rate
+// announcement window. Trading is paused for the whole [start, end) span.
+func ParseBlackoutWindow(w string) (start, end time.Time, err error) {
+	parts := strings.SplitN(w, "/", 2)
+	if len(parts) != 2 {
+		return time.Time{}, time.Time{}, fmt.Errorf("blackout window %q must be RFC3339-start/RFC3339-end", w)
+	}
+	start, err = time.Parse(time.RFC3339, strings.TrimSpace(parts[0]))
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("blackout window %q: parse start: %w", w, err)
+	}
+	end, err = time.Parse(time.RFC3339, strings.TrimSpace(parts[1]))
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("blackout window %q: parse end: %w", w, err)
+	}
+	if !end.After(start) {
+		return time.Time{}, time.Time{}, fmt.Errorf("blackout window %q: end must be after start", w)
+	}
+	return start, end, nil
+}
+
+func parseBlackoutWindow(w string) (time.Time, time.Time, error) {
+	return ParseBlackoutWindow(w)
 }
 
 func splitComma(s string) []string {
