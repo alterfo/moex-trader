@@ -2,7 +2,9 @@
 
 Single source of truth for backtest and analysis numbers. Formal structure
 (columns: window | realized vs MTM | artifact (commit) | costs | date) is the
-Task 17 deliverable; until then, results are appended here as they are produced.
+Metrics ledger section below; per-task sections that follow record the
+derivation details. Realized P&L is the AGENTS.md invariant for go/no-go
+judgments; MTM is shown separately and never drives a decision.
 
 ## Tail-precision falsification (Task 1)
 
@@ -21,11 +23,36 @@ right-tailed block-bootstrap p-value gives no evidence of tail edge. This run
 is an approximation — per-quarter models were not saved, so the exact
 walk-forward version depends on Task 13.
 
-## P&L results (pending Task 17 migration)
+## Metrics ledger
 
-Historical headline numbers to be re-verified as realized-vs-MTM and migrated
-into the formal table by Task 17: +110742, +79453, +75028, +63212,
-+56379/+40102, +25699.
+Formal single source of truth for headline P&L numbers. Column order is
+pre-registered in the strategy-validation plan: `window | realized vs MTM |
+artifact (commit) | costs | date`. Realized P&L is gross minus commission and
+borrow; MTM is open-position mark-to-market and never drives a go/no-go.
+Historical rows where the original run did not record a field are marked
+`not recorded` and must be re-verified before reuse.
+
+| window | realized vs MTM | artifact (commit) | costs | date |
+|---|---|---|---|---|
+| 2025-04-01 -> 2026-09-17 (6 quarters) | realized +110742; MTM not recorded | abs-10d walk-forward recipe (AGENTS.md), per-quarter models not saved | commission 0.05%, no spread/slippage | 2026-09-16 |
+| 2026-06-19 -> 2026-09-17 (90d preflight) | MTM +79453; realized not recorded | ensemble_model.json @ 722353e | zero (pre-Task-5 preflight) | 2026-09-17 |
+| not recorded | +75028; realized vs MTM not recorded | not recorded | not recorded | not recorded |
+| not recorded | +63212; realized vs MTM not recorded | not recorded | not recorded | not recorded |
+| 2026-06-19 -> 2026-09-17 (holdout) | realized +56379; MTM not recorded | news-aware ensemble_model.json @ 277ebf7 | commission 0.05%, spread 0.05%, slippage 0.05% | 2026-09-17 |
+| 2026-06-19 -> 2026-09-17 (holdout) | realized +40102; MTM not recorded | no-news control @ 277ebf7 | commission 0.05%, spread 0.05%, slippage 0.05% | 2026-09-17 |
+| 2026-06-19 -> 2026-09-17 (90d preflight) | MTM +25699; realized not recorded | ensemble_model.json @ 277ebf7 | zero (pre-Task-5 preflight) | 2026-09-17 |
+
+The two `not recorded` rows (+75028, +63212) were reported in the two-session
+source debate but their window/cost/realized-vs-MTM provenance was not
+committed. They are kept as ledger rows so the numbers are not lost, but they
+must be re-derived before they can be cited as evidence.
+
+## Process rule (incident E4, two-session race)
+
+Metric-bearing changes are committed immediately. A session must only read
+metrics from `HEAD` or from an explicitly requested uncommitted file — an
+empty `git log -S` search does not prove absence when the working tree has
+uncommitted changes.
 
 ## Momentum benchmark (Task 2)
 

@@ -11,6 +11,7 @@ Two agent sessions share this repo. Zone boundaries:
 5. Cross-session consultation goes through the user relaying messages (or agterm typing between panes) — headless `claude -p` returns 403 in this environment, there is no direct programmatic channel between the two agents.
 6. **Failover zone:** `cmd/watchdog/**`, `cmd/witness/**`, `internal/failover/**`, `deploy/**`, `scripts/deploy-failover.sh`, `watchdog.yaml`/`watchdog.env` on the machines. Before touching election/witness logic run `go test ./internal/failover/ ./cmd/witness/ ./cmd/watchdog/`; the invariants below are load-bearing.
 7. **Hard rule for all models — no concurrent code edits.** The two sessions share one working tree; only one may be writing code at a time. Before editing any tracked file, check `git status`/`git diff` and co-ordinate via the user that the other session isn't mid-change; concurrent edits tear the tree (the backtest realized/unrealized feature once landed uncommitted beside its own spec). Split work into read-only research vs. the single active writer, and commit promptly to shrink the dirty-window overlap.
+8. **Metric-bearing changes are committed immediately (incident E4).** `docs/metrics.md` is the single source of truth for backtest/analysis numbers; any change that adds or edits a metric must land in the same commit. A session must only read metrics from `HEAD` or from an explicitly requested uncommitted file — an empty `git log -S` search does not prove absence when the working tree has uncommitted changes.
 
 ## Hard invariants
 

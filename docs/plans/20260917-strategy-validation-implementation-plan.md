@@ -285,17 +285,17 @@ Task 18.
 
 ### Task 17: Unified metrics document
 
-- [ ] Create `docs/metrics.md` as the single source of truth, with columns: window |
+- [x] Create `docs/metrics.md` as the single source of truth, with columns: window |
       realized vs MTM | artifact (commit) | costs | date
-- [ ] Migrate all previously reported numbers into it (+110742, +79453, +75028, +63212,
+- [x] Migrate all previously reported numbers into it (+110742, +79453, +75028, +63212,
       +56379/+40102, +25699)
-- [ ] Apply the process rule from incident E4 (two-session race): commit metric-bearing
+- [x] Apply the process rule from incident E4 (two-session race): commit metric-bearing
       changes immediately; the other session should only read HEAD or an explicitly
       requested uncommitted file — an empty `git log -S` search does not prove absence when
       the working tree has uncommitted changes
-- [ ] write tests for the metrics-file writer/format, or a format-lint check if the file
+- [x] write tests for the metrics-file writer/format, or a format-lint check if the file
       is hand-maintained
-- [ ] run project tests - must pass before next task
+- [x] run project tests - must pass before next task
 
 ### Task 18: Kill-switch runbook check
 
