@@ -53,6 +53,70 @@ func benchCandles(n int) []moex.Candle {
 	return candles
 }
 
+// alternatingSignal flips BUY/SELL every decision so trades close and at
+// least one position is likely still open at the cutoff date.
+type alternatingSignal struct{ calls int }
+
+func (s *alternatingSignal) Generate(_ context.Context, feat domain.FeatureContext) (domain.TradeSignal, error) {
+	if feat.LastPrice.Sign() <= 0 {
+		return domain.TradeSignal{Action: domain.ActionHold}, nil
+	}
+	s.calls++
+	action := domain.ActionBuy
+	if s.calls%2 == 0 {
+		action = domain.ActionSell
+	}
+	return domain.TradeSignal{
+		Ticker:     feat.Ticker,
+		Action:     action,
+		Confidence: decimal.RequireFromString("0.8"),
+		TargetLots: 1,
+		Reasoning:  "test",
+	}, nil
+}
+
+func TestEngine_RealizedPlusUnrealizedEqualsNet(t *testing.T) {
+	candles := benchCandles(120)
+	engine, err := NewEngine(Config{
+		Tickers:        []string{"TEST"},
+		From:           time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+		Till:           time.Date(2024, 1, 30, 0, 0, 0, 0, time.UTC),
+		Deposit:        decimal.NewFromInt(100000),
+		MaxLots:        1,
+		CommissionRate: decimal.NewFromInt(3).Div(decimal.NewFromInt(1000)),
+		KillSwitch:     true,
+		SignalSource:   &alternatingSignal{},
+		Source:         fakeSource{candles: candles},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := engine.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var sumClosed decimal.Decimal
+	for _, trade := range result.Trades {
+		sumClosed = sumClosed.Add(trade.NetPnl)
+	}
+	if !result.RealizedPnl.Equal(sumClosed) {
+		t.Errorf("RealizedPnl = %s, sum of closed-trade NetPnl = %s, want equal", result.RealizedPnl, sumClosed)
+	}
+	if !result.UnrealizedPnl.Equal(result.NetPnl.Sub(result.RealizedPnl)) {
+		t.Errorf("UnrealizedPnl = %s, want NetPnl - RealizedPnl = %s",
+			result.UnrealizedPnl, result.NetPnl.Sub(result.RealizedPnl))
+	}
+	if !result.NetPnl.Equal(result.FinalEquity.Sub(result.Deposit)) {
+		t.Errorf("NetPnl = %s, want FinalEquity - Deposit = %s",
+			result.NetPnl, result.FinalEquity.Sub(result.Deposit))
+	}
+	if result.ClosedTrades == 0 {
+		t.Fatal("expected the alternating signal to close at least one trade")
+	}
+}
+
 func TestEngine_BuyAllUp(t *testing.T) {
 	candles := benchCandles(120)
 	source := fakeSource{candles: candles}

@@ -57,6 +57,8 @@ type Result struct {
 	Deposit           decimal.Decimal
 	FinalEquity       decimal.Decimal
 	NetPnl            decimal.Decimal
+	RealizedPnl       decimal.Decimal
+	UnrealizedPnl     decimal.Decimal
 	GrossPnl          decimal.Decimal
 	TotalCommission   decimal.Decimal
 	ClosedTrades      int
@@ -645,6 +647,7 @@ func (e *Engine) buildResult(curve map[time.Time]decimal.Decimal) *Result {
 	for _, t := range trades {
 		res.GrossPnl = res.GrossPnl.Add(t.GrossPnl)
 		res.TotalCommission = res.TotalCommission.Add(t.Commission)
+		res.RealizedPnl = res.RealizedPnl.Add(t.NetPnl)
 		if t.NetPnl.Sign() > 0 {
 			res.WinningTrades++
 		}
@@ -662,6 +665,7 @@ func (e *Engine) buildResult(curve map[time.Time]decimal.Decimal) *Result {
 	res.EquityCurve = sortedCurve(curve)
 	res.FinalEquity = lastEquity(curve)
 	res.NetPnl = res.FinalEquity.Sub(res.Deposit)
+	res.UnrealizedPnl = res.NetPnl.Sub(res.RealizedPnl)
 	res.Sharpe, res.MaxDrawdownPct, res.MaxDrawdownRub = curveStats(res.EquityCurve)
 	if len(res.EquityCurve) > 0 {
 		res.Start = res.EquityCurve[0].Date
