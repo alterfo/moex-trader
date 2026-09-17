@@ -119,6 +119,48 @@ Replayed through read-only `cmd/backtest` because a sandbox trader was already
 running; the live `cmd/trader` gate additionally injects real Tinkoff lot sizes,
 so the exact gate numbers may differ by the lot-quantization step.
 
+## Attempt registry, DSR and PBO (Task 7)
+
+`cmd/strategyvalidation` and `internal/strategyvalidation` record every
+configuration tried so far from `AGENTS.md` and `docs/metrics.md`. The source
+debate artifacts (`critique-left.md`, `rebuttal-right.md`,
+`plan-additions-right.md`) were never committed, so the registry is labelled
+from the surviving documentation; `docs/habr-ai-article/backtest-results.md`
+is not in this tree.
+
+| metric | value |
+|---|---:|
+| documented attempts | 41 |
+| selected | 7 |
+| rejected | 24 |
+| control/reference/benchmark | 10 |
+| realized-series observations | 6 quarterly returns |
+| mean return | 0.025580 |
+| sample stdev | 0.021710 |
+| Sharpe | 1.178255 |
+| skewness | -0.309658 |
+| kurtosis (non-excess) | 1.141267 |
+| probabilistic Sharpe vs 0 | 0.986645 |
+| expected max Sharpe (41 trials) | 0.983521 |
+| deflated Sharpe (Bailey & Lopez de Prado) | 0.642892 |
+| deflated Sharpe p-value | 0.357108 |
+| Harvey-Liu multiple-testing t | 3.5 |
+| Harvey-Liu critical Sharpe | 1.565248 |
+| conservative DSR, max(expected, Harvey-Liu) | 0.233384 |
+
+The only archived realized per-period series is the Task 4 six-quarter
+grid (realized P&L divided by the 1M RUB deposit): +42453.50, +9171.72,
++19600.27, -6655.63, +41695.40, +47216.95. Both the standard DSR and the
+Harvey-Liu conservative DSR are below the pre-registered go/no-go bar of
+DSR > 0.95.
+
+PBO is implemented as generic CSCV code with tests, but it is NOT computable
+from this summary-only registry: no per-strategy period-return matrices were
+archived for the ~40 attempts. No daily return series are fabricated to force
+the computation. The PBO < 0.2 go/no-go check therefore stays open until the
+per-attempt matrices are persisted (Task 13 walk-forward persistence and the
+Task 17 formal metrics table are the natural sources).
+
 <!-- shadow-reconciliation:start -->
 
 ## Shadow reconciliation (Task 3)

@@ -187,14 +187,14 @@ Task 18.
 
 ### Task 7: Attempt registry and DSR/PBO
 
-- [ ] Build a registry recording every configuration tried so far (the >=20 already
+- [x] Build a registry recording every configuration tried so far (the >=20 already
       documented in AGENTS.md and `docs/habr-ai-article/backtest-results.md`, plus the
       ~20 from the source debate)
-- [ ] Compute the deflated Sharpe ratio (Bailey & López de Prado) and probability of
+- [x] Compute the deflated Sharpe ratio (Bailey & López de Prado) and probability of
       backtest overfitting (PBO) from the registry
-- [ ] Use a multiple-testing threshold of t ≈ 3-4 (Harvey & Liu), not t=2
-- [ ] write tests for the DSR/PBO computation
-- [ ] run project tests - must pass before next task
+- [x] Use a multiple-testing threshold of t ≈ 3-4 (Harvey & Liu), not t=2
+- [x] write tests for the DSR/PBO computation
+- [x] run project tests - must pass before next task
 
 ### Task 8: Gap-stress test
 
