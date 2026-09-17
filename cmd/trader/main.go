@@ -25,6 +25,7 @@ import (
 	brokertinkoff "github.com/olegsidorkin/moex-trader/internal/broker/tinkoff"
 	"github.com/olegsidorkin/moex-trader/internal/config"
 	"github.com/olegsidorkin/moex-trader/internal/domain"
+	"github.com/olegsidorkin/moex-trader/internal/drift"
 	"github.com/olegsidorkin/moex-trader/internal/executor"
 	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/algopack"
@@ -126,7 +127,15 @@ func run() error {
 	if resolver, ok := runtime.accountSource.(lotSizeResolver); ok {
 		modelSource = newLotSizeSignalSource(modelSource, resolver, log.Default())
 	}
-	bandSource := orchestrator.NewSignalHysteresisSource(modelSource, orchestrator.DefaultSignalHysteresisPolls)
+	driftMonitor, err := newDriftMonitor(cfg, log.Default())
+	if err != nil {
+		return err
+	}
+	liveModelSource := modelSource
+	if driftMonitor != nil {
+		liveModelSource = &driftSignalSource{source: modelSource, monitor: driftMonitor}
+	}
+	bandSource := orchestrator.NewSignalHysteresisSource(liveModelSource, orchestrator.DefaultSignalHysteresisPolls)
 	gatedSource := newNewsGateSignalSource(bandSource, cfg.News, telegramClient, log.Default())
 	signalSource := newAlertingSignalSource(gatedSource, telegramClient, log.Default())
 	notifier := newDecisionNotifier(telegramClient, log.Default(), cfg.Telegram.SignalTickers)
@@ -155,6 +164,12 @@ func run() error {
 	riskConfig.Store = store
 	riskConfig.Alerter = telegramClient
 	riskConfig.Canceller = runtime.canceller
+	breaker := risk.NewTickerBreaker(risk.TickerBreakerConfig{
+		MaxConsecutiveLosses: cfg.Risk.CircuitBreakerMaxLosses,
+		MaxCumulativeLossPct: cfg.Risk.CircuitBreakerMaxLossPct,
+		Notional:             cfg.Risk.TargetNotional,
+	})
+	riskConfig.Breaker = breaker
 	gate, err := risk.NewHardenedGate(riskConfig)
 	if err != nil {
 		return fmt.Errorf("create risk gate: %w", err)
@@ -195,7 +210,7 @@ func run() error {
 		PollInterval:     cfg.PollInterval.Std(),
 		Metrics:          appMetrics,
 		AccountSource:    runtime.accountSource,
-		Observer:         notifier,
+		Observer:         &fanoutObserver{observers: []orchestrator.DecisionObserver{notifier, &breakerFillObserver{breaker: breaker, logger: log.Default()}}},
 		KillSwitch:       store,
 		Shadow:           shadow,
 		ShadowDigestPath: shadowDigestPath,
@@ -492,6 +507,106 @@ func newModelSignalSource(cfg *config.Config) (orchestrator.SignalSource, error)
 		return nil, fmt.Errorf("load model: %w", err)
 	}
 	return &model.SignalSource{Weights: weights, MaxLots: cfg.Risk.MaxLots}, nil
+}
+
+// newDriftMonitor builds a PSI drift monitor from the ensemble model's
+// logistic scaler statistics. Features with a zero learned coefficient are
+// skipped because they do not influence the model (structurally-zero event
+// features and order_book_imbalance fall into this group), avoiding spurious
+// drift warnings on placeholder columns.
+func newDriftMonitor(cfg *config.Config, logger *log.Logger) (*drift.Monitor, error) {
+	if cfg == nil || strings.TrimSpace(cfg.Model.EnsemblePath) == "" {
+		return nil, nil
+	}
+	m, err := model.LoadEnsembleModel(cfg.Model.EnsemblePath)
+	if err != nil {
+		return nil, fmt.Errorf("load ensemble model for drift monitoring: %w", err)
+	}
+	features := make([]string, 0, len(m.FeatureOrder))
+	mean := make([]float64, 0, len(m.FeatureOrder))
+	std := make([]float64, 0, len(m.FeatureOrder))
+	for i, name := range m.FeatureOrder {
+		if i >= len(m.Logistic.Coef) || i >= len(m.Logistic.Mean) || i >= len(m.Logistic.Std) || m.Logistic.Coef[i] == 0 {
+			continue
+		}
+		features = append(features, name)
+		mean = append(mean, m.Logistic.Mean[i])
+		std = append(std, m.Logistic.Std[i])
+	}
+	reference, err := drift.NormalReference(features, mean, std, 10)
+	if err != nil {
+		return nil, err
+	}
+	window := cfg.Risk.DriftPSIWindow
+	if window <= 0 {
+		window = 256
+	}
+	return drift.NewMonitor(reference, cfg.Risk.DriftPSIThreshold, window, window, logger), nil
+}
+
+// driftSignalSource observes every live feature vector through the PSI monitor
+// and then delegates to the wrapped model. It emits warnings only; it never
+// changes the decision.
+type driftSignalSource struct {
+	source  orchestrator.SignalSource
+	monitor *drift.Monitor
+}
+
+func (s *driftSignalSource) Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
+	if s.monitor != nil {
+		vector, order := model.ToVector(feature)
+		s.monitor.Observe(vector, order)
+	}
+	return s.source.Generate(ctx, feature)
+}
+
+// fanoutObserver fans a decision out to multiple observers.
+type fanoutObserver struct {
+	observers []orchestrator.DecisionObserver
+}
+
+func (f *fanoutObserver) Observe(ctx context.Context, decision orchestrator.Decision) {
+	for _, observer := range f.observers {
+		if observer != nil {
+			observer.Observe(ctx, decision)
+		}
+	}
+}
+
+// breakerFillObserver records executed fills into the per-ticker circuit
+// breaker and logs a one-off line when a ticker first trips.
+type breakerFillObserver struct {
+	breaker  *risk.TickerBreaker
+	logger   *log.Logger
+	mu       sync.Mutex
+	notified map[string]bool
+}
+
+func (o *breakerFillObserver) Observe(_ context.Context, decision orchestrator.Decision) {
+	if o.breaker == nil || !decision.Approved || decision.Err != nil || decision.Fill.Lots <= 0 {
+		return
+	}
+	o.breaker.RecordFill(risk.Fill{
+		Ticker:     decision.Fill.Ticker,
+		Action:     decision.Fill.Action,
+		Lots:       decision.Fill.Lots,
+		Price:      decision.Fill.Price,
+		Commission: decision.Fill.Commission,
+	})
+	ticker := decision.Fill.Ticker
+	if !o.breaker.Blocked(ticker) || o.logger == nil {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.notified == nil {
+		o.notified = make(map[string]bool)
+	}
+	if o.notified[ticker] {
+		return
+	}
+	o.notified[ticker] = true
+	o.logger.Printf("trader: circuit breaker tripped for %s: %s", ticker, o.breaker.Reason(ticker))
 }
 
 type brokerRuntime struct {

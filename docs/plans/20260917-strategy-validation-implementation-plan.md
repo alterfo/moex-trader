@@ -265,14 +265,14 @@ Task 18.
 
 ### Task 15: Drift monitoring and circuit breaker
 
-- [ ] Add a PSI (population stability index) check for features against the training
+- [x] Add a PSI (population stability index) check for features against the training
       distribution, emitting a warning (not a hard stop)
-- [ ] Add a per-ticker circuit breaker that stops trading a name after N losses or a
+- [x] Add a per-ticker circuit breaker that stops trading a name after N losses or a
       cumulative loss greater than X% of notional
-- [ ] Do not add auto-retraining (already declined 2026-09-16) — this task is diagnostics
+- [x] Do not add auto-retraining (already declined 2026-09-16) — this task is diagnostics
       and circuit-breaker only
-- [ ] write tests for the PSI calculation and circuit breaker triggers
-- [ ] run project tests - must pass before next task
+- [x] write tests for the PSI calculation and circuit breaker triggers
+- [x] run project tests - must pass before next task
 
 ### Task 16: Sandbox/paper parallel tracking
 

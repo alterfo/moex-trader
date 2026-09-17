@@ -51,6 +51,12 @@ type KillSwitchAlerter interface {
 	KillSwitchTriggered(ctx context.Context, reason string) error
 }
 
+// TickerBlocker reports whether a single name has tripped its per-ticker
+// circuit breaker and must not be traded.
+type TickerBlocker interface {
+	Blocked(ticker string) bool
+}
+
 type Config struct {
 	MaxLots         int
 	MaxDailyLossPct decimal.Decimal
@@ -60,6 +66,7 @@ type Config struct {
 	Positions       PositionReader
 	Store           KillSwitchStore
 	Alerter         KillSwitchAlerter
+	Breaker         TickerBlocker
 }
 
 type HardenedGate struct {
@@ -71,6 +78,7 @@ type HardenedGate struct {
 	positions       PositionReader
 	store           KillSwitchStore
 	alerter         KillSwitchAlerter
+	breaker         TickerBlocker
 
 	mu         sync.RWMutex
 	killSwitch bool
@@ -107,6 +115,7 @@ func NewHardenedGate(cfg Config) (*HardenedGate, error) {
 		positions:       cfg.Positions,
 		store:           cfg.Store,
 		alerter:         cfg.Alerter,
+		breaker:         cfg.Breaker,
 	}, nil
 }
 
@@ -128,6 +137,9 @@ func (g *HardenedGate) Approve(ctx context.Context, request Request) (bool, erro
 		return false, fmt.Errorf("risk gate: read kill switch: %w", err)
 	}
 	if active {
+		return false, nil
+	}
+	if g.breaker != nil && g.breaker.Blocked(request.Signal.Ticker) {
 		return false, nil
 	}
 	if g.exceedsDrawdown(request.Account) {

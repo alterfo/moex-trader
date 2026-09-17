@@ -33,6 +33,10 @@ risk:
   # rebalance_min_deviation_pct: "0.05" # skip rebalances at/below 5% of target notional (anti-churn deadband)
   # no_trade_after_open_minutes: 15 # pause new orders around the 10:00 MSK open
   # blackout_windows: []            # "RFC3339-start/RFC3339-end" pairs, e.g. CBR key-rate announcements
+  # circuit_breaker_max_losses: 3   # stop a ticker after this many consecutive losing round-trips
+  # circuit_breaker_max_loss_pct: "0.05" # stop a ticker after cumulative realized loss of 5% of target_notional
+  # drift_psi_threshold: 0.2        # warn when a feature's PSI vs training exceeds this threshold
+  # drift_psi_window: 256           # rolling observation count used for the PSI check
 commission:
   broker: "tinkoff"
   rate: "0.0005"    # 0.05%, T-Bank "Трейдер" tariff — flat rate, no per-trade minimum

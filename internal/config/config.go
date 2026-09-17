@@ -47,6 +47,10 @@ type Risk struct {
 	RebalanceMinDeviationPct decimal.Decimal `yaml:"rebalance_min_deviation_pct"`
 	NoTradeAfterOpenMinutes  int             `yaml:"no_trade_after_open_minutes"`
 	BlackoutWindows          []string        `yaml:"blackout_windows"`
+	CircuitBreakerMaxLosses  int             `yaml:"circuit_breaker_max_losses"`
+	CircuitBreakerMaxLossPct decimal.Decimal `yaml:"circuit_breaker_max_loss_pct"`
+	DriftPSIThreshold        float64         `yaml:"drift_psi_threshold"`
+	DriftPSIWindow           int             `yaml:"drift_psi_window"`
 }
 
 type Telegram struct {
@@ -129,6 +133,10 @@ func Default() *Config {
 		Risk: Risk{
 			MaxLots:                  defaultRiskMaxLots,
 			RebalanceMinDeviationPct: decimal.New(5, -2),
+			CircuitBreakerMaxLosses:  3,
+			CircuitBreakerMaxLossPct: decimal.New(5, -2),
+			DriftPSIThreshold:        0.2,
+			DriftPSIWindow:           256,
 		},
 		Telegram: Telegram{},
 		News: News{
@@ -232,6 +240,18 @@ func (c *Config) Validate() error {
 	}
 	if c.Risk.NoTradeAfterOpenMinutes < 0 {
 		return fmt.Errorf("risk.no_trade_after_open_minutes must be non-negative")
+	}
+	if c.Risk.CircuitBreakerMaxLosses < 0 {
+		return fmt.Errorf("risk.circuit_breaker_max_losses must be non-negative")
+	}
+	if c.Risk.CircuitBreakerMaxLossPct.IsNegative() {
+		return fmt.Errorf("risk.circuit_breaker_max_loss_pct must be non-negative")
+	}
+	if c.Risk.DriftPSIThreshold < 0 {
+		return fmt.Errorf("risk.drift_psi_threshold must be non-negative")
+	}
+	if c.Risk.DriftPSIWindow < 0 {
+		return fmt.Errorf("risk.drift_psi_window must be non-negative")
 	}
 	for i, w := range c.Risk.BlackoutWindows {
 		if _, _, err := parseBlackoutWindow(w); err != nil {

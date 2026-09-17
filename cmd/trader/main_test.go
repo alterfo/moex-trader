@@ -20,6 +20,7 @@ import (
 	brokertinkoff "github.com/olegsidorkin/moex-trader/internal/broker/tinkoff"
 	"github.com/olegsidorkin/moex-trader/internal/config"
 	"github.com/olegsidorkin/moex-trader/internal/domain"
+	"github.com/olegsidorkin/moex-trader/internal/drift"
 	"github.com/olegsidorkin/moex-trader/internal/executor"
 	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
@@ -1303,5 +1304,152 @@ func TestNewsGateRespectsMinCount(t *testing.T) {
 	}
 	if signal.Action != domain.ActionBuy {
 		t.Fatalf("action = %q, want BUY (below veto min count)", signal.Action)
+	}
+}
+
+func writeDriftEnsembleModel(t *testing.T, names []string, coef []float64) string {
+	t.Helper()
+	std := make([]float64, len(names))
+	for i := range std {
+		std[i] = 1
+	}
+	ensemble := struct {
+		FeatureOrder  []string `json:"feature_order"`
+		BuyThreshold  float64  `json:"buy_threshold"`
+		SellThreshold float64  `json:"sell_threshold"`
+		LGBBaseLogit  float64  `json:"lgb_base_logit"`
+		XGBBaseLogit  float64  `json:"xgb_base_logit"`
+		Logistic      struct {
+			Mean []float64 `json:"mean"`
+			Std  []float64 `json:"std"`
+			Coef []float64 `json:"coef"`
+			Bias float64   `json:"bias"`
+		} `json:"logistic"`
+		LGBTrees []any `json:"lgb_trees"`
+		XGBTrees []any `json:"xgb_trees"`
+	}{
+		FeatureOrder:  names,
+		BuyThreshold:  0.6,
+		SellThreshold: 0.4,
+		Logistic: struct {
+			Mean []float64 `json:"mean"`
+			Std  []float64 `json:"std"`
+			Coef []float64 `json:"coef"`
+			Bias float64   `json:"bias"`
+		}{Mean: make([]float64, len(names)), Std: std, Coef: coef},
+		LGBTrees: []any{},
+		XGBTrees: []any{},
+	}
+	raw, err := json.Marshal(ensemble)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "ensemble_model.json")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	return path
+}
+
+func TestNewDriftMonitorSkipsZeroCoefficientFeatures(t *testing.T) {
+	path := writeDriftEnsembleModel(t, []string{"a", "b", "c", "d"}, []float64{1, 1, 0, 0})
+	cfg := &config.Config{
+		Model: config.Model{EnsemblePath: path},
+		Risk:  config.Risk{DriftPSIThreshold: 0.1, DriftPSIWindow: 8},
+	}
+	monitor, err := newDriftMonitor(cfg, log.New(bytes.NewBuffer(nil), "", 0))
+	if err != nil {
+		t.Fatalf("newDriftMonitor() error = %v", err)
+	}
+	if monitor == nil {
+		t.Fatal("newDriftMonitor() returned nil monitor")
+	}
+
+	for i := 0; i < 8; i++ {
+		if got := monitor.Observe([]float64{10}, []string{"d"}); len(got) != 0 {
+			t.Fatalf("Observe() zero-coef feature warnings = %d, want 0", len(got))
+		}
+	}
+
+	var warnings []drift.Warning
+	for i := 0; i < 8; i++ {
+		warnings = append(warnings, monitor.Observe([]float64{10}, []string{"a"})...)
+	}
+	if len(warnings) != 1 {
+		t.Fatalf("Observe() active-feature warnings = %d, want 1", len(warnings))
+	}
+}
+
+func TestNewDriftMonitorReturnsNilWithoutEnsemblePath(t *testing.T) {
+	cfg := &config.Config{Model: config.Model{Path: "model.json"}}
+	monitor, err := newDriftMonitor(cfg, nil)
+	if err != nil {
+		t.Fatalf("newDriftMonitor() error = %v", err)
+	}
+	if monitor != nil {
+		t.Fatalf("newDriftMonitor() = %v, want nil without ensemble path", monitor)
+	}
+}
+
+func TestDriftSignalSourceObservesAndDelegates(t *testing.T) {
+	var buf bytes.Buffer
+	ref := map[string]drift.Distribution{"return_pct": drift.NormalDistribution(0, 1, 8)}
+	monitor := drift.NewMonitor(ref, 0.1, 2, 2, log.New(&buf, "", 0))
+	source := &driftSignalSource{source: fixedSignalSource{action: domain.ActionBuy}, monitor: monitor}
+
+	feature := domain.FeatureContext{Ticker: "SBER", ReturnPct: decimal.NewFromInt(10)}
+	for i := 0; i < 2; i++ {
+		signal, err := source.Generate(context.Background(), feature)
+		if err != nil {
+			t.Fatalf("Generate() error = %v", err)
+		}
+		if signal.Action != domain.ActionBuy {
+			t.Fatalf("Generate() action = %q, want BUY (delegated)", signal.Action)
+		}
+	}
+	if !strings.Contains(buf.String(), "drift:") {
+		t.Fatalf("drift monitor did not log a warning, got %q", buf.String())
+	}
+}
+
+func TestBreakerFillObserverRecordsOnlyExecutedFills(t *testing.T) {
+	breaker := risk.NewTickerBreaker(risk.TickerBreakerConfig{
+		MaxConsecutiveLosses: 3,
+		MaxCumulativeLossPct: decimal.NewFromFloat(0.05),
+		Notional:             decimal.NewFromInt(1000),
+	})
+	observer := &breakerFillObserver{breaker: breaker, logger: log.New(bytes.NewBuffer(nil), "", 0)}
+
+	observer.Observe(context.Background(), orchestrator.Decision{
+		Approved: true,
+		Fill: executor.Fill{
+			Ticker: "SBER", Action: domain.ActionBuy, Lots: 1, Price: decimal.NewFromInt(100),
+		},
+	})
+	if openLots, _, _, _, _ := breaker.State("SBER"); openLots != 1 {
+		t.Fatalf("breaker openLots = %d, want 1 after approved fill", openLots)
+	}
+
+	observer.Observe(context.Background(), orchestrator.Decision{
+		Approved: false,
+		Fill: executor.Fill{
+			Ticker: "SBER", Action: domain.ActionBuy, Lots: 1, Price: decimal.NewFromInt(100),
+		},
+	})
+	observer.Observe(context.Background(), orchestrator.Decision{
+		Approved: true,
+		Err:      errors.New("rejected"),
+		Fill: executor.Fill{
+			Ticker: "SBER", Action: domain.ActionBuy, Lots: 1, Price: decimal.NewFromInt(100),
+		},
+	})
+	observer.Observe(context.Background(), orchestrator.Decision{
+		Approved: true,
+		Fill: executor.Fill{
+			Ticker: "SBER", Action: domain.ActionBuy, Lots: 0, Price: decimal.NewFromInt(100),
+		},
+	})
+	if openLots, _, _, _, _ := breaker.State("SBER"); openLots != 1 {
+		t.Fatalf("breaker openLots = %d after non-executed decisions, want 1", openLots)
 	}
 }
