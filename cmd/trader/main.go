@@ -788,7 +788,11 @@ type openNotionalSource interface {
 
 func runKillSwitchReset(ctx context.Context, store *storage.Store, runtime *brokerRuntime) error {
 	if runtime == nil || runtime.accountSource == nil {
-		return fmt.Errorf("kill switch reset: account equity source unavailable; run the reset against a broker account")
+		if err := store.SetKillSwitchActive(ctx, false); err != nil {
+			return fmt.Errorf("kill switch reset: %w", err)
+		}
+		log.Printf("kill switch reset: no broker account source (paper mode); resetting without the equity preflight check")
+		return nil
 	}
 	account, err := runtime.accountSource.Snapshot(ctx)
 	if err != nil {

@@ -53,7 +53,8 @@ T-Банка. Каждый шаг пишется в SQLite как аудит-с�
 ```
 config.yaml ──> backtest.Engine (та же SignalSource, тот же риск-гейт, те же комиссии)
                     │
-                    ├─ NetPnl < preflight.min_net_pnl        -> отказ стартовать
+                    ├─ RealizedPnl < preflight.min_net_pnl   -> отказ стартовать
+                    ├─ ClosedTrades < preflight.min_closed_trades -> отказ стартовать
                     ├─ 0 решений (нет истории)               -> отказ стартовать
                     └─ все решения упали с ошибкой           -> отказ стартовать
 ```
@@ -193,12 +194,24 @@ finanalys-формата `news_history.jsonl` (см. `cmd/newsfetch`), пере�
   `cmd/exportdataset -news-history`.
 - `cmd/leadlag` — кто кого опережает: кросс-корреляции с лагами, Granger-тест, поправка
   Бонферрони; `-robustness -candidate X -target Y` проверяет пару на непересекающихся окнах.
+- `cmd/tailprecision` — tail-фальсификация: точность хвостовых решений (p>=0.60/p<=0.40)
+  против базовой частоты с bootstrap p-value (`-horizon-days`, `-deadband-pct`, `-trials`).
+- `cmd/momentumbench` — сравнение ансамбля с top-k momentum-бенчмарком (`-k`, `-variant`,
+  `-rebalance-every`) net of costs.
+- `cmd/betaregime` — декомпозиция P&L на IMOEX/equal-weight/momentum и кластерная
+  регрессия по кварталам (`-windows`, `-flat-band`).
+- `cmd/gapstress` — стресс ночных гэпов и синтетических шоков против портфеля.
+- `cmd/borrowmeasure` — измерение коротких ставок/лимитов в песочнице (`-lookback-days`).
+- `cmd/oosfreeze` — заморозка OOS-рецепта и SHA (`-action record|status`).
+- `cmd/strategyvalidation` — реестр попыток, deflated Sharpe и PBO.
 
 ## Бэктест и preflight
 
 Движок `internal/backtest/engine.go` — это тот же путь, что в лайве, без сети:
 
-- дневные свечи MOEX ISS (`ISSSource`, корректный пейджинг, warmup 100 дней);
+- дневные свечи MOEX ISS (`ISSSource`, корректный пейджинг, warmup истории покрывает
+  полный 300-баровый lookback фич — 434 календарных дня — чтобы EMA/SMMA-индикаторы
+  сходились так же, как в лайве и при обучении);
 - на дне `d` фичи строятся из свечей `[:d]` (без заглядывания вперёд), вход — по
   `candles[d+1].Open`, mark-to-market — по `candles[d].Close`;
 - сигнал проходит тот же `risk.HardenedGate`; комиссия берётся с входа и выхода;
@@ -217,7 +230,12 @@ finanalys-формата `news_history.jsonl` (см. `cmd/newsfetch`), пере�
 
 Полезные флаги: `-commission-rate` (для реального тарифа Т-Банка «Трейдер» — `0.0005`),
 `-lookback-days` (ограничить число решений на тикер), `-min-confidence`, `-kill-switch`,
-`-cache` (кэш решений), `-out` (markdown-отчёт).
+`-cache` (кэш решений), `-out` (markdown-отчёт), `-spread-pct`/`-slippage-pct`,
+`-spread-db`/`-spread-min-obs` (per-ticker спреды из аудита), `-borrow-pct-day`
+(стресс короткого займа) и `-wf-dir` (персист per-window моделей/решений).
+Отчёт включает realized/unrealized split, стоимость короткого займа, per-ticker
+атрибуцию, число kill-frozen/daily-loss-заблокированных дней и реализованный P&L net of
+borrow.
 
 Preflight в `cmd/trader` — это тот же движок на последних `preflight.days` (90) днях с
 `preflight.deposit`, `preflight.spread_pct`/`preflight.slippage_pct` (0.05% каждая по
@@ -287,6 +305,16 @@ fat-finger 2%, drawdown 3% → kill switch. Проверки: лимит лот�
 персистится в SQLite, блокирует новые сигналы до `cmd/trader -reset-kill-switch` и
 эскалируется в Telegram.
 
+Поверх гейта: per-ticker circuit breaker (`internal/risk/tickerbreaker.go`) стопит
+отдельное имя после N убыточных round-trip или накопленного реализованного убытка свыше
+`risk.circuit_breaker_max_loss_pct` от notionал; PSI-дрейф фич (`risk.drift_psi_*`) только
+предупреждает; rebalance-гистерезис (`risk.rebalance_min_deviation_pct`) и двух-опросный
+signal-гистерезис гасят ребалансный churn.
+
+Сброс kill switch (`-reset-kill-switch`) против брокерского счёта требует, чтобы equity
+была не ниже `1.5x` максимального notionал открытой позиции (`runbook.Decide`); в paper
+режиме (без источника счёта) сброс выполняется без equity-пречека.
+
 ## Хранилище, аудит, наблюдаемость
 
 SQLite (`modernc.org/sqlite`, WAL + busy timeout 5000ms), файл из `storage.path`:
@@ -323,6 +351,11 @@ YAML + `.env` рядом с конфигом (реальные env-переме�
 | `algopack_base_url` / `algopack_token` | `MOEX_TRADER_ALGOPACK_BASE_URL` / `_TOKEN` (секрет) |
 | `storage.path` | `MOEX_TRADER_STORAGE_PATH` |
 | `risk.max_lots` | `MOEX_TRADER_RISK_MAX_LOTS` |
+| `risk.target_notional` | `MOEX_TRADER_RISK_TARGET_NOTIONAL` |
+| `risk.rebalance_min_deviation_pct` | `MOEX_TRADER_RISK_REBALANCE_MIN_DEVIATION_PCT` |
+| `risk.circuit_breaker_max_losses` / `_max_loss_pct` | — (только YAML) |
+| `risk.drift_psi_threshold` / `_window` | — (только YAML) |
+| `risk.max_slippage_pct` / `no_trade_after_open_minutes` / `blackout_windows` | — (только YAML) |
 | `commission.broker` / `rate` | `MOEX_TRADER_COMMISSION_BROKER` / `_RATE` |
 | `tinkoff.endpoint` / `token` / `sandbox` / `account_id` / `pay_in` / `order_type` | `MOEX_TRADER_TINKOFF_ENDPOINT` / `_TOKEN` (секрет) / `_SANDBOX` / `_ACCOUNT_ID` / `_PAY_IN` / `_ORDER_TYPE` |
 | `preflight.enabled` / `days` / `deposit` / `min_net_pnl` | `MOEX_TRADER_PREFLIGHT_ENABLED` / `_DAYS` / `_DEPOSIT` / `_MIN_NET_PNL` |
@@ -357,6 +390,15 @@ go run ./cmd/leadlag -config config.yaml -out report-leadlag.md
 # бэктест и отчёты
 go run ./cmd/backtest -signal-source=ensemble -ensemble-path ensemble_model.json -commission-rate 0.0005
 go run ./cmd/verifier -db trader.db -since 24h -interval 1h
+
+# стратегия-валидация
+go run ./cmd/tailprecision -config config.sandbox.yaml -out report-tailprecision.md
+go run ./cmd/momentumbench -config config.sandbox.yaml -out report-momentumbench.md
+go run ./cmd/betaregime -config config.sandbox.yaml -out report-betaregime.md
+go run ./cmd/gapstress -config config.sandbox.yaml -portfolio artifacts/portfolio.json
+go run ./cmd/borrowmeasure -config config.sandbox.yaml -out report-borrow.md
+go run ./cmd/oosfreeze -action status
+go run ./cmd/strategyvalidation
 ```
 
 Тесты:

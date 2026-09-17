@@ -352,8 +352,13 @@ func dropIncompleteTrailing(candles []moex.Candle) []moex.Candle {
 		return candles
 	}
 	last := candles[len(candles)-1]
-	if last.End.Hour() < 23 {
-		return candles[:len(candles)-1]
+	now := time.Now().UTC()
+	if !last.Begin.IsZero() {
+		lastYear, lastMonth, lastDay := last.Begin.Date()
+		nowYear, nowMonth, nowDay := now.Date()
+		if lastYear == nowYear && lastMonth == nowMonth && lastDay == nowDay {
+			return candles[:len(candles)-1]
+		}
 	}
 	return candles
 }

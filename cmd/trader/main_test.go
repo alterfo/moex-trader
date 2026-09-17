@@ -1546,10 +1546,21 @@ func TestRunKillSwitchResetAllowsWithoutOpenPositions(t *testing.T) {
 	}
 }
 
-func TestRunKillSwitchResetRequiresAccountSource(t *testing.T) {
+func TestRunKillSwitchResetWithoutAccountSourceResetsForPaper(t *testing.T) {
 	store := openTraderTestStore(t)
+	ctx := context.Background()
+	if err := store.SetKillSwitchActive(ctx, true); err != nil {
+		t.Fatalf("SetKillSwitchActive(true) error = %v", err)
+	}
 	runtime := &brokerRuntime{}
-	if err := runKillSwitchReset(context.Background(), store, runtime); err == nil {
-		t.Fatal("runKillSwitchReset() error = nil without an account source, want error")
+	if err := runKillSwitchReset(ctx, store, runtime); err != nil {
+		t.Fatalf("runKillSwitchReset() error = %v, want paper-mode reset", err)
+	}
+	active, err := store.IsKillSwitchActive(ctx)
+	if err != nil {
+		t.Fatalf("IsKillSwitchActive() error = %v", err)
+	}
+	if active {
+		t.Fatal("kill switch still active after paper-mode reset")
 	}
 }

@@ -238,6 +238,18 @@ func (c PriceFeatureConfig) WarmupCalendarDays() int {
 	return tradingDays*7/5 + 10
 }
 
+// FetchCalendarDays is the calendar-day history lead a caller must fetch so
+// that the first decision day has the full LookbackCandles window of closed
+// bars behind it. For daily bars this is the EMA/SMMA convergence lookback
+// (300 bars) converted to calendar days; for intraday bars WarmupCalendarDays
+// already covers the same requirement.
+func (c PriceFeatureConfig) FetchCalendarDays() int {
+	if c.barsPerDay() == 1 {
+		return c.LookbackCandles()*7/5 + 14
+	}
+	return c.WarmupCalendarDays()
+}
+
 func ComputePriceFeatures(candles []moex.Candle) PriceFeatures {
 	return ComputePriceFeaturesWithConfig(candles, PriceFeatureConfig{})
 }

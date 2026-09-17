@@ -127,7 +127,7 @@ func run(args []string) error {
 	defer out.Close()
 
 	fetchFrom := from.AddDate(0, 0, -backtest.DefaultWarmupDays)
-	if extra := featureCfg.WarmupCalendarDays(); extra > backtest.DefaultWarmupDays {
+	if extra := featureCfg.FetchCalendarDays(); extra > backtest.DefaultWarmupDays {
 		fetchFrom = from.AddDate(0, 0, -extra)
 	}
 	writer := csv.NewWriter(out)

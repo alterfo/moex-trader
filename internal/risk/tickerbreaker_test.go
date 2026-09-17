@@ -114,6 +114,19 @@ func TestTickerBreakerAddsToPositionWithAverageCost(t *testing.T) {
 	}
 }
 
+func TestTickerBreakerCountsEntryCommission(t *testing.T) {
+	b := NewTickerBreaker(breakerTestConfig())
+
+	b.RecordFill(Fill{Ticker: "SBER", Action: "BUY", Lots: 1, Price: decimal.NewFromInt(100), Commission: decimal.NewFromInt(1)})
+	b.RecordFill(Fill{Ticker: "SBER", Action: "SELL", Lots: 1, Price: decimal.NewFromInt(100), Commission: decimal.NewFromInt(1)})
+
+	_, realized, _, _, _ := b.State("SBER")
+	want := decimal.NewFromInt(-2)
+	if !realized.Equal(want) {
+		t.Fatalf("State() realized = %s, want %s (entry + exit commission)", realized, want)
+	}
+}
+
 func TestTickerBreakerResetClearsTripOnly(t *testing.T) {
 	b := NewTickerBreaker(breakerTestConfig())
 

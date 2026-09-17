@@ -61,9 +61,7 @@ func NewMOEXIngestor(moexClient *moex.Client, fetcher *news.Fetcher, matcher *ne
 }
 
 func dailyCandleLookback() time.Duration {
-	lookbackCandles := (features.PriceFeatureConfig{}).LookbackCandles()
-	calendarDays := lookbackCandles*7/5 + 14
-	return time.Duration(calendarDays) * 24 * time.Hour
+	return time.Duration((features.PriceFeatureConfig{}).FetchCalendarDays()) * 24 * time.Hour
 }
 
 func (i *MOEXIngestor) Ingest(ctx context.Context, ticker string) (features.Input, error) {

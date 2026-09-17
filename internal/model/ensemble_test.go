@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"math"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/shopspring/decimal"
@@ -147,5 +148,98 @@ func TestEnsembleSignalSourceGenerate(t *testing.T) {
 	}
 	if signal.Confidence.IsNegative() {
 		t.Fatalf("negative confidence %s", signal.Confidence)
+	}
+}
+
+func writeDeterministicModel(t *testing.T, bias float64) *EnsembleModel {
+	t.Helper()
+	order := append([]string(nil), defaultFeatureOrder...)
+	zeros := make([]float64, len(order))
+	std := make([]float64, len(order))
+	for i := range std {
+		std[i] = 1
+	}
+	m := EnsembleModel{
+		FeatureOrder:  order,
+		BuyThreshold:  0.60,
+		SellThreshold: 0.40,
+		Logistic: logisticWeights{
+			Mean: append([]float64(nil), zeros...),
+			Std:  std,
+			Coef: append([]float64(nil), zeros...),
+			Bias: bias,
+		},
+	}
+	path := filepath.Join(t.TempDir(), "model.json")
+	raw, err := json.Marshal(m)
+	if err != nil {
+		t.Fatalf("marshal model: %v", err)
+	}
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatalf("write model: %v", err)
+	}
+	loaded, err := LoadEnsembleModel(path)
+	if err != nil {
+		t.Fatalf("load model: %v", err)
+	}
+	return loaded
+}
+
+func TestEnsembleSignalSourceDeterministic(t *testing.T) {
+	feature := domain.FeatureContext{
+		Ticker:    "SBER",
+		LastPrice: decimal.NewFromInt(100),
+		PrevClose: decimal.NewFromInt(100),
+	}
+
+	src := &EnsembleSignalSource{Model: writeDeterministicModel(t, 0), MaxLots: 1}
+	probability, err := src.RawProbability(feature)
+	if err != nil {
+		t.Fatalf("RawProbability: %v", err)
+	}
+	if math.IsNaN(probability) || math.IsInf(probability, 0) || probability < 0.49 || probability > 0.51 {
+		t.Fatalf("RawProbability = %f, want finite ~0.5", probability)
+	}
+	signal, err := src.Generate(context.Background(), feature)
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if signal.Action != domain.ActionHold {
+		t.Fatalf("neutral probability action = %v, want HOLD", signal.Action)
+	}
+
+	buy := &EnsembleSignalSource{Model: writeDeterministicModel(t, 2), MaxLots: 1}
+	signal, err = buy.Generate(context.Background(), feature)
+	if err != nil {
+		t.Fatalf("Generate(buy): %v", err)
+	}
+	if signal.Action != domain.ActionBuy {
+		t.Fatalf("buy-tail action = %v, want BUY", signal.Action)
+	}
+
+	sell := &EnsembleSignalSource{Model: writeDeterministicModel(t, -2), MaxLots: 1}
+	signal, err = sell.Generate(context.Background(), feature)
+	if err != nil {
+		t.Fatalf("Generate(sell): %v", err)
+	}
+	if signal.Action != domain.ActionSell {
+		t.Fatalf("sell-tail action = %v, want SELL", signal.Action)
+	}
+}
+
+func TestEnsembleRawProbabilityRejectsMismatchAndNil(t *testing.T) {
+	feature := domain.FeatureContext{Ticker: "SBER"}
+
+	if _, err := (&EnsembleSignalSource{}).RawProbability(feature); err == nil {
+		t.Fatal("RawProbability with nil model: error = nil, want error")
+	}
+	if _, err := (&EnsembleSignalSource{Model: writeDeterministicModel(t, 0)}).RawProbability(domain.FeatureContext{}); err == nil {
+		t.Fatal("RawProbability with empty ticker: error = nil, want error")
+	}
+
+	mismatched := writeDeterministicModel(t, 0)
+	mismatched.FeatureOrder[0] = "wrong_feature_name"
+	if _, err := (&EnsembleSignalSource{Model: mismatched}).RawProbability(feature); err == nil {
+		t.Fatal("RawProbability with mismatched feature order: error = nil, want error")
 	}
 }

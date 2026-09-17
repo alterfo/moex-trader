@@ -35,20 +35,21 @@ func TestProbabilityFromReasoning(t *testing.T) {
 }
 
 func TestDropIncompleteTrailing(t *testing.T) {
+	now := time.Now().UTC()
 	complete := moex.Candle{
 		Open: decimal.NewFromInt(100), Close: decimal.NewFromInt(101),
-		Begin: time.Date(2026, 9, 16, 0, 0, 0, 0, time.UTC),
-		End:   time.Date(2026, 9, 16, 23, 59, 55, 0, time.UTC),
+		Begin: now.AddDate(0, 0, -1),
+		End:   now.AddDate(0, 0, -1).Add(8 * time.Hour),
 	}
-	partial := moex.Candle{
+	today := moex.Candle{
 		Open: decimal.NewFromInt(101), Close: decimal.NewFromInt(102),
-		Begin: time.Date(2026, 9, 17, 0, 0, 0, 0, time.UTC),
-		End:   time.Date(2026, 9, 17, 15, 19, 4, 0, time.UTC),
+		Begin: now,
+		End:   now.Add(8 * time.Hour),
 	}
 
-	candles := dropIncompleteTrailing([]moex.Candle{complete, complete, partial})
+	candles := dropIncompleteTrailing([]moex.Candle{complete, complete, today})
 	if len(candles) != 2 {
-		t.Fatalf("len = %d, want 2 (trailing partial dropped)", len(candles))
+		t.Fatalf("len = %d, want 2 (trailing today candle dropped)", len(candles))
 	}
 
 	candles = dropIncompleteTrailing([]moex.Candle{complete, complete})

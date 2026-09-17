@@ -56,6 +56,14 @@ func (s *ShadowReconciler) Reconcile(ctx context.Context, liveInput features.Inp
 		cmp.Err = "shadow reconciler: builder and source are required"
 		return cmp
 	}
+	if !liveInput.Price.AsOf.IsZero() && len(liveInput.Candles) > 0 {
+		last := liveInput.Candles[len(liveInput.Candles)-1]
+		if !last.Begin.IsZero() && isSameDate(last.Begin, liveInput.Price.AsOf) {
+			cmp.Err = "shadow reconciler: live candles include the current unclosed bar"
+			cmp.FeatureMatch = false
+			return cmp
+		}
+	}
 	replay, ok := replayInput(liveInput)
 	if !ok {
 		cmp.Err = "shadow reconciler: fewer than two closed candles"

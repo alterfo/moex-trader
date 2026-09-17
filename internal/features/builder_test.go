@@ -520,6 +520,18 @@ func TestWarmupCandlesMatchesLookback(t *testing.T) {
 	}
 }
 
+func TestFetchCalendarDaysCoversDailyLookback(t *testing.T) {
+	daily := (PriceFeatureConfig{}).FetchCalendarDays()
+	wantDaily := maxIndicatorLookbackCandles*7/5 + 14
+	if daily != wantDaily {
+		t.Fatalf("daily fetch calendar days = %d, want %d", daily, wantDaily)
+	}
+	cfg := PriceFeatureConfig{BarsPerDay: 105}
+	if got := cfg.FetchCalendarDays(); got != cfg.WarmupCalendarDays() {
+		t.Fatalf("intraday fetch calendar days = %d, want WarmupCalendarDays %d", got, cfg.WarmupCalendarDays())
+	}
+}
+
 func TestStochasticK(t *testing.T) {
 	candles := make([]moex.Candle, 14)
 	candles[0] = moex.Candle{High: decimal.NewFromFloat(110), Low: decimal.NewFromFloat(100), Close: decimal.NewFromFloat(105)}

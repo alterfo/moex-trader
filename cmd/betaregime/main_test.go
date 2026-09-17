@@ -115,12 +115,13 @@ func TestSplitCommaAndDropIncompleteTrailing(t *testing.T) {
 	if len(got) != 2 || got[0] != "SBER" || got[1] != "GAZP" {
 		t.Fatalf("splitComma = %v", got)
 	}
+	now := time.Now().UTC()
 	candles := []moex.Candle{
-		{Begin: day(2026, 1, 5), End: day(2026, 1, 5).Add(23 * time.Hour)},
-		{Begin: day(2026, 1, 6), End: day(2026, 1, 6).Add(10 * time.Hour)},
+		{Begin: now.AddDate(0, 0, -1), End: now.AddDate(0, 0, -1).Add(8 * time.Hour)},
+		{Begin: now, End: now.Add(8 * time.Hour)},
 	}
 	got2 := dropIncompleteTrailing(candles)
-	if len(got2) != 1 || !got2[0].Begin.Equal(day(2026, 1, 5)) {
+	if len(got2) != 1 || !got2[0].Begin.Equal(now.AddDate(0, 0, -1)) {
 		t.Fatalf("dropIncompleteTrailing = %d candles", len(got2))
 	}
 }

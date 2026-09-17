@@ -152,7 +152,7 @@ func (s *tickerState) record(f Fill, cfg TickerBreakerConfig) {
 
 	if s.openLots == 0 {
 		s.openLots = delta
-		s.avgEntry = f.Price
+		s.avgEntry = f.Price.Add(f.Commission.Div(decimal.NewFromInt(int64(f.Lots))))
 		return
 	}
 
@@ -161,8 +161,9 @@ func (s *tickerState) record(f Fill, cfg TickerBreakerConfig) {
 		oldAbs := absInt(s.openLots)
 		addAbs := absInt(delta)
 		newAbs := oldAbs + addAbs
+		entryCost := f.Price.Add(f.Commission.Div(decimal.NewFromInt(int64(addAbs))))
 		s.avgEntry = s.avgEntry.Mul(decimal.NewFromInt(int64(oldAbs))).
-			Add(f.Price.Mul(decimal.NewFromInt(int64(addAbs)))).
+			Add(entryCost.Mul(decimal.NewFromInt(int64(addAbs)))).
 			Div(decimal.NewFromInt(int64(newAbs)))
 		s.openLots += delta
 		return

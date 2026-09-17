@@ -366,10 +366,6 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 		dayStartEquity := prevEquity
 		active, _ := e.kill.IsKillSwitchActive(ctx)
 		if !active {
-			dayEquity := e.portfolioEquity(marks)
-			if loss := dayStartEquity.Sub(dayEquity); loss.Sign() > 0 && loss.GreaterThan(dailyLossLimit) {
-				dailyLossBlockedDays++
-			}
 			for _, run := range runs {
 				idx, ok := run.tradeableDays[day]
 				if !ok {
@@ -387,6 +383,11 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 		}
 		e.accrueBorrow()
 		equity := e.portfolioEquity(marks).Sub(e.borrow)
+		if !active {
+			if loss := dayStartEquity.Sub(equity); loss.Sign() > 0 && loss.GreaterThan(dailyLossLimit) {
+				dailyLossBlockedDays++
+			}
+		}
 		curve[day] = equity
 		prevEquity = equity
 		if !active {
@@ -429,7 +430,7 @@ func (e *Engine) prepareTicker(ctx context.Context, ticker string) (*tickerBackt
 		till = time.Now()
 	}
 	fetchFrom := from.AddDate(0, 0, -e.cfg.WarmupDays)
-	if extra := e.cfg.FeatureConfig.WarmupCalendarDays(); extra > e.cfg.WarmupDays {
+	if extra := e.cfg.FeatureConfig.FetchCalendarDays(); extra > e.cfg.WarmupDays {
 		fetchFrom = from.AddDate(0, 0, -extra)
 	}
 

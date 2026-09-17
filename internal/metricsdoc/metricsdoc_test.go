@@ -76,6 +76,25 @@ func TestLintDetectsMalformedRow(t *testing.T) {
 	}
 }
 
+func TestLintDetectsEmptyCell(t *testing.T) {
+	content := `## Metrics ledger
+
+| window | realized vs MTM | artifact (commit) | costs | date |
+|---|---|---|---|---|
+| 2025-04-01 -> 2026-09-17 | realized +110742 | | commission 0.05% | 2026-09-16 |
+| not recorded | +79453 | not recorded | not recorded | not recorded |
+| not recorded | +75028 | not recorded | not recorded | not recorded |
+| not recorded | +63212 | not recorded | not recorded | not recorded |
+| not recorded | +56379 | not recorded | not recorded | not recorded |
+| not recorded | +40102 | not recorded | not recorded | not recorded |
+| not recorded | +25699 | not recorded | not recorded | not recorded |
+`
+	issues := Lint(content)
+	if !contains(issues, "ledger row has an empty cell in column 3") {
+		t.Fatalf("Lint() issues = %v, want empty-cell issue", issues)
+	}
+}
+
 func TestLintDetectsWrongHeaderOrder(t *testing.T) {
 	content := `## Metrics ledger
 

@@ -98,11 +98,12 @@ func collectTable(lines []string, start int) []string {
 func splitRow(row string) []string {
 	parts := strings.Split(row, "|")
 	var cells []string
-	for _, part := range parts {
+	for i, part := range parts {
 		cell := strings.TrimSpace(part)
-		if cell != "" {
-			cells = append(cells, cell)
+		if cell == "" && (i == 0 || i == len(parts)-1) {
+			continue
 		}
+		cells = append(cells, cell)
 	}
 	return cells
 }

@@ -173,6 +173,34 @@ func TestShadowReconcilerRequiresEnoughCandles(t *testing.T) {
 	}
 }
 
+func TestShadowReconcilerFlagsUnclosedTrailingBar(t *testing.T) {
+	builder := features.NewBuilder(nil)
+	source := &fixedShadowSource{action: domain.ActionBuy}
+	reconciler := NewShadowReconciler(builder, source)
+	candles := closedBarFixture()
+	asOf := candles[len(candles)-1].Begin
+
+	liveInput := features.Input{
+		Ticker: "SBER",
+		Price: features.PriceSnapshot{
+			LastPrice: decimal.NewFromFloat(112),
+			PrevClose: decimal.NewFromFloat(105),
+			AsOf:      asOf,
+		},
+		Candles: candles,
+	}
+	liveFeature, _ := builder.Build(liveInput)
+	liveSignal, _ := source.Generate(context.Background(), liveFeature)
+
+	cmp := reconciler.Reconcile(context.Background(), liveInput, liveFeature, liveSignal)
+	if !strings.Contains(cmp.Err, "current unclosed bar") {
+		t.Fatalf("Err = %q, want unclosed-bar error", cmp.Err)
+	}
+	if cmp.FeatureMatch {
+		t.Fatal("FeatureMatch = true, want false when live candles include the unclosed bar")
+	}
+}
+
 func TestShadowDigestMarkdownAndFileUpdate(t *testing.T) {
 	digest := NewShadowDigest()
 	digest.Add(ShadowComparison{
