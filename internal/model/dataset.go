@@ -85,7 +85,7 @@ func buildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 		from = till.AddDate(0, 0, -365)
 	}
 	fetchFrom := from.AddDate(0, 0, -backtest.DefaultWarmupDays)
-	if extra := featureCfg.WarmupCalendarDays(); extra > backtest.DefaultWarmupDays {
+	if extra := featureCfg.FetchCalendarDays(); extra > backtest.DefaultWarmupDays {
 		fetchFrom = from.AddDate(0, 0, -extra)
 	}
 

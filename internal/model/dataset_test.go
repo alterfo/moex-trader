@@ -8,6 +8,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/olegsidorkin/moex-trader/internal/domain"
+	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 )
 
@@ -17,6 +18,44 @@ type datasetSource struct {
 
 func (s datasetSource) History(_ context.Context, ticker string, _, _ time.Time) ([]moex.Candle, error) {
 	return s.series[ticker], nil
+}
+
+type recordingDatasetSource struct {
+	from   time.Time
+	ticker string
+}
+
+func (s *recordingDatasetSource) History(_ context.Context, ticker string, from, _ time.Time) ([]moex.Candle, error) {
+	s.ticker = ticker
+	s.from = from
+	return nil, nil
+}
+
+func TestBuildSamplesWithFeatureConfigUsesDailyFeatureLookback(t *testing.T) {
+	from := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	till := from.AddDate(0, 0, 30)
+	source := &recordingDatasetSource{}
+
+	_, err := BuildSamplesWithFeatureConfig(
+		context.Background(),
+		source,
+		[]string{"UP"},
+		from,
+		till,
+		10,
+		0.5,
+		LabelModeAbsolute,
+		0,
+		features.PriceFeatureConfig{},
+	)
+	if err != nil {
+		t.Fatalf("BuildSamplesWithFeatureConfig failed: %v", err)
+	}
+
+	wantFrom := from.AddDate(0, 0, -features.PriceFeatureConfig{}.FetchCalendarDays())
+	if !source.from.Equal(wantFrom) {
+		t.Fatalf("history fetch from = %s, want %s", source.from, wantFrom)
+	}
 }
 
 func flatIndexCandles(n int) []moex.Candle {
