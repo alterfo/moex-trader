@@ -152,7 +152,7 @@ func (s *tickerState) record(f Fill, cfg TickerBreakerConfig) {
 
 	if s.openLots == 0 {
 		s.openLots = delta
-		s.avgEntry = f.Price.Add(f.Commission.Div(decimal.NewFromInt(int64(f.Lots))))
+		s.avgEntry = entryBasis(f.Action, f.Price, f.Commission.Div(decimal.NewFromInt(int64(f.Lots))))
 		return
 	}
 
@@ -161,7 +161,7 @@ func (s *tickerState) record(f Fill, cfg TickerBreakerConfig) {
 		oldAbs := absInt(s.openLots)
 		addAbs := absInt(delta)
 		newAbs := oldAbs + addAbs
-		entryCost := f.Price.Add(f.Commission.Div(decimal.NewFromInt(int64(addAbs))))
+		entryCost := entryBasis(f.Action, f.Price, f.Commission.Div(decimal.NewFromInt(int64(addAbs))))
 		s.avgEntry = s.avgEntry.Mul(decimal.NewFromInt(int64(oldAbs))).
 			Add(entryCost.Mul(decimal.NewFromInt(int64(addAbs)))).
 			Div(decimal.NewFromInt(int64(newAbs)))
@@ -184,7 +184,9 @@ func (s *tickerState) record(f Fill, cfg TickerBreakerConfig) {
 	} else {
 		pnl = s.avgEntry.Sub(f.Price).Mul(decimal.NewFromInt(int64(closeLots)))
 	}
-	pnl = pnl.Sub(f.Commission)
+	perLotCommission := f.Commission.Div(decimal.NewFromInt(int64(f.Lots)))
+	closedCommission := perLotCommission.Mul(decimal.NewFromInt(int64(closeLots)))
+	pnl = pnl.Sub(closedCommission)
 
 	s.realized = s.realized.Add(pnl)
 	if pnl.IsNegative() {
@@ -210,8 +212,15 @@ func (s *tickerState) record(f Fill, cfg TickerBreakerConfig) {
 		if delta < 0 {
 			s.openLots = -s.openLots
 		}
-		s.avgEntry = f.Price
+		s.avgEntry = entryBasis(f.Action, f.Price, perLotCommission)
 	}
+}
+
+func entryBasis(action domain.Action, price, perLotCommission decimal.Decimal) decimal.Decimal {
+	if action == domain.ActionSell {
+		return price.Sub(perLotCommission)
+	}
+	return price.Add(perLotCommission)
 }
 
 func (s *tickerState) evaluateTrip(cfg TickerBreakerConfig) {

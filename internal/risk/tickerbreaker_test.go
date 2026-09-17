@@ -127,6 +127,57 @@ func TestTickerBreakerCountsEntryCommission(t *testing.T) {
 	}
 }
 
+func TestTickerBreakerCountsShortEntryCommission(t *testing.T) {
+	b := NewTickerBreaker(breakerTestConfig())
+
+	// Short at 100 and cover at 100 with 1 commission each: realized is -2
+	// (entry + exit commission), not zero or a commission credit.
+	b.RecordFill(Fill{Ticker: "SBER", Action: "SELL", Lots: 1, Price: decimal.NewFromInt(100), Commission: decimal.NewFromInt(1)})
+	b.RecordFill(Fill{Ticker: "SBER", Action: "BUY", Lots: 1, Price: decimal.NewFromInt(100), Commission: decimal.NewFromInt(1)})
+
+	_, realized, consecutive, _, _ := b.State("SBER")
+	if want := decimal.NewFromInt(-2); !realized.Equal(want) {
+		t.Fatalf("State() realized = %s, want %s (entry + exit commission)", realized, want)
+	}
+	if consecutive != 1 {
+		t.Fatalf("State() consecutive = %d, want 1", consecutive)
+	}
+}
+
+func TestTickerBreakerReversalSplitsCommission(t *testing.T) {
+	b := NewTickerBreaker(breakerTestConfig())
+
+	// Open 5 long at 100 with 5 commission (1 per lot): average entry 101.
+	b.RecordFill(Fill{Ticker: "SBER", Action: "BUY", Lots: 5, Price: decimal.NewFromInt(100), Commission: decimal.NewFromInt(5)})
+
+	// Reversal: sell 8 at 110 with 8 commission (1 per lot). It closes the
+	// 5-lot long, realizing (110-101)*5 minus the closed leg's commission
+	// (5), and opens a 3-lot short with a commission-inclusive basis of 109.
+	b.RecordFill(Fill{Ticker: "SBER", Action: "SELL", Lots: 8, Price: decimal.NewFromInt(110), Commission: decimal.NewFromInt(8)})
+
+	openLots, realized, consecutive, tripped, _ := b.State("SBER")
+	if openLots != -3 {
+		t.Fatalf("State() openLots = %d, want -3", openLots)
+	}
+	if want := decimal.NewFromInt(40); !realized.Equal(want) {
+		t.Fatalf("State() realized after reversal = %s, want %s", realized, want)
+	}
+	if consecutive != 0 || tripped {
+		t.Fatalf("State() consecutive = %d, tripped = %v; want 0, false", consecutive, tripped)
+	}
+
+	// Cover the short at its commission-inclusive basis of 109; the exit
+	// commission is the only remaining cost.
+	b.RecordFill(Fill{Ticker: "SBER", Action: "BUY", Lots: 3, Price: decimal.NewFromInt(109), Commission: decimal.NewFromInt(3)})
+	openLots, realized, _, _, _ = b.State("SBER")
+	if openLots != 0 {
+		t.Fatalf("State() openLots after cover = %d, want 0", openLots)
+	}
+	if want := decimal.NewFromInt(37); !realized.Equal(want) {
+		t.Fatalf("State() realized after cover = %s, want %s", realized, want)
+	}
+}
+
 func TestTickerBreakerResetClearsTripOnly(t *testing.T) {
 	b := NewTickerBreaker(breakerTestConfig())
 
