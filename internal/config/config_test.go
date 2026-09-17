@@ -193,8 +193,17 @@ func TestDefaultsAppliedWhenFieldsOmitted(t *testing.T) {
 	if !cfg.Preflight.Deposit.Equal(decimal.NewFromInt(100_000)) {
 		t.Fatalf("unexpected default preflight deposit: %s", cfg.Preflight.Deposit)
 	}
-	if !cfg.Preflight.MinNetPnL.IsZero() {
+	if !cfg.Preflight.MinNetPnL.Equal(decimal.NewFromInt(1)) {
 		t.Fatalf("unexpected default preflight min net pnl: %s", cfg.Preflight.MinNetPnL)
+	}
+	if cfg.Preflight.MinClosedTrades != 1 {
+		t.Fatalf("unexpected default preflight min closed trades: %d", cfg.Preflight.MinClosedTrades)
+	}
+	if !cfg.Preflight.SpreadPct.Equal(decimal.New(5, -4)) {
+		t.Fatalf("unexpected default preflight spread pct: %s", cfg.Preflight.SpreadPct)
+	}
+	if !cfg.Preflight.SlippagePct.Equal(decimal.New(5, -4)) {
+		t.Fatalf("unexpected default preflight slippage pct: %s", cfg.Preflight.SlippagePct)
 	}
 }
 
@@ -847,6 +856,9 @@ preflight:
   days: 30
   deposit: "50000"
   min_net_pnl: "100"
+  min_closed_trades: 3
+  spread_pct: "0.001"
+  slippage_pct: "0.0005"
 `))
 	if err != nil {
 		t.Fatalf("Parse returned error: %v", err)
@@ -862,6 +874,15 @@ preflight:
 	}
 	if !cfg.Preflight.MinNetPnL.Equal(decimal.RequireFromString("100")) {
 		t.Fatalf("Preflight.MinNetPnL = %s, want 100", cfg.Preflight.MinNetPnL)
+	}
+	if cfg.Preflight.MinClosedTrades != 3 {
+		t.Fatalf("Preflight.MinClosedTrades = %d, want 3", cfg.Preflight.MinClosedTrades)
+	}
+	if !cfg.Preflight.SpreadPct.Equal(decimal.RequireFromString("0.001")) {
+		t.Fatalf("Preflight.SpreadPct = %s, want 0.001", cfg.Preflight.SpreadPct)
+	}
+	if !cfg.Preflight.SlippagePct.Equal(decimal.RequireFromString("0.0005")) {
+		t.Fatalf("Preflight.SlippagePct = %s, want 0.0005", cfg.Preflight.SlippagePct)
 	}
 }
 

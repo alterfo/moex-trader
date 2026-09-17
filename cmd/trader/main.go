@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -745,16 +747,20 @@ func (t *tradingWindowExecutor) logBlocked(ticker, reason string, now time.Time)
 }
 
 type preflight struct {
-	enabled        bool
-	days           int
-	deposit        decimal.Decimal
-	minNetPnL      decimal.Decimal
-	maxLots        int
-	commissionRate decimal.Decimal
-	tickers        []string
-	source         backtest.SignalSource
-	history        backtest.HistoricalSource
-	now            func() time.Time
+	enabled         bool
+	days            int
+	deposit         decimal.Decimal
+	minNetPnL       decimal.Decimal
+	minClosedTrades int
+	spreadPct       decimal.Decimal
+	slippagePct     decimal.Decimal
+	maxLots         int
+	commissionRate  decimal.Decimal
+	tickers         []string
+	source          backtest.SignalSource
+	history         backtest.HistoricalSource
+	now             func() time.Time
+	configHash      string
 }
 
 func newPreflight(cfg *config.Config, source backtest.SignalSource, history backtest.HistoricalSource, now func() time.Time) *preflight {
@@ -765,17 +771,40 @@ func newPreflight(cfg *config.Config, source backtest.SignalSource, history back
 		now = time.Now
 	}
 	return &preflight{
-		enabled:        true,
-		days:           cfg.Preflight.Days,
-		deposit:        cfg.Preflight.Deposit,
-		minNetPnL:      cfg.Preflight.MinNetPnL,
-		maxLots:        cfg.Risk.MaxLots,
-		commissionRate: cfg.Commission.Rate,
-		tickers:        append([]string(nil), cfg.Tickers...),
-		source:         source,
-		history:        history,
-		now:            now,
+		enabled:         true,
+		days:            cfg.Preflight.Days,
+		deposit:         cfg.Preflight.Deposit,
+		minNetPnL:       cfg.Preflight.MinNetPnL,
+		minClosedTrades: cfg.Preflight.MinClosedTrades,
+		spreadPct:       cfg.Preflight.SpreadPct,
+		slippagePct:     cfg.Preflight.SlippagePct,
+		maxLots:         cfg.Risk.MaxLots,
+		commissionRate:  cfg.Commission.Rate,
+		tickers:         append([]string(nil), cfg.Tickers...),
+		source:          source,
+		history:         history,
+		now:             now,
+		configHash:      preflightConfigHash(cfg),
 	}
+}
+
+func preflightConfigHash(cfg *config.Config) string {
+	h := sha256.New()
+	fmt.Fprintf(h, "tickers=%v|model=%s|ensemble=%s|preflight_days=%d|deposit=%s|min_net_pnl=%s|min_closed_trades=%d|spread=%s|slippage=%s|max_lots=%d|target_notional=%s|commission=%s",
+		cfg.Tickers,
+		cfg.Model.Path,
+		cfg.Model.EnsemblePath,
+		cfg.Preflight.Days,
+		cfg.Preflight.Deposit.String(),
+		cfg.Preflight.MinNetPnL.String(),
+		cfg.Preflight.MinClosedTrades,
+		cfg.Preflight.SpreadPct.String(),
+		cfg.Preflight.SlippagePct.String(),
+		cfg.Risk.MaxLots,
+		cfg.Risk.TargetNotional.String(),
+		cfg.Commission.Rate.String(),
+	)
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 func (p *preflight) check(ctx context.Context) error {
@@ -798,6 +827,8 @@ func (p *preflight) check(ctx context.Context) error {
 		Deposit:        p.deposit,
 		MaxLots:        p.maxLots,
 		CommissionRate: p.commissionRate,
+		SpreadPct:      p.spreadPct,
+		SlippagePct:    p.slippagePct,
 		KillSwitch:     true,
 		SignalSource:   p.source,
 		Source:         p.history,
@@ -806,7 +837,7 @@ func (p *preflight) check(ctx context.Context) error {
 		return fmt.Errorf("preflight backtest: %w", err)
 	}
 
-	log.Printf("preflight backtest: running %d days over %d tickers", p.days, len(p.tickers))
+	log.Printf("preflight backtest: running %d days over %d tickers (config_hash=%s)", p.days, len(p.tickers), p.configHash)
 	result, err := engine.Run(ctx)
 	if err != nil {
 		return fmt.Errorf("preflight backtest: %w", err)
@@ -820,14 +851,18 @@ func (p *preflight) check(ctx context.Context) error {
 			failed, result.Decisions, result.HoldReasons[domain.HoldReasonError], result.HoldReasons[domain.HoldReasonTimeout])
 	}
 	if failed == result.Decisions {
-		return fmt.Errorf("preflight rejected the configuration: all %d decisions failed (errors=%d, timeouts=%d); check the signal source and the model artifact",
-			result.Decisions, result.HoldReasons[domain.HoldReasonError], result.HoldReasons[domain.HoldReasonTimeout])
+		return fmt.Errorf("preflight rejected the configuration: all %d decisions failed (errors=%d, timeouts=%d); check the signal source and the model artifact (config_hash=%s)",
+			result.Decisions, result.HoldReasons[domain.HoldReasonError], result.HoldReasons[domain.HoldReasonTimeout], p.configHash)
 	}
-	if result.NetPnl.LessThan(p.minNetPnL) {
-		return fmt.Errorf("preflight rejected the configuration: net P&L %s over %d days (closed trades=%d, hit rate=%.1f%%, max drawdown=%.2f%%) is below the minimum %s; refusing to start",
-			result.NetPnl.StringFixed(2), p.days, result.ClosedTrades, result.HitRate*100, result.MaxDrawdownPct, p.minNetPnL.StringFixed(2))
+	if result.ClosedTrades < p.minClosedTrades {
+		return fmt.Errorf("preflight rejected the configuration: closed trades=%d is below the required minimum %d over %d days; refusing to start (config_hash=%s)",
+			result.ClosedTrades, p.minClosedTrades, p.days, p.configHash)
 	}
-	log.Printf("preflight passed: net P&L %s over %d days (closed trades=%d, hit rate=%.1f%%, max drawdown=%.2f%%, decisions=%d)",
-		result.NetPnl.StringFixed(2), p.days, result.ClosedTrades, result.HitRate*100, result.MaxDrawdownPct, result.Decisions)
+	if result.RealizedPnl.LessThan(p.minNetPnL) {
+		return fmt.Errorf("preflight rejected the configuration: realized P&L %s over %d days (closed trades=%d, hit rate=%.1f%%, max drawdown=%.2f%%, MTM=%s) is below the minimum %s; refusing to start (config_hash=%s)",
+			result.RealizedPnl.StringFixed(2), p.days, result.ClosedTrades, result.HitRate*100, result.MaxDrawdownPct, result.NetPnl.StringFixed(2), p.minNetPnL.StringFixed(2), p.configHash)
+	}
+	log.Printf("preflight passed: realized P&L %s over %d days (closed trades=%d, hit rate=%.1f%%, max drawdown=%.2f%%, MTM=%s, decisions=%d, config_hash=%s)",
+		result.RealizedPnl.StringFixed(2), p.days, result.ClosedTrades, result.HitRate*100, result.MaxDrawdownPct, result.NetPnl.StringFixed(2), result.Decisions, p.configHash)
 	return nil
 }

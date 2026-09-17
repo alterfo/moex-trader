@@ -160,17 +160,17 @@ Task 18.
 
 ### Task 5: Preflight hardening
 
-- [ ] Pass `SpreadPct`/`SlippagePct` from config into the preflight backtest
+- [x] Pass `SpreadPct`/`SlippagePct` from config into the preflight backtest
       (`cmd/trader/main.go:770-822`)
-- [ ] Change the preflight pass/fail threshold to use realized P&L instead of MTM
+- [x] Change the preflight pass/fail threshold to use realized P&L instead of MTM
       (`FinalEquity - Deposit`, `engine.go:696`), matching the AGENTS.md
       realized-vs-MTM invariant
-- [ ] Set `min_net_pnl` explicitly and greater than 0 (currently `"0"`)
-- [ ] Add a minimum-closed-trades requirement to the gate
-- [ ] Log a config hash alongside the gate decision
-- [ ] Recompute preflight numbers after the fix
-- [ ] write tests for the realized-P&L threshold and the minimum-trades check
-- [ ] run project tests - must pass before next task
+- [x] Set `min_net_pnl` explicitly and greater than 0 (currently `"0"`)
+- [x] Add a minimum-closed-trades requirement to the gate
+- [x] Log a config hash alongside the gate decision
+- [x] Recompute preflight numbers after the fix
+- [x] write tests for the realized-P&L threshold and the minimum-trades check
+- [x] run project tests - must pass before next task
 
 ### Task 6: Rebalance and signal hysteresis (anti-churn)
 

@@ -99,6 +99,26 @@ portfolio-level daily-loss limit blocked new entries on 4 days total (Q3, Q5,
 Q6); under the old ticker-local backtest gate this limit was dead code because
 `DayStartEquity` was never set.
 
+## Preflight hardening (Task 5)
+
+Preflight now replays with `preflight.spread_pct` + `preflight.slippage_pct`
+fill costs, judges by **realized** P&L (closed trades, gross − commission), and
+requires at least `preflight.min_closed_trades` before checking
+`preflight.min_net_pnl`. Gate decisions log a SHA-256 hash of the
+gate-relevant configuration.
+
+Post-fix 90-day preflight replay (2026-06-19 -> 2026-09-17, 18 sandbox tickers,
+1M RUB deposit, 15000₽/position, ensemble_model.json, commission/spread/
+slippage 0.05% each, hold-until-flip, kill switch on):
+
+| date | realized P&L | MTM P&L | closed trades | hit rate | max DD | daily-loss blocked days | artifact |
+|---|---|---|---|---|---|---|---|
+| 2026-09-17 | +43040.38 | +38818.21 | 197 | 49.2% | 1.07% | 3 | ensemble_model.json |
+
+Replayed through read-only `cmd/backtest` because a sandbox trader was already
+running; the live `cmd/trader` gate additionally injects real Tinkoff lot sizes,
+so the exact gate numbers may differ by the lot-quantization step.
+
 <!-- shadow-reconciliation:start -->
 
 ## Shadow reconciliation (Task 3)

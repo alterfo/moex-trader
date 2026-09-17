@@ -334,6 +334,29 @@ func (f fixedSignalSource) Generate(_ context.Context, feature domain.FeatureCon
 	}, nil
 }
 
+type alternatingSignalSource struct {
+	calls int
+}
+
+func (a *alternatingSignalSource) Generate(_ context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
+	a.calls++
+	action := domain.ActionHold
+	switch a.calls {
+	case 1:
+		action = domain.ActionBuy
+	case 2:
+		action = domain.ActionSell
+	}
+	return domain.TradeSignal{
+		Ticker:      feature.Ticker,
+		Action:      action,
+		Confidence:  decimal.RequireFromString("0.9"),
+		TargetLots:  1,
+		Reasoning:   "preflight test",
+		GeneratedAt: time.Now(),
+	}, nil
+}
+
 func testCandles(start time.Time, count int, step float64) []moex.Candle {
 	return testCandlesFrom(start, count, 100, step)
 }
@@ -416,7 +439,7 @@ func TestPreflightRejectsNegativeResult(t *testing.T) {
 	history := &fakeHistorySource{candles: map[string][]moex.Candle{
 		"SBER": testCandlesFrom(now.AddDate(0, 0, -250), 260, 200, -0.5),
 	}}
-	p := newPreflight(preflightConfig(), fixedSignalSource{action: domain.ActionBuy}, history, func() time.Time { return now })
+	p := newPreflight(preflightConfig(), &alternatingSignalSource{}, history, func() time.Time { return now })
 
 	err := p.check(context.Background())
 	if err == nil {
@@ -442,6 +465,60 @@ func TestPreflightRespectsMinNetPnL(t *testing.T) {
 	err := p.check(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "preflight rejected") {
 		t.Fatalf("check() error = %v, want rejection below min net pnl", err)
+	}
+}
+
+func TestPreflightThresholdUsesRealizedPnlNotMTM(t *testing.T) {
+	now := time.Date(2026, 9, 16, 12, 0, 0, 0, time.UTC)
+	history := &fakeHistorySource{candles: map[string][]moex.Candle{
+		"SBER": testCandles(now.AddDate(0, 0, -250), 260, 0.5),
+	}}
+	cfg := preflightConfig()
+	cfg.Preflight.MinNetPnL = decimal.NewFromInt(1)
+	cfg.Preflight.MinClosedTrades = 0
+	p := newPreflight(cfg, fixedSignalSource{action: domain.ActionBuy}, history, func() time.Time { return now })
+
+	err := p.check(context.Background())
+	if err == nil {
+		t.Fatal("check() error = nil, want realized-P&L rejection despite positive MTM")
+	}
+	if !strings.Contains(err.Error(), "realized P&L") {
+		t.Fatalf("check() error = %v, want realized P&L rejection", err)
+	}
+}
+
+func TestPreflightRequiresMinimumClosedTrades(t *testing.T) {
+	now := time.Date(2026, 9, 16, 12, 0, 0, 0, time.UTC)
+	history := &fakeHistorySource{candles: map[string][]moex.Candle{
+		"SBER": testCandles(now.AddDate(0, 0, -250), 260, 0.5),
+	}}
+	cfg := preflightConfig()
+	cfg.Preflight.MinClosedTrades = 1
+	p := newPreflight(cfg, fixedSignalSource{action: domain.ActionBuy}, history, func() time.Time { return now })
+
+	err := p.check(context.Background())
+	if err == nil {
+		t.Fatal("check() error = nil, want minimum-closed-trades rejection")
+	}
+	if !strings.Contains(err.Error(), "closed trades") {
+		t.Fatalf("check() error = %v, want closed-trades rejection", err)
+	}
+}
+
+func TestPreflightConfigHashChangesWithInputs(t *testing.T) {
+	a := preflightConfigHash(preflightConfig())
+	b := preflightConfigHash(preflightConfig())
+	if a == "" {
+		t.Fatal("preflightConfigHash() returned empty hash")
+	}
+	if a != b {
+		t.Fatal("preflightConfigHash() is not deterministic for identical config")
+	}
+
+	changed := preflightConfig()
+	changed.Tickers[0] = "LKOH"
+	if preflightConfigHash(changed) == a {
+		t.Fatal("preflightConfigHash() did not change after ticker change")
 	}
 }
 

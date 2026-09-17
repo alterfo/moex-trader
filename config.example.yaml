@@ -51,12 +51,18 @@ tinkoff:
   token: ""           # env-only: MOEX_TRADER_TINKOFF_TOKEN
 
 # Preflight: replay the current configuration over recent MOEX history before start.
-# The trader refuses to start when the backtest net P&L is below min_net_pnl.
+# The trader refuses to start when realized P&L is below min_net_pnl or when
+# fewer than min_closed_trades trades close in the replay.
 preflight:
   enabled: true
   days: 90
   deposit: "100000"
-  min_net_pnl: "0"
+  min_net_pnl: "1"
+  min_closed_trades: 1
+  # Backtest fill costs applied against the trader. Match the deployed
+  # validation convention: 0.05% half-spread + 0.05% adverse slippage per fill.
+  spread_pct: "0.0005"
+  slippage_pct: "0.0005"
 
 broker: "paper"     # paper | tinkoff | finam
 is_paper_trading: true

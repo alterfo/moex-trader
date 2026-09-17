@@ -220,11 +220,17 @@ finanalys-формата `news_history.jsonl` (см. `cmd/newsfetch`), пере�
 `-cache` (кэш решений), `-out` (markdown-отчёт).
 
 Preflight в `cmd/trader` — это тот же движок на последних `preflight.days` (90) днях с
-`preflight.deposit` и тем же сигнал-сорсом, что и лайв. Отказ стартовать, если:
+`preflight.deposit`, `preflight.spread_pct`/`preflight.slippage_pct` (0.05% каждая по
+умолчанию) и тем же сигнал-сорсом, что и лайв. Порог считается по **realized** P&L
+(закрытые сделки, gross − комиссия), а не по MTM. Отказ стартовать, если:
 
-- net P&L ниже `preflight.min_net_pnl` (по умолчанию `0` — любой убыток блокирует старт);
+- realized P&L ниже `preflight.min_net_pnl` (по умолчанию `1`);
+- закрытых сделок меньше `preflight.min_closed_trades` (по умолчанию `1`);
 - не получено ни одного решения (история недоступна по всем тикерам);
 - **все** решения завершились ошибкой/таймаутом (защита от «0 сделок, P&L 0, гейт прошёл»).
+
+Решение и отказ логируются вместе с SHA-256-хэшем gate-релевантной конфигурации
+(тикеры, модель, депозит, пороги, издержки, комиссия и позиционные лимиты).
 
 ## Исполнение: paper / sandbox / live
 
@@ -320,6 +326,7 @@ YAML + `.env` рядом с конфигом (реальные env-переме�
 | `commission.broker` / `rate` | `MOEX_TRADER_COMMISSION_BROKER` / `_RATE` |
 | `tinkoff.endpoint` / `token` / `sandbox` / `account_id` / `pay_in` / `order_type` | `MOEX_TRADER_TINKOFF_ENDPOINT` / `_TOKEN` (секрет) / `_SANDBOX` / `_ACCOUNT_ID` / `_PAY_IN` / `_ORDER_TYPE` |
 | `preflight.enabled` / `days` / `deposit` / `min_net_pnl` | `MOEX_TRADER_PREFLIGHT_ENABLED` / `_DAYS` / `_DEPOSIT` / `_MIN_NET_PNL` |
+| `preflight.min_closed_trades` / `spread_pct` / `slippage_pct` | — (только YAML) |
 | `broker` | `MOEX_TRADER_BROKER` (`paper` / `tinkoff`) |
 | `poll_interval` | `MOEX_TRADER_POLL_INTERVAL` |
 | `is_paper_trading` | `MOEX_TRADER_IS_PAPER_TRADING` |

@@ -86,10 +86,13 @@ type Tinkoff struct {
 }
 
 type Preflight struct {
-	Enabled   bool            `yaml:"enabled"`
-	Days      int             `yaml:"days"`
-	Deposit   decimal.Decimal `yaml:"deposit"`
-	MinNetPnL decimal.Decimal `yaml:"min_net_pnl"`
+	Enabled         bool            `yaml:"enabled"`
+	Days            int             `yaml:"days"`
+	Deposit         decimal.Decimal `yaml:"deposit"`
+	MinNetPnL       decimal.Decimal `yaml:"min_net_pnl"`
+	MinClosedTrades int             `yaml:"min_closed_trades"`
+	SpreadPct       decimal.Decimal `yaml:"spread_pct"`
+	SlippagePct     decimal.Decimal `yaml:"slippage_pct"`
 }
 
 const (
@@ -141,10 +144,13 @@ func Default() *Config {
 			OrderType: defaultTinkoffOrderType,
 		},
 		Preflight: Preflight{
-			Enabled:   true,
-			Days:      defaultPreflightDays,
-			Deposit:   decimal.NewFromInt(100_000),
-			MinNetPnL: decimal.Zero,
+			Enabled:         true,
+			Days:            defaultPreflightDays,
+			Deposit:         decimal.NewFromInt(100_000),
+			MinNetPnL:       decimal.NewFromInt(1),
+			MinClosedTrades: 1,
+			SpreadPct:       decimal.New(5, -4),
+			SlippagePct:     decimal.New(5, -4),
 		},
 		Broker:         BrokerPaper,
 		IsPaperTrading: true,
@@ -267,6 +273,18 @@ func (c *Config) Validate() error {
 		}
 		if !c.Preflight.Deposit.IsPositive() {
 			return fmt.Errorf("preflight.deposit must be positive when preflight is enabled")
+		}
+		if !c.Preflight.MinNetPnL.IsPositive() {
+			return fmt.Errorf("preflight.min_net_pnl must be positive when preflight is enabled")
+		}
+		if c.Preflight.MinClosedTrades < 0 {
+			return fmt.Errorf("preflight.min_closed_trades must be non-negative when preflight is enabled")
+		}
+		if c.Preflight.SpreadPct.IsNegative() || c.Preflight.SpreadPct.GreaterThan(decimal.NewFromInt(1)) {
+			return fmt.Errorf("preflight.spread_pct must be in [0,1]")
+		}
+		if c.Preflight.SlippagePct.IsNegative() || c.Preflight.SlippagePct.GreaterThan(decimal.NewFromInt(1)) {
+			return fmt.Errorf("preflight.slippage_pct must be in [0,1]")
 		}
 	}
 	if c.PollInterval <= 0 {

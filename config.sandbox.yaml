@@ -68,7 +68,12 @@ preflight:
   enabled: true
   days: 90
   deposit: "1000000"
-  min_net_pnl: "0"
+  min_net_pnl: "1"
+  min_closed_trades: 1
+  # Backtest fill costs applied against the trader. Match the deployed
+  # validation convention: 0.05% half-spread + 0.05% adverse slippage per fill.
+  spread_pct: "0.0005"
+  slippage_pct: "0.0005"
 broker: "tinkoff"
 is_paper_trading: false
 poll_interval: 5m
