@@ -100,23 +100,23 @@ Task 18.
 
 ### Task 1: Tail-precision falsification test
 
-- [ ] Compute pooled precision of decisions with `p >= 0.60` (BUY) and `p <= 0.40` (SELL)
+- [x] Compute pooled precision of decisions with `p >= 0.60` (BUY) and `p <= 0.40` (SELL)
       using cached probabilities (`-cache`, `cmd/backtest/main.go:78`, `ensemble.go:122`);
       "outcome in the signal's direction" = BUY -> move > +0.5%, SELL -> move < -0.5% over
       10 trading days (matches the training label's horizon/deadband)
-- [ ] Compute the base rate over the same window for comparison
-- [ ] Report one single pre-registered pooled metric — do not multi-test across
+- [x] Compute the base rate over the same window for comparison
+- [x] Report one single pre-registered pooled metric — do not multi-test across
       bands/tickers (avoids multiple-testing inflation)
-- [ ] Compute a p-value via bootstrap over episodes/positions (not i.i.d. binomial —
+- [x] Compute a p-value via bootstrap over episodes/positions (not i.i.d. binomial —
       positions are held for weeks), right-tailed
-- [ ] Note in the report that this first run uses the deployed artifact over the
+- [x] Note in the report that this first run uses the deployed artifact over the
       available window (~136 decisions) as an approximation, since per-quarter models were
       not saved (see `backtest-results.md:109`); flag that the exact version depends on
       Task 13's persisted per-quarter models
-- [ ] Record the result in `docs/metrics.md` (create a minimal version now if Task 17
+- [x] Record the result in `docs/metrics.md` (create a minimal version now if Task 17
       hasn't run yet; Task 17 will formalize its structure)
-- [ ] write tests for the pooled-precision and bootstrap p-value computation
-- [ ] run project tests - must pass before next task
+- [x] write tests for the pooled-precision and bootstrap p-value computation
+- [x] run project tests - must pass before next task
 
 ### Task 2: Momentum benchmark
 
