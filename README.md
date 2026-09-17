@@ -8,8 +8,7 @@ T-Банка. Каждый шаг пишется в SQLite как аудит-с�
 стартовать при убытке или при недоступной истории.
 
 Реальные деньги намеренно отключены: `cmd/trader` отказывается работать с
-не-песочным счётом. LLM/Ollama в проекте больше не используется — сигнал строит
-только ансамбль моделей.
+не-песочным счётом.
 
 ## Содержание
 
@@ -75,9 +74,9 @@ config.yaml ──> backtest.Engine (та же SignalSource, тот же рис�
 | `internal/features` | `Builder` — `FeatureContext` из свечей/котировок/новостей/стакана |
 | `internal/backtest` | движок реплея, `ISSSource` (дневные свечи с пейджингом), кэш решений |
 | `internal/risk` | `HardenedGate`: лимит лотов/позиции, fat-finger, дневной убыток, drawdown, kill switch |
-| `internal/executor` | `PaperExecutor`, `LiveExecutor` (Tinkoff), Finam-исполнитель (не подключён к `cmd/trader`) |
+| `internal/executor` | `PaperExecutor`, `LiveExecutor` (Tinkoff) |
 | `internal/broker/tinkoff` | песочница: bootstrap счёта, снапшот портфеля, отмена ордеров, торговый статус |
-| `internal/ingestion` | клиенты MOEX ISS, RSS-новости, AlgoPack (стакан), Tinkoff, Finam |
+| `internal/ingestion` | клиенты MOEX ISS, RSS-новости, AlgoPack (стакан), Tinkoff |
 | `internal/orchestrator` | цикл `RunOnce`, ingest |
 | `internal/storage` | SQLite (WAL): `audit_events`, `trade_signals`, `kill_switch`, миграции |
 | `internal/domain` | `FeatureContext`, `TradeSignal`, `AuditEvent` |
@@ -102,7 +101,7 @@ Prometheus-сервер → `orchestrator.Run(ctx)`.
    - ingest: `LookupSecurity` → `Quote` → дневные свечи за 10 дней → новости (кэш на цикл) →
      стакан AlgoPack;
    - `features.Builder.Build` → `FeatureContext`, аудит-событие стадии `ingest`;
-   - `SignalSource.Generate` → `TradeSignal`, аудит стадии `llm` (имя стадии историческое);
+   - `SignalSource.Generate` → `TradeSignal`, аудит стадии `llm`;
    - `risk.HardenedGate.Approve`, аудит `risk_gate`; отклонённый сигнал не исполняется;
    - `Executor.Execute` → `Fill`, аудит `executor`; Telegram-уведомление об исполненной заявке
      (риск-гейт, ошибки исполнения и пропуски из-за закрытой биржи в Telegram не идут — только
@@ -270,9 +269,8 @@ go run ./cmd/trader -config config.sandbox.yaml
 - песочница не начисляет дивиденды/налоги и не отражает реальное проскальзывание — P&L
   приблизительный.
 
-**Live** — намеренно не подключён: при `tinkoff.sandbox: false` и для Finam-live
-`cmd/trader` возвращает ошибку, а не работает с обойдёнными защитами. Порядок включения —
-`docs/GO_LIVE_CHECKLIST.md`.
+**Live** — намеренно не подключён: при `tinkoff.sandbox: false` `cmd/trader` возвращает
+ошибку, а не работает с обойдёнными защитами. Порядок включения — `docs/GO_LIVE_CHECKLIST.md`.
 
 ### Риск-гейт
 
@@ -305,7 +303,7 @@ markdown-отчёт по P&L (gross, комиссии, net).
 ## Конфигурация
 
 YAML + `.env` рядом с конфигом (реальные env-переменные приоритетнее `.env`). Секреты
-(`MOEX_TRADER_TINKOFF_TOKEN`, `MOEX_TRADER_FINAM_SECRET_TOKEN`, `MOEX_TRADER_ALGOPACK_TOKEN`)
+(`MOEX_TRADER_TINKOFF_TOKEN`, `MOEX_TRADER_ALGOPACK_TOKEN`)
 читаются только из окружения, в YAML их нет. Шаблон — `config.example.yaml`, песочница —
 `config.sandbox.yaml`, реальные `config.yaml` и `.env` в git не попадают. Список
 переменных окружения — в `.env.example` (только имена, без значений).
@@ -320,10 +318,9 @@ YAML + `.env` рядом с конфигом (реальные env-переме�
 | `storage.path` | `MOEX_TRADER_STORAGE_PATH` |
 | `risk.max_lots` | `MOEX_TRADER_RISK_MAX_LOTS` |
 | `commission.broker` / `rate` | `MOEX_TRADER_COMMISSION_BROKER` / `_RATE` |
-| `finam.base_url` / `secret_token` | `MOEX_TRADER_FINAM_BASE_URL` / `_SECRET_TOKEN` (секрет) |
 | `tinkoff.endpoint` / `token` / `sandbox` / `account_id` / `pay_in` / `order_type` | `MOEX_TRADER_TINKOFF_ENDPOINT` / `_TOKEN` (секрет) / `_SANDBOX` / `_ACCOUNT_ID` / `_PAY_IN` / `_ORDER_TYPE` |
 | `preflight.enabled` / `days` / `deposit` / `min_net_pnl` | `MOEX_TRADER_PREFLIGHT_ENABLED` / `_DAYS` / `_DEPOSIT` / `_MIN_NET_PNL` |
-| `broker` | `MOEX_TRADER_BROKER` (`paper` / `tinkoff` / `finam`) |
+| `broker` | `MOEX_TRADER_BROKER` (`paper` / `tinkoff`) |
 | `poll_interval` | `MOEX_TRADER_POLL_INTERVAL` |
 | `is_paper_trading` | `MOEX_TRADER_IS_PAPER_TRADING` |
 | `telegram.bot_token` / `chat_id` / `signal_tickers` / `proxy` | `MOEX_TRADER_TELEGRAM_BOT_TOKEN` (секрет) / `_CHAT_ID` / `_SIGNAL_TICKERS` / `_PROXY` |
@@ -438,8 +435,7 @@ Preflight-гейт работает на обоих узлах одинаков�
 
 1. **План** — `docs/plans/YYYYMMDD-<тема>.md` со структурой `Overview` →
    `Context (from discovery)` → `Development Approach` → `Tasks` с чекбоксами
-   `- [ ]`. Образцы: `docs/plans/20260915-commissions-and-finam-broker.md`,
-   `docs/plans/completed/`.
+   `- [ ]`. Образцы — `docs/plans/completed/`.
 2. **Исполнение** — `ralphex --tasks-only --max-iterations N <plan>`: агент берёт первую
    невыполненную секцию, реализует, гоняет `go test ./...` / `go vet` / `gofmt`, отмечает
    чекбоксы и коммитит (один коммит на задачу, conventional commits: `feat:`, `fix:`).
@@ -458,8 +454,6 @@ Preflight-гейт работает на обоих узлах одинаков�
 - **Реальные деньги выключены.** `cmd/trader` отказывается стартовать с не-песочным
   счётом; включать реальные ордера только после полного прохождения
   `docs/GO_LIVE_CHECKLIST.md` и явного согласования.
-- **LLM/Ollama в проекте не используется.** Сигнал строит только ансамбль моделей — не
-  добавляй LLM обратно ни в критический путь, ни в бэктест.
 - **Preflight использует тот же сигнал-сорс, что и лайв**, и обязан жёстко падать (а не
   «проходить с нулём»), если все решения ошиблись или истории нет.
 - **Порядок признаков зеркалится в 4 местах** (`features.go`, `cmd/exportdataset`,
