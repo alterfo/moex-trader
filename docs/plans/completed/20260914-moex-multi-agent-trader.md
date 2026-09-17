@@ -23,7 +23,7 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - Sibling project `finanalys` (`~/dev/fin/finanalys`) is a Python MOEX news-sentiment
   tool. Not reused as code — only its 21-instrument ticker list (`config.py`
   `INSTRUMENTS`) and RSS news-source list are ported as a starting point.
-- Ollama runs on aibox at `192.168.88.193:11434` (RTX 4090, shared GPU — check
+- Ollama runs on aibox at `<aibox-lan-ip>:11434` (RTX 4090, shared GPU — check
   `nvidia-smi` free VRAM before assuming headroom). Never run `ollama serve` locally.
 - No existing Go code, no existing Tinkoff/Redis/Prometheus integration anywhere.
 - `ralphex` CLI v1.6.1 is installed and will execute this plan task by task.
@@ -77,7 +77,7 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
       `internal/{config,domain,storage,ingestion,features,llm,risk,executor,audit,orchestrator}`
 - [x] `internal/config`: load YAML (or env) config — ticker list (port the 21
       instruments from finanalys `config.py`), Ollama host/model (default
-      `192.168.88.193:11434`, `qwen3.8`), MOEX ISS base URL, SQLite path, poll interval,
+      `<aibox-lan-ip>:11434`, `qwen3.8`), MOEX ISS base URL, SQLite path, poll interval,
       `is_paper_trading` flag
 - [x] `config.example.yaml` committed; real `config.yaml`/`.env` gitignored
 - [x] write tests for config loading (valid file, missing file, malformed YAML,
@@ -303,7 +303,7 @@ type AuditEvent struct {
 ```yaml
 tickers: [SBER, YDEX, OZON, T, ...]   # ported from finanalys config.py
 ollama:
-  host: "192.168.88.193:11434"
+  host: "<aibox-lan-ip>:11434"
   model: "qwen3.8"
   timeout: 10s
 storage:

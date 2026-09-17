@@ -9,3 +9,16 @@
 /watchdog.yaml
 /watchdog.env
 /.revmux/
+
+# locally built binaries (deploy-failover.sh, go build)
+/trader
+/trader-sandbox
+/trainnewsmodel
+
+# logs and model backups
+*.log
+*.bak-*
+
+# macOS
+.DS_Store
+**/.DS_Store

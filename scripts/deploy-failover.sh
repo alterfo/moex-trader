@@ -2,10 +2,11 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-AIBOX="${AIBOX:-oleg@192.168.88.193}"
-AIBOX_DIR="${AIBOX_DIR:-/home/oleg/moex-trader}"
-VPS="${VPS:-root@209.131.70.106}"
-MAC_LABEL="com.oleg.moex-trader.watchdog"
+# Fill in the placeholders (or override via env) before deploying.
+AIBOX="${AIBOX:-user@<aibox-lan-ip>}"
+AIBOX_DIR="${AIBOX_DIR:-/home/user/moex-trader}"
+VPS="${VPS:-root@<vps-host>}"
+MAC_LABEL="com.example.moex-trader.watchdog"
 MAC_PLIST="$HOME/Library/LaunchAgents/$MAC_LABEL.plist"
 BUILD_DIR="$REPO_DIR/.deploy"
 
@@ -65,7 +66,7 @@ sysrc moex_witness_enable=YES
 service moex_witness restart >/dev/null 2>&1 || service moex_witness start
 sleep 1
 EOF
-  curl -fsS "https://209-131-70-106.sslip.io/witness/healthz" >/dev/null && echo "witness is up"
+  curl -fsS "https://<witness-host>/witness/healthz" >/dev/null && echo "witness is up"
 }
 
 deploy_aibox() {
@@ -115,20 +116,30 @@ deploy_mac() {
   (cd "$REPO_DIR" && go build -o "$REPO_DIR/trader" ./cmd/trader)
   cp "$REPO_DIR/deploy/watchdog.primary.yaml" "$REPO_DIR/watchdog.yaml"
   mkdir -p "$HOME/Library/LaunchAgents" "$HOME/Library/Logs"
-  cp "$REPO_DIR/deploy/com.oleg.moex-trader.watchdog.plist" "$MAC_PLIST"
+  cp "$REPO_DIR/deploy/com.example.moex-trader.watchdog.plist" "$MAC_PLIST"
   launchctl bootout "gui/$(id -u)/$MAC_LABEL" 2>/dev/null || true
   launchctl bootstrap "gui/$(id -u)" "$MAC_PLIST"
   launchctl kickstart -k "gui/$(id -u)/$MAC_LABEL"
   echo "mac watchdog installed"
 }
 
+install_aibox_sync() {
+  local label="com.example.moex-trader.aibox-sync"
+  local plist="$HOME/Library/LaunchAgents/$label.plist"
+  mkdir -p "$HOME/Library/LaunchAgents" "$HOME/Library/Logs"
+  cp "$REPO_DIR/deploy/$label.plist" "$plist"
+  launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
+  launchctl bootstrap "gui/$(id -u)" "$plist"
+  echo "aibox-sync timer installed (every 30 min); logs at ~/Library/Logs/moex-trader-aibox-sync*.log"
+}
+
 status() {
   echo "== witness =="
-  curl -fsS --max-time 5 "https://209-131-70-106.sslip.io/witness/healthz" && echo
+  curl -fsS --max-time 5 "https://<witness-host>/witness/healthz" && echo
   echo "== mac =="
-  curl -fsS --max-time 5 "http://192.168.88.251:9091/healthz" && echo
+  curl -fsS --max-time 5 "http://<mac-lan-ip>:9091/healthz" && echo
   echo "== aibox =="
-  curl -fsS --max-time 5 "http://192.168.88.193:9091/healthz" && echo
+  curl -fsS --max-time 5 "http://<aibox-lan-ip>:9091/healthz" && echo
 }
 
 case "${1:-}" in

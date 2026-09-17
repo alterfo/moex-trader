@@ -307,7 +307,8 @@ markdown-отчёт по P&L (gross, комиссии, net).
 YAML + `.env` рядом с конфигом (реальные env-переменные приоритетнее `.env`). Секреты
 (`MOEX_TRADER_TINKOFF_TOKEN`, `MOEX_TRADER_FINAM_SECRET_TOKEN`, `MOEX_TRADER_ALGOPACK_TOKEN`)
 читаются только из окружения, в YAML их нет. Шаблон — `config.example.yaml`, песочница —
-`config.sandbox.yaml`, реальные `config.yaml` и `.env` в git не попадают.
+`config.sandbox.yaml`, реальные `config.yaml` и `.env` в git не попадают. Список
+переменных окружения — в `.env.example` (только имена, без значений).
 
 | Поле | Env |
 |---|---|
@@ -370,12 +371,12 @@ gofmt -l .
 Трейдер работает на двух машинах, но **одновременно только на одной**: оба узла смотрят
 в один sandbox-счёт. Арбитр — lease-witness на VPS (`cmd/witness`), узлы — `cmd/watchdog`:
 
-- **Mac** (`watchdog.yaml`, launchd `com.oleg.moex-trader.watchdog`) — основной. Пока он
+- **Mac** (`watchdog.yaml`, launchd `com.example.moex-trader.watchdog`) — основной. Пока он
   жив, lease у него и трейдер работает на нём.
-- **ai-box** (`oleg@192.168.88.193`, systemd user unit `moex-trader-watchdog`) — резервный.
+- **ai-box** (`user@<aibox-lan-ip>`, systemd user unit `moex-trader-watchdog`) — резервный.
   Подхватывает, только если Mac молчит дольше `failover_after` (10 минут) или его трейдер
   не стартует дольше `peer_error_grace` (2 минуты).
-- **Witness** (`https://209-131-70-106.sslip.io/witness`, FreeBSD VPS, rc.d `moex_witness`)
+- **Witness** (`https://<witness-host>/witness`, FreeBSD VPS, rc.d `moex_witness`)
   выдаёт lease на 5 минут; узел без действующего lease обязан остановить трейдер (fencing).
   Если VPS недоступен дольше TTL — активный узел останавливается, резерв не подхватывает:
   торговли нет, пока witness не вернётся (осознанный fail-safe, а не сбой).
@@ -405,6 +406,11 @@ gofmt -l .
 на обеих машинах и в `/usr/local/etc/moex-witness.token` на VPS. На ai-box для T-Bank нужен
 российский корневой CA: `certs/ca-bundle.pem` (системные CA + `deploy/certs/russian-trusted-ca.pem`),
 подключён через `SSL_CERT_FILE` в юните.
+
+Шаблоны в `deploy/` содержат плейсхолдеры (`<aibox-lan-ip>`, `<mac-lan-ip>`, `<witness-host>`,
+`<vps-host>`, `<telegram-chat-id>`) и `/Users/you/...` — замените их на свои адреса и пути
+перед деплоем (или переопределите env-переменными `AIBOX`, `AIBOX_DIR`, `VPS` в
+`scripts/deploy-failover.sh`).
 
 Preflight-гейт работает на обоих узлах одинаково: если модель не проходит гейт, не торгует
 никто — это правильное поведение, а не сбой failover.
@@ -509,3 +515,10 @@ Preflight-гейт работает на обоих узлах одинаков�
 - Тюнинг порогов walk-forward преждевременен, пока AUC ~0.5 — это подгонка под шум.
 - Preflight-гейт уже отказывает в старте при убыточной конфигурации — это ожидаемое
   поведение, а не поломка.
+
+## Лицензия
+
+Apache License 2.0 — см. [LICENSE](LICENSE). Copyright 2026 Oleg Sidorkin.
+
+Проект использует MOEX ISS, T-Invest API и другие внешние сервисы на условиях их
+собственных лицензий; ничего из этого не является инвестиционной рекомендацией.

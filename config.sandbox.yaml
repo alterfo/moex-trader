@@ -61,7 +61,7 @@ finam:
 tinkoff:
   endpoint: "sandbox-invest-public-api.tbank.ru:443"
   sandbox: true
-  account_id: "39f02dbf-0979-4e28-b005-d3f151749f40"
+  account_id: ""
   pay_in: "1000000"
   order_type: "limit"
 preflight:
@@ -73,6 +73,6 @@ broker: "tinkoff"
 is_paper_trading: false
 poll_interval: 5m
 telegram:
-  chat_id: "235507371"
+  chat_id: ""
   signal_tickers: []
   proxy: "socks5://127.0.0.1:3333"

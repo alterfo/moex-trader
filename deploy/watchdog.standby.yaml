@@ -2,11 +2,11 @@ role: standby
 node_name: aibox
 peer_name: mac
 listen: ":9091"
-peer_url: "http://192.168.88.251:9091"
+peer_url: "http://<mac-lan-ip>:9091"
 env_file: "watchdog.env"
 
 witness:
-  url: "https://209-131-70-106.sslip.io/witness"
+  url: "https://<witness-host>/witness"
   ttl: 5m
 
 trader:
@@ -34,8 +34,8 @@ tunnel:
     - "-o"
     - "StrictHostKeyChecking=accept-new"
     - "-i"
-    - "/home/oleg/.ssh/id_moex_tunnel"
-    - "root@209.131.70.106"
+    - "/home/user/.ssh/id_moex_tunnel"
+    - "root@<vps-host>"
 
 db:
   path: "./trader-sandbox.db"
@@ -52,5 +52,5 @@ timing:
   failure_memory: 30m
 
 telegram:
-  chat_id: "235507371"
+  chat_id: "<telegram-chat-id>"
   proxy: "socks5://127.0.0.1:3333"

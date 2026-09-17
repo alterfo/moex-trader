@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Replace /Users/you/dev/moex-trader with the absolute path of your checkout. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.moex-trader.watchdog</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/you/dev/moex-trader/watchdog</string>
+        <string>-config</string>
+        <string>/Users/you/dev/moex-trader/watchdog.yaml</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/you/dev/moex-trader</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>TZ</key>
+        <string>Europe/Moscow</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/you/Library/Logs/moex-trader-watchdog.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/you/Library/Logs/moex-trader-watchdog.err.log</string>
+</dict>
+</plist>
