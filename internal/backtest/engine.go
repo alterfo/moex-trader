@@ -101,6 +101,7 @@ type Result struct {
 	HoldReasons          map[string]int
 	Trades               []Trade
 	OpenPositions        []OpenPosition
+	Attribution          Attribution
 	EquityCurve          []EquityPoint
 }
 
@@ -987,6 +988,7 @@ func (e *Engine) buildResult(curve map[time.Time]decimal.Decimal, finalMarks map
 	}
 	res.Trades = trades
 	res.OpenPositions = openPositionsLocked(e.positions, finalMarks)
+	res.Attribution = computeAttribution(trades, res.OpenPositions, DefaultAttributionTopN)
 	res.EquityCurve = sortedCurve(curve)
 	res.FinalEquity = lastEquity(curve)
 	res.NetPnl = res.FinalEquity.Sub(res.Deposit)

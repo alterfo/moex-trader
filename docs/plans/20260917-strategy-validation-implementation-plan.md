@@ -258,10 +258,10 @@ Task 18.
 
 ### Task 14: Attribution reporting
 
-- [ ] Add realized P&L by ticker, top-N trade concentration, and a realized/unrealized
+- [x] Add realized P&L by ticker, top-N trade concentration, and a realized/unrealized
       split to every backtest report
-- [ ] write tests for the attribution computation
-- [ ] run project tests - must pass before next task
+- [x] write tests for the attribution computation
+- [x] run project tests - must pass before next task
 
 ### Task 15: Drift monitoring and circuit breaker
 

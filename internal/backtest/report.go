@@ -40,6 +40,11 @@ func (r Result) Markdown() string {
 	fmt.Fprintf(&b, "- Kill switch frozen days: %d\n", r.KillSwitchFrozenDays)
 	fmt.Fprintf(&b, "- Daily-loss blocked days: %d\n\n", r.DailyLossBlockedDays)
 
+	b.WriteString("## Attribution\n\n")
+	fmt.Fprintf(&b, "%s\n", attributionSummary(r.Attribution))
+	fmt.Fprintf(&b, "%s", attributionTable(r.Attribution))
+	b.WriteString("\n")
+
 	if len(r.Trades) == 0 {
 		b.WriteString("No closed trades in this window.\n")
 		return b.String()
@@ -53,6 +58,44 @@ func (r Result) Markdown() string {
 			t.Ticker, t.Action, t.Lots, t.EntryPrice.String(), t.ExitPrice.String(),
 			t.GrossPnl.String(), t.Commission.String(), t.NetPnl.String(),
 			t.OpenedAt.Format("2006-01-02"), t.ClosedAt.Format("2006-01-02"))
+	}
+	return b.String()
+}
+
+func attributionSummary(attribution Attribution) string {
+	realizedAbs := attribution.RealizedTotal.Abs()
+	unrealizedAbs := attribution.UnrealizedTotal.Abs()
+	denom := realizedAbs.Add(unrealizedAbs)
+	realizedPct, unrealizedPct := 0.0, 0.0
+	if denom.Sign() > 0 {
+		realizedPct, _ = realizedAbs.Div(denom).Mul(decimal.NewFromInt(100)).Float64()
+		unrealizedPct, _ = unrealizedAbs.Div(denom).Mul(decimal.NewFromInt(100)).Float64()
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "- Realized/unrealized split: realized %s RUB (%.1f%% of |realized|+|unrealized|), unrealized %s RUB (%.1f%%)\n",
+		attribution.RealizedTotal.String(), realizedPct, attribution.UnrealizedTotal.String(), unrealizedPct)
+	if attribution.TradeCount > 0 {
+		fmt.Fprintf(&b, "- Top %d trade concentration: %.1f%% of |realized P&L|\n", attribution.TopN, attribution.TopTradeShare*100)
+		fmt.Fprintf(&b, "- Top %d ticker concentration: %.1f%% of |realized P&L|\n", attribution.TopN, attribution.TopTickerShare*100)
+	}
+	return b.String()
+}
+
+func attributionTable(attribution Attribution) string {
+	if len(attribution.Tickers) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("- Realized P&L by ticker:\n\n")
+	b.WriteString("| Ticker | Trades | Wins | Losses | Gross | Commission | Realized | Unrealized | Total |\n")
+	b.WriteString("|---|---|---|---|---|---|---|---|---|\n")
+	for _, ticker := range attribution.Tickers {
+		total := ticker.RealizedPnl.Add(ticker.UnrealizedPnl)
+		fmt.Fprintf(&b, "| %s | %d | %d | %d | %s | %s | **%s** | %s | **%s** |\n",
+			ticker.Ticker, ticker.Trades, ticker.Wins, ticker.Losses,
+			ticker.GrossPnl.String(), ticker.Commission.String(),
+			ticker.RealizedPnl.String(), ticker.UnrealizedPnl.String(), total.String())
 	}
 	return b.String()
 }
