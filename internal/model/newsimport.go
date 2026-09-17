@@ -60,14 +60,14 @@ func LoadFinanalysNewsHistory(path string) ([]HistoricalNewsRecord, error) {
 		if trustWeight <= 0 {
 			trustWeight = 1
 		}
-records = append(records, HistoricalNewsRecord{
-		Ticker:      ticker,
-		ArticleID:   raw.ArticleID,
-		PublishedAt: time.Unix(raw.PublishedTS, 0).UTC(),
-		Sentiment:   raw.Sentiment,
-		TrustWeight: trustWeight,
-		Title:       raw.Title,
-	})
+		records = append(records, HistoricalNewsRecord{
+			Ticker:      ticker,
+			ArticleID:   raw.ArticleID,
+			PublishedAt: time.Unix(raw.PublishedTS, 0).UTC(),
+			Sentiment:   raw.Sentiment,
+			TrustWeight: trustWeight,
+			Title:       raw.Title,
+		})
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("model: read news history %q: %w", path, err)

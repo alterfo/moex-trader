@@ -8,14 +8,14 @@ import (
 )
 
 type EventFlags struct {
-	Dividend int
-	Buyback  int
+	Dividend  int
+	Buyback   int
 	Sanctions int
-	IPO      int
-	Report   int
+	IPO       int
+	Report    int
 	Delisting int
-	MNA      int
-	Default  int
+	MNA       int
+	Default   int
 }
 
 func (f EventFlags) Vector() []float64 {
