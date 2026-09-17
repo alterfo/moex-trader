@@ -32,7 +32,9 @@ func (r Result) Markdown() string {
 	}
 	fmt.Fprintf(&b, "- Sharpe (annualized): %.2f\n", r.Sharpe)
 	fmt.Fprintf(&b, "- Max drawdown: %.2f%% (%s RUB)\n", r.MaxDrawdownPct, r.MaxDrawdownRub.String())
-	fmt.Fprintf(&b, "- Kill switch tripped: %v\n\n", r.KillSwitchTripped)
+	fmt.Fprintf(&b, "- Kill switch tripped: %v\n", r.KillSwitchTripped)
+	fmt.Fprintf(&b, "- Kill switch frozen days: %d\n", r.KillSwitchFrozenDays)
+	fmt.Fprintf(&b, "- Daily-loss blocked days: %d\n\n", r.DailyLossBlockedDays)
 
 	if len(r.Trades) == 0 {
 		b.WriteString("No closed trades in this window.\n")

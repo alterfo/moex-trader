@@ -9,6 +9,7 @@ import (
 
 	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
+	"github.com/olegsidorkin/moex-trader/internal/risk"
 )
 
 type fakeSource struct {
@@ -718,5 +719,151 @@ func TestEngine_HoldReasonBreakdown(t *testing.T) {
 	}
 	if result.HoldReasons[domain.HoldReasonModel] != 0 {
 		t.Errorf("expected 0 model holds, got %v", result.HoldReasons)
+	}
+}
+
+type recordingGate struct {
+	approve  bool
+	requests []risk.Request
+}
+
+func (g *recordingGate) Approve(_ context.Context, request risk.Request) (bool, error) {
+	g.requests = append(g.requests, request)
+	return g.approve, nil
+}
+
+func flatDropCandles(n int, dropAt int, dropPrice int64) []moex.Candle {
+	candles := make([]moex.Candle, n)
+	drop := decimal.NewFromInt(dropPrice)
+	for i := range candles {
+		open := decimal.NewFromInt(100)
+		closePrice := decimal.NewFromInt(100)
+		if i >= dropAt {
+			open = decimal.NewFromInt(100)
+			closePrice = drop
+			if i > dropAt {
+				open = drop
+			}
+		}
+		candles[i] = moex.Candle{
+			Open:   open,
+			Close:  closePrice,
+			High:   decimal.NewFromInt(101),
+			Low:    decimal.NewFromInt(96),
+			Volume: decimal.NewFromInt(1000),
+			Begin:  time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, i),
+			End:    time.Date(2024, 1, 1, 18, 0, 0, 0, time.UTC).AddDate(0, 0, i),
+		}
+	}
+	return candles
+}
+
+func TestProcessTickerDayUsesPortfolioEquityAndDayStart(t *testing.T) {
+	candles := benchCandles(120)
+	engine, err := NewEngine(Config{
+		Tickers:        []string{"A", "B"},
+		Deposit:        decimal.NewFromInt(100000),
+		MaxLots:        100,
+		CommissionRate: decimal.Zero,
+		SignalSource:   fixedSignal{action: domain.ActionBuy},
+		Source:         fakeSource{candles: candles},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine.gate = &recordingGate{approve: true}
+
+	runA, err := engine.prepareTicker(context.Background(), "A")
+	if err != nil || runA == nil {
+		t.Fatalf("prepareTicker(A) = %+v, %v", runA, err)
+	}
+	runB, err := engine.prepareTicker(context.Background(), "B")
+	if err != nil || runB == nil {
+		t.Fatalf("prepareTicker(B) = %+v, %v", runB, err)
+	}
+	dayStart := engine.cfg.Deposit
+	marks1 := map[string]decimal.Decimal{"A": decimal.NewFromInt(100), "B": decimal.NewFromInt(100)}
+	marks2 := map[string]decimal.Decimal{"A": decimal.NewFromInt(97), "B": decimal.NewFromInt(97)}
+
+	if err := engine.processTickerDay(context.Background(), runA, 64, dayStart, marks1); err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.processTickerDay(context.Background(), runB, 64, dayStart, marks1); err != nil {
+		t.Fatal(err)
+	}
+
+	gate := engine.gate.(*recordingGate)
+	gate.requests = nil
+	if err := engine.processTickerDay(context.Background(), runA, 65, dayStart, marks2); err != nil {
+		t.Fatal(err)
+	}
+	if len(gate.requests) == 0 {
+		t.Fatal("expected the portfolio gate to be consulted")
+	}
+	last := gate.requests[len(gate.requests)-1]
+	if !last.Account.DayStartEquity.Equal(dayStart) {
+		t.Errorf("DayStartEquity = %s, want %s", last.Account.DayStartEquity, dayStart)
+	}
+	wantEquity := dayStart.Sub(decimal.NewFromInt(6))
+	if !last.Account.CurrentEquity.Equal(wantEquity) {
+		t.Errorf("CurrentEquity = %s, want portfolio-level %s", last.Account.CurrentEquity, wantEquity)
+	}
+}
+
+func TestEngine_PortfolioDrawdownTriggersKillSwitch(t *testing.T) {
+	candles := flatDropCandles(120, 100, 80)
+	from := candles[65].Begin
+	engine, err := NewEngine(Config{
+		Tickers:        []string{"A", "B"},
+		From:           from,
+		Till:           candles[len(candles)-1].Begin.AddDate(0, 0, 1),
+		Deposit:        decimal.NewFromInt(1000),
+		MaxLots:        1,
+		CommissionRate: decimal.Zero,
+		KillSwitch:     true,
+		SignalSource:   fixedSignal{action: domain.ActionBuy},
+		Source:         fakeSource{candles: candles},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := engine.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.KillSwitchTripped {
+		t.Fatal("expected portfolio-level drawdown to trip the kill switch")
+	}
+	if result.KillSwitchFrozenDays == 0 {
+		t.Fatal("expected at least one frozen trading day after the kill switch")
+	}
+}
+
+func TestEngine_PortfolioDailyLossBlocksDayWithoutKillSwitch(t *testing.T) {
+	candles := flatDropCandles(120, 100, 97)
+	from := candles[65].Begin
+	engine, err := NewEngine(Config{
+		Tickers:        []string{"A", "B"},
+		From:           from,
+		Till:           candles[len(candles)-1].Begin.AddDate(0, 0, 1),
+		Deposit:        decimal.NewFromInt(1000),
+		MaxLots:        1,
+		CommissionRate: decimal.Zero,
+		KillSwitch:     true,
+		SignalSource:   fixedSignal{action: domain.ActionBuy},
+		Source:         fakeSource{candles: candles},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := engine.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.KillSwitchTripped {
+		t.Fatal("daily loss below the drawdown threshold must not trip the persistent kill switch")
+	}
+	if result.DailyLossBlockedDays == 0 {
+		t.Fatal("expected the portfolio-level daily-loss limit to block at least one day")
 	}
 }

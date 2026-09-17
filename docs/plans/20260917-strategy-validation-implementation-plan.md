@@ -146,17 +146,17 @@ Task 18.
 
 ### Task 4: Portfolio risk gate in backtest
 
-- [ ] Fix `engine.go:442-452` / `gate.go:217-235` to pass portfolio-level `CurrentEquity`
+- [x] Fix `engine.go:442-452` / `gate.go:217-235` to pass portfolio-level `CurrentEquity`
       (via the existing `aggregateCurves`, `engine.go:707-723`) instead of single-ticker
       equity, and to set `DayStartEquity`, so the 3% drawdown and 0.5% daily-loss limits can
       trigger against the portfolio curve
-- [ ] Re-run the 6 walk-forward windows after the fix and report how many days the
+- [x] Re-run the 6 walk-forward windows after the fix and report how many days the
       live-equivalent gate would have frozen trading
-- [ ] Decide and document whether the kill switch should only block new entries (current
+- [x] Decide and document whether the kill switch should only block new entries (current
       live behavior) or also liquidate open positions; if "block only," cross-reference
       Task 8's gap-stress test as the compensating control
-- [ ] write tests for the portfolio-equity/day-start-equity wiring
-- [ ] run project tests - must pass before next task
+- [x] write tests for the portfolio-equity/day-start-equity wiring
+- [x] run project tests - must pass before next task
 
 ### Task 5: Preflight hardening
 

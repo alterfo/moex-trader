@@ -64,27 +64,29 @@ type Trade struct {
 }
 
 type Result struct {
-	Tickers           []string
-	Start             time.Time
-	End               time.Time
-	Deposit           decimal.Decimal
-	FinalEquity       decimal.Decimal
-	NetPnl            decimal.Decimal
-	RealizedPnl       decimal.Decimal
-	UnrealizedPnl     decimal.Decimal
-	GrossPnl          decimal.Decimal
-	TotalCommission   decimal.Decimal
-	ClosedTrades      int
-	WinningTrades     int
-	HitRate           float64
-	Sharpe            float64
-	MaxDrawdownPct    float64
-	MaxDrawdownRub    decimal.Decimal
-	KillSwitchTripped bool
-	Decisions         int
-	HoldReasons       map[string]int
-	Trades            []Trade
-	EquityCurve       []EquityPoint
+	Tickers              []string
+	Start                time.Time
+	End                  time.Time
+	Deposit              decimal.Decimal
+	FinalEquity          decimal.Decimal
+	NetPnl               decimal.Decimal
+	RealizedPnl          decimal.Decimal
+	UnrealizedPnl        decimal.Decimal
+	GrossPnl             decimal.Decimal
+	TotalCommission      decimal.Decimal
+	ClosedTrades         int
+	WinningTrades        int
+	HitRate              float64
+	Sharpe               float64
+	MaxDrawdownPct       float64
+	MaxDrawdownRub       decimal.Decimal
+	KillSwitchTripped    bool
+	KillSwitchFrozenDays int
+	DailyLossBlockedDays int
+	Decisions            int
+	HoldReasons          map[string]int
+	Trades               []Trade
+	EquityCurve          []EquityPoint
 }
 
 type Config struct {
@@ -312,23 +314,85 @@ func (e *Engine) CurrentLots(_ context.Context, ticker string) (int, error) {
 }
 
 func (e *Engine) Run(ctx context.Context) (*Result, error) {
-	var curves []map[time.Time]decimal.Decimal
+	runs := make([]*tickerBacktest, 0, len(e.cfg.Tickers))
 	for _, ticker := range tickersNormalized(e.cfg.Tickers) {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		curve, err := e.runTicker(ctx, ticker)
+		run, err := e.prepareTicker(ctx, ticker)
 		if err != nil {
 			e.cfg.Logger.Printf("backtest: %s: skipping (history failed): %v", ticker, err)
 			continue
 		}
-		curves = append(curves, curve)
+		if run == nil {
+			continue
+		}
+		runs = append(runs, run)
 	}
-	aggregateCurve := aggregateCurves(curves, e.cfg.Deposit)
-	return e.buildResult(aggregateCurve), nil
+
+	days := sortedBacktestDays(runs)
+	curve := make(map[time.Time]decimal.Decimal)
+	prevEquity := e.cfg.Deposit
+	dailyLossLimit := e.cfg.Deposit.Mul(risk.DefaultConfig().MaxDailyLossPct).Div(decimal.NewFromInt(100))
+	dailyLossBlockedDays := 0
+	var firstKillDay time.Time
+	for _, day := range days {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		marks := marksForDay(runs, day)
+		dayStartEquity := prevEquity
+		active, _ := e.kill.IsKillSwitchActive(ctx)
+		if !active {
+			dayEquity := e.portfolioEquity(marks)
+			if loss := dayStartEquity.Sub(dayEquity); loss.Sign() > 0 && loss.GreaterThan(dailyLossLimit) {
+				dailyLossBlockedDays++
+			}
+			for _, run := range runs {
+				idx, ok := run.tradeableDays[day]
+				if !ok {
+					continue
+				}
+				if err := e.processTickerDay(ctx, run, idx, dayStartEquity, marks); err != nil {
+					if ctx.Err() != nil {
+						return nil, ctx.Err()
+					}
+					e.cfg.Logger.Printf("backtest: %s on %s: %v", run.ticker, day.Format("2006-01-02"), err)
+				}
+			}
+		} else if firstKillDay.IsZero() {
+			firstKillDay = day
+		}
+		equity := e.portfolioEquity(marks)
+		curve[day] = equity
+		prevEquity = equity
+		if !active {
+			activeAfter, _ := e.kill.IsKillSwitchActive(ctx)
+			if activeAfter {
+				firstKillDay = day
+			}
+		}
+	}
+	result := e.buildResult(curve)
+	result.DailyLossBlockedDays = dailyLossBlockedDays
+	if !firstKillDay.IsZero() {
+		for _, day := range days {
+			if !day.Before(firstKillDay) {
+				result.KillSwitchFrozenDays++
+			}
+		}
+	}
+	return result, nil
 }
 
-func (e *Engine) runTicker(ctx context.Context, ticker string) (map[time.Time]decimal.Decimal, error) {
+type tickerBacktest struct {
+	ticker        string
+	candles       []moex.Candle
+	builder       *features.Builder
+	tradeableDays map[time.Time]int
+}
+
+func (e *Engine) prepareTicker(ctx context.Context, ticker string) (*tickerBacktest, error) {
 	from := e.cfg.From
 	if from.IsZero() {
 		from = time.Now().AddDate(0, 0, -365)
@@ -349,11 +413,10 @@ func (e *Engine) runTicker(ctx context.Context, ticker string) (map[time.Time]de
 	warmup := e.cfg.FeatureConfig.WarmupCandles()
 	if len(candles) < warmup+1 {
 		e.cfg.Logger.Printf("backtest: %s: only %d candles in history, skipping", ticker, len(candles))
-		return map[time.Time]decimal.Decimal{}, nil
+		return nil, nil
 	}
 
 	builder := features.NewBuilderWithConfig(time.Now, e.cfg.FeatureConfig)
-	curve := make(map[time.Time]decimal.Decimal)
 
 	tradeable := make([]int, 0, 64)
 	for d := warmup; d < len(candles); d++ {
@@ -367,127 +430,178 @@ func (e *Engine) runTicker(ctx context.Context, ticker string) (map[time.Time]de
 		tradeable = tradeable[len(tradeable)-e.cfg.MaxDecisionsPerTicker:]
 	}
 
+	tradeableDays := make(map[time.Time]int, len(tradeable))
 	for _, d := range tradeable {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		active, _ := e.kill.IsKillSwitchActive(ctx)
-		if active {
-			e.cfg.Logger.Printf("backtest: kill switch active, skipping %s on %s", ticker, candles[d].Begin.Format("2006-01-02"))
-			continue
-		}
-
-		decisionDay := candles[d].Begin
-		execPrice := decisionPrice(candles, d)
-		if execPrice.Sign() <= 0 {
-			continue
-		}
-
-		if e.cfg.MaxHoldBars > 0 && e.expirePosition(ticker, execPrice, decisionDay) {
-			curve[decisionDay] = e.tickerPnL(ticker, candles[d].Close)
-			continue
-		}
-
-		input := features.Input{
-			Ticker: ticker,
-			Price: features.PriceSnapshot{
-				LastPrice: candles[d-1].Close,
-				PrevClose: candles[d-2].Close,
-				AsOf:      decisionDay,
-			},
-			Candles: candles[:d],
-		}
-
-		feature, err := builder.Build(input)
-		if err != nil {
-			e.cfg.Logger.Printf("backtest: %s on %s: build features: %v", ticker, decisionDay.Format("2006-01-02"), err)
-			continue
-		}
-
-		if e.cfg.NewsOverrides != nil {
-			dateKey := decisionDay.Format("2006-01-02")
-			if byDate, ok := e.cfg.NewsOverrides[ticker]; ok {
-				if agg, ok := byDate[dateKey]; ok {
-					feature.NewsSentiment = decimal.NewFromFloat(agg.Sentiment)
-					feature.NewsCount = agg.Count
-				}
-			}
-		}
-		if e.cfg.EventOverrides != nil {
-			dateKey := decisionDay.Format("2006-01-02")
-			if byDate, ok := e.cfg.EventOverrides[ticker]; ok {
-				if ev, ok := byDate[dateKey]; ok {
-					feature.EventDividend = ev.Dividend
-					feature.EventBuyback = ev.Buyback
-					feature.EventSanctions = ev.Sanctions
-					feature.EventIPO = ev.IPO
-					feature.EventReport = ev.Report
-					feature.EventDelisting = ev.Delisting
-					feature.EventMNA = ev.MNA
-					feature.EventDefault = ev.Default
-				}
-			}
-		}
-
-		reason := domain.HoldReasonModel
-		signal, err := e.cfg.SignalSource.Generate(ctx, feature)
-		if err != nil {
-			if errors.Is(err, context.DeadlineExceeded) {
-				reason = domain.HoldReasonTimeout
-			} else {
-				reason = domain.HoldReasonError
-			}
-			signal = domain.TradeSignal{Action: domain.ActionHold, HoldReason: reason, GeneratedAt: decisionDay}
-		} else if signal.Action == domain.ActionHold {
-			if signal.HoldReason == "" {
-				signal.HoldReason = domain.HoldReasonModel
-			}
-			reason = signal.HoldReason
-		}
-		e.recordDecision(signal)
-
-		if err != nil {
-			e.cfg.Logger.Printf("backtest: %s on %s: signal: %v", ticker, decisionDay.Format("2006-01-02"), err)
-			curve[decisionDay] = e.tickerPnL(ticker, candles[d].Close)
-			continue
-		}
-
-		if targetSource, isTarget := e.cfg.SignalSource.(TargetPositionSource); isTarget {
-			if signedLots, useTarget := targetSource.TargetPosition(feature); useTarget {
-				if err := e.applyTargetPosition(ctx, ticker, signedLots, execPrice, decisionDay); err != nil {
-					e.cfg.Logger.Printf("backtest: %s on %s: target position: %v", ticker, decisionDay.Format("2006-01-02"), err)
-				}
-				curve[decisionDay] = e.tickerPnL(ticker, candles[d].Close)
-				continue
-			}
-		}
-
-		approved, err := e.gate.Approve(ctx, risk.Request{
-			Signal: signal,
-			Market: risk.Market{
-				OrderPrice: execPrice,
-				PrevClose:  candles[d].Close,
-			},
-			Account: risk.Account{
-				Deposit:       e.cfg.Deposit,
-				CurrentEquity: e.cfg.Deposit.Add(e.tickerPnL(ticker, candles[d].Close)),
-			},
-		})
-		if err != nil {
-			e.cfg.Logger.Printf("backtest: %s on %s: risk gate: %v", ticker, decisionDay.Format("2006-01-02"), err)
-			curve[decisionDay] = e.tickerPnL(ticker, candles[d].Close)
-			continue
-		}
-
-		if signal.Action != domain.ActionHold && approved {
-			fillPrice := e.fillPrice(execPrice, signal.Action)
-			if err := e.recordFill(ticker, signal, fillPrice, decisionDay); err != nil {
-				e.cfg.Logger.Printf("backtest: %s on %s: record fill: %v", ticker, decisionDay.Format("2006-01-02"), err)
-			}
-		}
-		curve[decisionDay] = e.tickerPnL(ticker, candles[d].Close)
+		tradeableDays[candles[d].Begin] = d
 	}
-	return curve, nil
+	return &tickerBacktest{
+		ticker:        ticker,
+		candles:       candles,
+		builder:       builder,
+		tradeableDays: tradeableDays,
+	}, nil
+}
+
+func sortedBacktestDays(runs []*tickerBacktest) []time.Time {
+	days := make(map[time.Time]struct{})
+	for _, run := range runs {
+		for day := range run.tradeableDays {
+			days[day] = struct{}{}
+		}
+	}
+	out := make([]time.Time, 0, len(days))
+	for day := range days {
+		out = append(out, day)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Before(out[j]) })
+	return out
+}
+
+func marksForDay(runs []*tickerBacktest, day time.Time) map[string]decimal.Decimal {
+	marks := make(map[string]decimal.Decimal, len(runs))
+	for _, run := range runs {
+		marks[run.ticker] = candleCloseAtOrBefore(run.candles, day)
+	}
+	return marks
+}
+
+func candleCloseAtOrBefore(candles []moex.Candle, day time.Time) decimal.Decimal {
+	idx := sort.Search(len(candles), func(i int) bool { return candles[i].Begin.After(day) })
+	if idx == 0 {
+		return decimal.Zero
+	}
+	return candles[idx-1].Close
+}
+
+func (e *Engine) portfolioEquity(marks map[string]decimal.Decimal) decimal.Decimal {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	equity := e.cfg.Deposit
+	for ticker, mark := range marks {
+		if mark.Sign() <= 0 {
+			continue
+		}
+		equity = equity.Add(e.realized[ticker])
+		if pos := e.positions[ticker]; pos != nil {
+			unrealized := mark.Sub(pos.avg)
+			if pos.action == domain.ActionSell {
+				unrealized = pos.avg.Sub(mark)
+			}
+			equity = equity.Add(unrealized.Mul(decimal.NewFromInt(int64(pos.lots))))
+		}
+	}
+	return equity
+}
+
+func (e *Engine) processTickerDay(ctx context.Context, run *tickerBacktest, d int, dayStartEquity decimal.Decimal, marks map[string]decimal.Decimal) error {
+	ticker := run.ticker
+	candles := run.candles
+	decisionDay := candles[d].Begin
+	execPrice := decisionPrice(candles, d)
+	if execPrice.Sign() <= 0 {
+		return nil
+	}
+
+	if e.cfg.MaxHoldBars > 0 && e.expirePosition(ticker, execPrice, decisionDay) {
+		return nil
+	}
+
+	input := features.Input{
+		Ticker: ticker,
+		Price: features.PriceSnapshot{
+			LastPrice: candles[d-1].Close,
+			PrevClose: candles[d-2].Close,
+			AsOf:      decisionDay,
+		},
+		Candles: candles[:d],
+	}
+
+	feature, err := run.builder.Build(input)
+	if err != nil {
+		e.cfg.Logger.Printf("backtest: %s on %s: build features: %v", ticker, decisionDay.Format("2006-01-02"), err)
+		return nil
+	}
+
+	if e.cfg.NewsOverrides != nil {
+		dateKey := decisionDay.Format("2006-01-02")
+		if byDate, ok := e.cfg.NewsOverrides[ticker]; ok {
+			if agg, ok := byDate[dateKey]; ok {
+				feature.NewsSentiment = decimal.NewFromFloat(agg.Sentiment)
+				feature.NewsCount = agg.Count
+			}
+		}
+	}
+	if e.cfg.EventOverrides != nil {
+		dateKey := decisionDay.Format("2006-01-02")
+		if byDate, ok := e.cfg.EventOverrides[ticker]; ok {
+			if ev, ok := byDate[dateKey]; ok {
+				feature.EventDividend = ev.Dividend
+				feature.EventBuyback = ev.Buyback
+				feature.EventSanctions = ev.Sanctions
+				feature.EventIPO = ev.IPO
+				feature.EventReport = ev.Report
+				feature.EventDelisting = ev.Delisting
+				feature.EventMNA = ev.MNA
+				feature.EventDefault = ev.Default
+			}
+		}
+	}
+
+	reason := domain.HoldReasonModel
+	signal, err := e.cfg.SignalSource.Generate(ctx, feature)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			reason = domain.HoldReasonTimeout
+		} else {
+			reason = domain.HoldReasonError
+		}
+		signal = domain.TradeSignal{Action: domain.ActionHold, HoldReason: reason, GeneratedAt: decisionDay}
+	} else if signal.Action == domain.ActionHold {
+		if signal.HoldReason == "" {
+			signal.HoldReason = domain.HoldReasonModel
+		}
+		reason = signal.HoldReason
+	}
+	e.recordDecision(signal)
+
+	if err != nil {
+		e.cfg.Logger.Printf("backtest: %s on %s: signal: %v", ticker, decisionDay.Format("2006-01-02"), err)
+		return nil
+	}
+
+	currentEquity := e.portfolioEquity(marks)
+	account := risk.Account{
+		Deposit:        e.cfg.Deposit,
+		DayStartEquity: dayStartEquity,
+		CurrentEquity:  currentEquity,
+	}
+	if targetSource, isTarget := e.cfg.SignalSource.(TargetPositionSource); isTarget {
+		if signedLots, useTarget := targetSource.TargetPosition(feature); useTarget {
+			return e.applyTargetPositionWithAccount(ctx, ticker, signedLots, execPrice, decisionDay, account)
+		}
+	}
+
+	approved, err := e.gate.Approve(ctx, risk.Request{
+		Signal: signal,
+		Market: risk.Market{
+			OrderPrice: execPrice,
+			PrevClose:  candles[d].Close,
+		},
+		Account: account,
+	})
+	if err != nil {
+		e.cfg.Logger.Printf("backtest: %s on %s: risk gate: %v", ticker, decisionDay.Format("2006-01-02"), err)
+		return nil
+	}
+
+	if signal.Action != domain.ActionHold && approved {
+		fillPrice := e.fillPrice(execPrice, signal.Action)
+		if err := e.recordFill(ticker, signal, fillPrice, decisionDay); err != nil {
+			e.cfg.Logger.Printf("backtest: %s on %s: record fill: %v", ticker, decisionDay.Format("2006-01-02"), err)
+		}
+	}
+	return nil
 }
 
 // applyTargetPosition reconciles the current position to an absolute signed
@@ -496,6 +610,13 @@ func (e *Engine) runTicker(ctx context.Context, ticker string) (map[time.Time]de
 // other fill so the kill-switch, drawdown, fat-finger and max-lots checks
 // remain identical for all signal sources.
 func (e *Engine) applyTargetPosition(ctx context.Context, ticker string, signedLots int, execPrice decimal.Decimal, day time.Time) error {
+	return e.applyTargetPositionWithAccount(ctx, ticker, signedLots, execPrice, day, risk.Account{
+		Deposit:       e.cfg.Deposit,
+		CurrentEquity: e.cfg.Deposit.Add(e.tickerPnL(ticker, execPrice)),
+	})
+}
+
+func (e *Engine) applyTargetPositionWithAccount(ctx context.Context, ticker string, signedLots int, execPrice decimal.Decimal, day time.Time, account risk.Account) error {
 	e.mu.Lock()
 	current := 0
 	if pos := e.positions[ticker]; pos != nil {
@@ -548,10 +669,7 @@ func (e *Engine) applyTargetPosition(ctx context.Context, ticker string, signedL
 			OrderPrice: execPrice,
 			PrevClose:  execPrice,
 		},
-		Account: risk.Account{
-			Deposit:       e.cfg.Deposit,
-			CurrentEquity: e.cfg.Deposit.Add(e.tickerPnL(ticker, execPrice)),
-		},
+		Account: account,
 	})
 	if err != nil {
 		return err

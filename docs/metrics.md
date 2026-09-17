@@ -68,6 +68,37 @@ The prior 10-day candle lookback left 12 of the 18 deployed features
 macd_hist, stoch_k, williams_r, alligator_spread) at zero in live; that gap is
 now closed as part of this task.
 
+## Portfolio risk gate in backtest (Task 4)
+
+The backtest now runs tickers in a single chronological portfolio loop instead
+of ticker-by-ticker loops. Each gate request receives portfolio-level
+`CurrentEquity` and the previous portfolio close as `DayStartEquity`, so the
+3% drawdown kill switch and 0.5% daily-loss limit evaluate the same aggregate
+curve the live trader sees. Decision: the kill switch keeps the current live
+behavior — block new entries only, do not liquidate open positions — and Task 8's
+gap-stress test is the compensating control for the un-liquidated exposure.
+
+Six-quarter grid re-run after the fix. Same deployed `ensemble_model.json`,
+18 sandbox tickers, 1M RUB deposit, 15000₽/position, commission/spread/
+slippage 0.05% each, hold-until-flip. The exact per-quarter models are still
+not persisted, so this substitutes the deployed artifact on each window; Task 13
+will make the true walk-forward rerunnable.
+
+| window | realized P&L | MTM P&L | closed trades | max DD | kill-frozen days | daily-loss blocked days |
+|---|---|---|---|---|---|---|
+| 2025-04-01 -> 2025-06-30 | +42453.50 | +42093.83 | 199 | 0.77% | 0 | 0 |
+| 2025-07-01 -> 2025-09-30 | +9171.72 | +27576.50 | 104 | 0.90% | 0 | 0 |
+| 2025-10-01 -> 2025-12-30 | +19600.27 | +5964.14 | 108 | 1.82% | 0 | 1 |
+| 2026-01-05 -> 2026-03-31 | -6655.63 | -6729.68 | 95 | 1.80% | 0 | 0 |
+| 2026-04-01 -> 2026-06-30 | +41695.40 | +54945.79 | 110 | 0.90% | 0 | 1 |
+| 2026-07-01 -> 2026-09-17 | +47216.95 | +40051.28 | 181 | 1.07% | 0 | 2 |
+| total | +153482.21 | +163901.86 | 797 | — | 0 | 4 |
+
+The persistent drawdown kill switch froze 0 days on these windows. The
+portfolio-level daily-loss limit blocked new entries on 4 days total (Q3, Q5,
+Q6); under the old ticker-local backtest gate this limit was dead code because
+`DayStartEquity` was never set.
+
 <!-- shadow-reconciliation:start -->
 
 ## Shadow reconciliation (Task 3)
