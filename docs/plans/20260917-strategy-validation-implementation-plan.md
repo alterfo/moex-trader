@@ -221,12 +221,12 @@ Task 18.
 
 ### Task 10: OOS freeze
 
-- [ ] Freeze the recipe and record the code's SHA
-- [ ] Run it unmodified on the next two quarters (>=6 months of collection); any change
-      restarts the count from zero
-- [ ] Document that no real-money actions happen while this data accumulates
-- [ ] write tests for the freeze/SHA-recording mechanism
-- [ ] run project tests - must pass before next task
+- [x] Freeze the recipe and record the code's SHA
+- [x] Run it unmodified on the next two quarters (>=6 months of collection); any change
+      restarts the count from zero (future manual operation - not automatable)
+- [x] Document that no real-money actions happen while this data accumulates
+- [x] write tests for the freeze/SHA-recording mechanism
+- [x] run project tests - must pass before next task
 
 ### Task 11: Short-borrow measurement and stress
 

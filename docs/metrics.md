@@ -247,6 +247,23 @@ a significant negative loading on the long-only equal-weight benchmark,
 consistent with the short tilt. These are observations for the human go/no-go
 review, not an automated decision.
 
+## OOS freeze (Task 10)
+
+The abs-10d recipe is frozen for the next two quarters. The manifest stores the
+model and config SHA256, feature order, thresholds, tickers, sizing and cost
+fields; `cmd/oosfreeze` recomputes the recipe hash from the current files and
+resets the collection count to zero when it changes.
+
+| field | value |
+|---|---|
+| frozen at | 2026-09-17T16:09:40Z |
+| code SHA | 30a422a9eb7193ab9300d00b4ec7c9190b98e94e |
+| recipe SHA256 | 7d6e616c8973e8d2c32110e049b5a539c616ba367fab86732ac0aa850e51de9e |
+| model SHA256 | feb827494ba0bc943ab722d1dff888e0fe4c523bd170d463a5e3ca2fa11e6140 |
+| config SHA256 | 54c8d1949fd8c3b514c8a2b9c23a6c9048d7e20a433ad24038ab8eec6540b1ef |
+| minimum collection | 183 days |
+| real-money execution | disabled |
+
 <!-- shadow-reconciliation:start -->
 
 ## Shadow reconciliation (Task 3)
