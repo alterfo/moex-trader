@@ -95,23 +95,9 @@ type EnsembleSignalSource struct {
 }
 
 func (s *EnsembleSignalSource) Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
-	if s == nil || s.Model == nil {
-		return domain.TradeSignal{}, fmt.Errorf("ensemble: model is required")
-	}
-	if strings.TrimSpace(feature.Ticker) == "" {
-		return domain.TradeSignal{}, fmt.Errorf("ensemble: feature ticker must not be empty")
-	}
-	vector, names := ToVector(feature)
-	if err := checkFeatureOrder(s.Model.FeatureOrder, names); err != nil {
+	probability, err := s.RawProbability(feature)
+	if err != nil {
 		return domain.TradeSignal{}, err
-	}
-	if len(vector) != len(names) {
-		return domain.TradeSignal{}, fmt.Errorf("ensemble: feature vector length %d does not match order %d", len(vector), len(names))
-	}
-
-	probability := s.Model.Probability(vector)
-	if math.IsNaN(probability) || math.IsInf(probability, 0) {
-		return domain.TradeSignal{}, fmt.Errorf("ensemble: computed probability is not finite for %s", feature.Ticker)
 	}
 
 	signal := domain.TradeSignal{
@@ -135,6 +121,28 @@ func (s *EnsembleSignalSource) Generate(ctx context.Context, feature domain.Feat
 	}
 
 	return signal, nil
+}
+
+func (s *EnsembleSignalSource) RawProbability(feature domain.FeatureContext) (float64, error) {
+	if s == nil || s.Model == nil {
+		return 0, fmt.Errorf("ensemble: model is required")
+	}
+	if strings.TrimSpace(feature.Ticker) == "" {
+		return 0, fmt.Errorf("ensemble: feature ticker must not be empty")
+	}
+	vector, names := ToVector(feature)
+	if err := checkFeatureOrder(s.Model.FeatureOrder, names); err != nil {
+		return 0, err
+	}
+	if len(vector) != len(names) {
+		return 0, fmt.Errorf("ensemble: feature vector length %d does not match order %d", len(vector), len(names))
+	}
+
+	probability := s.Model.Probability(vector)
+	if math.IsNaN(probability) || math.IsInf(probability, 0) {
+		return 0, fmt.Errorf("ensemble: computed probability is not finite for %s", feature.Ticker)
+	}
+	return probability, nil
 }
 
 func (s *EnsembleSignalSource) targetLots(feature domain.FeatureContext) int {

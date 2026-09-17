@@ -251,10 +251,10 @@ Task 18.
 
 ### Task 13: Walk-forward persistence
 
-- [ ] Persist per-quarter models and decision logs (id, config, probability, feature
+- [x] Persist per-quarter models and decision logs (id, config, probability, feature
       hash) under `artifacts/wf/<window>/`
-- [ ] write tests for the persistence format and round-trip loading
-- [ ] run project tests - must pass before next task
+- [x] write tests for the persistence format and round-trip loading
+- [x] run project tests - must pass before next task
 
 ### Task 14: Attribution reporting
 

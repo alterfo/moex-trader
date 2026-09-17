@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -24,6 +25,7 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/model"
 	"github.com/olegsidorkin/moex-trader/internal/spread"
 	"github.com/olegsidorkin/moex-trader/internal/storage"
+	"github.com/olegsidorkin/moex-trader/internal/walkforward"
 )
 
 const (
@@ -68,6 +70,7 @@ func run() error {
 	var intervalMin int
 	var featureBPD int
 	var targetNotionalStr string
+	var wfDir string
 
 	flag.StringVar(&configPath, "config", "config.yaml", "path to config YAML")
 	flag.StringVar(&fromStr, "from", "", "backtest start date YYYY-MM-DD (default: one year ago)")
@@ -99,6 +102,7 @@ func run() error {
 	flag.IntVar(&intervalMin, "interval-min", 0, "candle interval in minutes for intraday bars (24 or 0 = daily; ISS supports 1/10/60)")
 	flag.IntVar(&featureBPD, "feature-bars-per-day", 0, "scale day-named feature windows by this many bars/session (0 = keep raw bar-count windows; -1 = auto/calendar from -interval-min)")
 	flag.StringVar(&targetNotionalStr, "target-notional", "", "ensemble: target ruble notional per position (when set, TargetLots=max(1, round(notional/price)); override MaxLots)")
+	flag.StringVar(&wfDir, "wf-dir", "", "when set, persist the per-window model and decision log under <wf-dir>/<from>_<till>/ for walk-forward reproducibility")
 	flag.Parse()
 
 	deposit, err := decimal.NewFromString(depositStr)
@@ -211,6 +215,74 @@ func run() error {
 		}()
 	}
 
+	var recorder *walkforward.Recorder
+	var wfConfig walkforward.Config
+	var wfConfigHash string
+	var wfModelFile string
+	var wfStart, wfEnd time.Time
+	if strings.TrimSpace(wfDir) != "" {
+		wfStart = from
+		if wfStart.IsZero() {
+			wfStart = time.Now().AddDate(0, 0, -365)
+		}
+		wfEnd = till
+		if wfEnd.IsZero() {
+			wfEnd = time.Now()
+		}
+
+		_, canonicalOrder := model.ToVector(domain.FeatureContext{})
+		wfConfig = walkforward.Config{
+			WindowStart:     wfStart,
+			WindowEnd:       wfEnd,
+			SignalSource:    signalSourceName,
+			Deposit:         deposit.String(),
+			MaxLots:         maxLots,
+			CommissionRate:  commissionRate.String(),
+			SpreadPct:       spreadPct.String(),
+			SlippagePct:     slippagePct.String(),
+			BorrowPctPerDay: borrowPctPerDay.String(),
+			TargetNotional:  targetNotional.String(),
+			Tickers:         append([]string(nil), tickers...),
+			FeatureOrder:    append([]string(nil), canonicalOrder...),
+			SpreadMinObs:    spreadMinObs,
+			SpreadDBPath:    spreadDBPath,
+		}
+
+		var probabilityProvider walkforward.ProbabilityProvider
+		switch signalSourceName {
+		case signalSourceEnsemble:
+			ens, err := model.LoadEnsembleModel(ensemblePath)
+			if err != nil {
+				return err
+			}
+			wfConfig.ModelPath = ensemblePath
+			wfConfig.FeatureOrder = append([]string(nil), ens.FeatureOrder...)
+			wfConfig.BuyThreshold = ens.BuyThreshold
+			wfConfig.SellThreshold = ens.SellThreshold
+			wfModelFile = ensemblePath
+			probabilityProvider = &model.EnsembleSignalSource{Model: ens}
+		case signalSourceModel:
+			weights, err := model.LoadWeights(modelPath)
+			if err != nil {
+				return err
+			}
+			wfConfig.ModelPath = modelPath
+			wfConfig.FeatureOrder = append([]string(nil), weights.FeatureOrder...)
+			wfConfig.BuyThreshold = weights.BuyThreshold
+			wfConfig.SellThreshold = weights.SellThreshold
+			wfModelFile = modelPath
+			probabilityProvider = &model.SignalSource{Weights: weights}
+		case signalSourceCSVProb:
+			wfConfig.ModelPath = csvProbPath
+			wfConfig.BuyThreshold = csvBuyPct
+			wfConfig.SellThreshold = csvSellPct
+			wfModelFile = csvProbPath
+		}
+		wfConfigHash = walkforward.ConfigHash(wfConfig)
+		recorder = walkforward.NewRecorder(signalSource, probabilityProvider, wfConfigHash)
+		signalSource = recorder
+	}
+
 	engine, err := backtest.NewEngine(backtest.Config{
 		Tickers:               tickers,
 		From:                  from,
@@ -245,6 +317,20 @@ func run() error {
 	result, err := engine.Run(ctx)
 	if err != nil {
 		return fmt.Errorf("backtest run: %w", err)
+	}
+
+	if recorder != nil {
+		window := walkforward.Window{
+			ID:         walkforward.NewWindowID(wfStart, wfEnd),
+			Config:     wfConfig,
+			ConfigHash: wfConfigHash,
+			Decisions:  recorder.Decisions(),
+		}
+		windowDir := filepath.Join(wfDir, window.ID)
+		if err := walkforward.Save(windowDir, window, wfModelFile); err != nil {
+			return fmt.Errorf("persist walk-forward window: %w", err)
+		}
+		log.Printf("backtest: persisted walk-forward window %s with %d decisions", windowDir, len(window.Decisions))
 	}
 
 	report := result.Markdown()

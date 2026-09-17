@@ -118,6 +118,23 @@ func TestSignalSourceGenerate(t *testing.T) {
 	}
 }
 
+func TestSignalSourceRawProbability(t *testing.T) {
+	source := &SignalSource{Weights: inferenceWeights(1, 0), MaxLots: 3}
+	feature := domain.FeatureContext{
+		Ticker:      "SBER",
+		ReturnPct:   decimal.NewFromFloat(20),
+		GeneratedAt: time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC),
+	}
+	want := sigmoid(2)
+	got, err := source.RawProbability(feature)
+	if err != nil {
+		t.Fatalf("RawProbability failed: %v", err)
+	}
+	if math.Abs(got-want) > 1e-9 {
+		t.Fatalf("RawProbability = %v, want %v", got, want)
+	}
+}
+
 func TestSignalSourceGenerateErrorCases(t *testing.T) {
 	source := &SignalSource{Weights: inferenceWeights(0, 0), MaxLots: 1}
 

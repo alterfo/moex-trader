@@ -20,30 +20,9 @@ type SignalSource struct {
 }
 
 func (s *SignalSource) Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
-	if strings.TrimSpace(feature.Ticker) == "" {
-		return domain.TradeSignal{}, fmt.Errorf("model: feature ticker must not be empty")
-	}
-	if s == nil || s.Weights == nil {
-		return domain.TradeSignal{}, fmt.Errorf("model: weights are required")
-	}
-	if err := validateFeatureDimensions(s.Weights); err != nil {
+	probability, names, standardized, err := s.probability(feature)
+	if err != nil {
 		return domain.TradeSignal{}, err
-	}
-
-	vector, names := ToVector(feature)
-	standardized := make([]float64, len(vector))
-	for i, value := range vector {
-		std := s.Weights.Std[i]
-		if std == 0 {
-			std = 1
-		}
-		standardized[i] = (value - s.Weights.Mean[i]) / std
-	}
-
-	logit := dot(s.Weights.Coef, standardized) + s.Weights.Bias
-	probability := sigmoid(logit)
-	if math.IsNaN(probability) || math.IsInf(probability, 0) {
-		return domain.TradeSignal{}, fmt.Errorf("model: computed probability is not finite for %s", feature.Ticker)
 	}
 
 	signal := domain.TradeSignal{
@@ -67,6 +46,40 @@ func (s *SignalSource) Generate(ctx context.Context, feature domain.FeatureConte
 	}
 
 	return signal, nil
+}
+
+func (s *SignalSource) RawProbability(feature domain.FeatureContext) (float64, error) {
+	probability, _, _, err := s.probability(feature)
+	return probability, err
+}
+
+func (s *SignalSource) probability(feature domain.FeatureContext) (float64, []string, []float64, error) {
+	if strings.TrimSpace(feature.Ticker) == "" {
+		return 0, nil, nil, fmt.Errorf("model: feature ticker must not be empty")
+	}
+	if s == nil || s.Weights == nil {
+		return 0, nil, nil, fmt.Errorf("model: weights are required")
+	}
+	if err := validateFeatureDimensions(s.Weights); err != nil {
+		return 0, nil, nil, err
+	}
+
+	vector, names := ToVector(feature)
+	standardized := make([]float64, len(vector))
+	for i, value := range vector {
+		std := s.Weights.Std[i]
+		if std == 0 {
+			std = 1
+		}
+		standardized[i] = (value - s.Weights.Mean[i]) / std
+	}
+
+	logit := dot(s.Weights.Coef, standardized) + s.Weights.Bias
+	probability := sigmoid(logit)
+	if math.IsNaN(probability) || math.IsInf(probability, 0) {
+		return 0, nil, nil, fmt.Errorf("model: computed probability is not finite for %s", feature.Ticker)
+	}
+	return probability, names, standardized, nil
 }
 
 func validateFeatureDimensions(weights *Weights) error {
