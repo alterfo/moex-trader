@@ -13,7 +13,7 @@ require (
 	github.com/redis/go-redis/v9 v9.22.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/tinkoff/invest-api-go-sdk v1.4.6
-	golang.org/x/net v0.26.0
+	golang.org/x/net v0.55.0
 	google.golang.org/grpc v1.53.0
 	google.golang.org/protobuf v1.34.2
 	modernc.org/sqlite v1.58.0
@@ -40,7 +40,7 @@ require (
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	google.golang.org/genproto v0.0.0-20230110181048-76db0878b65f // indirect
 	modernc.org/libc v1.75.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
