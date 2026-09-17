@@ -875,14 +875,26 @@ func TestNewModelSignalSourceWiresIntoOrchestrator(t *testing.T) {
 
 func TestNewModelSignalSourceWiresTargetNotionalForEnsemble(t *testing.T) {
 	_, names := model.ToVector(domain.FeatureContext{})
+	type logistic struct {
+		Mean []float64 `json:"mean"`
+		Std  []float64 `json:"std"`
+		Coef []float64 `json:"coef"`
+		Bias float64   `json:"bias"`
+	}
 	ensemble := struct {
 		FeatureOrder  []string `json:"feature_order"`
 		BuyThreshold  float64  `json:"buy_threshold"`
 		SellThreshold float64  `json:"sell_threshold"`
+		Logistic      logistic `json:"logistic"`
 	}{
 		FeatureOrder:  names,
 		BuyThreshold:  0.6,
 		SellThreshold: 0.4,
+		Logistic: logistic{
+			Mean: make([]float64, len(names)),
+			Std:  make([]float64, len(names)),
+			Coef: make([]float64, len(names)),
+		},
 	}
 	raw, err := json.Marshal(ensemble)
 	if err != nil {

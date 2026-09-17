@@ -74,6 +74,10 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 	}
 
 	pf := ComputePriceFeaturesWithConfig(input.Candles, b.conf)
+	volCandles := input.Candles
+	if lookback := b.conf.lookbackBounds(); lookback > 0 && len(volCandles) > lookback {
+		volCandles = volCandles[len(volCandles)-lookback:]
+	}
 
 	return domain.FeatureContext{
 		Ticker:             ticker,
@@ -83,7 +87,7 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 		Bid:                input.Price.Bid,
 		Ask:                input.Price.Ask,
 		ReturnPct:          closedBarReturnPct(input.Candles),
-		RealizedVolatility: realizedVolatility(input.Candles),
+		RealizedVolatility: realizedVolatility(volCandles),
 		NewsSentiment:      newsSentiment,
 		NewsCount:          newsCount,
 		OrderBookImbalance: clampImbalance(input.OrderBookImbalance),

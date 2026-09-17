@@ -292,6 +292,36 @@ func TestRealizedVolatilityWithTooFewCandles(t *testing.T) {
 	}
 }
 
+func TestBuildBoundsRealizedVolatilityWindow(t *testing.T) {
+	lookback := (PriceFeatureConfig{}).lookbackBounds()
+	var candles []moex.Candle
+	for i := 0; i < 50; i++ {
+		closePrice := decimal.NewFromInt(1)
+		if i%2 == 1 {
+			closePrice = decimal.NewFromInt(100)
+		}
+		candles = append(candles, moex.Candle{Close: closePrice})
+	}
+	for i := 0; i < lookback; i++ {
+		candles = append(candles, moex.Candle{Close: decimal.NewFromInt(int64(100 + i))})
+	}
+
+	builder := NewBuilderWithConfig(time.Now, PriceFeatureConfig{})
+	ctx, err := builder.Build(Input{
+		Ticker:  "SBER",
+		Price:   PriceSnapshot{LastPrice: decimal.NewFromInt(200), PrevClose: decimal.NewFromInt(199)},
+		Candles: candles,
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+
+	want := realizedVolatility(candles[len(candles)-lookback:])
+	if !ctx.RealizedVolatility.Equal(want) {
+		t.Fatalf("RealizedVolatility = %s, want %s (bounded to trailing %d candles)", ctx.RealizedVolatility, want, lookback)
+	}
+}
+
 func TestPctChange(t *testing.T) {
 	closes := []decimal.Decimal{
 		decimal.NewFromFloat(100),

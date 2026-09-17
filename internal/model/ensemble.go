@@ -66,9 +66,13 @@ func (m *EnsembleModel) validate() error {
 	if m.BuyThreshold < 0 || m.BuyThreshold > 1 || m.SellThreshold < 0 || m.SellThreshold > 1 {
 		return fmt.Errorf("ensemble: thresholds out of range: buy=%v sell=%v", m.BuyThreshold, m.SellThreshold)
 	}
+	if len(m.Logistic.Coef) != len(m.FeatureOrder) || len(m.Logistic.Mean) != len(m.FeatureOrder) || len(m.Logistic.Std) != len(m.FeatureOrder) {
+		return fmt.Errorf("ensemble: logistic weights length mismatch: coef=%d mean=%d std=%d features=%d",
+			len(m.Logistic.Coef), len(m.Logistic.Mean), len(m.Logistic.Std), len(m.FeatureOrder))
+	}
 	for _, trees := range [][]treeNode{m.LGBTrees, m.XGBTrees} {
 		for i, t := range trees {
-			if err := validateTree(&t); err != nil {
+			if err := validateTree(&t, len(m.FeatureOrder)); err != nil {
 				return fmt.Errorf("ensemble: tree %d: %w", i, err)
 			}
 		}
@@ -76,7 +80,7 @@ func (m *EnsembleModel) validate() error {
 	return nil
 }
 
-func validateTree(t *treeNode) error {
+func validateTree(t *treeNode, features int) error {
 	n := len(t.SplitIndices)
 	if n == 0 {
 		return fmt.Errorf("empty tree")
@@ -84,6 +88,20 @@ func validateTree(t *treeNode) error {
 	if len(t.SplitConditions) != n || len(t.LeftChildren) != n || len(t.RightChildren) != n || len(t.DefaultLeft) != n {
 		return fmt.Errorf("array length mismatch: si=%d sc=%d lc=%d rc=%d dl=%d",
 			n, len(t.SplitConditions), len(t.LeftChildren), len(t.RightChildren), len(t.DefaultLeft))
+	}
+	for node := 0; node < n; node++ {
+		if t.LeftChildren[node] == -1 {
+			if t.RightChildren[node] != -1 {
+				return fmt.Errorf("leaf node %d has right child %d", node, t.RightChildren[node])
+			}
+			continue
+		}
+		if t.LeftChildren[node] < 0 || t.LeftChildren[node] >= n || t.RightChildren[node] < 0 || t.RightChildren[node] >= n {
+			return fmt.Errorf("node %d child index out of range: left=%d right=%d", node, t.LeftChildren[node], t.RightChildren[node])
+		}
+		if t.SplitIndices[node] < 0 || t.SplitIndices[node] >= features {
+			return fmt.Errorf("node %d split index %d out of range [0,%d)", node, t.SplitIndices[node], features)
+		}
 	}
 	return nil
 }

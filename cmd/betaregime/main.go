@@ -112,7 +112,7 @@ func run() error {
 
 	moexClient := moex.NewClient(cfg.MOEXISSBaseURL, nil)
 	fetchSource := backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
-	const warmupDays = 100
+	warmupDays := features.PriceFeatureConfig{}.FetchCalendarDays()
 	const featureWarmup = 64
 
 	ctx := context.Background()

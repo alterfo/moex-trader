@@ -6,13 +6,15 @@ Metrics ledger section below; per-task sections that follow record the
 derivation details. Realized P&L is the AGENTS.md invariant for go/no-go
 judgments; MTM is shown separately and never drives a decision.
 
-> **Pending recomputation (2026-09-17 review fix):** the backtest/exportdataset
-> warmup was widened from 100 calendar days to the full 300-bar feature
-> lookback (434 calendar days) so EMA/SMMA indicators converge exactly as they
-> do in live and training. Every backtest/preflight number in this file was
-> produced under the old 100-day warmup and must be re-derived before it can
-> be cited as evidence; the ledger rows below are retained for traceability
-> only until that recomputation lands.
+> **Pending recomputation (2026-09-17 review fixes):** the backtest/exportdataset
+> and the tail-precision/momentum/regime analysis CLIs now fetch the full
+> 300-bar feature lookback (434 calendar days) so EMA/SMMA indicators converge
+> exactly as they do live, and `realized_volatility` is bounded to that same
+> trailing 300-bar window in live, backtest, and training. Every backtest,
+> preflight, and analysis number in this file was produced before these
+> corrections and must be re-derived before it can be cited as evidence; the
+> ledger rows below are retained for traceability only until that
+> recomputation lands.
 
 ## Tail-precision falsification (Task 1)
 

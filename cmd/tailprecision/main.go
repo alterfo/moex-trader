@@ -111,7 +111,7 @@ func run() error {
 		if ticker == "" {
 			continue
 		}
-		candles, err := source.History(ctx, ticker, from.AddDate(0, 0, -100), till)
+		candles, err := source.History(ctx, ticker, from.AddDate(0, 0, -features.PriceFeatureConfig{}.FetchCalendarDays()), till)
 		if err != nil {
 			log.Printf("tailprecision: %s: history: %v", ticker, err)
 			continue

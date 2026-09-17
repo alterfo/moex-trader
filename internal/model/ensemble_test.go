@@ -243,3 +243,57 @@ func TestEnsembleRawProbabilityRejectsMismatchAndNil(t *testing.T) {
 		t.Fatal("RawProbability with mismatched feature order: error = nil, want error")
 	}
 }
+
+func TestEnsembleValidateRejectsMalformedArtifact(t *testing.T) {
+	order := append([]string(nil), defaultFeatureOrder...)
+	zeros := make([]float64, len(order))
+	std := make([]float64, len(order))
+	for i := range std {
+		std[i] = 1
+	}
+	base := func() EnsembleModel {
+		return EnsembleModel{
+			FeatureOrder:  append([]string(nil), order...),
+			BuyThreshold:  0.60,
+			SellThreshold: 0.40,
+			Logistic: logisticWeights{
+				Mean: append([]float64(nil), zeros...),
+				Std:  append([]float64(nil), std...),
+				Coef: append([]float64(nil), zeros...),
+			},
+			XGBTrees: []treeNode{{
+				SplitIndices:    []int{0, -1, -1},
+				SplitConditions: []float64{0.5, 0, 0},
+				LeftChildren:    []int{1, -1, -1},
+				RightChildren:   []int{2, -1, -1},
+				DefaultLeft:     []int{0, 0, 0},
+			}},
+		}
+	}
+
+	cases := []struct {
+		name    string
+		mutate  func(*EnsembleModel)
+		wantErr bool
+	}{
+		{name: "valid", mutate: func(m *EnsembleModel) {}, wantErr: false},
+		{name: "short logistic coef", mutate: func(m *EnsembleModel) { m.Logistic.Coef = m.Logistic.Coef[:len(m.Logistic.Coef)-1] }, wantErr: true},
+		{name: "short logistic mean", mutate: func(m *EnsembleModel) { m.Logistic.Mean = m.Logistic.Mean[:1] }, wantErr: true},
+		{name: "split index out of range", mutate: func(m *EnsembleModel) { m.XGBTrees[0].SplitIndices[0] = len(order) + 5 }, wantErr: true},
+		{name: "child index out of range", mutate: func(m *EnsembleModel) { m.XGBTrees[0].LeftChildren[0] = 99 }, wantErr: true},
+		{name: "leaf with one child", mutate: func(m *EnsembleModel) { m.XGBTrees[0].RightChildren[1] = 2 }, wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := base()
+			tc.mutate(&m)
+			err := m.validate()
+			if tc.wantErr && err == nil {
+				t.Fatal("validate() error = nil, want error")
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("validate() error = %v, want nil", err)
+			}
+		})
+	}
+}
