@@ -174,15 +174,16 @@ Task 18.
 
 ### Task 6: Rebalance and signal hysteresis (anti-churn)
 
-- [ ] Add rebalance hysteresis in the target-position executor
+- [x] Add rebalance hysteresis in the target-position executor
       (`orchestrator.go:165-210`): only rebalance when `|delta| >= 1 lot` AND the deviation
       from target exceeds a pre-registered X% of notional (e.g. 5%)
-- [ ] Add signal hysteresis: only exit the BUY/HOLD/SELL band after 2 consecutive polls
+- [x] Add signal hysteresis: only exit the BUY/HOLD/SELL band after 2 consecutive polls
       agree (distinct from confidence-sizing — this is about signal frequency, not position
       size)
-- [ ] Validate against live sandbox fills before/after the change
-- [ ] write tests for both hysteresis mechanisms
-- [ ] run project tests - must pass before next task
+- [x] Validate against live sandbox fills before/after the change (manual test —
+      skipped, not automatable)
+- [x] write tests for both hysteresis mechanisms
+- [x] run project tests - must pass before next task
 
 ### Task 7: Attempt registry and DSR/PBO
 

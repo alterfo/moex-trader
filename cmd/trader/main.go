@@ -125,7 +125,8 @@ func run() error {
 	if resolver, ok := runtime.accountSource.(lotSizeResolver); ok {
 		modelSource = newLotSizeSignalSource(modelSource, resolver, log.Default())
 	}
-	gatedSource := newNewsGateSignalSource(modelSource, cfg.News, telegramClient, log.Default())
+	bandSource := orchestrator.NewSignalHysteresisSource(modelSource, orchestrator.DefaultSignalHysteresisPolls)
+	gatedSource := newNewsGateSignalSource(bandSource, cfg.News, telegramClient, log.Default())
 	signalSource := newAlertingSignalSource(gatedSource, telegramClient, log.Default())
 	notifier := newDecisionNotifier(telegramClient, log.Default(), cfg.Telegram.SignalTickers)
 
@@ -511,7 +512,10 @@ func newBrokerRuntime(ctx context.Context, cfg *config.Config, store *storage.St
 		switch cfg.Broker {
 		case "", config.BrokerPaper:
 			paperExec := executor.NewPaperExecutorWithCommission(store, now, cfg.Commission.Rate)
-			return &brokerRuntime{exec: executor.NewTargetPositionExecutor(paperExec, store, now)}, nil
+			targetExec := executor.NewTargetPositionExecutorWithConfig(paperExec, store, now, executor.TargetPositionConfig{
+				RebalanceMinDeviationPct: cfg.Risk.RebalanceMinDeviationPct,
+			})
+			return &brokerRuntime{exec: targetExec}, nil
 		default:
 			return nil, fmt.Errorf("select executor: broker %q is not allowed while is_paper_trading is true; set broker: paper", cfg.Broker)
 		}
@@ -575,8 +579,11 @@ func newBrokerRuntime(ctx context.Context, cfg *config.Config, store *storage.St
 			return nil, err
 		}
 		log.Printf("tinkoff sandbox: account %s ready; set tinkoff.account_id to reuse it on the next run", accountID)
+		targetExec := executor.NewTargetPositionExecutorWithConfig(windowedExecutor, store, now, executor.TargetPositionConfig{
+			RebalanceMinDeviationPct: cfg.Risk.RebalanceMinDeviationPct,
+		})
 		return &brokerRuntime{
-			exec:          executor.NewTargetPositionExecutor(windowedExecutor, store, now),
+			exec:          targetExec,
 			accountSource: sandbox,
 			canceller:     sandbox,
 			closeFn:       sandbox.Close,

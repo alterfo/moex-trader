@@ -47,6 +47,10 @@ risk:
   # BUY caps at last_price*(1+pct), SELL floors at last_price*(1-pct). The
   # order either fills within the band or not at all — never chases the book.
   max_slippage_pct: "0.003"
+  # Rebalance deadband: skip target-position adjustments when the deviation from
+  # target is at or below this fraction of target notional. Dampens the 5-minute
+  # poll rebalancing a position every time price moves one lot.
+  rebalance_min_deviation_pct: "0.05"
   # Skip new orders for this many minutes after the 10:00 MSK main-session
   # open, where spreads are at their widest (opening auction settling).
   no_trade_after_open_minutes: 15

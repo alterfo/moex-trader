@@ -30,6 +30,7 @@ risk:
   max_lots: 1
   # target_notional: "15000"        # flat notional per position; overrides max_lots sizing when set
   # max_slippage_pct: "0.003"       # marketable-limit slippage cap (needs tinkoff.order_type: limit)
+  # rebalance_min_deviation_pct: "0.05" # skip rebalances at/below 5% of target notional (anti-churn deadband)
   # no_trade_after_open_minutes: 15 # pause new orders around the 10:00 MSK open
   # blackout_windows: []            # "RFC3339-start/RFC3339-end" pairs, e.g. CBR key-rate announcements
 commission:

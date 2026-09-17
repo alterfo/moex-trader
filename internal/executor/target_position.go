@@ -14,16 +14,30 @@ import (
 func nowFunc() time.Time { return time.Now() }
 
 type TargetPositionExecutor struct {
-	inner     Executor
-	positions risk.PositionReader
-	now       func() time.Time
+	inner           Executor
+	positions       risk.PositionReader
+	now             func() time.Time
+	minDeviationPct decimal.Decimal
 }
 
 func NewTargetPositionExecutor(inner Executor, positions risk.PositionReader, now func() time.Time) *TargetPositionExecutor {
+	return NewTargetPositionExecutorWithConfig(inner, positions, now, TargetPositionConfig{})
+}
+
+type TargetPositionConfig struct {
+	RebalanceMinDeviationPct decimal.Decimal
+}
+
+func NewTargetPositionExecutorWithConfig(inner Executor, positions risk.PositionReader, now func() time.Time, cfg TargetPositionConfig) *TargetPositionExecutor {
 	if now == nil {
 		now = nowFunc
 	}
-	return &TargetPositionExecutor{inner: inner, positions: positions, now: now}
+	return &TargetPositionExecutor{
+		inner:           inner,
+		positions:       positions,
+		now:             now,
+		minDeviationPct: cfg.RebalanceMinDeviationPct,
+	}
 }
 
 func (t *TargetPositionExecutor) Inner() Executor {
@@ -46,6 +60,9 @@ func (t *TargetPositionExecutor) Execute(ctx context.Context, signal domain.Trad
 	if delta == 0 {
 		return t.noopFill(signal, price), nil
 	}
+	if t.skipRebalance(delta, desired) {
+		return t.noopFill(signal, price), nil
+	}
 	target := signal
 	target.TargetLots = delta
 	if delta < 0 {
@@ -55,6 +72,24 @@ func (t *TargetPositionExecutor) Execute(ctx context.Context, signal domain.Trad
 		target.Action = domain.ActionBuy
 	}
 	return t.inner.Execute(ctx, target, price)
+}
+
+func (t *TargetPositionExecutor) skipRebalance(delta, desired int) bool {
+	if !t.minDeviationPct.IsPositive() {
+		return false
+	}
+	if desired == 0 {
+		return false
+	}
+	deviation := decimal.NewFromInt(int64(absInt(delta))).Div(decimal.NewFromInt(int64(absInt(desired))))
+	return deviation.LessThanOrEqual(t.minDeviationPct)
+}
+
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func (t *TargetPositionExecutor) noopFill(signal domain.TradeSignal, price decimal.Decimal) Fill {

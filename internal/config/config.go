@@ -41,11 +41,12 @@ type Storage struct {
 }
 
 type Risk struct {
-	MaxLots                 int             `yaml:"max_lots"`
-	TargetNotional          decimal.Decimal `yaml:"target_notional"`
-	MaxSlippagePct          decimal.Decimal `yaml:"max_slippage_pct"`
-	NoTradeAfterOpenMinutes int             `yaml:"no_trade_after_open_minutes"`
-	BlackoutWindows         []string        `yaml:"blackout_windows"`
+	MaxLots                  int             `yaml:"max_lots"`
+	TargetNotional           decimal.Decimal `yaml:"target_notional"`
+	MaxSlippagePct           decimal.Decimal `yaml:"max_slippage_pct"`
+	RebalanceMinDeviationPct decimal.Decimal `yaml:"rebalance_min_deviation_pct"`
+	NoTradeAfterOpenMinutes  int             `yaml:"no_trade_after_open_minutes"`
+	BlackoutWindows          []string        `yaml:"blackout_windows"`
 }
 
 type Telegram struct {
@@ -125,8 +126,11 @@ func Default() *Config {
 		Model:           Model{Path: defaultModelPath},
 		MOEXISSBaseURL:  defaultMOEXISSBaseURL,
 		AlgoPackBaseURL: defaultAlgoPackBaseURL,
-		Risk:            Risk{MaxLots: defaultRiskMaxLots},
-		Telegram:        Telegram{},
+		Risk: Risk{
+			MaxLots:                  defaultRiskMaxLots,
+			RebalanceMinDeviationPct: decimal.New(5, -2),
+		},
+		Telegram: Telegram{},
 		News: News{
 			VetoEnabled:   true,
 			VetoSentiment: decimal.NewFromFloat(0.5),
@@ -222,6 +226,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Risk.MaxSlippagePct.IsNegative() || c.Risk.MaxSlippagePct.GreaterThan(decimal.NewFromInt(1)) {
 		return fmt.Errorf("risk.max_slippage_pct must be in [0,1]")
+	}
+	if c.Risk.RebalanceMinDeviationPct.IsNegative() || c.Risk.RebalanceMinDeviationPct.GreaterThan(decimal.NewFromInt(1)) {
+		return fmt.Errorf("risk.rebalance_min_deviation_pct must be in [0,1]")
 	}
 	if c.Risk.NoTradeAfterOpenMinutes < 0 {
 		return fmt.Errorf("risk.no_trade_after_open_minutes must be non-negative")
@@ -402,6 +409,13 @@ func applyEnv(cfg *Config) error {
 			return fmt.Errorf("parse MOEX_TRADER_RISK_TARGET_NOTIONAL: %w", err)
 		}
 		cfg.Risk.TargetNotional = targetNotional
+	}
+	if v := os.Getenv("MOEX_TRADER_RISK_REBALANCE_MIN_DEVIATION_PCT"); v != "" {
+		minDeviationPct, err := decimal.NewFromString(v)
+		if err != nil {
+			return fmt.Errorf("parse MOEX_TRADER_RISK_REBALANCE_MIN_DEVIATION_PCT: %w", err)
+		}
+		cfg.Risk.RebalanceMinDeviationPct = minDeviationPct
 	}
 	if v := os.Getenv("MOEX_TRADER_TELEGRAM_BOT_TOKEN"); v != "" {
 		cfg.Telegram.BotToken = v

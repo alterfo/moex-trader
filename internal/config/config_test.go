@@ -411,6 +411,38 @@ func TestRiskTargetNotionalEnvOverride(t *testing.T) {
 	}
 }
 
+func TestRiskRebalanceMinDeviationPctLoadedAndValidated(t *testing.T) {
+	clearEnv(t)
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\nrisk:\n  max_lots: 1\n  rebalance_min_deviation_pct: \"0.05\"\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if !cfg.Risk.RebalanceMinDeviationPct.Equal(decimal.RequireFromString("0.05")) {
+		t.Fatalf("unexpected rebalance min deviation pct: %s", cfg.Risk.RebalanceMinDeviationPct)
+	}
+
+	_, err = Parse([]byte("storage:\n  path: ./trader.db\nrisk:\n  max_lots: 1\n  rebalance_min_deviation_pct: \"1.5\"\n"))
+	if err == nil {
+		t.Fatal("expected error for rebalance_min_deviation_pct outside [0,1]")
+	}
+	if !strings.Contains(err.Error(), "risk.rebalance_min_deviation_pct") {
+		t.Fatalf("expected risk.rebalance_min_deviation_pct error, got: %v", err)
+	}
+}
+
+func TestRiskRebalanceMinDeviationPctEnvOverride(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("MOEX_TRADER_RISK_REBALANCE_MIN_DEVIATION_PCT", "0.08")
+
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if !cfg.Risk.RebalanceMinDeviationPct.Equal(decimal.RequireFromString("0.08")) {
+		t.Fatalf("Risk.RebalanceMinDeviationPct = %s, want 0.08", cfg.Risk.RebalanceMinDeviationPct)
+	}
+}
+
 func TestEnvOverrides(t *testing.T) {
 	clearEnv(t)
 	t.Setenv("MOEX_TRADER_MOEX_ISS_URL", "https://override.example/iss")

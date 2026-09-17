@@ -130,3 +130,98 @@ func TestTargetPositionExecutor_ShortBuildsUp(t *testing.T) {
 		t.Fatalf("expected SELL 6 (close long 3 + open short 3), got %v lots=%d", s.Action, s.TargetLots)
 	}
 }
+
+func newTargetPositionExecutorWithDeadband(t *testing.T, deadband string) (*TargetPositionExecutor, *recordingExecutor, *fakePositionReader) {
+	t.Helper()
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	positions := &fakePositionReader{}
+	inner := &recordingExecutor{fill: Fill{Lots: 1}}
+	cfg := TargetPositionConfig{}
+	if deadband != "" {
+		cfg.RebalanceMinDeviationPct = decimal.RequireFromString(deadband)
+	}
+	exec := NewTargetPositionExecutorWithConfig(inner, positions, func() time.Time { return now }, cfg)
+	return exec, inner, positions
+}
+
+func TestTargetPositionExecutor_RebalanceDeadbandSkipsSmallDeviation(t *testing.T) {
+	exec, inner, positions := newTargetPositionExecutorWithDeadband(t, "0.05")
+	ctx := context.Background()
+
+	positions.set("SBER", 99)
+	_, err := exec.Execute(ctx, domain.TradeSignal{Ticker: "SBER", Action: domain.ActionBuy, TargetLots: 100}, decimal.NewFromInt(100))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inner.signals) != 0 {
+		t.Fatalf("expected 1-lot deviation (1%%) to be skipped, got %d inner calls", len(inner.signals))
+	}
+
+	positions.set("SBER", 95)
+	inner.signals = nil
+	_, err = exec.Execute(ctx, domain.TradeSignal{Ticker: "SBER", Action: domain.ActionBuy, TargetLots: 100}, decimal.NewFromInt(100))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inner.signals) != 0 {
+		t.Fatalf("expected 5%% deviation to be skipped at the deadband boundary, got %d inner calls", len(inner.signals))
+	}
+}
+
+func TestTargetPositionExecutor_RebalanceDeadbandAllowsLargeDeviation(t *testing.T) {
+	exec, inner, positions := newTargetPositionExecutorWithDeadband(t, "0.05")
+	ctx := context.Background()
+
+	positions.set("SBER", 94)
+	_, err := exec.Execute(ctx, domain.TradeSignal{Ticker: "SBER", Action: domain.ActionBuy, TargetLots: 100}, decimal.NewFromInt(100))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inner.signals) != 1 {
+		t.Fatalf("expected 6%% deviation to rebalance, got %d inner calls", len(inner.signals))
+	}
+	if s := inner.signals[0]; s.Action != domain.ActionBuy || s.TargetLots != 6 {
+		t.Fatalf("expected BUY 6, got %v lots=%d", s.Action, s.TargetLots)
+	}
+}
+
+func TestTargetPositionExecutor_RebalanceDeadbandNeverBlocksOpenOrFlip(t *testing.T) {
+	exec, inner, positions := newTargetPositionExecutorWithDeadband(t, "0.05")
+	ctx := context.Background()
+
+	positions.set("SBER", 0)
+	_, err := exec.Execute(ctx, domain.TradeSignal{Ticker: "SBER", Action: domain.ActionBuy, TargetLots: 100}, decimal.NewFromInt(100))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inner.signals) != 1 {
+		t.Fatalf("expected opening fill to rebalance, got %d inner calls", len(inner.signals))
+	}
+
+	positions.set("SBER", 5)
+	inner.signals = nil
+	_, err = exec.Execute(ctx, domain.TradeSignal{Ticker: "SBER", Action: domain.ActionSell, TargetLots: 10}, decimal.NewFromInt(90))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inner.signals) != 1 {
+		t.Fatalf("expected flip fill to rebalance, got %d inner calls", len(inner.signals))
+	}
+	if s := inner.signals[0]; s.Action != domain.ActionSell || s.TargetLots != 15 {
+		t.Fatalf("expected SELL 15 (close long 5 + short 10), got %v lots=%d", s.Action, s.TargetLots)
+	}
+}
+
+func TestTargetPositionExecutor_RebalanceDeadbandDisabledByZeroConfig(t *testing.T) {
+	exec, inner, positions := newTargetPositionExecutorWithDeadband(t, "")
+	ctx := context.Background()
+
+	positions.set("SBER", 99)
+	_, err := exec.Execute(ctx, domain.TradeSignal{Ticker: "SBER", Action: domain.ActionBuy, TargetLots: 100}, decimal.NewFromInt(100))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inner.signals) != 1 {
+		t.Fatalf("expected zero config to preserve original rebalance behavior, got %d inner calls", len(inner.signals))
+	}
+}
