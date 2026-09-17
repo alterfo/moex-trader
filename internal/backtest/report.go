@@ -25,6 +25,10 @@ func (r Result) Markdown() string {
 	fmt.Fprintf(&b, "- Unrealized P&L (open positions at cutoff, MTM): %s RUB\n", r.UnrealizedPnl.String())
 	fmt.Fprintf(&b, "- Gross P&L (closed trades): %s RUB\n", r.GrossPnl.String())
 	fmt.Fprintf(&b, "- Total commission: %s RUB\n", r.TotalCommission.String())
+	if !r.TotalBorrow.IsZero() {
+		fmt.Fprintf(&b, "- Short-borrow cost (stress): %s RUB\n", r.TotalBorrow.String())
+		fmt.Fprintf(&b, "- Realized P&L net of borrow: **%s RUB** (%s)\n", r.RealizedPnlNetBorrow.String(), signWord(r.RealizedPnlNetBorrow))
+	}
 	fmt.Fprintf(&b, "- Closed trades: %d\n", r.ClosedTrades)
 	fmt.Fprintf(&b, "- Winning trades: %d\n", r.WinningTrades)
 	if r.ClosedTrades > 0 {

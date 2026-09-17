@@ -83,9 +83,11 @@ type Result struct {
 	FinalEquity          decimal.Decimal
 	NetPnl               decimal.Decimal
 	RealizedPnl          decimal.Decimal
+	RealizedPnlNetBorrow decimal.Decimal
 	UnrealizedPnl        decimal.Decimal
 	GrossPnl             decimal.Decimal
 	TotalCommission      decimal.Decimal
+	TotalBorrow          decimal.Decimal
 	ClosedTrades         int
 	WinningTrades        int
 	HitRate              float64
@@ -111,6 +113,7 @@ type Config struct {
 	CommissionRate        decimal.Decimal
 	SpreadPct             decimal.Decimal
 	SlippagePct           decimal.Decimal
+	BorrowPctPerDay       decimal.Decimal
 	WarmupDays            int
 	MaxDecisionsPerTicker int
 	MaxHoldBars           int
@@ -239,6 +242,9 @@ func (c Config) WithDefaults() Config {
 	if c.SlippagePct.IsNegative() {
 		c.SlippagePct = decimal.Zero
 	}
+	if c.BorrowPctPerDay.IsNegative() {
+		c.BorrowPctPerDay = decimal.Zero
+	}
 	if c.WarmupDays <= 0 {
 		c.WarmupDays = DefaultWarmupDays
 	}
@@ -251,6 +257,7 @@ type Engine struct {
 	kill      *memKillSwitch
 	positions map[string]*position
 	realized  map[string]decimal.Decimal
+	borrow    decimal.Decimal
 	trades    []Trade
 	decisions int
 	holds     map[string]int
@@ -376,7 +383,8 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 		} else if firstKillDay.IsZero() {
 			firstKillDay = day
 		}
-		equity := e.portfolioEquity(marks)
+		e.accrueBorrow()
+		equity := e.portfolioEquity(marks).Sub(e.borrow)
 		curve[day] = equity
 		prevEquity = equity
 		if !active {
@@ -509,6 +517,26 @@ func (e *Engine) portfolioEquity(marks map[string]decimal.Decimal) decimal.Decim
 		}
 	}
 	return equity
+}
+
+// accrueBorrow charges the configured per-day borrow cost against every open
+// short position held at the end of the current bar. The cost is short-leg
+// notional (entry average price times lots) multiplied by the borrow fraction
+// and accumulates in e.borrow, which is then subtracted from the aggregate
+// equity curve. Long positions are not charged.
+func (e *Engine) accrueBorrow() {
+	if e.cfg.BorrowPctPerDay.Sign() <= 0 {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, pos := range e.positions {
+		if pos.action != domain.ActionSell || pos.lots <= 0 {
+			continue
+		}
+		notional := pos.avg.Mul(decimal.NewFromInt(int64(pos.lots)))
+		e.borrow = e.borrow.Add(notional.Mul(e.cfg.BorrowPctPerDay))
+	}
 }
 
 func (e *Engine) processTickerDay(ctx context.Context, run *tickerBacktest, d int, dayStartEquity decimal.Decimal, marks map[string]decimal.Decimal) error {
@@ -937,6 +965,8 @@ func (e *Engine) buildResult(curve map[time.Time]decimal.Decimal, finalMarks map
 			res.WinningTrades++
 		}
 	}
+	res.TotalBorrow = e.borrow
+	res.RealizedPnlNetBorrow = res.RealizedPnl.Sub(res.TotalBorrow)
 	res.ClosedTrades = len(trades)
 	if res.ClosedTrades > 0 {
 		res.HitRate = float64(res.WinningTrades) / float64(res.ClosedTrades)
@@ -951,7 +981,7 @@ func (e *Engine) buildResult(curve map[time.Time]decimal.Decimal, finalMarks map
 	res.EquityCurve = sortedCurve(curve)
 	res.FinalEquity = lastEquity(curve)
 	res.NetPnl = res.FinalEquity.Sub(res.Deposit)
-	res.UnrealizedPnl = res.NetPnl.Sub(res.RealizedPnl)
+	res.UnrealizedPnl = res.NetPnl.Sub(res.RealizedPnlNetBorrow)
 	res.Sharpe, res.MaxDrawdownPct, res.MaxDrawdownRub = curveStats(res.EquityCurve)
 	if len(res.EquityCurve) > 0 {
 		res.Start = res.EquityCurve[0].Date

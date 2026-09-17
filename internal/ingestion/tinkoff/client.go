@@ -288,13 +288,16 @@ func (c *Client) ResolveInstrumentUID(ctx context.Context, ticker string) (strin
 	return "", fmt.Errorf("tinkoff find instrument %q: no match", ticker)
 }
 
-func (c *Client) ResolveLotSize(ctx context.Context, instrumentUID string) (int32, error) {
+// ShareBy returns the full share instrument descriptor for a UID, including
+// the short-enabled flag and the short margin risk rates (Kshort, Dshort,
+// DshortMin). Tinkoff does not expose a borrow fee rate here.
+func (c *Client) ShareBy(ctx context.Context, instrumentUID string) (*pb.Share, error) {
 	if !c.enabled {
-		return 0, ErrPaperTrading
+		return nil, ErrPaperTrading
 	}
 	instrumentUID = strings.TrimSpace(instrumentUID)
 	if instrumentUID == "" {
-		return 0, errors.New("tinkoff: instrument uid must not be empty")
+		return nil, errors.New("tinkoff: instrument uid must not be empty")
 	}
 
 	response, err := c.instruments.ShareBy(ctx, &pb.InstrumentRequest{
@@ -302,9 +305,17 @@ func (c *Client) ResolveLotSize(ctx context.Context, instrumentUID string) (int3
 		Id:     instrumentUID,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("tinkoff share by %q: %w", instrumentUID, err)
+		return nil, fmt.Errorf("tinkoff share by %q: %w", instrumentUID, err)
 	}
-	lot := response.GetInstrument().GetLot()
+	return response.GetInstrument(), nil
+}
+
+func (c *Client) ResolveLotSize(ctx context.Context, instrumentUID string) (int32, error) {
+	share, err := c.ShareBy(ctx, instrumentUID)
+	if err != nil {
+		return 0, err
+	}
+	lot := share.GetLot()
 	if lot <= 0 {
 		return 0, fmt.Errorf("tinkoff share by %q: non-positive lot size %d", instrumentUID, lot)
 	}
@@ -320,6 +331,30 @@ func (c *Client) SandboxAccounts(ctx context.Context) ([]*pb.Account, error) {
 		return nil, fmt.Errorf("tinkoff get sandbox accounts: %w", err)
 	}
 	return response.GetAccounts(), nil
+}
+
+// SandboxOperations returns the sandbox account operation history between
+// from and to (UTC). It is used to look for OPERATION_TYPE_MARGIN_FEE entries,
+// which are the only API-visible record of short-borrow charges.
+func (c *Client) SandboxOperations(ctx context.Context, accountID string, from, to time.Time) ([]*pb.Operation, error) {
+	if !c.enabled {
+		return nil, ErrPaperTrading
+	}
+	if err := validateAccountID(accountID); err != nil {
+		return nil, err
+	}
+	request := &pb.OperationsRequest{AccountId: accountID}
+	if !from.IsZero() {
+		request.From = timestamppb.New(from)
+	}
+	if !to.IsZero() {
+		request.To = timestamppb.New(to)
+	}
+	response, err := c.sandbox.GetSandboxOperations(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("tinkoff get sandbox operations: %w", err)
+	}
+	return response.GetOperations(), nil
 }
 
 func (c *Client) OpenSandboxAccount(ctx context.Context) (string, error) {

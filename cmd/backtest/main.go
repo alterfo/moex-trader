@@ -46,6 +46,7 @@ func run() error {
 	var commissionStr string
 	var spreadStr string
 	var slippageStr string
+	var borrowPctDayStr string
 	var lookbackDays int
 	var maxHoldBars int
 	var cachePath string
@@ -73,6 +74,7 @@ func run() error {
 	flag.StringVar(&commissionStr, "commission-rate", "0.0005", "commission rate applied to notional per fill")
 	flag.StringVar(&spreadStr, "spread-pct", "0", "half-spread cost applied against each fill, as a fraction of price (e.g. 0.0005 = 0.05%)")
 	flag.StringVar(&slippageStr, "slippage-pct", "0", "additional adverse slippage applied against each fill, as a fraction of price (e.g. 0.0005 = 0.05%)")
+	flag.StringVar(&borrowPctDayStr, "borrow-pct-day", "0", "short-borrow cost per day as a fraction of short-leg notional (e.g. 0.00005 = 0.005%)")
 	flag.IntVar(&lookbackDays, "lookback-days", 30, "max decision points per ticker (0 = unlimited)")
 	flag.IntVar(&maxHoldBars, "max-hold-bars", 0, "force-close a position after this many decision bars (0 = hold until the signal changes)")
 	flag.StringVar(&cachePath, "cache", "", "path to persistent decision cache (e.g. .backtest-cache.json)")
@@ -108,6 +110,10 @@ func run() error {
 	slippagePct, err := decimal.NewFromString(slippageStr)
 	if err != nil {
 		return fmt.Errorf("parse -slippage-pct: %w", err)
+	}
+	borrowPctPerDay, err := decimal.NewFromString(borrowPctDayStr)
+	if err != nil {
+		return fmt.Errorf("parse -borrow-pct-day: %w", err)
 	}
 	var targetNotional decimal.Decimal
 	if targetNotionalStr != "" {
@@ -200,6 +206,7 @@ func run() error {
 		CommissionRate:        commissionRate,
 		SpreadPct:             spreadPct,
 		SlippagePct:           slippagePct,
+		BorrowPctPerDay:       borrowPctPerDay,
 		WarmupDays:            100,
 		MaxDecisionsPerTicker: lookbackDays,
 		MaxHoldBars:           maxHoldBars,
@@ -217,8 +224,8 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	log.Printf("backtest: window=%s..%s tickers=%d deposit=%s lots=%d commission=%s spread=%s slippage=%s signal_source=%s lookback=%d kill_switch=%v min_confidence=%s",
-		formatFlag(from), formatFlag(till), len(tickers), deposit.String(), maxLots, commissionRate.String(), spreadPct.String(), slippagePct.String(), signalSourceName, lookbackDays, killSwitch, decimal.NewFromFloat(minConfidence).String())
+	log.Printf("backtest: window=%s..%s tickers=%d deposit=%s lots=%d commission=%s spread=%s slippage=%s borrow_per_day=%s signal_source=%s lookback=%d kill_switch=%v min_confidence=%s",
+		formatFlag(from), formatFlag(till), len(tickers), deposit.String(), maxLots, commissionRate.String(), spreadPct.String(), slippagePct.String(), borrowPctPerDay.String(), signalSourceName, lookbackDays, killSwitch, decimal.NewFromFloat(minConfidence).String())
 
 	result, err := engine.Run(ctx)
 	if err != nil {

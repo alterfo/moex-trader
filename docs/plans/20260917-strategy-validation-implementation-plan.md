@@ -230,12 +230,16 @@ Task 18.
 
 ### Task 11: Short-borrow measurement and stress
 
-- [ ] Measure real short-borrow terms (rate, holding limits) for all 18 names in the
-      T-Bank sandbox
-- [ ] If it cannot be measured, apply a 0.005%/day stress on short-leg notional instead
-- [ ] Use only the stress scenario in the go/no-go decision, not an optimistic estimate
-- [ ] write tests for the borrow-cost stress calculation
-- [ ] run project tests - must pass before next task
+- [x] Measure real short-borrow terms (rate, holding limits) for all 18 names in the
+      T-Bank sandbox — live run of `cmd/borrowmeasure` (docs/borrow-report.md):
+      17/18 short-enabled, DATA not shortable, short risk rates captured
+- [x] If it cannot be measured, apply a 0.005%/day stress on short-leg notional instead
+      — the API exposes no borrow fee rate and the account has 0 margin-fee ops, so the
+      0.005%/day stress is wired into `backtest.Config.BorrowPctPerDay`
+- [x] Use only the stress scenario in the go/no-go decision, not an optimistic estimate
+      — `borrowcost.ResolveDailyRate` uses the stress rate unless a measured rate exists
+- [x] write tests for the borrow-cost stress calculation
+- [x] run project tests - must pass before next task
 
 ### Task 12: Per-ticker spread from AlgoPack
 

@@ -264,6 +264,26 @@ resets the collection count to zero when it changes.
 | minimum collection | 183 days |
 | real-money execution | disabled |
 
+## Short-borrow measurement and stress (Task 11)
+
+Live Tinkoff sandbox measurement via `cmd/borrowmeasure` (180-day operations
+lookback). The broker API exposes short availability and short margin risk
+rates per share but does not expose a borrow fee rate; no margin-fee
+operations were observed in the account history, so the pre-registered
+0.005%/day stress is the go/no-go borrow rate.
+
+| date | short-enabled names | margin-fee ops | measured rate | applied rate | artifact |
+|---|---|---|---|---|---|
+| 2026-09-17 | 17 of 18 (DATA not shortable) | 0 (0 RUB) | unmeasurable | 0.005%/day stress | docs/borrow-report.md |
+
+Per-ticker short risk rates (Dshort = minimal-margin short risk rate,
+DshortMin = initial-margin short risk rate) are in `docs/borrow-report.md`.
+DATA reports short-enabled=false with zero short risk rates, so a SELL signal
+on DATA cannot open a short in the sandbox. The engine now supports
+`-borrow-pct-day` (`backtest.Config.BorrowPctPerDay`), charging the rate daily
+against short-leg notional and reporting `TotalBorrow` plus
+`RealizedPnlNetBorrow = RealizedPnl - TotalBorrow`.
+
 <!-- shadow-reconciliation:start -->
 
 ## Shadow reconciliation (Task 3)

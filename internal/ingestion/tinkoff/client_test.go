@@ -424,6 +424,7 @@ type fakeSandboxServer struct {
 	portfolio   func(context.Context, *pb.PortfolioRequest) (*pb.PortfolioResponse, error)
 	orders      func(context.Context, *pb.GetOrdersRequest) (*pb.GetOrdersResponse, error)
 	cancel      func(context.Context, *pb.CancelOrderRequest) (*pb.CancelOrderResponse, error)
+	operations  func(context.Context, *pb.OperationsRequest) (*pb.OperationsResponse, error)
 }
 
 func (s *fakeSandboxServer) GetSandboxAccounts(ctx context.Context, req *pb.GetAccountsRequest) (*pb.GetAccountsResponse, error) {
@@ -471,6 +472,13 @@ func (s *fakeSandboxServer) GetSandboxOrders(ctx context.Context, req *pb.GetOrd
 func (s *fakeSandboxServer) CancelSandboxOrder(ctx context.Context, req *pb.CancelOrderRequest) (*pb.CancelOrderResponse, error) {
 	if s.cancel != nil {
 		return s.cancel(ctx, req)
+	}
+	return nil, status.Error(codes.Unimplemented, "unimplemented")
+}
+
+func (s *fakeSandboxServer) GetSandboxOperations(ctx context.Context, req *pb.OperationsRequest) (*pb.OperationsResponse, error) {
+	if s.operations != nil {
+		return s.operations(ctx, req)
 	}
 	return nil, status.Error(codes.Unimplemented, "unimplemented")
 }
@@ -585,6 +593,77 @@ func TestResolveLotSizeRejectsNonPositive(t *testing.T) {
 	}
 	if _, err := client.ResolveLotSize(context.Background(), "  "); err == nil {
 		t.Fatal("ResolveLotSize returned nil error for empty uid")
+	}
+}
+
+func TestShareByReturnsShortTerms(t *testing.T) {
+	instruments := &fakeInstrumentsServer{
+		shareBy: func(ctx context.Context, req *pb.InstrumentRequest) (*pb.ShareResponse, error) {
+			if req.GetIdType() != pb.InstrumentIdType_INSTRUMENT_ID_TYPE_UID || req.GetId() != "share-uid" {
+				t.Fatalf("unexpected request: %+v", req)
+			}
+			return &pb.ShareResponse{Instrument: &pb.Share{
+				Uid:              "share-uid",
+				ShortEnabledFlag: true,
+				Kshort:           quotationFromString("0.25"),
+				Dshort:           quotationFromString("0.2"),
+				DshortMin:        quotationFromString("0.5"),
+			}}, nil
+		},
+	}
+	client := startSandboxTestServer(t, instruments, &fakeSandboxServer{})
+
+	share, err := client.ShareBy(context.Background(), "share-uid")
+	if err != nil {
+		t.Fatalf("ShareBy returned error: %v", err)
+	}
+	if !share.GetShortEnabledFlag() {
+		t.Fatal("ShortEnabledFlag = false, want true")
+	}
+	if got := share.GetDshort(); got.GetUnits() != 0 || got.GetNano() != 200000000 {
+		t.Fatalf("Dshort = %+v, want 0.2", got)
+	}
+}
+
+func TestShareByRejectsEmptyUID(t *testing.T) {
+	client := startSandboxTestServer(t, &fakeInstrumentsServer{}, &fakeSandboxServer{})
+	if _, err := client.ShareBy(context.Background(), "  "); err == nil {
+		t.Fatal("ShareBy returned nil error for empty uid")
+	}
+}
+
+func TestSandboxOperationsPassesWindowAndParsesFees(t *testing.T) {
+	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	sandbox := &fakeSandboxServer{
+		operations: func(ctx context.Context, req *pb.OperationsRequest) (*pb.OperationsResponse, error) {
+			if req.GetAccountId() != "acct" {
+				t.Fatalf("account id = %q, want acct", req.GetAccountId())
+			}
+			if req.GetFrom().AsTime() != from || req.GetTo().AsTime() != to {
+				t.Fatalf("unexpected window: %v .. %v", req.GetFrom().AsTime(), req.GetTo().AsTime())
+			}
+			return &pb.OperationsResponse{Operations: []*pb.Operation{
+				{Id: "1", OperationType: pb.OperationType_OPERATION_TYPE_MARGIN_FEE, Payment: &pb.MoneyValue{Units: 1, Nano: 500000000}},
+				{Id: "2", OperationType: pb.OperationType_OPERATION_TYPE_BUY},
+			}}, nil
+		},
+	}
+	client := startSandboxTestServer(t, &fakeInstrumentsServer{}, sandbox)
+
+	ops, err := client.SandboxOperations(context.Background(), "acct", from, to)
+	if err != nil {
+		t.Fatalf("SandboxOperations returned error: %v", err)
+	}
+	if len(ops) != 2 {
+		t.Fatalf("len(ops) = %d, want 2", len(ops))
+	}
+	payment, err := MoneyValueToDecimal(ops[0].GetPayment())
+	if err != nil {
+		t.Fatalf("parse payment: %v", err)
+	}
+	if !payment.Equal(decimal.RequireFromString("1.5")) {
+		t.Fatalf("payment = %s, want 1.5", payment)
 	}
 }
 
