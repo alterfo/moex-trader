@@ -98,6 +98,22 @@ func TestSumMarginFees(t *testing.T) {
 	}
 }
 
+func TestSumMarginFeesUsesAbsolutePayment(t *testing.T) {
+	operations := []*pb.Operation{
+		{OperationType: pb.OperationType_OPERATION_TYPE_MARGIN_FEE, Payment: &pb.MoneyValue{Currency: "rub", Units: -1, Nano: -250000000}},
+		{OperationType: pb.OperationType_OPERATION_TYPE_MARGIN_FEE, Payment: &pb.MoneyValue{Currency: "rub", Units: -2, Nano: 0}},
+	}
+
+	fees, count := SumMarginFees(operations)
+	if count != 2 {
+		t.Fatalf("SumMarginFees() count = %d, want 2", count)
+	}
+	want := decimal.RequireFromString("3.25")
+	if !fees.Equal(want) {
+		t.Fatalf("SumMarginFees() fees = %s, want %s", fees, want)
+	}
+}
+
 func TestSumMarginFeesEmpty(t *testing.T) {
 	fees, count := SumMarginFees(nil)
 	if count != 0 || !fees.IsZero() {

@@ -131,7 +131,7 @@ func run() error {
 			log.Printf("margin fee operation %q: parse payment: %v", op.GetId(), err)
 			continue
 		}
-		marginFees = marginFees.Add(payment)
+		marginFees = marginFees.Add(payment.Abs())
 		feeOps++
 	}
 

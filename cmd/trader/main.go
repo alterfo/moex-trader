@@ -1091,6 +1091,7 @@ type preflight struct {
 	minClosedTrades int
 	spreadPct       decimal.Decimal
 	slippagePct     decimal.Decimal
+	borrowPctPerDay decimal.Decimal
 	maxLots         int
 	commissionRate  decimal.Decimal
 	tickers         []string
@@ -1116,6 +1117,7 @@ func newPreflight(cfg *config.Config, source backtest.SignalSource, history back
 		minClosedTrades: cfg.Preflight.MinClosedTrades,
 		spreadPct:       cfg.Preflight.SpreadPct,
 		slippagePct:     cfg.Preflight.SlippagePct,
+		borrowPctPerDay: borrowcost.StressRatePerDay(),
 		maxLots:         cfg.Risk.MaxLots,
 		commissionRate:  cfg.Commission.Rate,
 		tickers:         append([]string(nil), cfg.Tickers...),
@@ -1136,7 +1138,7 @@ func (p *preflight) withSpreadPcts(table map[string]decimal.Decimal) *preflight 
 
 func preflightConfigHash(cfg *config.Config) string {
 	h := sha256.New()
-	fmt.Fprintf(h, "tickers=%v|model=%s|ensemble=%s|preflight_days=%d|deposit=%s|min_net_pnl=%s|min_closed_trades=%d|spread=%s|slippage=%s|max_lots=%d|target_notional=%s|commission=%s",
+	fmt.Fprintf(h, "tickers=%v|model=%s|ensemble=%s|preflight_days=%d|deposit=%s|min_net_pnl=%s|min_closed_trades=%d|spread=%s|slippage=%s|borrow_pct_per_day=%s|max_lots=%d|target_notional=%s|commission=%s",
 		cfg.Tickers,
 		cfg.Model.Path,
 		cfg.Model.EnsemblePath,
@@ -1146,6 +1148,7 @@ func preflightConfigHash(cfg *config.Config) string {
 		cfg.Preflight.MinClosedTrades,
 		cfg.Preflight.SpreadPct.String(),
 		cfg.Preflight.SlippagePct.String(),
+		borrowcost.StressRatePerDay().String(),
 		cfg.Risk.MaxLots,
 		cfg.Risk.TargetNotional.String(),
 		cfg.Commission.Rate.String(),
@@ -1167,18 +1170,19 @@ func (p *preflight) check(ctx context.Context) error {
 	till := p.now()
 	from := till.AddDate(0, 0, -p.days)
 	engine, err := backtest.NewEngine(backtest.Config{
-		Tickers:        p.tickers,
-		From:           from,
-		Till:           till,
-		Deposit:        p.deposit,
-		MaxLots:        p.maxLots,
-		CommissionRate: p.commissionRate,
-		SpreadPct:      p.spreadPct,
-		SpreadPcts:     p.spreadPcts,
-		SlippagePct:    p.slippagePct,
-		KillSwitch:     true,
-		SignalSource:   p.source,
-		Source:         p.history,
+		Tickers:         p.tickers,
+		From:            from,
+		Till:            till,
+		Deposit:         p.deposit,
+		MaxLots:         p.maxLots,
+		CommissionRate:  p.commissionRate,
+		SpreadPct:       p.spreadPct,
+		SpreadPcts:      p.spreadPcts,
+		SlippagePct:     p.slippagePct,
+		BorrowPctPerDay: p.borrowPctPerDay,
+		KillSwitch:      true,
+		SignalSource:    p.source,
+		Source:          p.history,
 	})
 	if err != nil {
 		return fmt.Errorf("preflight backtest: %w", err)

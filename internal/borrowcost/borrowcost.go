@@ -95,7 +95,7 @@ func SumMarginFees(operations []*pb.Operation) (fees decimal.Decimal, count int)
 		if err != nil {
 			continue
 		}
-		fees = fees.Add(payment)
+		fees = fees.Add(payment.Abs())
 		count++
 	}
 	return fees, count

@@ -17,6 +17,7 @@ import (
 	"github.com/shopspring/decimal"
 	pb "github.com/tinkoff/invest-api-go-sdk/proto"
 
+	"github.com/olegsidorkin/moex-trader/internal/borrowcost"
 	brokertinkoff "github.com/olegsidorkin/moex-trader/internal/broker/tinkoff"
 	"github.com/olegsidorkin/moex-trader/internal/config"
 	"github.com/olegsidorkin/moex-trader/internal/domain"
@@ -425,6 +426,13 @@ func TestNewPreflightNilConfigIsDisabled(t *testing.T) {
 	}
 	if err := p.check(context.Background()); err != nil {
 		t.Fatalf("check() error = %v", err)
+	}
+}
+
+func TestPreflightAppliesBorrowStress(t *testing.T) {
+	p := newPreflight(preflightConfig(), fixedSignalSource{action: domain.ActionBuy}, &fakeHistorySource{}, time.Now)
+	if !p.borrowPctPerDay.Equal(borrowcost.StressRatePerDay()) {
+		t.Fatalf("preflight borrow rate = %s, want stress rate %s", p.borrowPctPerDay, borrowcost.StressRatePerDay())
 	}
 }
 
