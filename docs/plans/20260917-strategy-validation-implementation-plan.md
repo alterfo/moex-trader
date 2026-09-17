@@ -120,17 +120,17 @@ Task 18.
 
 ### Task 2: Momentum benchmark
 
-- [ ] Implement a top-k momentum benchmark on `mom_21d` (k=5, pre-registered), rebalanced
+- [x] Implement a top-k momentum benchmark on `mom_21d` (k=5, pre-registered), rebalanced
       every 10 trading days, on the same 18 tickers with the same commission/spread/
       slippage/kill-switch/deposit as the live config
-- [ ] Support both long-only and long+short variants
-- [ ] Compare the deployed ensemble against this benchmark net of costs over the same
+- [x] Support both long-only and long+short variants
+- [x] Compare the deployed ensemble against this benchmark net of costs over the same
       window; the ensemble must beat it net of costs, otherwise treat it as
       "momentum + noise" regardless of the Task 1 result (engine-wide biases, including the
       kill-switch bug, cancel out in this relative comparison)
-- [ ] Record results in `docs/metrics.md`
-- [ ] write tests for the momentum benchmark signal source
-- [ ] run project tests - must pass before next task
+- [x] Record results in `docs/metrics.md`
+- [x] write tests for the momentum benchmark signal source
+- [x] run project tests - must pass before next task
 
 ### Task 3: Live/backtest feature parity fix
 

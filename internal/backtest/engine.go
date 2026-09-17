@@ -31,6 +31,19 @@ type SignalSource interface {
 	Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error)
 }
 
+// TargetPositionSource optionally extends SignalSource with absolute target
+// position semantics. The BUY/SELL/HOLD vocabulary cannot express "close to
+// flat" (HOLD means "keep the current position"), so a portfolio rebalancing
+// source (for example the momentum benchmark) implements this interface and
+// returns the desired signed lots: positive = long, negative = short, zero =
+// flat. When implemented, the engine drives fills from TargetPosition instead
+// of the action returned by Generate, while Generate is still called for
+// decision logging and caching.
+type TargetPositionSource interface {
+	SignalSource
+	TargetPosition(feature domain.FeatureContext) (signedLots int, ok bool)
+}
+
 type EquityPoint struct {
 	Date   time.Time
 	Equity decimal.Decimal
@@ -439,6 +452,16 @@ func (e *Engine) runTicker(ctx context.Context, ticker string) (map[time.Time]de
 			continue
 		}
 
+		if targetSource, isTarget := e.cfg.SignalSource.(TargetPositionSource); isTarget {
+			if signedLots, useTarget := targetSource.TargetPosition(feature); useTarget {
+				if err := e.applyTargetPosition(ctx, ticker, signedLots, execPrice, decisionDay); err != nil {
+					e.cfg.Logger.Printf("backtest: %s on %s: target position: %v", ticker, decisionDay.Format("2006-01-02"), err)
+				}
+				curve[decisionDay] = e.tickerPnL(ticker, candles[d].Close)
+				continue
+			}
+		}
+
 		approved, err := e.gate.Approve(ctx, risk.Request{
 			Signal: signal,
 			Market: risk.Market{
@@ -465,6 +488,78 @@ func (e *Engine) runTicker(ctx context.Context, ticker string) (map[time.Time]de
 		curve[decisionDay] = e.tickerPnL(ticker, candles[d].Close)
 	}
 	return curve, nil
+}
+
+// applyTargetPosition reconciles the current position to an absolute signed
+// target lot count. Closing to flat bypasses the risk gate because it only
+// reduces exposure; opening or reversing goes through the same gate as every
+// other fill so the kill-switch, drawdown, fat-finger and max-lots checks
+// remain identical for all signal sources.
+func (e *Engine) applyTargetPosition(ctx context.Context, ticker string, signedLots int, execPrice decimal.Decimal, day time.Time) error {
+	e.mu.Lock()
+	current := 0
+	if pos := e.positions[ticker]; pos != nil {
+		current = pos.lots
+		if pos.action == domain.ActionSell {
+			current = -pos.lots
+		}
+	}
+	e.mu.Unlock()
+
+	if signedLots == current {
+		return nil
+	}
+
+	if signedLots == 0 {
+		e.mu.Lock()
+		pos := e.positions[ticker]
+		if pos == nil {
+			e.mu.Unlock()
+			return nil
+		}
+		closeAction := domain.ActionSell
+		if pos.action == domain.ActionSell {
+			closeAction = domain.ActionBuy
+		}
+		e.closePositionLocked(ticker, pos, e.fillPrice(execPrice, closeAction), day, "target-flat")
+		e.mu.Unlock()
+		return nil
+	}
+
+	action := domain.ActionBuy
+	if signedLots < 0 {
+		action = domain.ActionSell
+	}
+	targetLots := signedLots
+	if targetLots < 0 {
+		targetLots = -targetLots
+	}
+	signal := domain.TradeSignal{
+		Ticker:      ticker,
+		Action:      action,
+		Confidence:  decimal.NewFromInt(1),
+		TargetLots:  targetLots,
+		Reasoning:   "target-position",
+		GeneratedAt: day,
+	}
+	approved, err := e.gate.Approve(ctx, risk.Request{
+		Signal: signal,
+		Market: risk.Market{
+			OrderPrice: execPrice,
+			PrevClose:  execPrice,
+		},
+		Account: risk.Account{
+			Deposit:       e.cfg.Deposit,
+			CurrentEquity: e.cfg.Deposit.Add(e.tickerPnL(ticker, execPrice)),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	if !approved {
+		return nil
+	}
+	return e.recordFill(ticker, signal, e.fillPrice(execPrice, action), day)
 }
 
 func decisionPrice(candles []moex.Candle, d int) decimal.Decimal {
