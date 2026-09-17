@@ -524,6 +524,92 @@ func (holdSource) Generate(_ context.Context, feat domain.FeatureContext) (domai
 	}, nil
 }
 
+func TestEngine_RealizedUnrealizedSplit(t *testing.T) {
+	engine, err := NewEngine(Config{
+		Tickers:        []string{"FLIP", "OPEN"},
+		From:           time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+		Till:           time.Date(2024, 1, 30, 0, 0, 0, 0, time.UTC),
+		Deposit:        decimal.NewFromInt(100000),
+		MaxLots:        1000,
+		CommissionRate: decimal.NewFromInt(5).Div(decimal.NewFromInt(10000)),
+		SignalSource:   &stagedSequence{step: make(map[string]int)},
+		Source:         fakeSource{candles: risingCandles(140)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := engine.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ClosedTrades != 1 {
+		t.Errorf("expected exactly 1 closed trade (the FLIP long), got %d", result.ClosedTrades)
+	}
+	if result.RealizedPnl.IsZero() {
+		t.Error("expected non-zero realized P&L (closed FLIP long)")
+	}
+	if result.UnrealizedPnl.IsZero() {
+		t.Error("expected non-zero unrealized P&L (open FLIP short + OPEN long at cutoff)")
+	}
+	wantNet := result.FinalEquity.Sub(result.Deposit)
+	if !result.NetPnl.Equal(wantNet) {
+		t.Errorf("NetPnl = %s, want FinalEquity - Deposit = %s", result.NetPnl.String(), wantNet.String())
+	}
+	sum := result.RealizedPnl.Add(result.UnrealizedPnl)
+	if !sum.Equal(result.NetPnl) {
+		t.Errorf("RealizedPnl + UnrealizedPnl = %s, want NetPnl = %s", sum.String(), result.NetPnl.String())
+	}
+	realizedViaGross := result.GrossPnl.Sub(result.TotalCommission)
+	if !realizedViaGross.Equal(result.RealizedPnl) {
+		t.Errorf("GrossPnl - TotalCommission = %s, want RealizedPnl = %s", realizedViaGross.String(), result.RealizedPnl.String())
+	}
+}
+
+type stagedSequence struct {
+	step map[string]int
+}
+
+func (s *stagedSequence) Generate(_ context.Context, feat domain.FeatureContext) (domain.TradeSignal, error) {
+	step := s.step[feat.Ticker]
+	s.step[feat.Ticker] = step + 1
+
+	if step == 0 {
+		lots := 2
+		if feat.Ticker == "FLIP" {
+			lots = 3
+		}
+		return domain.TradeSignal{
+			Ticker: feat.Ticker, Action: domain.ActionBuy, TargetLots: lots,
+			Confidence: decimal.NewFromFloat(0.8), Reasoning: "open",
+		}, nil
+	}
+	if step == 1 && feat.Ticker == "FLIP" {
+		return domain.TradeSignal{
+			Ticker: feat.Ticker, Action: domain.ActionSell, TargetLots: 1,
+			Confidence: decimal.NewFromFloat(0.8), Reasoning: "flip-to-short",
+		}, nil
+	}
+	return domain.TradeSignal{Ticker: feat.Ticker, Action: domain.ActionHold}, nil
+}
+
+func risingCandles(n int) []moex.Candle {
+	candles := make([]moex.Candle, n)
+	for i := range candles {
+		price := decimal.NewFromInt(int64(100 + i))
+		candles[i] = moex.Candle{
+			Open:   price,
+			Close:  price,
+			High:   price.Add(decimal.NewFromInt(2)),
+			Low:    price.Sub(decimal.NewFromInt(1)),
+			Volume: decimal.NewFromInt(1000),
+			Begin:  time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, i),
+			End:    time.Date(2024, 1, 1, 18, 0, 0, 0, time.UTC).AddDate(0, 0, i),
+		}
+	}
+	return candles
+}
+
 func TestEngine_HoldReasonBreakdown(t *testing.T) {
 	candles := benchCandles(120)
 	engine, err := NewEngine(Config{
