@@ -207,17 +207,17 @@ Task 18.
 
 ### Task 9: Beta/regime decomposition
 
-- [ ] Decompose P&L net of IMOEX; report long and short legs separately; report return on
+- [x] Decompose P&L net of IMOEX; report long and short legs separately; report return on
       gross exposure (not "% of the 1M deposit")
-- [ ] Add an equal-weighted 18-ticker benchmark (null-universe context) alongside the
+- [x] Add an equal-weighted 18-ticker benchmark (null-universe context) alongside the
       momentum benchmark from Task 2
-- [ ] Run a per-trade/per-day regression: `P&L ~ alpha + beta1*bench + beta2*momentum`,
+- [x] Run a per-trade/per-day regression: `P&L ~ alpha + beta1*bench + beta2*momentum`,
       with clustered standard errors
-- [ ] Label each OOS quarter's regime (trend/flat/decline) — two bull quarters is not alpha
-- [ ] Start with the cheapest version first: decompose per-trade P&L into its IMOEX
+- [x] Label each OOS quarter's regime (trend/flat/decline) — two bull quarters is not alpha
+- [x] Start with the cheapest version first: decompose per-trade P&L into its IMOEX
       component using data already available, without waiting for new data collection
-- [ ] write tests for the regression/decomposition code
-- [ ] run project tests - must pass before next task
+- [x] write tests for the regression/decomposition code
+- [x] run project tests - must pass before next task
 
 ### Task 10: OOS freeze
 

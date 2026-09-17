@@ -185,6 +185,68 @@ historical day (2026-03-09) and the worst-per-ticker composite stay below the
 3% drawdown floor; a uniform +20% adverse gap would breach it (-3.58%).
 Marks use the live ISS daily close and shift slightly between runs.
 
+## Beta / regime decomposition (Task 9)
+
+`cmd/betaregime` replays the deployed `ensemble_model.json` as one continuous
+run (2025-04-01 -> 2026-09-17, 18 sandbox tickers, 1M RUB deposit, 15000 RUB
+notional per position, commission/spread/slippage 0.05% each, hold-until-flip,
+kill switch on) and decomposes realized P&L net of IMOEX. The equal-weight
+18-ticker benchmark (long each name at the same notional, daily rebalanced) is
+the null-universe context; the momentum benchmarks are the Task 2 top-k
+`mom_21d` plans (k=5, rebalance every 10 trading days). Continuous-run numbers
+differ from the Task 4 six-window grid because positions carry across quarter
+boundaries instead of being cut at each window.
+
+Results net of costs:
+
+| strategy | realized P&L | MTM P&L | closed trades | return on trade notional | max DD |
+|---|---|---|---|---|---|
+| ensemble (deployed) | +194293.10 | +188225.76 | 862 | +4.77% | 2.11% |
+| equal-weight 18-ticker | -673.13 | -68102.99 | 516 | -0.24% | 11.97% |
+| momentum long-only | -20948.09 | -38708.67 | 500 | -1.27% | 4.68% |
+| momentum long+short | -32082.28 | -26713.25 | 1151 | -0.80% | 3.20% |
+
+Realized P&L decomposition net of IMOEX (long and short legs separate; return
+measured on gross trade notional, not the 1M deposit):
+
+| leg | trades | realized P&L | notional | IMOEX component | excess | return on notional |
+|---|---|---|---|---|---|---|
+| long | 261 | +67261.43 | 1986656.57 | +28429.45 | +38831.98 | +3.39% |
+| short | 601 | +127031.67 | 2090319.43 | +100892.32 | +26139.35 | +6.08% |
+| total | 862 | +194293.10 | 4076976.00 | +129321.77 | +64971.33 | +4.77% |
+
+The IMOEX (beta) component is ~2x the excess (alpha) component: on this window
+the deployed book is short-tilted (601 short vs 261 long trades) and earned a
+large part of its P&L from short beta in a declining IMOEX.
+
+Regression `P&L ~ alpha + beta1*equal-weight + beta2*momentum`, cluster-robust
+standard errors:
+
+| level | N | clusters | alpha (t) | beta1 equal-weight (t) | beta2 momentum (t) | R2 |
+|---|---|---|---|---|---|---|
+| per-trade | 862 | 18 (ticker) | +0.01056 (1.47) | -1.681 (-6.19) | +1.070 (0.78) | 0.111 |
+| per-day | 486 | 6 (quarter) | +0.00031 (4.66) | -0.274 (-2.64) | -0.197 (-1.05) | 0.233 |
+
+OOS quarter regimes (IMOEX return, pre-registered +/-3% flat band):
+
+| window | IMOEX return | regime |
+|---|---|---|
+| 2025-04-01 -> 2025-06-30 | -3.95% | trend-down |
+| 2025-07-01 -> 2025-09-30 | -5.75% | trend-down |
+| 2025-10-01 -> 2025-12-30 | +4.51% | trend-up |
+| 2026-01-05 -> 2026-03-31 | +0.70% | flat |
+| 2026-04-01 -> 2026-06-30 | -15.39% | trend-down |
+| 2026-07-01 -> 2026-09-17 | -2.55% | flat |
+
+Readout: only one of six OOS quarters is a bull (trend-up) quarter, so "two
+bull quarters" is not the story; the tail risk is the opposite direction —
+three trend-down quarters, including a -15.39% Q2 2026, are where the short
+book earned. Per-day alpha is positive and significant under quarter clusters
+(t=4.66, df=5), but per-trade alpha is not (t=1.47), and both regressions show
+a significant negative loading on the long-only equal-weight benchmark,
+consistent with the short tilt. These are observations for the human go/no-go
+review, not an automated decision.
+
 <!-- shadow-reconciliation:start -->
 
 ## Shadow reconciliation (Task 3)
