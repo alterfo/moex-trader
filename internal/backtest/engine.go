@@ -112,6 +112,7 @@ type Config struct {
 	MaxLots               int
 	CommissionRate        decimal.Decimal
 	SpreadPct             decimal.Decimal
+	SpreadPcts            map[string]decimal.Decimal
 	SlippagePct           decimal.Decimal
 	BorrowPctPerDay       decimal.Decimal
 	WarmupDays            int
@@ -641,7 +642,7 @@ func (e *Engine) processTickerDay(ctx context.Context, run *tickerBacktest, d in
 	}
 
 	if signal.Action != domain.ActionHold && approved {
-		fillPrice := e.fillPrice(execPrice, signal.Action)
+		fillPrice := e.fillPrice(ticker, execPrice, signal.Action)
 		if err := e.recordFill(ticker, signal, fillPrice, decisionDay); err != nil {
 			e.cfg.Logger.Printf("backtest: %s on %s: record fill: %v", ticker, decisionDay.Format("2006-01-02"), err)
 		}
@@ -687,7 +688,7 @@ func (e *Engine) applyTargetPositionWithAccount(ctx context.Context, ticker stri
 		if pos.action == domain.ActionSell {
 			closeAction = domain.ActionBuy
 		}
-		e.closePositionLocked(ticker, pos, e.fillPrice(execPrice, closeAction), day, "target-flat")
+		e.closePositionLocked(ticker, pos, e.fillPrice(ticker, execPrice, closeAction), day, "target-flat")
 		e.mu.Unlock()
 		return nil
 	}
@@ -722,7 +723,7 @@ func (e *Engine) applyTargetPositionWithAccount(ctx context.Context, ticker stri
 	if !approved {
 		return nil
 	}
-	return e.recordFill(ticker, signal, e.fillPrice(execPrice, action), day)
+	return e.recordFill(ticker, signal, e.fillPrice(ticker, execPrice, action), day)
 }
 
 func decisionPrice(candles []moex.Candle, d int) decimal.Decimal {
@@ -736,8 +737,8 @@ func decisionPrice(candles []moex.Candle, d int) decimal.Decimal {
 // above the quoted price, a SELL fills below it. Both costs are modeled as a
 // fraction of price (e.g. 0.0005 = 0.05%) and only affect actual fills, not
 // the mark-to-market curve or the risk gate's price check.
-func (e *Engine) fillPrice(price decimal.Decimal, action domain.Action) decimal.Decimal {
-	cost := e.cfg.SpreadPct.Add(e.cfg.SlippagePct)
+func (e *Engine) fillPrice(ticker string, price decimal.Decimal, action domain.Action) decimal.Decimal {
+	cost := e.spreadPct(ticker).Add(e.cfg.SlippagePct)
 	if cost.Sign() <= 0 {
 		return price
 	}
@@ -745,6 +746,14 @@ func (e *Engine) fillPrice(price decimal.Decimal, action domain.Action) decimal.
 		return price.Mul(decimal.NewFromInt(1).Sub(cost))
 	}
 	return price.Mul(decimal.NewFromInt(1).Add(cost))
+}
+
+func (e *Engine) spreadPct(ticker string) decimal.Decimal {
+	key := strings.ToUpper(strings.TrimSpace(ticker))
+	if value, ok := e.cfg.SpreadPcts[key]; ok {
+		return value
+	}
+	return e.cfg.SpreadPct
 }
 
 func (e *Engine) recordFill(ticker string, signal domain.TradeSignal, price decimal.Decimal, day time.Time) error {
@@ -839,7 +848,7 @@ func (e *Engine) expirePosition(ticker string, price decimal.Decimal, day time.T
 	if pos.action == domain.ActionSell {
 		closeAction = domain.ActionBuy
 	}
-	e.closePositionLocked(ticker, pos, e.fillPrice(price, closeAction), day, "time-exit")
+	e.closePositionLocked(ticker, pos, e.fillPrice(ticker, price, closeAction), day, "time-exit")
 	return true
 }
 

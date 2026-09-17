@@ -243,11 +243,11 @@ Task 18.
 
 ### Task 12: Per-ticker spread from AlgoPack
 
-- [ ] Replace the global spread constant with a per-ticker spread derived from
+- [x] Replace the global spread constant with a per-ticker spread derived from
       accumulated AlgoPack order-book data (already logged in `audit_events` by live)
-- [ ] Reuse the existing half-spread model (`engine.go:481-490`)
-- [ ] write tests for the per-ticker spread derivation
-- [ ] run project tests - must pass before next task
+- [x] Reuse the existing half-spread model (`engine.go:481-490`)
+- [x] write tests for the per-ticker spread derivation
+- [x] run project tests - must pass before next task
 
 ### Task 13: Walk-forward persistence
 

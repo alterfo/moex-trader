@@ -22,6 +22,8 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/model"
+	"github.com/olegsidorkin/moex-trader/internal/spread"
+	"github.com/olegsidorkin/moex-trader/internal/storage"
 )
 
 const (
@@ -46,6 +48,8 @@ func run() error {
 	var commissionStr string
 	var spreadStr string
 	var slippageStr string
+	var spreadDBPath string
+	var spreadMinObs int
 	var borrowPctDayStr string
 	var lookbackDays int
 	var maxHoldBars int
@@ -73,6 +77,8 @@ func run() error {
 	flag.IntVar(&maxLots, "max-lots", 1, "max position in lots")
 	flag.StringVar(&commissionStr, "commission-rate", "0.0005", "commission rate applied to notional per fill")
 	flag.StringVar(&spreadStr, "spread-pct", "0", "half-spread cost applied against each fill, as a fraction of price (e.g. 0.0005 = 0.05%)")
+	flag.StringVar(&spreadDBPath, "spread-db", "", "path to trader audit SQLite DB from which per-ticker half-spreads are derived")
+	flag.IntVar(&spreadMinObs, "spread-min-obs", 1, "minimum ingest observations required before a per-ticker spread overrides -spread-pct")
 	flag.StringVar(&slippageStr, "slippage-pct", "0", "additional adverse slippage applied against each fill, as a fraction of price (e.g. 0.0005 = 0.05%)")
 	flag.StringVar(&borrowPctDayStr, "borrow-pct-day", "0", "short-borrow cost per day as a fraction of short-leg notional (e.g. 0.00005 = 0.005%)")
 	flag.IntVar(&lookbackDays, "lookback-days", 30, "max decision points per ticker (0 = unlimited)")
@@ -129,6 +135,14 @@ func run() error {
 	}
 	if modelPath == "" {
 		modelPath = cfg.Model.Path
+	}
+
+	var spreadPcts map[string]decimal.Decimal
+	if strings.TrimSpace(spreadDBPath) != "" {
+		spreadPcts, err = loadPerTickerSpreads(spreadDBPath, spreadMinObs)
+		if err != nil {
+			return err
+		}
 	}
 
 	var from, till time.Time
@@ -205,6 +219,7 @@ func run() error {
 		MaxLots:               maxLots,
 		CommissionRate:        commissionRate,
 		SpreadPct:             spreadPct,
+		SpreadPcts:            spreadPcts,
 		SlippagePct:           slippagePct,
 		BorrowPctPerDay:       borrowPctPerDay,
 		WarmupDays:            100,
@@ -224,8 +239,8 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	log.Printf("backtest: window=%s..%s tickers=%d deposit=%s lots=%d commission=%s spread=%s slippage=%s borrow_per_day=%s signal_source=%s lookback=%d kill_switch=%v min_confidence=%s",
-		formatFlag(from), formatFlag(till), len(tickers), deposit.String(), maxLots, commissionRate.String(), spreadPct.String(), slippagePct.String(), borrowPctPerDay.String(), signalSourceName, lookbackDays, killSwitch, decimal.NewFromFloat(minConfidence).String())
+	log.Printf("backtest: window=%s..%s tickers=%d deposit=%s lots=%d commission=%s spread=%s per_ticker_spreads=%d slippage=%s borrow_per_day=%s signal_source=%s lookback=%d kill_switch=%v min_confidence=%s",
+		formatFlag(from), formatFlag(till), len(tickers), deposit.String(), maxLots, commissionRate.String(), spreadPct.String(), len(spreadPcts), slippagePct.String(), borrowPctPerDay.String(), signalSourceName, lookbackDays, killSwitch, decimal.NewFromFloat(minConfidence).String())
 
 	result, err := engine.Run(ctx)
 	if err != nil {
@@ -447,4 +462,30 @@ func formatFlag(t time.Time) string {
 		return "-"
 	}
 	return t.Format("2006-01-02")
+}
+
+func loadPerTickerSpreads(path string, minObservations int) (map[string]decimal.Decimal, error) {
+	store, err := storage.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open spread audit db: %w", err)
+	}
+	defer func() {
+		if closeErr := store.Close(); closeErr != nil {
+			log.Printf("close spread audit db: %v", closeErr)
+		}
+	}()
+
+	events, err := store.ListAllAuditEvents(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("list spread audit events: %w", err)
+	}
+	table, err := spread.FromAuditEvents(events, spread.Options{MinObservations: minObservations})
+	if err != nil {
+		return nil, fmt.Errorf("derive per-ticker spreads: %w", err)
+	}
+	if len(table) == 0 {
+		return nil, fmt.Errorf("no per-ticker spreads derivable from %s", path)
+	}
+	log.Printf("backtest: derived %d per-ticker half-spreads from %s (min observations=%d)", len(table), path, minObservations)
+	return map[string]decimal.Decimal(table), nil
 }

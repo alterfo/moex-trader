@@ -910,3 +910,31 @@ func TestEngine_OpenPositionsExposedAtCutoff(t *testing.T) {
 		t.Errorf("unrealized P&L = %s, want %s", open.UnrealizedPnl, want)
 	}
 }
+
+func TestEngine_FillPriceUsesPerTickerSpread(t *testing.T) {
+	engine := &Engine{cfg: Config{
+		SpreadPct:   decimal.RequireFromString("0.001"),
+		SlippagePct: decimal.Zero,
+		SpreadPcts: map[string]decimal.Decimal{
+			"SBER": decimal.RequireFromString("0.002"),
+		},
+	}}
+
+	got := engine.fillPrice("sber", decimal.NewFromInt(100), domain.ActionBuy)
+	want := decimal.RequireFromString("100.2")
+	if !got.Equal(want) {
+		t.Fatalf("per-ticker BUY fill = %s, want %s", got, want)
+	}
+
+	got = engine.fillPrice("SBER", decimal.NewFromInt(100), domain.ActionSell)
+	want = decimal.RequireFromString("99.8")
+	if !got.Equal(want) {
+		t.Fatalf("per-ticker SELL fill = %s, want %s", got, want)
+	}
+
+	got = engine.fillPrice("OZON", decimal.NewFromInt(100), domain.ActionBuy)
+	want = decimal.RequireFromString("100.1")
+	if !got.Equal(want) {
+		t.Fatalf("fallback BUY fill = %s, want %s", got, want)
+	}
+}

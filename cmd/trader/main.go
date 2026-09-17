@@ -35,6 +35,7 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/model"
 	"github.com/olegsidorkin/moex-trader/internal/orchestrator"
 	"github.com/olegsidorkin/moex-trader/internal/risk"
+	"github.com/olegsidorkin/moex-trader/internal/spread"
 	"github.com/olegsidorkin/moex-trader/internal/storage"
 )
 
@@ -131,7 +132,20 @@ func run() error {
 	notifier := newDecisionNotifier(telegramClient, log.Default(), cfg.Telegram.SignalTickers)
 
 	historySource := backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
-	if err := newPreflight(cfg, modelSource, historySource, time.Now).check(ctx); err != nil {
+	preflight := newPreflight(cfg, modelSource, historySource, time.Now)
+	events, err := store.ListAllAuditEvents(ctx)
+	if err != nil {
+		log.Printf("trader: load per-ticker spread audit events: %v", err)
+	} else {
+		table, deriveErr := spread.FromAuditEvents(events, spread.Options{})
+		if deriveErr != nil {
+			log.Printf("trader: derive per-ticker spreads: %v", deriveErr)
+		} else {
+			preflight.withSpreadPcts(map[string]decimal.Decimal(table))
+			log.Printf("trader: loaded %d per-ticker half-spreads from %s", len(table), cfg.Storage.Path)
+		}
+	}
+	if err := preflight.check(ctx); err != nil {
 		return err
 	}
 
@@ -766,6 +780,7 @@ type preflight struct {
 	tickers         []string
 	source          backtest.SignalSource
 	history         backtest.HistoricalSource
+	spreadPcts      map[string]decimal.Decimal
 	now             func() time.Time
 	configHash      string
 }
@@ -793,6 +808,14 @@ func newPreflight(cfg *config.Config, source backtest.SignalSource, history back
 		now:             now,
 		configHash:      preflightConfigHash(cfg),
 	}
+}
+
+func (p *preflight) withSpreadPcts(table map[string]decimal.Decimal) *preflight {
+	if p == nil {
+		return p
+	}
+	p.spreadPcts = table
+	return p
 }
 
 func preflightConfigHash(cfg *config.Config) string {
@@ -835,6 +858,7 @@ func (p *preflight) check(ctx context.Context) error {
 		MaxLots:        p.maxLots,
 		CommissionRate: p.commissionRate,
 		SpreadPct:      p.spreadPct,
+		SpreadPcts:     p.spreadPcts,
 		SlippagePct:    p.slippagePct,
 		KillSwitch:     true,
 		SignalSource:   p.source,
