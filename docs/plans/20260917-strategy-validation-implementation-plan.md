@@ -299,11 +299,11 @@ Task 18.
 
 ### Task 18: Kill-switch runbook check
 
-- [ ] Before any manual kill-switch reset, require a check that equity >= 1.5x
+- [x] Before any manual kill-switch reset, require a check that equity >= 1.5x
       max_notional across all open positions, so a frozen position cannot be reset into a
       skewed portfolio
-- [ ] write tests for the runbook check
-- [ ] run project tests - must pass before next task
+- [x] write tests for the runbook check
+- [x] run project tests - must pass before next task
 
 ### Task 19: Verify acceptance criteria
 

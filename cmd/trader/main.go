@@ -38,6 +38,7 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/model"
 	"github.com/olegsidorkin/moex-trader/internal/orchestrator"
 	"github.com/olegsidorkin/moex-trader/internal/risk"
+	"github.com/olegsidorkin/moex-trader/internal/runbook"
 	"github.com/olegsidorkin/moex-trader/internal/spread"
 	"github.com/olegsidorkin/moex-trader/internal/storage"
 )
@@ -77,8 +78,20 @@ func run() error {
 	}()
 
 	if resetKillSwitch {
-		if err := store.SetKillSwitchActive(context.Background(), false); err != nil {
+		runtime, err := newBrokerRuntime(context.Background(), cfg, store, time.Now, defaultBrokerDeps())
+		if err != nil {
 			return fmt.Errorf("reset kill switch: %w", err)
+		}
+		defer func() {
+			if runtime.closeFn == nil {
+				return
+			}
+			if err := runtime.closeFn(); err != nil {
+				log.Printf("close broker client: %v", err)
+			}
+		}()
+		if err := runKillSwitchReset(context.Background(), store, runtime); err != nil {
+			return err
 		}
 		log.Printf("kill switch reset")
 		return nil
@@ -767,6 +780,36 @@ type brokerRuntime struct {
 
 type borrowFeeSource interface {
 	MarginFees(ctx context.Context, from, to time.Time) (decimal.Decimal, int, error)
+}
+
+type openNotionalSource interface {
+	MaxOpenPositionNotional(ctx context.Context) (decimal.Decimal, error)
+}
+
+func runKillSwitchReset(ctx context.Context, store *storage.Store, runtime *brokerRuntime) error {
+	if runtime == nil || runtime.accountSource == nil {
+		return fmt.Errorf("kill switch reset: account equity source unavailable; run the reset against a broker account")
+	}
+	account, err := runtime.accountSource.Snapshot(ctx)
+	if err != nil {
+		return fmt.Errorf("kill switch reset: account snapshot: %w", err)
+	}
+	maxNotional := decimal.Zero
+	if source, ok := runtime.accountSource.(openNotionalSource); ok {
+		maxNotional, err = source.MaxOpenPositionNotional(ctx)
+		if err != nil {
+			return fmt.Errorf("kill switch reset: open position notional: %w", err)
+		}
+	}
+	decision := runbook.Decide(account.CurrentEquity, maxNotional)
+	if !decision.Allowed {
+		return fmt.Errorf("kill switch reset refused: equity %s is below required %s (1.5x max open-position notional %s); liquidate or reduce positions first",
+			decision.Equity.String(), decision.RequiredEquity.String(), decision.MaxOpenNotional.String())
+	}
+	if err := store.SetKillSwitchActive(ctx, false); err != nil {
+		return fmt.Errorf("kill switch reset: %w", err)
+	}
+	return nil
 }
 
 type brokerDeps struct {

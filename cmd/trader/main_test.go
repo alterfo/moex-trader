@@ -1461,3 +1461,95 @@ func TestBreakerFillObserverRecordsOnlyExecutedFills(t *testing.T) {
 		t.Fatalf("breaker openLots = %d after non-executed decisions, want 1", openLots)
 	}
 }
+
+type fakeKillSwitchResetAccount struct {
+	account     risk.Account
+	maxNotional decimal.Decimal
+	snapshotErr error
+	notionalErr error
+}
+
+func (f *fakeKillSwitchResetAccount) Snapshot(context.Context) (risk.Account, error) {
+	return f.account, f.snapshotErr
+}
+
+func (f *fakeKillSwitchResetAccount) MaxOpenPositionNotional(context.Context) (decimal.Decimal, error) {
+	return f.maxNotional, f.notionalErr
+}
+
+func TestRunKillSwitchResetRefusesWhenEquityBelowThreshold(t *testing.T) {
+	store := openTraderTestStore(t)
+	ctx := context.Background()
+	if err := store.SetKillSwitchActive(ctx, true); err != nil {
+		t.Fatalf("SetKillSwitchActive(true) error = %v", err)
+	}
+	account := &fakeKillSwitchResetAccount{
+		account:     risk.Account{CurrentEquity: decimal.NewFromInt(299)},
+		maxNotional: decimal.NewFromInt(200),
+	}
+	runtime := &brokerRuntime{accountSource: account}
+
+	if err := runKillSwitchReset(ctx, store, runtime); err == nil {
+		t.Fatal("runKillSwitchReset() error = nil, want refusal")
+	}
+	active, err := store.IsKillSwitchActive(ctx)
+	if err != nil {
+		t.Fatalf("IsKillSwitchActive() error = %v", err)
+	}
+	if !active {
+		t.Fatal("kill switch was reset despite equity below the 1.5x threshold")
+	}
+}
+
+func TestRunKillSwitchResetAllowsWhenEquityMeetsThreshold(t *testing.T) {
+	store := openTraderTestStore(t)
+	ctx := context.Background()
+	if err := store.SetKillSwitchActive(ctx, true); err != nil {
+		t.Fatalf("SetKillSwitchActive(true) error = %v", err)
+	}
+	account := &fakeKillSwitchResetAccount{
+		account:     risk.Account{CurrentEquity: decimal.NewFromInt(300)},
+		maxNotional: decimal.NewFromInt(200),
+	}
+	runtime := &brokerRuntime{accountSource: account}
+
+	if err := runKillSwitchReset(ctx, store, runtime); err != nil {
+		t.Fatalf("runKillSwitchReset() error = %v", err)
+	}
+	active, err := store.IsKillSwitchActive(ctx)
+	if err != nil {
+		t.Fatalf("IsKillSwitchActive() error = %v", err)
+	}
+	if active {
+		t.Fatal("kill switch still active after an allowed reset")
+	}
+}
+
+func TestRunKillSwitchResetAllowsWithoutOpenPositions(t *testing.T) {
+	store := openTraderTestStore(t)
+	ctx := context.Background()
+	if err := store.SetKillSwitchActive(ctx, true); err != nil {
+		t.Fatalf("SetKillSwitchActive(true) error = %v", err)
+	}
+	account := &fakeKillSwitchResetAccount{account: risk.Account{CurrentEquity: decimal.NewFromInt(100)}}
+	runtime := &brokerRuntime{accountSource: account}
+
+	if err := runKillSwitchReset(ctx, store, runtime); err != nil {
+		t.Fatalf("runKillSwitchReset() error = %v", err)
+	}
+	active, err := store.IsKillSwitchActive(ctx)
+	if err != nil {
+		t.Fatalf("IsKillSwitchActive() error = %v", err)
+	}
+	if active {
+		t.Fatal("kill switch still active after reset with no open positions")
+	}
+}
+
+func TestRunKillSwitchResetRequiresAccountSource(t *testing.T) {
+	store := openTraderTestStore(t)
+	runtime := &brokerRuntime{}
+	if err := runKillSwitchReset(context.Background(), store, runtime); err == nil {
+		t.Fatal("runKillSwitchReset() error = nil without an account source, want error")
+	}
+}

@@ -115,6 +115,10 @@ func money(units int64, nano int32) *pb.MoneyValue {
 	return &pb.MoneyValue{Currency: "rub", Units: units, Nano: nano}
 }
 
+func quotation(units int64, nano int32) *pb.Quotation {
+	return &pb.Quotation{Units: units, Nano: nano}
+}
+
 func newSandboxForTest(t *testing.T, client Client, cfg Config) *Sandbox {
 	t.Helper()
 	if cfg.PayIn.IsZero() {
@@ -698,5 +702,68 @@ func TestSnapshotSatisfiesRiskAccountContract(t *testing.T) {
 	drawdown := snapshot.Deposit.Sub(snapshot.CurrentEquity).Div(snapshot.Deposit).Mul(decimal.NewFromInt(100))
 	if !drawdown.Equal(decimal.NewFromInt(4)) {
 		t.Fatalf("drawdown = %s, want 4", drawdown)
+	}
+}
+
+func TestMaxOpenPositionNotionalReturnsLargestPosition(t *testing.T) {
+	client := &fakeClient{
+		portfolio: func(context.Context, string) (*pb.PortfolioResponse, error) {
+			return &pb.PortfolioResponse{Positions: []*pb.PortfolioPosition{
+				{Quantity: quotation(10, 0), CurrentPrice: money(100, 0)},
+				{Quantity: quotation(5, 0), CurrentPrice: money(500, 0)},
+			}}, nil
+		},
+	}
+	sandbox := newSandboxForTest(t, client, Config{AccountID: "acc-1"})
+
+	got, err := sandbox.MaxOpenPositionNotional(context.Background())
+	if err != nil {
+		t.Fatalf("MaxOpenPositionNotional() error = %v", err)
+	}
+	if !got.Equal(decimal.NewFromInt(2500)) {
+		t.Fatalf("MaxOpenPositionNotional() = %s, want 2500", got)
+	}
+}
+
+func TestMaxOpenPositionNotionalReturnsZeroWithoutPositions(t *testing.T) {
+	client := &fakeClient{
+		portfolio: func(context.Context, string) (*pb.PortfolioResponse, error) {
+			return &pb.PortfolioResponse{}, nil
+		},
+	}
+	sandbox := newSandboxForTest(t, client, Config{AccountID: "acc-1"})
+
+	got, err := sandbox.MaxOpenPositionNotional(context.Background())
+	if err != nil {
+		t.Fatalf("MaxOpenPositionNotional() error = %v", err)
+	}
+	if !got.IsZero() {
+		t.Fatalf("MaxOpenPositionNotional() = %s, want zero", got)
+	}
+}
+
+func TestMaxOpenPositionNotionalUsesAbsoluteNotional(t *testing.T) {
+	client := &fakeClient{
+		portfolio: func(context.Context, string) (*pb.PortfolioResponse, error) {
+			return &pb.PortfolioResponse{Positions: []*pb.PortfolioPosition{
+				{Quantity: quotation(-10, 0), CurrentPrice: money(100, 0)},
+			}}, nil
+		},
+	}
+	sandbox := newSandboxForTest(t, client, Config{AccountID: "acc-1"})
+
+	got, err := sandbox.MaxOpenPositionNotional(context.Background())
+	if err != nil {
+		t.Fatalf("MaxOpenPositionNotional() error = %v", err)
+	}
+	if !got.Equal(decimal.NewFromInt(1000)) {
+		t.Fatalf("MaxOpenPositionNotional() = %s, want 1000", got)
+	}
+}
+
+func TestMaxOpenPositionNotionalRequiresAccount(t *testing.T) {
+	sandbox := newSandboxForTest(t, &fakeClient{}, Config{})
+	if _, err := sandbox.MaxOpenPositionNotional(context.Background()); err == nil {
+		t.Fatal("MaxOpenPositionNotional() error = nil without account, want error")
 	}
 }

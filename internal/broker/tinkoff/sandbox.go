@@ -241,6 +241,36 @@ func (s *Sandbox) Snapshot(ctx context.Context) (risk.Account, error) {
 	}, nil
 }
 
+// MaxOpenPositionNotional returns the largest absolute notional across the
+// account's open positions, computed as quantity times current price for each
+// position. An account with no open positions returns zero.
+func (s *Sandbox) MaxOpenPositionNotional(ctx context.Context) (decimal.Decimal, error) {
+	accountID := s.AccountID()
+	if accountID == "" {
+		return decimal.Zero, errors.New("sandbox: account is not initialized")
+	}
+	portfolio, err := s.client.GetSandboxPortfolio(ctx, accountID)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	maxNotional := decimal.Zero
+	for _, position := range portfolio.GetPositions() {
+		quantity, err := ingestion.QuotationToDecimal(position.GetQuantity())
+		if err != nil {
+			return decimal.Zero, fmt.Errorf("sandbox: position quantity: %w", err)
+		}
+		price, err := ingestion.MoneyValueToDecimal(position.GetCurrentPrice())
+		if err != nil {
+			return decimal.Zero, fmt.Errorf("sandbox: position price: %w", err)
+		}
+		notional := quantity.Mul(price).Abs()
+		if notional.GreaterThan(maxNotional) {
+			maxNotional = notional
+		}
+	}
+	return maxNotional, nil
+}
+
 func (s *Sandbox) CancelOpenOrders(ctx context.Context) error {
 	accountID := s.AccountID()
 	if accountID == "" {

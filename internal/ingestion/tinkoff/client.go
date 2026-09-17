@@ -661,6 +661,12 @@ func quotationToDecimal(quotation *pb.Quotation) (decimal.Decimal, error) {
 	return whole.Add(fraction), nil
 }
 
+// QuotationToDecimal converts a Tinkoff Quotation to a decimal, preserving
+// sign and nanosecond precision.
+func QuotationToDecimal(quotation *pb.Quotation) (decimal.Decimal, error) {
+	return quotationToDecimal(quotation)
+}
+
 func authUnaryInterceptor(token, appName string) grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 		return invoker(withAuthMetadata(ctx, token, appName), method, req, reply, cc, opts...)
