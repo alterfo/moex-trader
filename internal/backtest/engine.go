@@ -49,6 +49,18 @@ type EquityPoint struct {
 	Equity decimal.Decimal
 }
 
+// OpenPosition is a position still held at the end of a backtest run, marked
+// to the final close of each ticker. UnrealizedPnl is already multiplied by
+// lots and uses the same long/short sign convention as closeTrade.
+type OpenPosition struct {
+	Ticker        string
+	Side          domain.Action
+	Lots          int
+	EntryPrice    decimal.Decimal
+	MarkPrice     decimal.Decimal
+	UnrealizedPnl decimal.Decimal
+}
+
 type Trade struct {
 	Ticker     string
 	Action     domain.Action
@@ -86,6 +98,7 @@ type Result struct {
 	Decisions            int
 	HoldReasons          map[string]int
 	Trades               []Trade
+	OpenPositions        []OpenPosition
 	EquityCurve          []EquityPoint
 }
 
@@ -373,7 +386,11 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 			}
 		}
 	}
-	result := e.buildResult(curve)
+	var finalMarks map[string]decimal.Decimal
+	if len(days) > 0 {
+		finalMarks = marksForDay(runs, days[len(days)-1])
+	}
+	result := e.buildResult(curve, finalMarks)
 	result.DailyLossBlockedDays = dailyLossBlockedDays
 	if !firstKillDay.IsZero() {
 		for _, day := range days {
@@ -876,7 +893,34 @@ func (e *Engine) tickerPnL(ticker string, mark decimal.Decimal) decimal.Decimal 
 	return pnl
 }
 
-func (e *Engine) buildResult(curve map[time.Time]decimal.Decimal) *Result {
+// openPositionsLocked snapshots positions still held at the end of a run,
+// marked against the provided final ticker marks. Callers must hold e.mu.
+func openPositionsLocked(positions map[string]*position, finalMarks map[string]decimal.Decimal) []OpenPosition {
+	out := make([]OpenPosition, 0, len(positions))
+	for ticker, pos := range positions {
+		mark := finalMarks[ticker]
+		side := domain.ActionBuy
+		if pos.action == domain.ActionSell {
+			side = domain.ActionSell
+		}
+		unrealized := mark.Sub(pos.avg)
+		if pos.action == domain.ActionSell {
+			unrealized = pos.avg.Sub(mark)
+		}
+		out = append(out, OpenPosition{
+			Ticker:        ticker,
+			Side:          side,
+			Lots:          pos.lots,
+			EntryPrice:    pos.avg,
+			MarkPrice:     mark,
+			UnrealizedPnl: unrealized.Mul(decimal.NewFromInt(int64(pos.lots))),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Ticker < out[j].Ticker })
+	return out
+}
+
+func (e *Engine) buildResult(curve map[time.Time]decimal.Decimal, finalMarks map[string]decimal.Decimal) *Result {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -903,6 +947,7 @@ func (e *Engine) buildResult(curve map[time.Time]decimal.Decimal) *Result {
 		res.HoldReasons[reason] = count
 	}
 	res.Trades = trades
+	res.OpenPositions = openPositionsLocked(e.positions, finalMarks)
 	res.EquityCurve = sortedCurve(curve)
 	res.FinalEquity = lastEquity(curve)
 	res.NetPnl = res.FinalEquity.Sub(res.Deposit)

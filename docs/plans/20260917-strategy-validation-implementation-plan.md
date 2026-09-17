@@ -198,12 +198,12 @@ Task 18.
 
 ### Task 8: Gap-stress test
 
-- [ ] Model the worst historical overnight gaps plus synthetic -10%/-20% shocks against
+- [x] Model the worst historical overnight gaps plus synthetic -10%/-20% shocks against
       the current portfolio (hold-until-flip has no stop-loss; the only protection is the
       sticky kill switch, which does not liquidate positions)
-- [ ] Report the equity impact against the 3% drawdown floor
-- [ ] write tests for the gap-stress scenario runner
-- [ ] run project tests - must pass before next task
+- [x] Report the equity impact against the 3% drawdown floor
+- [x] write tests for the gap-stress scenario runner
+- [x] run project tests - must pass before next task
 
 ### Task 9: Beta/regime decomposition
 

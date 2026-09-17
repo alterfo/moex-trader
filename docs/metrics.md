@@ -161,6 +161,30 @@ the computation. The PBO < 0.2 go/no-go check therefore stays open until the
 per-attempt matrices are persisted (Task 13 walk-forward persistence and the
 Task 17 formal metrics table are the natural sources).
 
+## Gap-stress test (Task 8)
+
+Models overnight gaps against the deployed strategy's open portfolio at the
+end of a 90-day replay (2026-06-19 -> 2026-09-17, 18 sandbox tickers, 1M RUB
+deposit, 15000₽/position, ensemble_model.json, hold-until-flip, commission/
+spread/slippage 0.05% each). Gap history lookback: 365 calendar days. The
+sticky kill switch blocks new entries at 3% drawdown / 0.5% daily loss but
+does NOT liquidate open positions, so a gap hits equity in full first.
+
+| date | scenario | P&L | P&L % of deposit | breaches 3% DD | breaches 0.5% daily | artifact |
+|---|---|---|---|---|---|---|
+| 2026-09-17 | worst historical day (2026-03-09) | -3827.21 | -0.38% | false | false | ensemble_model.json |
+| 2026-09-17 | worst-per-ticker-combined | -6731.51 | -0.67% | false | true | ensemble_model.json |
+| 2026-09-17 | synthetic -10% (net-short favorable) | +17919.97 | +1.79% | false | false | ensemble_model.json |
+| 2026-09-17 | synthetic -20% (net-short favorable) | +35839.93 | +3.58% | false | false | ensemble_model.json |
+| 2026-09-17 | synthetic +10% (net-short adverse) | -17919.97 | -1.79% | false | true | ensemble_model.json |
+| 2026-09-17 | synthetic +20% (net-short adverse) | -35839.93 | -3.58% | true | true | ensemble_model.json |
+
+Current open portfolio at cutoff: 18 positions, gross exposure 266573₽
+(long 43687₽, short 222887₽, net -179200₽). The worst observed aligned
+historical day (2026-03-09) and the worst-per-ticker composite stay below the
+3% drawdown floor; a uniform +20% adverse gap would breach it (-3.58%).
+Marks use the live ISS daily close and shift slightly between runs.
+
 <!-- shadow-reconciliation:start -->
 
 ## Shadow reconciliation (Task 3)

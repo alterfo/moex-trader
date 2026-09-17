@@ -867,3 +867,46 @@ func TestEngine_PortfolioDailyLossBlocksDayWithoutKillSwitch(t *testing.T) {
 		t.Fatal("expected the portfolio-level daily-loss limit to block at least one day")
 	}
 }
+
+func TestEngine_OpenPositionsExposedAtCutoff(t *testing.T) {
+	candles := benchCandles(120)
+	engine, err := NewEngine(Config{
+		Tickers:        []string{"TEST"},
+		From:           time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+		Till:           time.Date(2024, 1, 30, 0, 0, 0, 0, time.UTC),
+		Deposit:        decimal.NewFromInt(100000),
+		MaxLots:        1,
+		CommissionRate: decimal.Zero,
+		KillSwitch:     true,
+		SignalSource:   &fixedSignal{action: domain.ActionBuy},
+		Source:         fakeSource{candles: candles},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := engine.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.OpenPositions) != 1 {
+		t.Fatalf("expected 1 open position, got %d", len(result.OpenPositions))
+	}
+	open := result.OpenPositions[0]
+	if open.Ticker != "TEST" {
+		t.Errorf("open ticker = %q, want TEST", open.Ticker)
+	}
+	if open.Side != domain.ActionBuy {
+		t.Errorf("open side = %v, want BUY", open.Side)
+	}
+	if open.Lots != 1 {
+		t.Errorf("open lots = %d, want 1", open.Lots)
+	}
+	if open.MarkPrice.Sign() <= 0 {
+		t.Errorf("open mark price must be positive, got %s", open.MarkPrice)
+	}
+	want := open.MarkPrice.Sub(open.EntryPrice).Mul(decimal.NewFromInt(int64(open.Lots)))
+	if !open.UnrealizedPnl.Equal(want) {
+		t.Errorf("unrealized P&L = %s, want %s", open.UnrealizedPnl, want)
+	}
+}
