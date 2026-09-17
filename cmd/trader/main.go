@@ -1209,11 +1209,11 @@ func (p *preflight) check(ctx context.Context) error {
 		return fmt.Errorf("preflight rejected the configuration: closed trades=%d is below the required minimum %d over %d days; refusing to start (config_hash=%s)",
 			result.ClosedTrades, p.minClosedTrades, p.days, p.configHash)
 	}
-	if result.RealizedPnl.LessThan(p.minNetPnL) {
-		return fmt.Errorf("preflight rejected the configuration: realized P&L %s over %d days (closed trades=%d, hit rate=%.1f%%, max drawdown=%.2f%%, MTM=%s) is below the minimum %s; refusing to start (config_hash=%s)",
-			result.RealizedPnl.StringFixed(2), p.days, result.ClosedTrades, result.HitRate*100, result.MaxDrawdownPct, result.NetPnl.StringFixed(2), p.minNetPnL.StringFixed(2), p.configHash)
+	if result.RealizedPnlNetBorrow.LessThan(p.minNetPnL) {
+		return fmt.Errorf("preflight rejected the configuration: realized P&L net of borrow %s over %d days (gross realized=%s, borrow=%s, closed trades=%d, hit rate=%.1f%%, max drawdown=%.2f%%, MTM=%s) is below the minimum %s; refusing to start (config_hash=%s)",
+			result.RealizedPnlNetBorrow.StringFixed(2), p.days, result.RealizedPnl.StringFixed(2), result.TotalBorrow.StringFixed(2), result.ClosedTrades, result.HitRate*100, result.MaxDrawdownPct, result.NetPnl.StringFixed(2), p.minNetPnL.StringFixed(2), p.configHash)
 	}
-	log.Printf("preflight passed: realized P&L %s over %d days (closed trades=%d, hit rate=%.1f%%, max drawdown=%.2f%%, MTM=%s, decisions=%d, config_hash=%s)",
-		result.RealizedPnl.StringFixed(2), p.days, result.ClosedTrades, result.HitRate*100, result.MaxDrawdownPct, result.NetPnl.StringFixed(2), result.Decisions, p.configHash)
+	log.Printf("preflight passed: realized P&L net of borrow %s over %d days (gross realized=%s, borrow=%s, closed trades=%d, hit rate=%.1f%%, max drawdown=%.2f%%, MTM=%s, decisions=%d, config_hash=%s)",
+		result.RealizedPnlNetBorrow.StringFixed(2), p.days, result.RealizedPnl.StringFixed(2), result.TotalBorrow.StringFixed(2), result.ClosedTrades, result.HitRate*100, result.MaxDrawdownPct, result.NetPnl.StringFixed(2), result.Decisions, p.configHash)
 	return nil
 }

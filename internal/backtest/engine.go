@@ -358,6 +358,7 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 	dailyLossLimit := e.cfg.Deposit.Mul(risk.DefaultConfig().MaxDailyLossPct).Div(decimal.NewFromInt(100))
 	dailyLossBlockedDays := 0
 	var firstKillDay time.Time
+	var prevAccrualDay time.Time
 	for _, day := range days {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -381,7 +382,8 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 		} else if firstKillDay.IsZero() {
 			firstKillDay = day
 		}
-		e.accrueBorrow()
+		e.accrueBorrow(borrowDaysFor(prevAccrualDay, day))
+		prevAccrualDay = day
 		equity := e.portfolioEquity(marks).Sub(e.borrow)
 		if !active {
 			if loss := dayStartEquity.Sub(equity); loss.Sign() > 0 && loss.GreaterThan(dailyLossLimit) {
@@ -522,13 +524,14 @@ func (e *Engine) portfolioEquity(marks map[string]decimal.Decimal) decimal.Decim
 	return equity
 }
 
-// accrueBorrow charges the configured per-day borrow cost against every open
-// short position held at the end of the current bar. The cost is short-leg
-// notional (entry average price times lots) multiplied by the borrow fraction
-// and accumulates in e.borrow, which is then subtracted from the aggregate
-// equity curve. Long positions are not charged.
-func (e *Engine) accrueBorrow() {
-	if e.cfg.BorrowPctPerDay.Sign() <= 0 {
+// accrueBorrow charges the configured per-calendar-day borrow cost against
+// every open short position held at the end of the current bar. The cost is
+// short-leg notional (entry average price times lots) multiplied by the borrow
+// fraction and the number of calendar days elapsed since the previous trading
+// bar, and accumulates in e.borrow, which is then subtracted from the
+// aggregate equity curve. Long positions are not charged.
+func (e *Engine) accrueBorrow(days int) {
+	if e.cfg.BorrowPctPerDay.Sign() <= 0 || days <= 0 {
 		return
 	}
 	e.mu.Lock()
@@ -538,8 +541,19 @@ func (e *Engine) accrueBorrow() {
 			continue
 		}
 		notional := pos.avg.Mul(decimal.NewFromInt(int64(pos.lots)))
-		e.borrow = e.borrow.Add(notional.Mul(e.cfg.BorrowPctPerDay))
+		e.borrow = e.borrow.Add(notional.Mul(e.cfg.BorrowPctPerDay).Mul(decimal.NewFromInt(int64(days))))
 	}
+}
+
+func borrowDaysFor(prev, day time.Time) int {
+	if prev.IsZero() {
+		return 1
+	}
+	days := int(math.Round(day.Sub(prev).Hours() / 24))
+	if days < 1 {
+		return 1
+	}
+	return days
 }
 
 func (e *Engine) processTickerDay(ctx context.Context, run *tickerBacktest, d int, dayStartEquity decimal.Decimal, marks map[string]decimal.Decimal) error {
