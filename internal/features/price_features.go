@@ -203,6 +203,14 @@ func (c PriceFeatureConfig) lookbackBounds() int {
 	return 63*c.barsPerDay() + maxIndicatorLookbackCandles
 }
 
+// LookbackCandles is the number of trailing candles ComputePriceFeatures
+// actually reads (the largest indicator window plus the EMA/SMMA convergence
+// margin). Daily callers must fetch at least this many closed bars to match
+// the backtest/training feature construction exactly.
+func (c PriceFeatureConfig) LookbackCandles() int {
+	return c.lookbackBounds()
+}
+
 // WarmupCandles is the minimum number of candles a caller must feed before a
 // sample's feature vector is fully populated: on daily bars that is the
 // historical 64 (large enough for the 63-bar Mom63d window). On intraday bars

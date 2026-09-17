@@ -68,39 +68,44 @@ type DecisionObserver interface {
 }
 
 type Options struct {
-	Tickers       []string
-	Ingestor      Ingestor
-	Builder       *features.Builder
-	Source        SignalSource
-	Gate          risk.Gate
-	Executor      executor.Executor
-	Audit         AuditWriter
-	PollInterval  time.Duration
-	Logger        *log.Logger
-	Now           func() time.Time
-	Metrics       *metrics.Metrics
-	Account       risk.Account
-	AccountSource AccountSource
-	Observer      DecisionObserver
-	KillSwitch    KillSwitchState
+	Tickers          []string
+	Ingestor         Ingestor
+	Builder          *features.Builder
+	Source           SignalSource
+	Gate             risk.Gate
+	Executor         executor.Executor
+	Audit            AuditWriter
+	PollInterval     time.Duration
+	Logger           *log.Logger
+	Now              func() time.Time
+	Metrics          *metrics.Metrics
+	Account          risk.Account
+	AccountSource    AccountSource
+	Observer         DecisionObserver
+	KillSwitch       KillSwitchState
+	Shadow           *ShadowReconciler
+	ShadowDigestPath string
 }
 
 type Orchestrator struct {
-	tickers       []string
-	ingestor      Ingestor
-	builder       *features.Builder
-	source        SignalSource
-	gate          risk.Gate
-	exec          executor.Executor
-	audit         AuditWriter
-	pollInterval  time.Duration
-	logger        *log.Logger
-	now           func() time.Time
-	metrics       *metrics.Metrics
-	account       risk.Account
-	accountSource AccountSource
-	observer      DecisionObserver
-	killSwitch    KillSwitchState
+	tickers          []string
+	ingestor         Ingestor
+	builder          *features.Builder
+	source           SignalSource
+	gate             risk.Gate
+	exec             executor.Executor
+	audit            AuditWriter
+	pollInterval     time.Duration
+	logger           *log.Logger
+	now              func() time.Time
+	metrics          *metrics.Metrics
+	account          risk.Account
+	accountSource    AccountSource
+	observer         DecisionObserver
+	killSwitch       KillSwitchState
+	shadow           *ShadowReconciler
+	shadowDigestPath string
+	shadowDigest     *ShadowDigest
 }
 
 func New(opts Options) (*Orchestrator, error) {
@@ -144,21 +149,24 @@ func New(opts Options) (*Orchestrator, error) {
 	}
 
 	return &Orchestrator{
-		tickers:       append([]string(nil), opts.Tickers...),
-		ingestor:      opts.Ingestor,
-		builder:       builder,
-		source:        opts.Source,
-		gate:          opts.Gate,
-		exec:          opts.Executor,
-		audit:         opts.Audit,
-		pollInterval:  pollInterval,
-		logger:        logger,
-		now:           now,
-		metrics:       opts.Metrics,
-		account:       opts.Account,
-		accountSource: opts.AccountSource,
-		observer:      opts.Observer,
-		killSwitch:    opts.KillSwitch,
+		tickers:          append([]string(nil), opts.Tickers...),
+		ingestor:         opts.Ingestor,
+		builder:          builder,
+		source:           opts.Source,
+		gate:             opts.Gate,
+		exec:             opts.Executor,
+		audit:            opts.Audit,
+		pollInterval:     pollInterval,
+		logger:           logger,
+		now:              now,
+		metrics:          opts.Metrics,
+		account:          opts.Account,
+		accountSource:    opts.AccountSource,
+		observer:         opts.Observer,
+		killSwitch:       opts.KillSwitch,
+		shadow:           opts.Shadow,
+		shadowDigestPath: opts.ShadowDigestPath,
+		shadowDigest:     NewShadowDigest(),
 	}, nil
 }
 
@@ -207,6 +215,7 @@ func (o *Orchestrator) RunOnce(ctx context.Context) {
 			o.logger.Printf("orchestrator: ticker %s: %v", ticker, err)
 		}
 	}
+	o.writeShadowDigest()
 }
 
 func (o *Orchestrator) cycleAccount(ctx context.Context) (risk.Account, error) {
@@ -268,6 +277,18 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string, account
 		return mismatchErr
 	}
 
+	if o.shadow != nil {
+		comparison := o.shadow.Reconcile(ctx, input, feature, signal)
+		if o.shadowDigest != nil {
+			o.shadowDigest.Add(comparison)
+		}
+		if !comparison.FeatureMatch || !comparison.SignalMatch {
+			o.logger.Printf("orchestrator: shadow reconcile %s %s: feature_match=%v max_delta=%.9f signal_match=%v live=%s replay=%s err=%q",
+				comparison.Ticker, comparison.Day, comparison.FeatureMatch, comparison.MaxFeatureDelta,
+				comparison.SignalMatch, comparison.LiveAction, comparison.ReplayAction, comparison.Err)
+		}
+	}
+
 	approved, err := o.gate.Approve(ctx, risk.Request{
 		Signal: signal,
 		Market: risk.Market{
@@ -314,6 +335,15 @@ func (o *Orchestrator) observe(ctx context.Context, decision Decision) {
 		return
 	}
 	o.observer.Observe(ctx, decision)
+}
+
+func (o *Orchestrator) writeShadowDigest() {
+	if o.shadowDigestPath == "" || o.shadowDigest == nil {
+		return
+	}
+	if err := UpdateShadowDigestFile(o.shadowDigestPath, o.shadowDigest.Markdown()); err != nil {
+		o.logger.Printf("orchestrator: write shadow digest: %v", err)
+	}
 }
 
 func (o *Orchestrator) record(ctx context.Context, ticker, stage, payload string) error {

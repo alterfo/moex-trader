@@ -50,7 +50,7 @@ func NewMOEXIngestor(moexClient *moex.Client, fetcher *news.Fetcher, matcher *ne
 		matcher:        matcher,
 		sources:        sources,
 		candleInterval: 24,
-		candleLookback: 10 * 24 * time.Hour,
+		candleLookback: dailyCandleLookback(),
 		logger:         log.Default(),
 		algopack:       algopackFetcher,
 	}
@@ -58,6 +58,12 @@ func NewMOEXIngestor(moexClient *moex.Client, fetcher *news.Fetcher, matcher *ne
 		ingestor.algopackWorker = algopack.NewWorker(algopackFetcher, 2, 10*time.Second)
 	}
 	return ingestor
+}
+
+func dailyCandleLookback() time.Duration {
+	lookbackCandles := (features.PriceFeatureConfig{}).LookbackCandles()
+	calendarDays := lookbackCandles*7/5 + 14
+	return time.Duration(calendarDays) * 24 * time.Hour
 }
 
 func (i *MOEXIngestor) Ingest(ctx context.Context, ticker string) (features.Input, error) {
@@ -89,7 +95,7 @@ func (i *MOEXIngestor) Ingest(ctx context.Context, ticker string) (features.Inpu
 			PrevClose: previousClose(candles, now),
 			AsOf:      now,
 		},
-		Candles: candles,
+		Candles: closedDailyCandles(candles, now),
 		News:    filterMatches(matches, ticker),
 	}
 
@@ -244,6 +250,16 @@ func previousClose(candles []moex.Candle, now time.Time) decimal.Decimal {
 		return candles[len(candles)-2].Close
 	}
 	return last.Close
+}
+
+func closedDailyCandles(candles []moex.Candle, now time.Time) []moex.Candle {
+	if len(candles) == 0 {
+		return candles
+	}
+	if isSameDate(candles[len(candles)-1].Begin, now) {
+		return candles[:len(candles)-1]
+	}
+	return candles
 }
 
 func isSameDate(candleTime, now time.Time) bool {

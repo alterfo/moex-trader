@@ -47,9 +47,11 @@ func main() {
 func run() error {
 	var configPath string
 	var metricsAddr string
+	var shadowDigestPath string
 	var resetKillSwitch bool
 	flag.StringVar(&configPath, "config", "config.yaml", "path to config YAML")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":9090", "address for Prometheus /metrics endpoint")
+	flag.StringVar(&shadowDigestPath, "shadow-digest", "", "write the shadow reconciliation digest to this markdown file")
 	flag.BoolVar(&resetKillSwitch, "reset-kill-switch", false, "reset persisted kill switch and exit")
 	flag.Parse()
 
@@ -117,6 +119,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	shadowSource := modelSource
 	if resolver, ok := runtime.accountSource.(lotSizeResolver); ok {
 		modelSource = newLotSizeSignalSource(modelSource, resolver, log.Default())
 	}
@@ -158,19 +161,27 @@ func run() error {
 		}
 	}()
 
+	featureBuilder := features.NewBuilder(time.Now)
+	var shadow *orchestrator.ShadowReconciler
+	if strings.TrimSpace(shadowDigestPath) != "" {
+		shadow = orchestrator.NewShadowReconciler(featureBuilder, shadowSource)
+	}
+
 	orch, err := orchestrator.New(orchestrator.Options{
-		Tickers:       cfg.Tickers,
-		Ingestor:      ingestor,
-		Builder:       features.NewBuilder(time.Now),
-		Source:        signalSource,
-		Gate:          gate,
-		Executor:      runtime.exec,
-		Audit:         store,
-		PollInterval:  cfg.PollInterval.Std(),
-		Metrics:       appMetrics,
-		AccountSource: runtime.accountSource,
-		Observer:      notifier,
-		KillSwitch:    store,
+		Tickers:          cfg.Tickers,
+		Ingestor:         ingestor,
+		Builder:          featureBuilder,
+		Source:           signalSource,
+		Gate:             gate,
+		Executor:         runtime.exec,
+		Audit:            store,
+		PollInterval:     cfg.PollInterval.Std(),
+		Metrics:          appMetrics,
+		AccountSource:    runtime.accountSource,
+		Observer:         notifier,
+		KillSwitch:       store,
+		Shadow:           shadow,
+		ShadowDigestPath: shadowDigestPath,
 	})
 	if err != nil {
 		return fmt.Errorf("create orchestrator: %w", err)

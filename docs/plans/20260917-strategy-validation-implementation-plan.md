@@ -134,15 +134,15 @@ Task 18.
 
 ### Task 3: Live/backtest feature parity fix
 
-- [ ] Fix live feature construction to always use a snapshot of the last CLOSED daily bar
+- [x] Fix live feature construction to always use a snapshot of the last CLOSED daily bar
       (matching backtest's `LastPrice = prev close`, `engine.go:378-386`), instead of the
       current unclosed-bar-plus-intraday-`LastPrice` behavior (`ingest.go:75-94`,
       `builder.go:76-102`) — after this fix, live and backtest are feature-identical by
       construction
-- [ ] Add shadow reconciliation: compare live decisions against a replayed backtest
+- [x] Add shadow reconciliation: compare live decisions against a replayed backtest
       decision for the same ticker/day and write a digest into `docs/metrics.md`
-- [ ] write tests covering the closed-bar snapshot and the shadow-reconciliation digest
-- [ ] run project tests - must pass before next task
+- [x] write tests covering the closed-bar snapshot and the shadow-reconciliation digest
+- [x] run project tests - must pass before next task
 
 ### Task 4: Portfolio risk gate in backtest
 

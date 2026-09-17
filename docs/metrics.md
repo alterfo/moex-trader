@@ -48,3 +48,38 @@ relative comparison — both sides run through the same engine, so engine-wide
 biases (including the Task 4 kill-switch gap) cancel out. Absolute ensemble
 numbers come from the momentumbench engine and differ from other headline
 numbers (reconciled in Task 17).
+
+## Live/backtest feature parity fix (Task 3)
+
+Live feature construction now uses only closed daily bars. Before this fix the
+live input carried the current unclosed bar and an intraday `LastPrice`, so
+`return_pct` was an intraday return and the candle-derived indicators were
+computed over a different bar set than backtest. After the fix:
+
+- `internal/orchestrator/ingest.go` drops the current unclosed daily bar
+  (`closedDailyCandles`) and fetches enough history for the full daily
+  indicator window (`dailyCandleLookback`, ~434 calendar days, covering the
+  300-bar EMA/SMMA convergence margin used by backtest).
+- `internal/features/builder.go` computes `return_pct` from the last two closed
+  bars (`closedBarReturnPct`), matching backtest's `LastPrice = prev close`.
+
+The prior 10-day candle lookback left 12 of the 18 deployed features
+(mom_21d/63d, rsi_14, dist_ma20/50, realized_vol_21d, volume_zscore_20d,
+macd_hist, stoch_k, williams_r, alligator_spread) at zero in live; that gap is
+now closed as part of this task.
+
+<!-- shadow-reconciliation:start -->
+
+## Shadow reconciliation (Task 3)
+
+Live decision vs replayed backtest decision for the same ticker and last closed
+day. `FeatureMatch` compares candle-derived features (return_pct and
+price/volume indicators); news, order-book and event fields are live-only and
+excluded. `SignalMatch` compares the model action. Rows are appended by the
+live trader when run with `--shadow-digest docs/metrics.md`; no live sandbox
+rows are available yet at commit time.
+
+| ticker | day | live | replay | feature match | max delta | signal match |
+|---|---|---|---|---|---|---|
+
+<!-- shadow-reconciliation:end -->

@@ -59,7 +59,7 @@ func TestBuildFullData(t *testing.T) {
 	if !ctx.LastPrice.Equal(decimal.NewFromFloat(110)) {
 		t.Fatalf("unexpected last price %s", ctx.LastPrice)
 	}
-	if !ctx.ReturnPct.Equal(decimal.NewFromFloat(10)) {
+	if !ctx.ReturnPct.Equal(percentChange(decimal.NewFromFloat(105), decimal.NewFromFloat(110))) {
 		t.Fatalf("unexpected return %s", ctx.ReturnPct)
 	}
 	if ctx.NewsCount != 2 {
@@ -80,6 +80,57 @@ func TestBuildFullData(t *testing.T) {
 	}
 	if !ctx.Reversal1d.Equal(percentChange(decimal.NewFromFloat(105), decimal.NewFromFloat(110))) {
 		t.Fatalf("unexpected reversal_1d %s", ctx.Reversal1d)
+	}
+}
+
+func TestBuildReturnPctUsesClosedBarsNotIntradayPrice(t *testing.T) {
+	builder := NewBuilder(nil)
+	candles := []moex.Candle{
+		{Close: decimal.NewFromFloat(100)},
+		{Close: decimal.NewFromFloat(110)},
+		{Close: decimal.NewFromFloat(105)},
+	}
+	liveInput := Input{
+		Ticker: "SBER",
+		Price: PriceSnapshot{
+			LastPrice: decimal.NewFromFloat(112),
+			PrevClose: decimal.NewFromFloat(105),
+			Bid:       decimal.NewFromFloat(111.9),
+			Ask:       decimal.NewFromFloat(112.1),
+		},
+		Candles: candles,
+	}
+	backtestInput := Input{
+		Ticker: "SBER",
+		Price: PriceSnapshot{
+			LastPrice: candles[len(candles)-1].Close,
+			PrevClose: candles[len(candles)-2].Close,
+		},
+		Candles: candles,
+	}
+
+	live, err := builder.Build(liveInput)
+	if err != nil {
+		t.Fatalf("Build(live) error = %v", err)
+	}
+	backtest, err := builder.Build(backtestInput)
+	if err != nil {
+		t.Fatalf("Build(backtest) error = %v", err)
+	}
+
+	want := percentChange(candles[2].Close, candles[1].Close)
+	if !live.ReturnPct.Equal(want) {
+		t.Fatalf("live return_pct = %s, want %s (must ignore intraday last price)", live.ReturnPct, want)
+	}
+	if !live.ReturnPct.Equal(backtest.ReturnPct) {
+		t.Fatalf("live return_pct %s != backtest return_pct %s", live.ReturnPct, backtest.ReturnPct)
+	}
+	if !live.LastPrice.Equal(decimal.NewFromFloat(112)) {
+		t.Fatalf("live last price = %s, want 112 (execution price must stay intraday)", live.LastPrice)
+	}
+	if !live.Mom5d.Equal(backtest.Mom5d) || !live.RSI14.Equal(backtest.RSI14) {
+		t.Fatalf("candle-derived features diverged: live mom5d=%s rsi14=%s, backtest mom5d=%s rsi14=%s",
+			live.Mom5d, live.RSI14, backtest.Mom5d, backtest.RSI14)
 	}
 }
 
@@ -446,6 +497,9 @@ func TestConfigForIntervalMapsToBarsPerDay(t *testing.T) {
 func TestWarmupCandlesMatchesLookback(t *testing.T) {
 	if got := (PriceFeatureConfig{}).WarmupCandles(); got != 64 {
 		t.Fatalf("daily warmup should stay 64 to preserve the existing chain, got %d", got)
+	}
+	if got := (PriceFeatureConfig{}).LookbackCandles(); got != maxIndicatorLookbackCandles {
+		t.Fatalf("daily lookback candles = %d, want %d", got, maxIndicatorLookbackCandles)
 	}
 	const bpd = 105
 	cfg := PriceFeatureConfig{BarsPerDay: bpd}

@@ -82,7 +82,7 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 		PrevClose:          input.Price.PrevClose,
 		Bid:                input.Price.Bid,
 		Ask:                input.Price.Ask,
-		ReturnPct:          percentChange(input.Price.LastPrice, input.Price.PrevClose),
+		ReturnPct:          closedBarReturnPct(input.Candles),
 		RealizedVolatility: realizedVolatility(input.Candles),
 		NewsSentiment:      newsSentiment,
 		NewsCount:          newsCount,
@@ -128,6 +128,18 @@ func clampImbalance(value decimal.Decimal) decimal.Decimal {
 
 func percentChange(current, previous decimal.Decimal) decimal.Decimal {
 	return current.Sub(previous).Div(previous).Mul(decimal.NewFromInt(100))
+}
+
+func closedBarReturnPct(candles []moex.Candle) decimal.Decimal {
+	if len(candles) < 2 {
+		return decimal.Zero
+	}
+	current := candles[len(candles)-1].Close
+	previous := candles[len(candles)-2].Close
+	if current.Sign() <= 0 || previous.Sign() <= 0 {
+		return decimal.Zero
+	}
+	return percentChange(current, previous)
 }
 
 func realizedVolatility(candles []moex.Candle) decimal.Decimal {

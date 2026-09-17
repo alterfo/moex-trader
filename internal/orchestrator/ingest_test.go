@@ -13,6 +13,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/algopack"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/news"
@@ -178,5 +179,48 @@ func TestMOEXIngestorPrepareCycleFansOutAlgoPackWork(t *testing.T) {
 	}
 	if !result.Imbalance.Equal(decimal.NewFromFloat(0.5)) {
 		t.Fatalf("unexpected imbalance %s, want 0.5", result.Imbalance)
+	}
+}
+
+func TestClosedDailyCandlesDropsUnclosedCurrentDayBar(t *testing.T) {
+	now := time.Date(2024, 1, 11, 12, 0, 0, 0, time.UTC)
+	candles := []moex.Candle{
+		{Begin: time.Date(2024, 1, 9, 10, 0, 0, 0, time.UTC), Close: decimal.NewFromFloat(100)},
+		{Begin: time.Date(2024, 1, 10, 10, 0, 0, 0, time.UTC), Close: decimal.NewFromFloat(105)},
+		{Begin: time.Date(2024, 1, 11, 10, 0, 0, 0, time.UTC), Close: decimal.NewFromFloat(108)},
+	}
+
+	closed := closedDailyCandles(candles, now)
+	if len(closed) != 2 {
+		t.Fatalf("closedDailyCandles len = %d, want 2", len(closed))
+	}
+	if !closed[len(closed)-1].Close.Equal(decimal.NewFromFloat(105)) {
+		t.Fatalf("last closed close = %s, want 105", closed[len(closed)-1].Close)
+	}
+}
+
+func TestClosedDailyCandlesKeepsHistoryWhenNoUnclosedBar(t *testing.T) {
+	now := time.Date(2024, 1, 11, 12, 0, 0, 0, time.UTC)
+	candles := []moex.Candle{
+		{Begin: time.Date(2024, 1, 9, 10, 0, 0, 0, time.UTC), Close: decimal.NewFromFloat(100)},
+		{Begin: time.Date(2024, 1, 10, 10, 0, 0, 0, time.UTC), Close: decimal.NewFromFloat(105)},
+	}
+
+	closed := closedDailyCandles(candles, now)
+	if len(closed) != 2 {
+		t.Fatalf("closedDailyCandles len = %d, want 2", len(closed))
+	}
+	if !closed[len(closed)-1].Close.Equal(decimal.NewFromFloat(105)) {
+		t.Fatalf("last close = %s, want 105", closed[len(closed)-1].Close)
+	}
+}
+
+func TestDailyCandleLookbackCoversFeatureWindow(t *testing.T) {
+	lookbackCandles := (features.PriceFeatureConfig{}).LookbackCandles()
+	lookback := dailyCandleLookback()
+	calendarDays := int(lookback.Hours() / 24)
+	tradingDays := calendarDays * 5 / 7
+	if tradingDays < lookbackCandles {
+		t.Fatalf("daily candle lookback covers ~%d trading days, want >= %d", tradingDays, lookbackCandles)
 	}
 }
