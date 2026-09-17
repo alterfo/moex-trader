@@ -276,12 +276,12 @@ Task 18.
 
 ### Task 16: Sandbox/paper parallel tracking
 
-- [ ] Log expected vs. actual fill price, rejection rate under the 0.3% marketable-limit
+- [x] Log expected vs. actual fill price, rejection rate under the 0.3% marketable-limit
       cap, and actual borrow charges
-- [ ] Cross-reference this against Task 11/12's measurements — this is the direct
+- [x] Cross-reference this against Task 11/12's measurements — this is the direct
       real-world measurement of those gaps
-- [ ] write tests for the expected-vs-actual logging
-- [ ] run project tests - must pass before next task
+- [x] write tests for the expected-vs-actual logging
+- [x] run project tests - must pass before next task
 
 ### Task 17: Unified metrics document
 

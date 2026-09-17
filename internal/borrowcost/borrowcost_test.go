@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/shopspring/decimal"
+	pb "github.com/tinkoff/invest-api-go-sdk/proto"
 )
 
 func TestStressRatePerDay(t *testing.T) {
@@ -75,5 +76,31 @@ func TestResolveDailyRateFallsBackToStressWhenNotMeasurable(t *testing.T) {
 	res = ResolveDailyRate(decimal.RequireFromString("1"), decimal.Zero)
 	if !res.UsingStress || res.Measurable {
 		t.Fatalf("expected stress fallback when no short exposure, got %+v", res)
+	}
+}
+
+func TestSumMarginFees(t *testing.T) {
+	operations := []*pb.Operation{
+		{OperationType: pb.OperationType_OPERATION_TYPE_MARGIN_FEE, Payment: &pb.MoneyValue{Currency: "rub", Units: 1, Nano: 250000000}},
+		{OperationType: pb.OperationType_OPERATION_TYPE_BROKER_FEE, Payment: &pb.MoneyValue{Currency: "rub", Units: 5, Nano: 0}},
+		{OperationType: pb.OperationType_OPERATION_TYPE_MARGIN_FEE, Payment: &pb.MoneyValue{Currency: "rub", Units: 2, Nano: 750000000}},
+		nil,
+		{OperationType: pb.OperationType_OPERATION_TYPE_MARGIN_FEE, Payment: nil},
+	}
+
+	fees, count := SumMarginFees(operations)
+	if count != 2 {
+		t.Fatalf("SumMarginFees() count = %d, want 2", count)
+	}
+	want := decimal.RequireFromString("4")
+	if !fees.Equal(want) {
+		t.Fatalf("SumMarginFees() fees = %s, want %s", fees, want)
+	}
+}
+
+func TestSumMarginFeesEmpty(t *testing.T) {
+	fees, count := SumMarginFees(nil)
+	if count != 0 || !fees.IsZero() {
+		t.Fatalf("SumMarginFees(nil) = (%s, %d), want (0, 0)", fees, count)
 	}
 }

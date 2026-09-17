@@ -299,3 +299,22 @@ rows are available yet at commit time.
 |---|---|---|---|---|---|---|
 
 <!-- shadow-reconciliation:end -->
+
+## Sandbox/paper execution quality tracking (Task 16)
+
+Live tracking of expected (bounded limit) versus actual fill price, broker
+rejection rate under `risk.max_slippage_pct`, and actual short-borrow charges.
+Expected price is the limit price capped by the slippage band; a positive
+slippage in basis points means the fill was better than the cap, a negative
+value means worse. The trader logs each fill in real time and emits a periodic
+digest (every 6 hours) that cross-references observed slippage against the
+Task 12 per-ticker half-spread and observed margin-fee borrow charges against
+the Task 11 0.005%/day stress rate.
+
+| date | window | fills | rejected | rejection rate | mean slippage bps | max adverse bps | max favorable bps | borrow fees | artifact |
+|---|---|---|---|---|---|---|---|---|---|
+| 2026-09-17 | live sandbox (no fills yet at commit time) | - | - | - | - | - | - | - | `internal/filltracking`, `internal/borrowcost.SumMarginFees` |
+
+The table is populated by the live trader's periodic `executionQualityReporter`
+log once the sandbox produces orders; there are no live fill numbers to record
+at commit time.

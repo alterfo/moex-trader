@@ -11,6 +11,7 @@ import (
 	"github.com/shopspring/decimal"
 	pb "github.com/tinkoff/invest-api-go-sdk/proto"
 
+	"github.com/olegsidorkin/moex-trader/internal/borrowcost"
 	ingestion "github.com/olegsidorkin/moex-trader/internal/ingestion/tinkoff"
 	"github.com/olegsidorkin/moex-trader/internal/risk"
 )
@@ -23,6 +24,7 @@ type Client interface {
 	PostSandboxOrder(ctx context.Context, request *pb.PostOrderRequest) (*pb.PostOrderResponse, error)
 	GetSandboxPortfolio(ctx context.Context, accountID string) (*pb.PortfolioResponse, error)
 	GetSandboxOrders(ctx context.Context, accountID string) ([]*pb.OrderState, error)
+	SandboxOperations(ctx context.Context, accountID string, from, to time.Time) ([]*pb.Operation, error)
 	CancelSandboxOrder(ctx context.Context, accountID, orderID string) error
 	TradingStatus(ctx context.Context, instrumentID string) (*pb.GetTradingStatusResponse, error)
 	ResolveLotSize(ctx context.Context, instrumentUID string) (int32, error)
@@ -173,6 +175,23 @@ func (s *Sandbox) MarketOpen(ctx context.Context, ticker string) (bool, error) {
 		return false, err
 	}
 	return status.GetMarketOrderAvailableFlag() || status.GetLimitOrderAvailableFlag(), nil
+}
+
+// MarginFees returns the actual short-borrow charges observed in the sandbox
+// operation history between from and to, summed over margin-fee operations.
+// This is the live counterpart to the Task 11 stress rate and is logged
+// periodically by the trader so the two can be cross-referenced.
+func (s *Sandbox) MarginFees(ctx context.Context, from, to time.Time) (decimal.Decimal, int, error) {
+	accountID := s.AccountID()
+	if accountID == "" {
+		return decimal.Zero, 0, errors.New("sandbox: account is not initialized")
+	}
+	operations, err := s.client.SandboxOperations(ctx, accountID, from, to)
+	if err != nil {
+		return decimal.Zero, 0, err
+	}
+	fees, count := borrowcost.SumMarginFees(operations)
+	return fees, count, nil
 }
 
 func (s *Sandbox) PostOrder(ctx context.Context, request *pb.PostOrderRequest) (*pb.PostOrderResponse, error) {

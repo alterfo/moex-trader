@@ -21,6 +21,7 @@ type fakeClient struct {
 	postOrder     func(ctx context.Context, request *pb.PostOrderRequest) (*pb.PostOrderResponse, error)
 	portfolio     func(ctx context.Context, accountID string) (*pb.PortfolioResponse, error)
 	orders        func(ctx context.Context, accountID string) ([]*pb.OrderState, error)
+	operations    func(ctx context.Context, accountID string, from, to time.Time) ([]*pb.Operation, error)
 	cancel        func(ctx context.Context, accountID, orderID string) error
 	tradingStatus func(ctx context.Context, instrumentID string) (*pb.GetTradingStatusResponse, error)
 	lotSize       func(ctx context.Context, instrumentUID string) (int32, error)
@@ -75,6 +76,13 @@ func (f *fakeClient) GetSandboxOrders(ctx context.Context, accountID string) ([]
 		return f.orders(ctx, accountID)
 	}
 	return nil, errors.New("unexpected GetSandboxOrders call")
+}
+
+func (f *fakeClient) SandboxOperations(ctx context.Context, accountID string, from, to time.Time) ([]*pb.Operation, error) {
+	if f.operations != nil {
+		return f.operations(ctx, accountID, from, to)
+	}
+	return nil, errors.New("unexpected SandboxOperations call")
 }
 
 func (f *fakeClient) CancelSandboxOrder(ctx context.Context, accountID, orderID string) error {

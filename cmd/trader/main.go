@@ -22,12 +22,14 @@ import (
 
 	"github.com/olegsidorkin/moex-trader/internal/alert/telegram"
 	"github.com/olegsidorkin/moex-trader/internal/backtest"
+	"github.com/olegsidorkin/moex-trader/internal/borrowcost"
 	brokertinkoff "github.com/olegsidorkin/moex-trader/internal/broker/tinkoff"
 	"github.com/olegsidorkin/moex-trader/internal/config"
 	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/drift"
 	"github.com/olegsidorkin/moex-trader/internal/executor"
 	"github.com/olegsidorkin/moex-trader/internal/features"
+	"github.com/olegsidorkin/moex-trader/internal/filltracking"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/algopack"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/news"
@@ -142,16 +144,18 @@ func run() error {
 
 	historySource := backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
 	preflight := newPreflight(cfg, modelSource, historySource, time.Now)
+	var spreadTable spread.Table
 	events, err := store.ListAllAuditEvents(ctx)
 	if err != nil {
 		log.Printf("trader: load per-ticker spread audit events: %v", err)
 	} else {
-		table, deriveErr := spread.FromAuditEvents(events, spread.Options{})
+		derived, deriveErr := spread.FromAuditEvents(events, spread.Options{})
 		if deriveErr != nil {
 			log.Printf("trader: derive per-ticker spreads: %v", deriveErr)
 		} else {
-			preflight.withSpreadPcts(map[string]decimal.Decimal(table))
-			log.Printf("trader: loaded %d per-ticker half-spreads from %s", len(table), cfg.Storage.Path)
+			spreadTable = derived
+			preflight.withSpreadPcts(map[string]decimal.Decimal(derived))
+			log.Printf("trader: loaded %d per-ticker half-spreads from %s", len(derived), cfg.Storage.Path)
 		}
 	}
 	if err := preflight.check(ctx); err != nil {
@@ -210,7 +214,7 @@ func run() error {
 		PollInterval:     cfg.PollInterval.Std(),
 		Metrics:          appMetrics,
 		AccountSource:    runtime.accountSource,
-		Observer:         &fanoutObserver{observers: []orchestrator.DecisionObserver{notifier, &breakerFillObserver{breaker: breaker, logger: log.Default()}}},
+		Observer:         &fanoutObserver{observers: []orchestrator.DecisionObserver{notifier, &breakerFillObserver{breaker: breaker, logger: log.Default()}, &fillQualityObserver{logger: log.Default()}}},
 		KillSwitch:       store,
 		Shadow:           shadow,
 		ShadowDigestPath: shadowDigestPath,
@@ -218,6 +222,15 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("create orchestrator: %w", err)
 	}
+
+	qualityReporter := &executionQualityReporter{
+		store:          store,
+		spreads:        spreadTable,
+		maxSlippagePct: cfg.Risk.MaxSlippagePct,
+		borrowSource:   runtime.borrowSource,
+		logger:         log.Default(),
+	}
+	go runExecutionQualityTracking(ctx, qualityReporter)
 
 	log.Printf("starting trader: tickers=%d broker=%s paper=%v poll_interval=%s", len(cfg.Tickers), cfg.Broker, cfg.IsPaperTrading, cfg.PollInterval.Std())
 	log.Printf("telegram alerts: enabled=%v signal_tickers=%v", telegramClient.Enabled(), cfg.Telegram.SignalTickers)
@@ -609,11 +622,151 @@ func (o *breakerFillObserver) Observe(_ context.Context, decision orchestrator.D
 	o.logger.Printf("trader: circuit breaker tripped for %s: %s", ticker, o.breaker.Reason(ticker))
 }
 
+// fillQualityObserver logs the expected (bounded limit) versus actual fill
+// price for every executed fill and counts broker rejections in real time, so
+// the marketable-limit cap's fill quality is visible without waiting for the
+// periodic digest.
+type fillQualityObserver struct {
+	logger   *log.Logger
+	mu       sync.Mutex
+	filled   int
+	rejected int
+	other    int
+}
+
+func (o *fillQualityObserver) Observe(_ context.Context, decision orchestrator.Decision) {
+	if !decision.Approved {
+		return
+	}
+	if decision.Err != nil {
+		if strings.Contains(decision.Err.Error(), "rejected") {
+			o.mu.Lock()
+			o.rejected++
+			total := o.filled + o.rejected + o.other
+			o.mu.Unlock()
+			if o.logger != nil {
+				o.logger.Printf("trader: order rejected for %s: %v (rejected %d/%d)", decision.Ticker, decision.Err, o.rejected, total)
+			}
+		} else {
+			o.mu.Lock()
+			o.other++
+			o.mu.Unlock()
+		}
+		return
+	}
+	fill := decision.Fill
+	if fill.Lots <= 0 || fill.Action == domain.ActionHold {
+		return
+	}
+	if !fill.ExpectedPrice.IsPositive() {
+		return
+	}
+	bps := filltracking.SlippageBps(fill.ExpectedPrice, fill.Price, fill.Action)
+	o.mu.Lock()
+	o.filled++
+	o.mu.Unlock()
+	if o.logger != nil {
+		o.logger.Printf("trader: fill %s %s %d lot(s): expected %s, actual %s (%s bps %s)",
+			fill.Ticker, fill.Action, fill.Lots, fill.ExpectedPrice.String(), fill.Price.String(), bps.Round(2).String(), slippageWord(bps))
+	}
+}
+
+func slippageWord(bps decimal.Decimal) string {
+	if bps.Sign() < 0 {
+		return "worse"
+	}
+	return "better"
+}
+
+const (
+	executionQualityReportInterval = 6 * time.Hour
+	borrowTrackLookbackDays        = 180
+)
+
+// executionQualityReporter emits a periodic digest of live fill quality and
+// cross-references it against the Task 11 borrow stress and the Task 12
+// per-ticker spread measurements.
+type executionQualityReporter struct {
+	store          *storage.Store
+	spreads        spread.Table
+	maxSlippagePct decimal.Decimal
+	borrowSource   borrowFeeSource
+	logger         *log.Logger
+}
+
+func (r *executionQualityReporter) Report(ctx context.Context) {
+	events, err := r.store.ListAllAuditEvents(ctx)
+	if err != nil {
+		r.logger.Printf("trader: load execution-quality audit events: %v", err)
+		return
+	}
+	digest := filltracking.FromAuditEvents(events, filltracking.Options{MaxSlippagePct: r.maxSlippagePct})
+	r.logger.Printf("trader: execution quality: fills=%d rejected=%d submitted=%d rejection_rate=%s mean_slippage_bps=%s max_adverse_bps=%s max_favorable_bps=%s cap=%s",
+		digest.FillCount(), digest.Rejected, digest.Submitted,
+		digest.RejectionRate().Round(6).String(),
+		digest.MeanSlippageBps().Round(2).String(),
+		digest.MaxAdverseSlippageBps().Round(2).String(),
+		digest.MaxFavorableSlippageBps().Round(2).String(),
+		r.maxSlippagePct.String())
+	r.reportSpreadCrossReference(digest)
+	r.reportBorrowCrossReference(ctx)
+}
+
+func (r *executionQualityReporter) reportSpreadCrossReference(digest filltracking.Digest) {
+	if len(r.spreads) == 0 {
+		return
+	}
+	for ticker, bps := range digest.MeanSlippageBpsByTicker() {
+		halfSpread, ok := r.spreads.Lookup(ticker)
+		if !ok {
+			continue
+		}
+		r.logger.Printf("trader: execution quality %s: observed slippage %s bps vs measured half-spread %s bps",
+			ticker, bps.Round(2).String(), halfSpread.Mul(decimal.NewFromInt(10000)).Round(2).String())
+	}
+}
+
+func (r *executionQualityReporter) reportBorrowCrossReference(ctx context.Context) {
+	if r.borrowSource == nil {
+		return
+	}
+	from := time.Now().AddDate(0, 0, -borrowTrackLookbackDays)
+	fees, count, err := r.borrowSource.MarginFees(ctx, from, time.Now())
+	if err != nil {
+		r.logger.Printf("trader: query actual borrow charges: %v", err)
+		return
+	}
+	r.logger.Printf("trader: actual short-borrow charges: %s RUB across %d margin-fee ops (Task 11 stress fallback is %s%%/day)",
+		fees.Round(2).String(), count, borrowcost.StressPctPerDay)
+}
+
+func runExecutionQualityTracking(ctx context.Context, reporter *executionQualityReporter) {
+	if reporter == nil {
+		return
+	}
+	reporter.Report(ctx)
+	ticker := time.NewTicker(executionQualityReportInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			reporter.Report(ctx)
+		}
+	}
+}
+
 type brokerRuntime struct {
 	exec          executor.Executor
 	accountSource orchestrator.AccountSource
 	canceller     risk.OrderCanceller
+	borrowSource  borrowFeeSource
 	closeFn       func() error
+}
+
+type borrowFeeSource interface {
+	MarginFees(ctx context.Context, from, to time.Time) (decimal.Decimal, int, error)
 }
 
 type brokerDeps struct {
@@ -715,6 +868,7 @@ func newBrokerRuntime(ctx context.Context, cfg *config.Config, store *storage.St
 			exec:          targetExec,
 			accountSource: sandbox,
 			canceller:     sandbox,
+			borrowSource:  sandbox,
 			closeFn:       sandbox.Close,
 		}, nil
 	case config.BrokerFinam, config.BrokerPaper:

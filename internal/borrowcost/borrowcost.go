@@ -1,7 +1,10 @@
 package borrowcost
 
 import (
+	"fmt"
+
 	"github.com/shopspring/decimal"
+	pb "github.com/tinkoff/invest-api-go-sdk/proto"
 )
 
 // StressPctPerDay is the pre-registered fallback short-borrow cost, expressed
@@ -77,4 +80,32 @@ type ShareTerm struct {
 	Kshort       decimal.Decimal
 	Dshort       decimal.Decimal
 	DshortMin    decimal.Decimal
+}
+
+// SumMarginFees totals the observed short-borrow charges from a broker
+// operations history. Tinkoff reports borrow charges only as
+// OPERATION_TYPE_MARGIN_FEE payments, so this is the direct real-world
+// counterpart to the Task 11 stress rate.
+func SumMarginFees(operations []*pb.Operation) (fees decimal.Decimal, count int) {
+	for _, op := range operations {
+		if op == nil || op.GetOperationType() != pb.OperationType_OPERATION_TYPE_MARGIN_FEE {
+			continue
+		}
+		payment, err := tinkoffMoneyValueToDecimal(op.GetPayment())
+		if err != nil {
+			continue
+		}
+		fees = fees.Add(payment)
+		count++
+	}
+	return fees, count
+}
+
+func tinkoffMoneyValueToDecimal(value *pb.MoneyValue) (decimal.Decimal, error) {
+	if value == nil {
+		return decimal.Zero, fmt.Errorf("borrowcost: nil money value")
+	}
+	whole := decimal.NewFromInt(value.GetUnits())
+	fraction := decimal.NewFromInt(int64(value.GetNano())).Div(decimal.NewFromInt(1_000_000_000))
+	return whole.Add(fraction), nil
 }

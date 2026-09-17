@@ -14,13 +14,17 @@ import (
 )
 
 type Fill struct {
-	ID         string          `json:"id"`
-	Ticker     string          `json:"ticker"`
-	Action     domain.Action   `json:"action"`
-	Lots       int             `json:"lots"`
-	Price      decimal.Decimal `json:"price"`
-	Commission decimal.Decimal `json:"commission"`
-	ExecutedAt time.Time       `json:"executed_at"`
+	ID     string          `json:"id"`
+	Ticker string          `json:"ticker"`
+	Action domain.Action   `json:"action"`
+	Lots   int             `json:"lots"`
+	Price  decimal.Decimal `json:"price"`
+	// ExpectedPrice is the bounded LIMIT order price (decision price adjusted
+	// by MaxSlippagePct) against which the realized fill price is measured.
+	// It is zero for MARKET orders, which carry no price bound.
+	ExpectedPrice decimal.Decimal `json:"expected_price,omitempty"`
+	Commission    decimal.Decimal `json:"commission"`
+	ExecutedAt    time.Time       `json:"executed_at"`
 }
 
 type Executor interface {

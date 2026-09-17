@@ -29,23 +29,25 @@ type orderResult struct {
 }
 
 type liveOrderIntent struct {
-	Status      string          `json:"status"`
-	Ticker      string          `json:"ticker"`
-	Action      domain.Action   `json:"action"`
-	TargetLots  int             `json:"target_lots"`
-	Price       decimal.Decimal `json:"price"`
-	Message     string          `json:"message,omitempty"`
-	SubmittedAt time.Time       `json:"submitted_at"`
+	Status        string          `json:"status"`
+	Ticker        string          `json:"ticker"`
+	Action        domain.Action   `json:"action"`
+	TargetLots    int             `json:"target_lots"`
+	Price         decimal.Decimal `json:"price"`
+	ExpectedPrice decimal.Decimal `json:"expected_price,omitempty"`
+	Message       string          `json:"message,omitempty"`
+	SubmittedAt   time.Time       `json:"submitted_at"`
 }
 
 type persistedOrder struct {
-	Ticker     string          `json:"ticker"`
-	Action     domain.Action   `json:"action"`
-	Lots       int             `json:"lots"`
-	Price      decimal.Decimal `json:"price"`
-	Commission decimal.Decimal `json:"commission"`
-	ExecutedAt time.Time       `json:"executed_at"`
-	Status     string          `json:"status"`
+	Ticker        string          `json:"ticker"`
+	Action        domain.Action   `json:"action"`
+	Lots          int             `json:"lots"`
+	Price         decimal.Decimal `json:"price"`
+	ExpectedPrice decimal.Decimal `json:"expected_price,omitempty"`
+	Commission    decimal.Decimal `json:"commission"`
+	ExecutedAt    time.Time       `json:"executed_at"`
+	Status        string          `json:"status"`
 }
 
 type InstrumentIDResolver func(ctx context.Context, ticker string) (string, error)
@@ -239,12 +241,17 @@ func (l *LiveExecutor) placeOrder(ctx context.Context, signal domain.TradeSignal
 		return Fill{}, fmt.Errorf("live executor: instrument id for %q must not be empty", signal.Ticker), false
 	}
 
-	request, err := l.orderRequest(signal, price, orderID, instrumentID)
+	expectedPrice := decimal.Zero
+	if l.orderType != pb.OrderType_ORDER_TYPE_MARKET {
+		expectedPrice = boundedLimitPrice(price, signal.Action, l.maxSlippagePct)
+	}
+
+	request, err := l.orderRequest(signal, expectedPrice, orderID, instrumentID)
 	if err != nil {
 		return Fill{}, err, false
 	}
 
-	if err := l.recordIntent(ctx, signal, price, orderID); err != nil {
+	if err := l.recordIntent(ctx, signal, price, expectedPrice, orderID); err != nil {
 		return Fill{}, err, false
 	}
 
@@ -265,13 +272,14 @@ func (l *LiveExecutor) placeOrder(ctx context.Context, signal domain.TradeSignal
 		}
 		fillPrice := executedOrderPrice(response, price)
 		fill := Fill{
-			ID:         orderID,
-			Ticker:     signal.Ticker,
-			Action:     signal.Action,
-			Lots:       lots,
-			Price:      fillPrice,
-			Commission: commissionAmount(fillPrice, lots, l.commissionRate),
-			ExecutedAt: l.now(),
+			ID:            orderID,
+			Ticker:        signal.Ticker,
+			Action:        signal.Action,
+			Lots:          lots,
+			Price:         fillPrice,
+			ExpectedPrice: expectedPrice,
+			Commission:    commissionAmount(fillPrice, lots, l.commissionRate),
+			ExecutedAt:    l.now(),
 		}
 		if err := l.record(ctx, fill); err != nil {
 			return fill, err, true
@@ -282,28 +290,28 @@ func (l *LiveExecutor) placeOrder(ctx context.Context, signal domain.TradeSignal
 		if lots <= 0 {
 			return Fill{}, fmt.Errorf("live executor: order %q reported partially filled with zero executed lots", orderID), false
 		}
-		if err := l.recordPartialFill(ctx, signal, executedOrderPrice(response, price), orderID, lots); err != nil {
+		if err := l.recordPartialFill(ctx, signal, executedOrderPrice(response, price), expectedPrice, orderID, lots); err != nil {
 			return Fill{}, fmt.Errorf("live executor: order %q partially filled; record partial fill: %w", orderID, err), false
 		}
 		return Fill{}, fmt.Errorf("live executor: order %q partially filled: %d of %d lots executed", orderID, lots, response.GetLotsRequested()), false
 	case pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_REJECTED:
 		message := response.GetMessage()
-		if err := l.recordOrderStatus(ctx, signal, price, orderID, "rejected", message); err != nil {
+		if err := l.recordOrderStatus(ctx, signal, price, expectedPrice, orderID, "rejected", message); err != nil {
 			return Fill{}, fmt.Errorf("live executor: order %q rejected: %s; record status: %w", orderID, message, err), false
 		}
 		return Fill{}, fmt.Errorf("live executor: order %q rejected: %s", orderID, message), false
 	case pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_CANCELLED:
-		if err := l.recordOrderStatus(ctx, signal, price, orderID, "cancelled", ""); err != nil {
+		if err := l.recordOrderStatus(ctx, signal, price, expectedPrice, orderID, "cancelled", ""); err != nil {
 			return Fill{}, fmt.Errorf("live executor: order %q cancelled; record status: %w", orderID, err), false
 		}
 		return Fill{}, fmt.Errorf("live executor: order %q was cancelled", orderID), false
 	case pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_NEW:
-		if err := l.recordOrderStatus(ctx, signal, price, orderID, "new", ""); err != nil {
+		if err := l.recordOrderStatus(ctx, signal, price, expectedPrice, orderID, "new", ""); err != nil {
 			return Fill{}, fmt.Errorf("live executor: order %q accepted but not filled; record status: %w", orderID, err), false
 		}
 		return Fill{}, fmt.Errorf("live executor: order %q was accepted but not filled", orderID), false
 	default:
-		if err := l.recordOrderStatus(ctx, signal, price, orderID, "unspecified", ""); err != nil {
+		if err := l.recordOrderStatus(ctx, signal, price, expectedPrice, orderID, "unspecified", ""); err != nil {
 			return Fill{}, fmt.Errorf("live executor: order %q has status %s; record status: %w", orderID, status, err), false
 		}
 		return Fill{}, fmt.Errorf("live executor: order %q has unsupported execution report status %s", orderID, status), false
@@ -326,7 +334,7 @@ func validateLiveInput(signal domain.TradeSignal, price decimal.Decimal) error {
 	return nil
 }
 
-func (l *LiveExecutor) orderRequest(signal domain.TradeSignal, price decimal.Decimal, orderID, instrumentID string) (*pb.PostOrderRequest, error) {
+func (l *LiveExecutor) orderRequest(signal domain.TradeSignal, limitPrice decimal.Decimal, orderID, instrumentID string) (*pb.PostOrderRequest, error) {
 	direction := pb.OrderDirection_ORDER_DIRECTION_UNSPECIFIED
 	switch signal.Action {
 	case domain.ActionBuy:
@@ -346,7 +354,7 @@ func (l *LiveExecutor) orderRequest(signal domain.TradeSignal, price decimal.Dec
 		OrderId:      orderID,
 	}
 	if l.orderType != pb.OrderType_ORDER_TYPE_MARKET {
-		request.Price = decimalToQuotation(boundedLimitPrice(price, signal.Action, l.maxSlippagePct))
+		request.Price = decimalToQuotation(limitPrice)
 	}
 	return request, nil
 }
@@ -382,15 +390,16 @@ func (l *LiveExecutor) record(ctx context.Context, fill Fill) error {
 	return nil
 }
 
-func (l *LiveExecutor) recordIntent(ctx context.Context, signal domain.TradeSignal, price decimal.Decimal, orderID string) error {
+func (l *LiveExecutor) recordIntent(ctx context.Context, signal domain.TradeSignal, price, expectedPrice decimal.Decimal, orderID string) error {
 	now := l.now()
 	payload, err := json.Marshal(liveOrderIntent{
-		Status:      "requires_reconciliation",
-		Ticker:      signal.Ticker,
-		Action:      signal.Action,
-		TargetLots:  signal.TargetLots,
-		Price:       price,
-		SubmittedAt: now,
+		Status:        "requires_reconciliation",
+		Ticker:        signal.Ticker,
+		Action:        signal.Action,
+		TargetLots:    signal.TargetLots,
+		Price:         price,
+		ExpectedPrice: expectedPrice,
+		SubmittedAt:   now,
 	})
 	if err != nil {
 		return fmt.Errorf("live executor: marshal order intent: %w", err)
@@ -408,15 +417,16 @@ func (l *LiveExecutor) recordIntent(ctx context.Context, signal domain.TradeSign
 	return nil
 }
 
-func (l *LiveExecutor) recordOrderStatus(ctx context.Context, signal domain.TradeSignal, price decimal.Decimal, orderID, status, message string) error {
+func (l *LiveExecutor) recordOrderStatus(ctx context.Context, signal domain.TradeSignal, price, expectedPrice decimal.Decimal, orderID, status, message string) error {
 	payload, err := json.Marshal(liveOrderIntent{
-		Status:      status,
-		Ticker:      signal.Ticker,
-		Action:      signal.Action,
-		TargetLots:  signal.TargetLots,
-		Price:       price,
-		Message:     message,
-		SubmittedAt: l.now(),
+		Status:        status,
+		Ticker:        signal.Ticker,
+		Action:        signal.Action,
+		TargetLots:    signal.TargetLots,
+		Price:         price,
+		ExpectedPrice: expectedPrice,
+		Message:       message,
+		SubmittedAt:   l.now(),
 	})
 	if err != nil {
 		return fmt.Errorf("live executor: marshal order status: %w", err)
@@ -434,16 +444,17 @@ func (l *LiveExecutor) recordOrderStatus(ctx context.Context, signal domain.Trad
 	return nil
 }
 
-func (l *LiveExecutor) recordPartialFill(ctx context.Context, signal domain.TradeSignal, price decimal.Decimal, orderID string, lots int) error {
+func (l *LiveExecutor) recordPartialFill(ctx context.Context, signal domain.TradeSignal, price, expectedPrice decimal.Decimal, orderID string, lots int) error {
 	now := l.now()
 	payload, err := json.Marshal(persistedOrder{
-		Ticker:     signal.Ticker,
-		Action:     signal.Action,
-		Lots:       lots,
-		Price:      price,
-		Commission: commissionAmount(price, lots, l.commissionRate),
-		ExecutedAt: now,
-		Status:     "partially_filled",
+		Ticker:        signal.Ticker,
+		Action:        signal.Action,
+		Lots:          lots,
+		Price:         price,
+		ExpectedPrice: expectedPrice,
+		Commission:    commissionAmount(price, lots, l.commissionRate),
+		ExecutedAt:    now,
+		Status:        "partially_filled",
 	})
 	if err != nil {
 		return fmt.Errorf("live executor: marshal partial fill: %w", err)
@@ -478,13 +489,14 @@ func (l *LiveExecutor) loadPersistedOrder(ctx context.Context, orderID string) (
 		order.Ticker = event.Ticker
 	}
 	fill := Fill{
-		ID:         orderID,
-		Ticker:     order.Ticker,
-		Action:     order.Action,
-		Lots:       order.Lots,
-		Price:      order.Price,
-		Commission: order.Commission,
-		ExecutedAt: order.ExecutedAt,
+		ID:            orderID,
+		Ticker:        order.Ticker,
+		Action:        order.Action,
+		Lots:          order.Lots,
+		Price:         order.Price,
+		ExpectedPrice: order.ExpectedPrice,
+		Commission:    order.Commission,
+		ExecutedAt:    order.ExecutedAt,
 	}
 	return fill, order.Status, true, nil
 }

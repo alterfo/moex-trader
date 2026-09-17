@@ -74,6 +74,7 @@ type fakeSandboxClient struct {
 	resolveUID     func(ctx context.Context, ticker string) (string, error)
 	tradingStatus  func(ctx context.Context, instrumentID string) (*pb.GetTradingStatusResponse, error)
 	resolveLotSize func(ctx context.Context, instrumentUID string) (int32, error)
+	operations     func(ctx context.Context, accountID string, from, to time.Time) ([]*pb.Operation, error)
 }
 
 func (f *fakeSandboxClient) ResolveInstrumentUID(ctx context.Context, ticker string) (string, error) {
@@ -119,6 +120,13 @@ func (f *fakeSandboxClient) GetSandboxPortfolio(context.Context, string) (*pb.Po
 
 func (f *fakeSandboxClient) GetSandboxOrders(context.Context, string) ([]*pb.OrderState, error) {
 	return nil, fmt.Errorf("unexpected GetSandboxOrders call")
+}
+
+func (f *fakeSandboxClient) SandboxOperations(ctx context.Context, accountID string, from, to time.Time) ([]*pb.Operation, error) {
+	if f.operations != nil {
+		return f.operations(ctx, accountID, from, to)
+	}
+	return nil, fmt.Errorf("unexpected SandboxOperations call")
 }
 
 func (f *fakeSandboxClient) CancelSandboxOrder(context.Context, string, string) error {
