@@ -193,16 +193,18 @@ while the lexicon fallback keeps scoring `Title + Description`.
 
 ### Task 7: Deploy decision and documentation
 
-- [ ] if Task 6 shows a measurable improvement: replace the deployed
+- [x] if Task 6 shows a measurable improvement: replace the deployed
       `ensemble_model.json` with the new variant and update `config.sandbox.yaml`/
-      `config.example.yaml` references if the feature set name changed
-- [ ] if Task 6 does NOT show improvement: leave `ensemble_model.json` unchanged and
+      `config.example.yaml` references if the feature set name changed (N/A — Task 6
+      showed no confident improvement)
+- [x] if Task 6 does NOT show improvement: leave `ensemble_model.json` unchanged and
       document the negative result (matching the existing "Rejected after walk-forward"
       style already used in AGENTS.md) so this isn't re-tried blindly later
-- [ ] add a dated AGENTS.md entry under "Model quality / current state" summarizing the
+- [x] add a dated AGENTS.md entry under "Model quality / current state" summarizing the
       outcome either way
-- [ ] write tests if any config-loading code changed as part of the deploy decision
-- [ ] run project tests - must pass before next task
+- [x] write tests if any config-loading code changed as part of the deploy decision
+      (N/A — no config-loading code changed)
+- [x] run project tests - must pass before next task
 
 ### Task 8: Verify acceptance criteria
 
