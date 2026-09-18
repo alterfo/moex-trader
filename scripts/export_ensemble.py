@@ -7,6 +7,7 @@ import pandas as pd
 import xgboost as xgb
 import lightgbm as lgb
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
@@ -22,6 +23,7 @@ FEATURES = os.environ.get("ENSEMBLE_FEATURES14","").split(",") if os.environ.get
 ]
 ORDER = os.environ.get("ENSEMBLE_FEATURE_ORDER", "")
 ORDER = ORDER.split(",") if ORDER else FEATURES
+TRAIN_TILL = os.environ.get("ENSEMBLE_TRAIN_TILL", "")
 
 
 def expand(values, default, names):
@@ -31,9 +33,9 @@ def expand(values, default, names):
     return out
 
 
-def to_flat(tree):
+def to_flat(tree, positions):
     return {
-        "si": tree["split_indices"],
+        "si": [positions[x] if x >= 0 else -1 for x in tree["split_indices"]],
         "sc": [float(np.float32(x)) for x in tree["split_conditions"]],
         "lc": tree["left_children"],
         "rc": tree["right_children"],
@@ -41,7 +43,7 @@ def to_flat(tree):
     }
 
 
-def lgb_recursive_to_flat(node):
+def lgb_recursive_to_flat(node, positions):
     si, sc, lc, rc, dl = [], [], [], [], []
     nid = [0]
 
@@ -57,7 +59,7 @@ def lgb_recursive_to_flat(node):
             return i
         i = nid[0]
         nid[0] += 1
-        si.append(n["split_feature"])
+        si.append(positions[n["split_feature"]])
         sc.append(float(n["threshold"]))
         lc.append(-1)
         rc.append(-1)
@@ -75,6 +77,8 @@ def lgb_recursive_to_flat(node):
 def main():
     df = pd.read_csv(os.environ.get("DATASET", "/tmp/moex-dataset.csv"))
     train = df[df["split"] == "train"]
+    if TRAIN_TILL:
+        train = train[train["date"] <= TRAIN_TILL]
     X = train[FEATURES].to_numpy(dtype=float)
     y = train["label"].to_numpy(dtype=int)
 
@@ -94,12 +98,13 @@ def main():
     reg = lr.named_steps["logisticregression"]
 
     raw = json.loads(xgb_model.get_booster().save_raw(raw_format="json"))
-    xgb_trees = [to_flat(t) for t in raw["learner"]["gradient_booster"]["model"]["trees"]]
+    positions = [ORDER.index(name) for name in FEATURES]
+    xgb_trees = [to_flat(t, positions) for t in raw["learner"]["gradient_booster"]["model"]["trees"]]
     base = json.loads(raw["learner"]["learner_model_param"]["base_score"])
     xgb_base_logit = float(np.log(base[0] / (1.0 - base[0])))
 
     dump = lgb_model.booster_.dump_model()
-    lgb_trees = [lgb_recursive_to_flat(t["tree_structure"]) for t in dump["tree_info"]]
+    lgb_trees = [lgb_recursive_to_flat(t["tree_structure"], positions) for t in dump["tree_info"]]
 
     model = {
         "feature_order": ORDER,
@@ -122,11 +127,16 @@ def main():
     print("wrote", out, len(xgb_trees), "xgb trees,", len(lgb_trees), "lgb trees")
 
     val = df[(df["date"] >= "2026-06-18") & (df["date"] <= "2026-09-16")]
+    val = val[val["label"].notna()]
     Xv = val[FEATURES].to_numpy(dtype=float)
+    yv = val["label"].to_numpy(dtype=int)
     p_xgb = xgb_model.predict_proba(Xv)[:, 1]
     p_lgb = lgb_model.predict_proba(Xv)[:, 1]
     p_lr = lr.predict_proba(Xv)[:, 1]
     ens = (p_xgb + p_lgb + p_lr) / 3
+    print("val_auc xgb=%.4f lgbm=%.4f logreg=%.4f ensemble=%.4f" % (
+        roc_auc_score(yv, p_xgb), roc_auc_score(yv, p_lgb),
+        roc_auc_score(yv, p_lr), roc_auc_score(yv, ens)))
     np.save("/tmp/ens_val_proba.npy", ens)
     np.save("/tmp/ens_val_x.npy", Xv)
 

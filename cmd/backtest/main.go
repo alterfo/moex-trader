@@ -182,12 +182,13 @@ func run() error {
 
 	var newsOverrides map[string]map[string]backtest.NewsAggregate
 	var eventOverrides map[string]map[string]features.EventFlags
+	var topicSignalOverrides map[string]map[string]backtest.TopicSignalAggregate
 	if newsHistory != "" {
-		newsOverrides, eventOverrides, err = backtest.LoadNewsOverrides(newsHistory)
+		newsOverrides, eventOverrides, topicSignalOverrides, err = backtest.LoadNewsOverrides(newsHistory)
 		if err != nil {
 			return err
 		}
-		log.Printf("backtest: loaded %d tickers of news + event overrides from %s", len(newsOverrides), newsHistory)
+		log.Printf("backtest: loaded %d tickers of news + event + topic-signal overrides from %s", len(newsOverrides), newsHistory)
 	}
 
 	signalSource, saveCache, err := buildSignalSource(cfg, signalSourceOptions{
@@ -303,6 +304,7 @@ func run() error {
 		FeatureConfig:         features.PriceFeatureConfig{BarsPerDay: resolvedBPD},
 		NewsOverrides:         newsOverrides,
 		EventOverrides:        eventOverrides,
+		TopicSignalOverrides:  topicSignalOverrides,
 	})
 	if err != nil {
 		return err

@@ -53,6 +53,7 @@ Historical rows where the original run did not record a field are marked
 | 2026-06-19 -> 2026-09-17 (holdout) | realized +56379; MTM not recorded | news-aware ensemble_model.json @ 277ebf7 | commission 0.05%, spread 0.05%, slippage 0.05% | 2026-09-17 |
 | 2026-06-19 -> 2026-09-17 (holdout) | realized +40102; MTM not recorded | no-news control @ 277ebf7 | commission 0.05%, spread 0.05%, slippage 0.05% | 2026-09-17 |
 | 2026-06-19 -> 2026-09-17 (90d preflight) | MTM +25699; realized not recorded | ensemble_model.json @ 277ebf7 | zero (pre-Task-5 preflight) | 2026-09-17 |
+| 2025-03-05 -> 2026-09-16 (6 windows) | realized +101246.75 (18f), +103739.34 (20f); MTM not recorded | negotiations/sanctions evidence-gate walk-forward (Task 6) | commission 0.05%, spread+slippage 0.05% each | 2026-09-18 |
 
 The two `not recorded` rows (+75028, +63212) were reported in the two-session
 source debate but their window/cost/realized-vs-MTM provenance was not
@@ -357,3 +358,44 @@ the Task 11 0.005%/day stress rate.
 The table is populated by the live trader's periodic `executionQualityReporter`
 log once the sandbox produces orders; there are no live fill numbers to record
 at commit time.
+
+## Negotiations/sanctions signal evidence gate (Task 6)
+
+Pre-registered with-vs-without comparison of the two new topic signals. Both
+variants train and backtest on the identical 18-ticker daily dataset
+(`data-28f-full.csv`, absolute-10d label, deadband 0.5%, colsample 0.8,
+thresholds 0.60/0.40, 15000₽/position, 1M deposit, commission 0.05%,
+spread+slippage 0.05%+0.05%, realized P&L). The only difference is the feature
+set: 18 price/flow columns vs 18 + `negotiations_signal` + `sanctions_signal`.
+
+Validation AUC (held-out decision dates 2026-06-18 -> 2026-09-16):
+
+| variant | xgb | lgbm | logreg | ensemble |
+|---|---|---|---|---|
+| 18-feature baseline | 0.4896 | 0.5172 | 0.5080 | 0.5084 |
+| 20-feature (+2 topic) | 0.4920 | 0.5172 | 0.5080 | 0.5098 |
+
+Delta: ensemble +0.0014 — within the ±0.005 AUC noise band recorded in AGENTS.md.
+
+6-quarter walk-forward realized P&L (closed trades, gross - commission), RUB:
+
+| window | 18-feature | 18-feature max DD | 20-feature | 20-feature max DD |
+|---|---|---|---|---|
+| q1 (2025-03-05 -> 2025-06-05) | +5405.91 | 2.85% | +4519.17 | 2.84% |
+| q2 (2025-06-06 -> 2025-09-05) | -1650.63 | 3.52% | -454.51 | 3.55% |
+| q3 (2025-09-06 -> 2025-12-03) | +38813.88 | 0.66% | +39302.95 | 0.64% |
+| q4 (2025-12-04 -> 2026-03-04) | -1828.22 | 1.94% | -2798.89 | 1.79% |
+| w2 (2026-03-05 -> 2026-06-06) | -1639.66 | 2.04% | +2045.18 | 1.67% |
+| w1 (2026-06-07 -> 2026-09-16) | +62145.47 | 1.26% | +61125.45 | 1.26% |
+| total | +101246.75 | 3.52% | +103739.34 | 3.55% |
+
+Delta: 20-feature is +2492.59 RUB (+2.5%) higher, but the sign is window-mixed
+(worse in q1, q4, and w1) and the AUC delta is below the noise threshold.
+
+Verdict: no confident measurable improvement. The available news archive
+covers only 2026-08-14 -> 2026-09-17, so `negotiations_signal` and
+`sanctions_signal` are zero in every training window (9 and 5 non-zero rows,
+all in the final test window). The early-window differences are colsample
+dilution from two extra zero-variance columns, not learned signal value. This
+needs a richer historical news backfill before the comparison can test the
+signals themselves (plan data-availability caveat).

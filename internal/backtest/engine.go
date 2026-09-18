@@ -126,6 +126,7 @@ type Config struct {
 	Logger                *log.Logger
 	NewsOverrides         map[string]map[string]NewsAggregate
 	EventOverrides        map[string]map[string]features.EventFlags
+	TopicSignalOverrides  map[string]map[string]TopicSignalAggregate
 }
 
 type NewsAggregate struct {
@@ -133,21 +134,34 @@ type NewsAggregate struct {
 	Count     int
 }
 
+type TopicSignalAggregate struct {
+	Negotiations float64
+	Sanctions    float64
+}
+
+type topicAccum struct {
+	negotiationsWeighted float64
+	negotiationsWeight   float64
+	sanctionsWeighted    float64
+	sanctionsWeight      float64
+}
+
 type EventOverrides struct {
 	News   map[string]map[string]NewsAggregate
 	Events map[string]map[string]features.EventFlags
 }
 
-func LoadNewsOverrides(path string) (map[string]map[string]NewsAggregate, map[string]map[string]features.EventFlags, error) {
+func LoadNewsOverrides(path string) (map[string]map[string]NewsAggregate, map[string]map[string]features.EventFlags, map[string]map[string]TopicSignalAggregate, error) {
 	type record struct {
-		Ticker    string  `json:"ticker"`
-		Sentiment float64 `json:"sentiment"`
-		PubTS     int64   `json:"published_ts"`
-		Title     string  `json:"title"`
+		Ticker      string  `json:"ticker"`
+		Sentiment   float64 `json:"sentiment"`
+		TrustWeight float64 `json:"trust_weight"`
+		PubTS       int64   `json:"published_ts"`
+		Title       string  `json:"title"`
 	}
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("backtest: open news history: %w", err)
+		return nil, nil, nil, fmt.Errorf("backtest: open news history: %w", err)
 	}
 	defer f.Close()
 	type accum struct {
@@ -157,6 +171,7 @@ func LoadNewsOverrides(path string) (map[string]map[string]NewsAggregate, map[st
 	}
 	acc := make(map[string]map[string]*accum)
 	evAcc := make(map[string]map[string]*features.EventFlags)
+	topicAcc := make(map[string]map[string]*topicAccum)
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 1<<20), 1<<20)
 	for scanner.Scan() {
@@ -184,6 +199,30 @@ func LoadNewsOverrides(path string) (map[string]map[string]NewsAggregate, map[st
 		a.n++
 		if r.Title != "" {
 			flags := features.DetectEvents(r.Title)
+			trustWeight := r.TrustWeight
+			if trustWeight <= 0 {
+				trustWeight = 1
+			}
+			if flags.Negotiations != 0 || flags.Sanctions != 0 {
+				topicByDate, ok := topicAcc[ticker]
+				if !ok {
+					topicByDate = make(map[string]*topicAccum)
+					topicAcc[ticker] = topicByDate
+				}
+				ta, ok := topicByDate[date]
+				if !ok {
+					ta = &topicAccum{}
+					topicByDate[date] = ta
+				}
+				if flags.Negotiations != 0 {
+					ta.negotiationsWeighted += r.Sentiment * trustWeight
+					ta.negotiationsWeight += trustWeight
+				}
+				if flags.Sanctions != 0 {
+					ta.sanctionsWeighted += r.Sentiment * trustWeight
+					ta.sanctionsWeight += trustWeight
+				}
+			}
 			evByDate, ok := evAcc[ticker]
 			if !ok {
 				evByDate = make(map[string]*features.EventFlags)
@@ -205,7 +244,7 @@ func LoadNewsOverrides(path string) (map[string]map[string]NewsAggregate, map[st
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, nil, fmt.Errorf("backtest: read news: %w", err)
+		return nil, nil, nil, fmt.Errorf("backtest: read news: %w", err)
 	}
 	out := make(map[string]map[string]NewsAggregate, len(acc))
 	for ticker, byDate := range acc {
@@ -225,7 +264,21 @@ func LoadNewsOverrides(path string) (map[string]map[string]NewsAggregate, map[st
 			evOut[ticker][d] = *a
 		}
 	}
-	return out, evOut, nil
+	topicOut := make(map[string]map[string]TopicSignalAggregate, len(topicAcc))
+	for ticker, byDate := range topicAcc {
+		topicOut[ticker] = make(map[string]TopicSignalAggregate, len(byDate))
+		for d, a := range byDate {
+			var agg TopicSignalAggregate
+			if a.negotiationsWeight > 0 {
+				agg.Negotiations = a.negotiationsWeighted / a.negotiationsWeight
+			}
+			if a.sanctionsWeight > 0 {
+				agg.Sanctions = a.sanctionsWeighted / a.sanctionsWeight
+			}
+			topicOut[ticker][d] = agg
+		}
+	}
+	return out, evOut, topicOut, nil
 }
 
 func (c Config) WithDefaults() Config {
@@ -606,6 +659,15 @@ func (e *Engine) processTickerDay(ctx context.Context, run *tickerBacktest, d in
 				feature.EventDelisting = ev.Delisting
 				feature.EventMNA = ev.MNA
 				feature.EventDefault = ev.Default
+			}
+		}
+	}
+	if e.cfg.TopicSignalOverrides != nil {
+		dateKey := decisionDay.Format("2006-01-02")
+		if byDate, ok := e.cfg.TopicSignalOverrides[ticker]; ok {
+			if topic, ok := byDate[dateKey]; ok {
+				feature.NegotiationsSignal = decimal.NewFromFloat(topic.Negotiations)
+				feature.SanctionsSignal = decimal.NewFromFloat(topic.Sanctions)
 			}
 		}
 	}

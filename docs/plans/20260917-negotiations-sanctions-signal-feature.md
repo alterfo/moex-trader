@@ -179,16 +179,17 @@ while the lexicon fallback keeps scoring `Title + Description`.
 
 ### Task 6: Retrain and evidence-gate comparison
 
-- [ ] train two ensemble variants via `scripts/export_ensemble.py`: the current
+- [x] train two ensemble variants via `scripts/export_ensemble.py`: the current
       18-feature baseline, and baseline + `negotiations_signal` + `sanctions_signal`
-- [ ] compare validation AUC between the two variants
-- [ ] run the same 6-quarter walk-forward backtest (18 tickers, realistic
+- [x] compare validation AUC between the two variants
+- [x] run the same 6-quarter walk-forward backtest (18 tickers, realistic
       spread+slippage, realized P&L not MTM) for both variants and compare
-- [ ] record both comparisons in `docs/metrics.md`
-- [ ] write tests for any new Go comparison/reporting code added for this task (if the
-      comparison is done purely via existing `cmd/backtest`/`scripts/compare_models.py`
-      invocations, note that no new code needs tests here)
-- [ ] run project tests - must pass before next task
+- [x] record both comparisons in `docs/metrics.md`
+- [x] write tests for any new Go comparison/reporting code added for this task — no new
+      comparison/reporting code; the backtest topic-signal injection added so the
+      20-feature variant sees real values is covered by
+      `TestLoadNewsOverridesTopicSignals`/`...NoMatches`
+- [x] run project tests - must pass before next task
 
 ### Task 7: Deploy decision and documentation
 
