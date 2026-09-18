@@ -29,6 +29,8 @@ var defaultFeatureOrder = []string{
 	"event_delisting",
 	"event_mna",
 	"event_default",
+	"negotiations_signal",
+	"sanctions_signal",
 }
 
 func ToVector(f domain.FeatureContext) ([]float64, []string) {
@@ -59,6 +61,8 @@ func ToVector(f domain.FeatureContext) ([]float64, []string) {
 		float64(f.EventDelisting),
 		float64(f.EventMNA),
 		float64(f.EventDefault),
+		f.NegotiationsSignal.InexactFloat64(),
+		f.SanctionsSignal.InexactFloat64(),
 	}
 	return values, append([]string(nil), defaultFeatureOrder...)
 }

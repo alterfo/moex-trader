@@ -10,6 +10,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/model"
@@ -75,11 +76,7 @@ func TestWriteTickerKeysLabelsPerBarWithinADay(t *testing.T) {
 
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)
-	header := []string{"ticker", "date", "label", "label_date", "split", "return_pct", "realized_volatility",
-		"news_sentiment", "news_count", "order_book_imbalance", "mom_5d", "mom_21d", "mom_63d",
-		"reversal_1d", "rsi_14", "dist_ma20_pct", "dist_ma50_pct", "realized_vol_21d_annualized_pct", "volume_zscore_20d",
-		"macd_hist_pct", "stoch_k_14", "williams_r_14", "alligator_spread_pct",
-		"event_dividend", "event_buyback", "event_sanctions", "event_ipo", "event_report", "event_delisting", "event_mna", "event_default"}
+	header := datasetHeader()
 
 	const warmup = 10
 	from := start
@@ -90,7 +87,7 @@ func TestWriteTickerKeysLabelsPerBarWithinADay(t *testing.T) {
 	}
 
 	err := writeTicker(context.Background(), writer, source, features.NewBuilder(time.Now),
-		"TEST", start, till, from, from, defaultHorizonDays, warmup, labels, nil, nil, header)
+		"TEST", start, till, from, from, defaultHorizonDays, warmup, labels, nil, nil, nil, header)
 	if err != nil {
 		t.Fatalf("writeTicker: %v", err)
 	}
@@ -122,11 +119,7 @@ func TestWriteTickerRowMatchesHeader(t *testing.T) {
 	from := start.AddDate(0, 0, minLabelCandles)
 	till := start.AddDate(0, 0, minLabelCandles+4)
 	split := start.AddDate(0, 0, minLabelCandles+2)
-	header := []string{"ticker", "date", "label", "label_date", "split", "return_pct", "realized_volatility",
-		"news_sentiment", "news_count", "order_book_imbalance", "mom_5d", "mom_21d", "mom_63d",
-		"reversal_1d", "rsi_14", "dist_ma20_pct", "dist_ma50_pct", "realized_vol_21d_annualized_pct", "volume_zscore_20d",
-		"macd_hist_pct", "stoch_k_14", "williams_r_14", "alligator_spread_pct",
-		"event_dividend", "event_buyback", "event_sanctions", "event_ipo", "event_report", "event_delisting", "event_mna", "event_default"}
+	header := datasetHeader()
 
 	news := model.AggregateDailySentiment([]model.HistoricalNewsRecord{
 		{Ticker: "TEST", PublishedAt: from, Sentiment: 0.75, TrustWeight: 1},
@@ -137,7 +130,7 @@ func TestWriteTickerRowMatchesHeader(t *testing.T) {
 	labels := map[string]labeledRow{}
 
 	err := writeTicker(context.Background(), writer, source, features.NewBuilder(time.Now),
-		"TEST", start, till, from, split, defaultHorizonDays, minLabelCandles, labels, news, events, header)
+		"TEST", start, till, from, split, defaultHorizonDays, minLabelCandles, labels, news, nil, events, header)
 	if err != nil {
 		t.Fatalf("writeTicker: %v", err)
 	}
@@ -167,5 +160,30 @@ func TestWriteTickerRowMatchesHeader(t *testing.T) {
 	}
 	if !gotNews {
 		t.Log("note: no news row found in this window; columns still sized correctly")
+	}
+}
+
+func TestDatasetHeaderMirrorsFeatureOrder(t *testing.T) {
+	header := datasetHeader()
+	if len(header) < 7 {
+		t.Fatalf("header too short: %v", header)
+	}
+	wantPrefix := []string{"ticker", "date", "label", "label_date", "split"}
+	for i, want := range wantPrefix {
+		if header[i] != want {
+			t.Fatalf("header[%d] = %q, want %q", i, header[i], want)
+		}
+	}
+	_, names := model.ToVector(domain.FeatureContext{})
+	if len(header)-5 != len(names) {
+		t.Fatalf("header has %d feature columns, want %d", len(header)-5, len(names))
+	}
+	for i, name := range names {
+		if header[5+i] != name {
+			t.Fatalf("feature column %d = %q, want %q", i, header[5+i], name)
+		}
+	}
+	if names[len(names)-2] != "negotiations_signal" || names[len(names)-1] != "sanctions_signal" {
+		t.Fatalf("new signal names missing from feature order tail: %v", names[len(names)-2:])
 	}
 }

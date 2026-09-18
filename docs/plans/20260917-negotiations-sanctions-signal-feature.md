@@ -159,13 +159,13 @@ while the lexicon fallback keeps scoring `Title + Description`.
 
 ### Task 4: Thread new features through the feature vector order
 
-- [ ] append `negotiations_signal`, `sanctions_signal` to `defaultFeatureOrder`/
+- [x] append `negotiations_signal`, `sanctions_signal` to `defaultFeatureOrder`/
       `ToVector` in `internal/model/features.go`
-- [ ] update the CSV header/row sizing in `cmd/exportdataset/main.go`
-- [ ] update `FEATURES` in `scripts/export_ensemble.py` and `scripts/compare_models.py`
-- [ ] write/update the feature-order consistency test (`checkFeatureOrder` or equivalent)
+- [x] update the CSV header/row sizing in `cmd/exportdataset/main.go`
+- [x] update `FEATURES` in `scripts/export_ensemble.py` and `scripts/compare_models.py`
+- [x] write/update the feature-order consistency test (`checkFeatureOrder` or equivalent)
       to cover the two new names
-- [ ] run project tests - must pass before next task
+- [x] run project tests - must pass before next task
 
 ### Task 5: Backfill dataset with the new signals
 

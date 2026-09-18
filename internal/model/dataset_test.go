@@ -459,16 +459,18 @@ func TestToVector(t *testing.T) {
 		EventDelisting:     6,
 		EventMNA:           7,
 		EventDefault:       8,
+		NegotiationsSignal: decimal.NewFromFloat(18),
+		SanctionsSignal:    decimal.NewFromFloat(19),
 	}
 
 	values, names := ToVector(feature)
-	if len(values) != 26 || len(names) != 26 {
-		t.Fatalf("ToVector returned %d values and %d names, want 26/26", len(values), len(names))
+	if len(values) != 28 || len(names) != 28 {
+		t.Fatalf("ToVector returned %d values and %d names, want 28/28", len(values), len(names))
 	}
 	if !equalStrings(names, defaultFeatureOrder) {
 		t.Fatalf("names = %v, want %v", names, defaultFeatureOrder)
 	}
-	want := []float64{1.25, 2.5, 0.75, 7, -0.4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 1, 2, 3, 4, 5, 6, 7, 8}
+	want := []float64{1.25, 2.5, 0.75, 7, -0.4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 1, 2, 3, 4, 5, 6, 7, 8, 18, 19}
 	for i := range want {
 		if values[i] != want[i] {
 			t.Fatalf("values[%d] = %v, want %v", i, values[i], want[i])
@@ -486,4 +488,28 @@ func equalStrings(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func TestCheckFeatureOrderCoversNewSignalNames(t *testing.T) {
+	_, names := ToVector(domain.FeatureContext{})
+	if len(names) < 2 {
+		t.Fatalf("ToVector returned %d names, want at least 2", len(names))
+	}
+	if names[len(names)-2] != "negotiations_signal" || names[len(names)-1] != "sanctions_signal" {
+		t.Fatalf("last two feature names = %q, %q; want negotiations_signal, sanctions_signal",
+			names[len(names)-2], names[len(names)-1])
+	}
+	if err := checkFeatureOrder(defaultFeatureOrder, names); err != nil {
+		t.Fatalf("checkFeatureOrder(defaultFeatureOrder, ToVector names) = %v, want nil", err)
+	}
+	reordered := append([]string(nil), defaultFeatureOrder...)
+	reordered[len(reordered)-1], reordered[len(reordered)-2] = reordered[len(reordered)-2], reordered[len(reordered)-1]
+	if err := checkFeatureOrder(reordered, names); err == nil {
+		t.Fatal("checkFeatureOrder accepted a reordered new-signal name")
+	}
+	missing := append([]string(nil), defaultFeatureOrder...)
+	missing = missing[:len(missing)-1]
+	if err := checkFeatureOrder(missing, names); err == nil {
+		t.Fatal("checkFeatureOrder accepted a truncated feature order")
+	}
 }

@@ -20,6 +20,7 @@ FEATURES = [
     "alligator_spread_pct",
     "event_dividend", "event_buyback", "event_sanctions", "event_ipo",
     "event_report", "event_delisting", "event_mna", "event_default",
+    "negotiations_signal", "sanctions_signal",
 ]
 
 DATA = os.environ.get("DATASET", "/tmp/moex-dataset.csv")

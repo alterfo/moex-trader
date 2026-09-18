@@ -18,6 +18,7 @@ FEATURES = os.environ.get("ENSEMBLE_FEATURES14","").split(",") if os.environ.get
     "macd_hist_pct", "stoch_k_14", "williams_r_14", "alligator_spread_pct",
     "event_dividend", "event_buyback", "event_sanctions", "event_ipo",
     "event_report", "event_delisting", "event_mna", "event_default",
+    "negotiations_signal", "sanctions_signal",
 ]
 ORDER = os.environ.get("ENSEMBLE_FEATURE_ORDER", "")
 ORDER = ORDER.split(",") if ORDER else FEATURES

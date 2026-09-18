@@ -18,6 +18,7 @@ import (
 
 	"github.com/olegsidorkin/moex-trader/internal/backtest"
 	"github.com/olegsidorkin/moex-trader/internal/config"
+	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/model"
@@ -82,6 +83,7 @@ func run(args []string) error {
 	}
 
 	var newsHistory map[string]map[string]model.NewsAggregate
+	var topicHistory map[string]map[string]model.TopicSignalAggregate
 	var eventHistory map[string]map[string]model.EventAggregate
 	if opts.newsHistory != "" {
 		records, err := model.LoadFinanalysNewsHistory(opts.newsHistory)
@@ -89,6 +91,7 @@ func run(args []string) error {
 			return fmt.Errorf("load news history: %w", err)
 		}
 		newsHistory = model.AggregateDailySentiment(records)
+		topicHistory = model.AggregateDailyTopicSignals(records)
 		eventHistory = model.AggregateDailyEvents(records)
 		log.Printf("exportdataset: loaded %d historical news records for real news_sentiment/news_count and events", len(records))
 	}
@@ -133,11 +136,7 @@ func run(args []string) error {
 	writer := csv.NewWriter(out)
 	defer writer.Flush()
 
-	header := []string{"ticker", "date", "label", "label_date", "split", "return_pct", "realized_volatility",
-		"news_sentiment", "news_count", "order_book_imbalance", "mom_5d", "mom_21d", "mom_63d",
-		"reversal_1d", "rsi_14", "dist_ma20_pct", "dist_ma50_pct", "realized_vol_21d_annualized_pct", "volume_zscore_20d",
-		"macd_hist_pct", "stoch_k_14", "williams_r_14", "alligator_spread_pct",
-		"event_dividend", "event_buyback", "event_sanctions", "event_ipo", "event_report", "event_delisting", "event_mna", "event_default"}
+	header := datasetHeader()
 	if err := writer.Write(header); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
@@ -147,7 +146,7 @@ func run(args []string) error {
 			return ctx.Err()
 		}
 		builder := features.NewBuilderWithConfig(time.Now, featureCfg)
-		if err := writeTicker(ctx, writer, source, builder, ticker, fetchFrom, till, from, split, opts.horizonDays, featureCfg.WarmupCandles(), labelByKey, newsHistory, eventHistory, header); err != nil {
+		if err := writeTicker(ctx, writer, source, builder, ticker, fetchFrom, till, from, split, opts.horizonDays, featureCfg.WarmupCandles(), labelByKey, newsHistory, topicHistory, eventHistory, header); err != nil {
 			return err
 		}
 	}
@@ -161,7 +160,7 @@ type labeledRow struct {
 
 func writeTicker(ctx context.Context, writer *csv.Writer, source backtest.HistoricalSource, builder *features.Builder,
 	ticker string, fetchFrom, till, from, split time.Time, horizonDays, warmup int, labels map[string]labeledRow,
-	newsHistory map[string]map[string]model.NewsAggregate, eventHistory map[string]map[string]model.EventAggregate, header []string) error {
+	newsHistory map[string]map[string]model.NewsAggregate, topicHistory map[string]map[string]model.TopicSignalAggregate, eventHistory map[string]map[string]model.EventAggregate, header []string) error {
 	candles, err := source.History(ctx, ticker, fetchFrom, till)
 	if err != nil {
 		return fmt.Errorf("history %s: %w", ticker, err)
@@ -197,6 +196,12 @@ func writeTicker(ctx context.Context, writer *csv.Writer, source backtest.Histor
 			if agg, ok := byDate[dateKey(decisionDay)]; ok {
 				feature.NewsSentiment = decimal.NewFromFloat(agg.Sentiment)
 				feature.NewsCount = agg.Count
+			}
+		}
+		if byDate, ok := topicHistory[ticker]; ok {
+			if agg, ok := byDate[dateKey(decisionDay)]; ok {
+				feature.NegotiationsSignal = decimal.NewFromFloat(agg.Negotiations)
+				feature.SanctionsSignal = decimal.NewFromFloat(agg.Sanctions)
 			}
 		}
 		if byDate, ok := eventHistory[ticker]; ok {
@@ -336,4 +341,10 @@ func splitComma(s string) []string {
 		}
 	}
 	return out
+}
+
+func datasetHeader() []string {
+	_, names := model.ToVector(domain.FeatureContext{})
+	header := []string{"ticker", "date", "label", "label_date", "split"}
+	return append(header, names...)
 }
