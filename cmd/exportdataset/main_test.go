@@ -163,6 +163,59 @@ func TestWriteTickerRowMatchesHeader(t *testing.T) {
 	}
 }
 
+func TestWriteTickerWritesTopicSignalColumns(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	source := &fakeSource{candles: map[string][]moex.Candle{
+		"TEST": makeCandles(start, minLabelCandles+2, 1),
+	}}
+	var buf bytes.Buffer
+	writer := csv.NewWriter(&buf)
+
+	from := start.AddDate(0, 0, minLabelCandles)
+	till := start.AddDate(0, 0, minLabelCandles+1)
+	header := datasetHeader()
+	topics := model.AggregateDailyTopicSignals([]model.HistoricalNewsRecord{
+		{Ticker: "TEST", PublishedAt: from, TrustWeight: 1, Title: "Мирный план по переговорам согласован", Sentiment: 0.625},
+		{Ticker: "TEST", PublishedAt: from, TrustWeight: 1, Title: "Новые санкции ограничили торговлю", Sentiment: -0.375},
+	})
+	if err := writer.Write(header); err != nil {
+		t.Fatalf("write header: %v", err)
+	}
+
+	err := writeTicker(context.Background(), writer, source, features.NewBuilder(time.Now),
+		"TEST", start, till, from, from, defaultHorizonDays, minLabelCandles, map[string]labeledRow{}, nil, topics, nil, header)
+	if err != nil {
+		t.Fatalf("writeTicker: %v", err)
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		t.Fatalf("writer: %v", err)
+	}
+
+	rows, err := csv.NewReader(strings.NewReader(buf.String())).ReadAll()
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("got %d CSV rows, want header + 2 decision rows", len(rows))
+	}
+	if rows[0][31] != "negotiations_signal" || rows[0][32] != "sanctions_signal" {
+		t.Fatalf("topic signal header columns = %q/%q, want negotiations_signal/sanctions_signal", rows[0][31], rows[0][32])
+	}
+	if got := rows[1][31]; got != "0.625" {
+		t.Fatalf("negotiations_signal = %q, want 0.625", got)
+	}
+	if got := rows[1][32]; got != "-0.375" {
+		t.Fatalf("sanctions_signal = %q, want -0.375", got)
+	}
+	if got := rows[2][31]; got != "0" {
+		t.Fatalf("negotiations_signal for non-matching day = %q, want 0", got)
+	}
+	if got := rows[2][32]; got != "0" {
+		t.Fatalf("sanctions_signal for non-matching day = %q, want 0", got)
+	}
+}
+
 func TestDatasetHeaderMirrorsFeatureOrder(t *testing.T) {
 	header := datasetHeader()
 	if len(header) < 7 {

@@ -169,13 +169,13 @@ while the lexicon fallback keeps scoring `Title + Description`.
 
 ### Task 5: Backfill dataset with the new signals
 
-- [ ] re-run `cmd/exportdataset -news-history <path>` against the existing
+- [x] re-run `cmd/exportdataset -news-history <path>` against the existing
       `news_history.jsonl` archive to produce a dataset CSV that includes
       `negotiations_signal`/`sanctions_signal`
-- [ ] spot-check the output: confirm non-zero values appear on known
+- [x] spot-check the output: confirm non-zero values appear on known
       negotiation/sanctions headline dates and zero elsewhere
-- [ ] write tests covering the new columns' presence/shape in the exported CSV
-- [ ] run project tests - must pass before next task
+- [x] write tests covering the new columns' presence/shape in the exported CSV
+- [x] run project tests - must pass before next task
 
 ### Task 6: Retrain and evidence-gate comparison
 
