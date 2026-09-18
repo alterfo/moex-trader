@@ -121,6 +121,66 @@ func AggregateDailySentiment(records []HistoricalNewsRecord) map[string]map[stri
 	return out
 }
 
+type TopicSignalAggregate struct {
+	Negotiations float64
+	Sanctions    float64
+}
+
+func AggregateDailyTopicSignals(records []HistoricalNewsRecord) map[string]map[string]TopicSignalAggregate {
+	type accum struct {
+		negWeighted float64
+		negWeight   float64
+		sanWeighted float64
+		sanWeight   float64
+	}
+	acc := make(map[string]map[string]*accum)
+	for _, r := range records {
+		if r.TrustWeight <= 0 || r.Title == "" {
+			continue
+		}
+		events := features.DetectEvents(r.Title)
+		if events.Negotiations == 0 && events.Sanctions == 0 {
+			continue
+		}
+		byDate, ok := acc[r.Ticker]
+		if !ok {
+			byDate = make(map[string]*accum)
+			acc[r.Ticker] = byDate
+		}
+		key := dateKey(r.PublishedAt)
+		a, ok := byDate[key]
+		if !ok {
+			a = &accum{}
+			byDate[key] = a
+		}
+		if events.Negotiations != 0 {
+			a.negWeighted += r.Sentiment * r.TrustWeight
+			a.negWeight += r.TrustWeight
+		}
+		if events.Sanctions != 0 {
+			a.sanWeighted += r.Sentiment * r.TrustWeight
+			a.sanWeight += r.TrustWeight
+		}
+	}
+
+	out := make(map[string]map[string]TopicSignalAggregate, len(acc))
+	for ticker, byDate := range acc {
+		out[ticker] = make(map[string]TopicSignalAggregate, len(byDate))
+		for date, a := range byDate {
+			negotiations := 0.0
+			if a.negWeight > 0 {
+				negotiations = a.negWeighted / a.negWeight
+			}
+			sanctions := 0.0
+			if a.sanWeight > 0 {
+				sanctions = a.sanWeighted / a.sanWeight
+			}
+			out[ticker][date] = TopicSignalAggregate{Negotiations: negotiations, Sanctions: sanctions}
+		}
+	}
+	return out
+}
+
 func ApplyNewsOverride(samples []LabeledSample, news map[string]map[string]NewsAggregate) int {
 	applied := 0
 	for i := range samples {

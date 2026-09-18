@@ -72,6 +72,7 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 	}
 
 	newsSentiment, newsCount := b.aggregateNewsSentiment(input.News)
+	negotiationsSignal, sanctionsSignal := b.aggregateTopicSignals(input.News)
 	events := AggregateEvents(input.News)
 
 	generatedAt := b.now()
@@ -118,6 +119,8 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 		EventDelisting:     events.Delisting,
 		EventMNA:           events.MNA,
 		EventDefault:       events.Default,
+		NegotiationsSignal: negotiationsSignal,
+		SanctionsSignal:    sanctionsSignal,
 	}, nil
 }
 
@@ -209,6 +212,43 @@ func (b *Builder) aggregateNewsSentiment(articles []news.MatchedArticle) (decima
 		return decimal.Zero, len(articles)
 	}
 	return weightedScore.Div(totalWeight), len(articles)
+}
+
+func (b *Builder) aggregateTopicSignals(articles []news.MatchedArticle) (decimal.Decimal, decimal.Decimal) {
+	if b.newsPolarity == nil {
+		return decimal.Zero, decimal.Zero
+	}
+
+	var negWeighted, negWeight, sanWeighted, sanWeight decimal.Decimal
+	for _, article := range articles {
+		weight := article.TrustWeight
+		if weight.Sign() <= 0 {
+			continue
+		}
+		flags := DetectEvents(article.Title)
+		if flags.Negotiations == 0 && flags.Sanctions == 0 {
+			continue
+		}
+		polarity := b.newsPolarity(article.Title)
+		if flags.Negotiations != 0 {
+			negWeighted = negWeighted.Add(polarity.Mul(weight))
+			negWeight = negWeight.Add(weight)
+		}
+		if flags.Sanctions != 0 {
+			sanWeighted = sanWeighted.Add(polarity.Mul(weight))
+			sanWeight = sanWeight.Add(weight)
+		}
+	}
+
+	negotiations := decimal.Zero
+	if negWeight.Sign() > 0 {
+		negotiations = negWeighted.Div(negWeight)
+	}
+	sanctions := decimal.Zero
+	if sanWeight.Sign() > 0 {
+		sanctions = sanWeighted.Div(sanWeight)
+	}
+	return negotiations, sanctions
 }
 
 func articlePolarity(article news.MatchedArticle) decimal.Decimal {

@@ -68,6 +68,8 @@ type FeatureContext struct {
 	EventDelisting     int             `json:"event_delisting"`
 	EventMNA           int             `json:"event_mna"`
 	EventDefault       int             `json:"event_default"`
+	NegotiationsSignal decimal.Decimal `json:"negotiations_signal"`
+	SanctionsSignal    decimal.Decimal `json:"sanctions_signal"`
 	LotSize            decimal.Decimal `json:"lot_size,omitempty"`
 }
 

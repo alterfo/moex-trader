@@ -222,6 +222,104 @@ func TestBuildNewsSentimentFallsBackToKeywordLexicon(t *testing.T) {
 	}
 }
 
+func TestBuildTopicSignalsWeightedByClassifierPolarity(t *testing.T) {
+	builder := NewBuilder(nil)
+	builder.SetNewsPolarity(func(title string) decimal.Decimal {
+		switch title {
+		case "переговоры по украине":
+			return decimal.NewFromFloat(0.8)
+		case "санкции смягчены":
+			return decimal.NewFromFloat(-0.4)
+		default:
+			return decimal.NewFromFloat(0.9)
+		}
+	})
+
+	input := Input{
+		Ticker: "SBER",
+		Price: PriceSnapshot{
+			LastPrice: decimal.NewFromFloat(270),
+			PrevClose: decimal.NewFromFloat(260),
+		},
+		News: []news.MatchedArticle{
+			{Ticker: "SBER", Title: "переговоры по украине", TrustWeight: decimal.NewFromFloat(0.5)},
+			{Ticker: "SBER", Title: "санкции смягчены", TrustWeight: decimal.NewFromFloat(0.5)},
+			{Ticker: "SBER", Title: "отчет компании", TrustWeight: decimal.NewFromFloat(0.9)},
+		},
+	}
+
+	ctx, err := builder.Build(input)
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if !ctx.NegotiationsSignal.Equal(decimal.NewFromFloat(0.8)) {
+		t.Fatalf("NegotiationsSignal = %s, want 0.8", ctx.NegotiationsSignal)
+	}
+	if !ctx.SanctionsSignal.Equal(decimal.NewFromFloat(-0.4)) {
+		t.Fatalf("SanctionsSignal = %s, want -0.4", ctx.SanctionsSignal)
+	}
+}
+
+func TestBuildTopicSignalsWeightedMean(t *testing.T) {
+	builder := NewBuilder(nil)
+	builder.SetNewsPolarity(func(title string) decimal.Decimal {
+		if title == "переговоры продолжаются" {
+			return decimal.NewFromFloat(0.2)
+		}
+		return decimal.NewFromFloat(0.6)
+	})
+
+	input := Input{
+		Ticker: "SBER",
+		Price: PriceSnapshot{
+			LastPrice: decimal.NewFromFloat(270),
+			PrevClose: decimal.NewFromFloat(260),
+		},
+		News: []news.MatchedArticle{
+			{Ticker: "SBER", Title: "уиткофф приехал", TrustWeight: decimal.NewFromFloat(0.25)},
+			{Ticker: "SBER", Title: "переговоры продолжаются", TrustWeight: decimal.NewFromFloat(0.75)},
+		},
+	}
+
+	ctx, err := builder.Build(input)
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	want := decimal.NewFromFloat(0.3)
+	if ctx.NegotiationsSignal.Sub(want).Abs().GreaterThan(decimal.NewFromFloat(0.000000000000001)) {
+		t.Fatalf("NegotiationsSignal = %s, want %s", ctx.NegotiationsSignal, want)
+	}
+	if !ctx.SanctionsSignal.IsZero() {
+		t.Fatalf("SanctionsSignal = %s, want zero", ctx.SanctionsSignal)
+	}
+}
+
+func TestBuildTopicSignalsZeroWithoutClassifier(t *testing.T) {
+	builder := NewBuilder(nil)
+	input := Input{
+		Ticker: "SBER",
+		Price: PriceSnapshot{
+			LastPrice: decimal.NewFromFloat(270),
+			PrevClose: decimal.NewFromFloat(260),
+		},
+		News: []news.MatchedArticle{
+			{Ticker: "SBER", Title: "переговоры по украине", TrustWeight: decimal.NewFromFloat(0.5)},
+			{Ticker: "SBER", Title: "санкции смягчены", TrustWeight: decimal.NewFromFloat(0.5)},
+		},
+	}
+
+	ctx, err := builder.Build(input)
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if !ctx.NegotiationsSignal.IsZero() {
+		t.Fatalf("NegotiationsSignal = %s, want zero without classifier", ctx.NegotiationsSignal)
+	}
+	if !ctx.SanctionsSignal.IsZero() {
+		t.Fatalf("SanctionsSignal = %s, want zero without classifier", ctx.SanctionsSignal)
+	}
+}
+
 func TestBuildMissingPriceData(t *testing.T) {
 	builder := NewBuilder(nil)
 	tests := []struct {

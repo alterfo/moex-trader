@@ -80,6 +80,48 @@ func TestAggregateDailySentimentWeightedAverage(t *testing.T) {
 	}
 }
 
+func TestAggregateDailyTopicSignalsWeightedAverage(t *testing.T) {
+	base := time.Date(2026, 8, 14, 10, 0, 0, 0, time.UTC)
+	records := []HistoricalNewsRecord{
+		{Ticker: "SBER", PublishedAt: base, Sentiment: 0.8, TrustWeight: 0.5, Title: "переговоры продвинулись"},
+		{Ticker: "SBER", PublishedAt: base.Add(2 * time.Hour), Sentiment: -0.4, TrustWeight: 0.5, Title: "санкции усилены"},
+		{Ticker: "SBER", PublishedAt: base.Add(3 * time.Hour), Sentiment: 0.9, TrustWeight: 1.0, Title: "отчет компании"},
+		{Ticker: "SBER", PublishedAt: base.Add(4 * time.Hour), Sentiment: 0.1, TrustWeight: 0, Title: "переговоры сорвались"},
+		{Ticker: "SBER", PublishedAt: base.Add(5 * time.Hour), Sentiment: 0.2, TrustWeight: 1.0, Title: ""},
+		{Ticker: "SBER", PublishedAt: base.AddDate(0, 0, 1), Sentiment: 0.6, TrustWeight: 0.25, Title: "уиткофф приехал"},
+		{Ticker: "SBER", PublishedAt: base.AddDate(0, 0, 1).Add(time.Hour), Sentiment: 0.2, TrustWeight: 0.75, Title: "переговоры продолжаются"},
+	}
+
+	agg := AggregateDailyTopicSignals(records)
+	day1 := agg["SBER"][dateKey(base)]
+	if day1.Negotiations != 0.8 {
+		t.Fatalf("day1 negotiations = %v, want 0.8", day1.Negotiations)
+	}
+	if day1.Sanctions != -0.4 {
+		t.Fatalf("day1 sanctions = %v, want -0.4", day1.Sanctions)
+	}
+	day2 := agg["SBER"][dateKey(base.AddDate(0, 0, 1))]
+	want := (0.6*0.25 + 0.2*0.75) / 1.0
+	if diff := day2.Negotiations - want; diff > 1e-9 || diff < -1e-9 {
+		t.Fatalf("day2 negotiations = %v, want %v", day2.Negotiations, want)
+	}
+	if day2.Sanctions != 0 {
+		t.Fatalf("day2 sanctions = %v, want 0", day2.Sanctions)
+	}
+}
+
+func TestAggregateDailyTopicSignalsNoMatches(t *testing.T) {
+	base := time.Date(2026, 8, 14, 10, 0, 0, 0, time.UTC)
+	records := []HistoricalNewsRecord{
+		{Ticker: "SBER", PublishedAt: base, Sentiment: 0.5, TrustWeight: 1.0, Title: "отчет компании"},
+		{Ticker: "SBER", PublishedAt: base.Add(time.Hour), Sentiment: 0.6, TrustWeight: 0, Title: "переговоры сорвались"},
+	}
+	agg := AggregateDailyTopicSignals(records)
+	if len(agg) != 0 {
+		t.Fatalf("AggregateDailyTopicSignals() = %+v, want empty map for no matching headlines", agg)
+	}
+}
+
 func TestApplyNewsOverride(t *testing.T) {
 	day := time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC)
 	samples := []LabeledSample{

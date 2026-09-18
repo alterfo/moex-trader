@@ -146,16 +146,16 @@ while the lexicon fallback keeps scoring `Title + Description`.
 
 ### Task 3: Signed negotiations/sanctions signal computation
 
-- [ ] add `NegotiationsSignal`, `SanctionsSignal` fields to `domain.FeatureContext`
-- [ ] compute both live (in `internal/features/builder.go`, using Task 1's regex plus
+- [x] add `NegotiationsSignal`, `SanctionsSignal` fields to `domain.FeatureContext`
+- [x] compute both live (in `internal/features/builder.go`, using Task 1's regex plus
       Task 2's classifier scoring) as the daily mean classifier score over topic-matching
       headlines, `0` if none match that day
-- [ ] add the historical/offline equivalent in `internal/model/newsimport.go` (mirroring
+- [x] add the historical/offline equivalent in `internal/model/newsimport.go` (mirroring
       `AggregateDailySentiment` but topic-filtered) so `cmd/exportdataset -news-history` can
       backfill both signals
-- [ ] write tests for both the live and historical aggregation paths (including the
+- [x] write tests for both the live and historical aggregation paths (including the
       no-matching-headline zero case)
-- [ ] run project tests - must pass before next task
+- [x] run project tests - must pass before next task
 
 ### Task 4: Thread new features through the feature vector order
 
