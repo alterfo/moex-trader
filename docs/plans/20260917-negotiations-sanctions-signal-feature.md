@@ -208,11 +208,11 @@ while the lexicon fallback keeps scoring `Title + Description`.
 
 ### Task 8: Verify acceptance criteria
 
-- [ ] verify all requirements from Overview are implemented
-- [ ] verify the evidence gate was actually applied (Task 6 ran and Task 7's decision
+- [x] verify all requirements from Overview are implemented
+- [x] verify the evidence gate was actually applied (Task 6 ran and Task 7's decision
       matches its result)
-- [ ] run full project test suite
-- [ ] run project linter - all issues must be fixed
+- [x] run full project test suite
+- [x] run project linter - all issues must be fixed
 
 ## Post-Completion
 
