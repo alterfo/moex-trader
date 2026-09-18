@@ -8,14 +8,15 @@ import (
 )
 
 type EventFlags struct {
-	Dividend  int
-	Buyback   int
-	Sanctions int
-	IPO       int
-	Report    int
-	Delisting int
-	MNA       int
-	Default   int
+	Dividend     int
+	Buyback      int
+	Sanctions    int
+	IPO          int
+	Report       int
+	Delisting    int
+	MNA          int
+	Default      int
+	Negotiations int
 }
 
 func (f EventFlags) Vector() []float64 {
@@ -32,14 +33,15 @@ func (f EventFlags) Vector() []float64 {
 }
 
 var (
-	evDividend  = regexp.MustCompile(`(?i)(?:дивиденд\w*|денежн\s*выплат\w*)`)
-	evBuyback   = regexp.MustCompile(`(?i)(?:buyback|выкуп\s*акц\w*|обратн\w*\s*выкуп\w*)`)
-	evSanctions = regexp.MustCompile(`(?i)(?:санкц\w*|ограничен\w*\s*торг|блокиров\w*)`)
-	evIPO       = regexp.MustCompile(`(?i)(?:\bipo\b|допэмисс\w*|размещ\w*\s*акц|спо\b|\bspo\b)`)
-	evReport    = regexp.MustCompile(`(?i)(?:квартальн\w*\s*(?:результат|отчет)|отчетн\w*|выручк\w*|ebitda|финанс\w*\s*результат|результат\w*\s*за\s*(?:квартал|полугодие|год))`)
-	evDelist    = regexp.MustCompile(`(?i)(?:делистинг\w*|исключ\w*\s*из|приостанов\w*\s*(?:торг|обращ)|прекращ\w*\s*(?:торг|обращ))`)
-	evMNA       = regexp.MustCompile(`(?i)(?:слиян\w*|поглощ\w*|аквизиц\w*|приобрет\w*\s*(?:акц|дол\w*)|сделк\w*\s*(?:по\s*)?(?:покупк|продаж|слиян)|получ\w*\s*разреш\w*\s*на\s*сделк)`)
-	evDefault   = regexp.MustCompile(`(?i)(?:дефолт\w*|банкрот\w*|неисполнен\w*\s*обязательств|просрочк\w*\s*(?:по\s*)?(?:обязательств|долг))`)
+	evDividend     = regexp.MustCompile(`(?i)(?:дивиденд\w*|денежн\s*выплат\w*)`)
+	evBuyback      = regexp.MustCompile(`(?i)(?:buyback|выкуп\s*акц\w*|обратн\w*\s*выкуп\w*)`)
+	evSanctions    = regexp.MustCompile(`(?i)(?:санкц\w*|ограничен\w*\s*торг|блокиров\w*)`)
+	evIPO          = regexp.MustCompile(`(?i)(?:\bipo\b|допэмисс\w*|размещ\w*\s*акц|спо\b|\bspo\b)`)
+	evReport       = regexp.MustCompile(`(?i)(?:квартальн\w*\s*(?:результат|отчет)|отчетн\w*|выручк\w*|ebitda|финанс\w*\s*результат|результат\w*\s*за\s*(?:квартал|полугодие|год))`)
+	evDelist       = regexp.MustCompile(`(?i)(?:делистинг\w*|исключ\w*\s*из|приостанов\w*\s*(?:торг|обращ)|прекращ\w*\s*(?:торг|обращ))`)
+	evMNA          = regexp.MustCompile(`(?i)(?:слиян\w*|поглощ\w*|аквизиц\w*|приобрет\w*\s*(?:акц|дол\w*)|сделк\w*\s*(?:по\s*)?(?:покупк|продаж|слиян)|получ\w*\s*разреш\w*\s*на\s*сделк)`)
+	evDefault      = regexp.MustCompile(`(?i)(?:дефолт\w*|банкрот\w*|неисполнен\w*\s*обязательств|просрочк\w*\s*(?:по\s*)?(?:обязательств|долг))`)
+	evNegotiations = regexp.MustCompile(`(?i)(?:переговор[а-яё]*|уиткофф[а-яё]*|witkoff\w*|мирн[а-яё]*\s*(?:план|соглашен[а-яё]*)|прекращен[а-яё]*\s*огня|урегулирован[а-яё]*)`)
 )
 
 func DetectEvents(text string) EventFlags {
@@ -69,6 +71,9 @@ func DetectEvents(text string) EventFlags {
 	if evDefault.MatchString(low) {
 		f.Default = 1
 	}
+	if evNegotiations.MatchString(low) {
+		f.Negotiations = 1
+	}
 	return f
 }
 
@@ -87,6 +92,7 @@ func AggregateEvents(articles []news.MatchedArticle) EventFlags {
 		out.Delisting += flags.Delisting
 		out.MNA += flags.MNA
 		out.Default += flags.Default
+		out.Negotiations += flags.Negotiations
 	}
 	return out
 }

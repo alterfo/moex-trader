@@ -115,13 +115,13 @@ addition.
 
 ### Task 1: Negotiations topic detector
 
-- [ ] add a negotiations regex to `internal/features/events.go` (see Technical Details
+- [x] add a negotiations regex to `internal/features/events.go` (see Technical Details
       for candidate terms) and wire it into `DetectEvents` alongside the existing
       `event_sanctions` detector
-- [ ] write tests for the new regex: positive matches (negotiation-progress headlines,
+- [x] write tests for the new regex: positive matches (negotiation-progress headlines,
       "Уиткофф"-style mentions), negative matches (unrelated headlines), and boundary cases
       (partial word matches that should NOT trigger)
-- [ ] run project tests - must pass before next task
+- [x] run project tests - must pass before next task
 
 ### Task 2: Wire live inference to the ML news classifier
 
