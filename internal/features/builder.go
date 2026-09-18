@@ -30,8 +30,9 @@ type Input struct {
 }
 
 type Builder struct {
-	now  func() time.Time
-	conf PriceFeatureConfig
+	now          func() time.Time
+	conf         PriceFeatureConfig
+	newsPolarity func(string) decimal.Decimal
 }
 
 func NewBuilder(now func() time.Time) *Builder {
@@ -51,6 +52,11 @@ func NewBuilderWithConfig(now func() time.Time, conf PriceFeatureConfig) *Builde
 	return &Builder{now: now, conf: conf}
 }
 
+func (b *Builder) SetNewsPolarity(scorer func(string) decimal.Decimal) *Builder {
+	b.newsPolarity = scorer
+	return b
+}
+
 func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 	var empty domain.FeatureContext
 
@@ -65,7 +71,7 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 		return empty, fmt.Errorf("prev close must be positive")
 	}
 
-	newsSentiment, newsCount := aggregateNewsSentiment(input.News)
+	newsSentiment, newsCount := b.aggregateNewsSentiment(input.News)
 	events := AggregateEvents(input.News)
 
 	generatedAt := b.now()
@@ -180,7 +186,7 @@ func realizedVolatility(candles []moex.Candle) decimal.Decimal {
 	return decimal.NewFromFloat(math.Sqrt(value))
 }
 
-func aggregateNewsSentiment(articles []news.MatchedArticle) (decimal.Decimal, int) {
+func (b *Builder) aggregateNewsSentiment(articles []news.MatchedArticle) (decimal.Decimal, int) {
 	if len(articles) == 0 {
 		return decimal.Zero, 0
 	}
@@ -192,7 +198,11 @@ func aggregateNewsSentiment(articles []news.MatchedArticle) (decimal.Decimal, in
 		if weight.Sign() <= 0 {
 			continue
 		}
-		weightedScore = weightedScore.Add(articlePolarity(article).Mul(weight))
+		polarity := articlePolarity(article)
+		if b.newsPolarity != nil {
+			polarity = b.newsPolarity(article.Title)
+		}
+		weightedScore = weightedScore.Add(polarity.Mul(weight))
 		totalWeight = totalWeight.Add(weight)
 	}
 	if totalWeight.Sign() <= 0 {

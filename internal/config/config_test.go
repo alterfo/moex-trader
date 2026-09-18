@@ -42,6 +42,7 @@ func clearEnv(t *testing.T) {
 		"MOEX_TRADER_NEWS_PROXY",
 		"MOEX_TRADER_NEWS_HISTORY_PATH",
 		"MOEX_TRADER_NEWS_RAW_PATH",
+		"MOEX_TRADER_NEWS_CLASSIFIER_PATH",
 		"MOEX_TRADER_COMMISSION_RATE",
 		"MOEX_TRADER_COMMISSION_BROKER",
 	} {
@@ -600,6 +601,9 @@ func TestNewsDefaultsApplied(t *testing.T) {
 	if cfg.News.VetoMinCount != 1 {
 		t.Fatalf("unexpected default veto min count: %d", cfg.News.VetoMinCount)
 	}
+	if cfg.News.ClassifierPath != "news_classifier.json" {
+		t.Fatalf("unexpected default news classifier path: %q", cfg.News.ClassifierPath)
+	}
 }
 
 func TestNewsVetoLoadedAndValidated(t *testing.T) {
@@ -632,6 +636,7 @@ func TestNewsEnvOverrides(t *testing.T) {
 	t.Setenv("MOEX_TRADER_NEWS_PROXY", "socks5://127.0.0.1:3333")
 	t.Setenv("MOEX_TRADER_NEWS_HISTORY_PATH", "data/history.jsonl")
 	t.Setenv("MOEX_TRADER_NEWS_RAW_PATH", "data/raw.jsonl")
+	t.Setenv("MOEX_TRADER_NEWS_CLASSIFIER_PATH", "data/news_classifier.json")
 
 	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\n"))
 	if err != nil {
@@ -645,6 +650,9 @@ func TestNewsEnvOverrides(t *testing.T) {
 	}
 	if cfg.News.RawPath != "data/raw.jsonl" {
 		t.Fatalf("unexpected raw path: %q", cfg.News.RawPath)
+	}
+	if cfg.News.ClassifierPath != "data/news_classifier.json" {
+		t.Fatalf("unexpected classifier path: %q", cfg.News.ClassifierPath)
 	}
 }
 

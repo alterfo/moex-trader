@@ -164,6 +164,64 @@ func TestBuildMissingNews(t *testing.T) {
 	}
 }
 
+func TestBuildUsesInjectedNewsPolarity(t *testing.T) {
+	builder := NewBuilder(nil)
+	builder.SetNewsPolarity(func(title string) decimal.Decimal {
+		if title == "growth" {
+			return decimal.NewFromFloat(0.75)
+		}
+		return decimal.NewFromFloat(-0.25)
+	})
+
+	input := Input{
+		Ticker: "SBER",
+		Price: PriceSnapshot{
+			LastPrice: decimal.NewFromFloat(270),
+			PrevClose: decimal.NewFromFloat(260),
+		},
+		News: []news.MatchedArticle{
+			{Ticker: "SBER", Title: "growth", TrustWeight: decimal.NewFromFloat(0.6)},
+			{Ticker: "SBER", Title: "decline", TrustWeight: decimal.NewFromFloat(0.4)},
+		},
+	}
+
+	ctx, err := builder.Build(input)
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if ctx.NewsCount != 2 {
+		t.Fatalf("NewsCount = %d, want 2", ctx.NewsCount)
+	}
+	want := decimal.NewFromFloat(0.35)
+	if ctx.NewsSentiment.Sub(want).Abs().GreaterThan(decimal.NewFromFloat(0.000000000000001)) {
+		t.Fatalf("NewsSentiment = %s, want %s", ctx.NewsSentiment, want)
+	}
+}
+
+func TestBuildNewsSentimentFallsBackToKeywordLexicon(t *testing.T) {
+	builder := NewBuilder(nil)
+	input := Input{
+		Ticker: "SBER",
+		Price: PriceSnapshot{
+			LastPrice: decimal.NewFromFloat(270),
+			PrevClose: decimal.NewFromFloat(260),
+		},
+		News: []news.MatchedArticle{
+			{Ticker: "SBER", Title: "Прибыль выросла", TrustWeight: decimal.NewFromFloat(0.6)},
+			{Ticker: "SBER", Title: "Получен штраф", TrustWeight: decimal.NewFromFloat(0.4)},
+		},
+	}
+
+	ctx, err := builder.Build(input)
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	want := decimal.NewFromFloat(0.2)
+	if ctx.NewsSentiment.Sub(want).Abs().GreaterThan(decimal.NewFromFloat(0.000000000000001)) {
+		t.Fatalf("NewsSentiment = %s, want %s (keyword lexicon fallback)", ctx.NewsSentiment, want)
+	}
+}
+
 func TestBuildMissingPriceData(t *testing.T) {
 	builder := NewBuilder(nil)
 	tests := []struct {

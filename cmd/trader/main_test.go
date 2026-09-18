@@ -1584,3 +1584,71 @@ func TestRunKillSwitchResetWithoutAccountSourceResetsForPaper(t *testing.T) {
 		t.Fatal("kill switch still active after paper-mode reset")
 	}
 }
+
+func TestLoadNewsPolarityEmptyPathFallsBackToLexicon(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+
+	got := loadNewsPolarity(&config.Config{}, logger)
+	if got != nil {
+		t.Fatal("loadNewsPolarity() = non-nil scorer, want nil fallback for empty path")
+	}
+	if !strings.Contains(buf.String(), "falling back to keyword lexicon") {
+		t.Fatalf("log output = %q, want fallback message", buf.String())
+	}
+}
+
+func TestLoadNewsPolarityMissingFileFallsBackToLexicon(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	cfg := &config.Config{}
+	cfg.News.ClassifierPath = filepath.Join(t.TempDir(), "missing.json")
+
+	got := loadNewsPolarity(cfg, logger)
+	if got != nil {
+		t.Fatal("loadNewsPolarity() = non-nil scorer, want nil fallback for missing file")
+	}
+	if !strings.Contains(buf.String(), "falling back to keyword lexicon") {
+		t.Fatalf("log output = %q, want fallback message", buf.String())
+	}
+}
+
+func TestLoadNewsPolarityLoadsClassifierScorer(t *testing.T) {
+	weights := &model.NewsClassifierWeights{
+		Vocab:       []string{"abc"},
+		Mean:        []float64{0},
+		Std:         []float64{1},
+		Coef:        []float64{0.5},
+		Bias:        0,
+		HorizonDays: 10,
+		TrainedAt:   time.Now(),
+	}
+	path := filepath.Join(t.TempDir(), "news_classifier.json")
+	if err := weights.Save(path); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	cfg := &config.Config{}
+	cfg.News.ClassifierPath = path
+
+	scorer := loadNewsPolarity(cfg, logger)
+	if scorer == nil {
+		t.Fatal("loadNewsPolarity() = nil, want classifier scorer")
+	}
+	if !scorer("abc").IsPositive() {
+		t.Fatalf("scorer(\"abc\") = %s, want positive", scorer("abc"))
+	}
+	if !strings.Contains(buf.String(), "loaded news classifier") {
+		t.Fatalf("log output = %q, want loaded message", buf.String())
+	}
+}
+
+func TestLoadNewsPolarityNilConfig(t *testing.T) {
+	var buf bytes.Buffer
+	logger := log.New(&buf, "", 0)
+	if got := loadNewsPolarity(nil, logger); got != nil {
+		t.Fatal("loadNewsPolarity(nil) = non-nil scorer, want nil")
+	}
+}

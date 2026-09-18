@@ -211,6 +211,9 @@ func run() error {
 	}()
 
 	featureBuilder := features.NewBuilder(time.Now)
+	if polarity := loadNewsPolarity(cfg, log.Default()); polarity != nil {
+		featureBuilder.SetNewsPolarity(polarity)
+	}
 	var shadow *orchestrator.ShadowReconciler
 	if strings.TrimSpace(shadowDigestPath) != "" {
 		shadow = orchestrator.NewShadowReconciler(featureBuilder, shadowSource)
@@ -533,6 +536,24 @@ func newModelSignalSource(cfg *config.Config) (orchestrator.SignalSource, error)
 		return nil, fmt.Errorf("load model: %w", err)
 	}
 	return &model.SignalSource{Weights: weights, MaxLots: cfg.Risk.MaxLots}, nil
+}
+
+func loadNewsPolarity(cfg *config.Config, logger *log.Logger) func(string) decimal.Decimal {
+	if cfg == nil {
+		return nil
+	}
+	path := strings.TrimSpace(cfg.News.ClassifierPath)
+	if path == "" {
+		logger.Printf("trader: news.classifier_path is empty; falling back to keyword lexicon sentiment")
+		return nil
+	}
+	weights, err := model.LoadNewsClassifier(path)
+	if err != nil {
+		logger.Printf("trader: load news classifier %q failed: %v; falling back to keyword lexicon sentiment", path, err)
+		return nil
+	}
+	logger.Printf("trader: loaded news classifier from %s (vocab=%d, trained_at=%s)", path, len(weights.Vocab), weights.TrainedAt.Format(time.RFC3339))
+	return weights.Scorer()
 }
 
 // newDriftMonitor builds a PSI drift monitor from the ensemble model's

@@ -125,17 +125,24 @@ addition.
 
 ### Task 2: Wire live inference to the ML news classifier
 
-- [ ] load `news_classifier.json` at `cmd/trader` startup (mirroring how the ensemble
+- [x] load `news_classifier.json` at `cmd/trader` startup (mirroring how the ensemble
       model is loaded) and inject it into `internal/features.Builder`
-- [ ] replace the hardcoded keyword-lexicon scoring path
+- [x] replace the hardcoded keyword-lexicon scoring path
       (`aggregateNewsSentiment`/`articlePolarity` in `builder.go`) with
       `model.NewsClassifier.Scorer()` for computing per-headline polarity
-- [ ] decide and document the fallback behavior if the classifier file is missing/fails
+- [x] decide and document the fallback behavior if the classifier file is missing/fails
       to load (e.g. fall back to the keyword lexicon vs. fail startup) — do not silently
       produce zero-value sentiment without logging
-- [ ] write tests for classifier-backed live sentiment scoring, including the fallback
+- [x] write tests for classifier-backed live sentiment scoring, including the fallback
       path
-- [ ] run project tests - must pass before next task
+- [x] run project tests - must pass before next task
+
+Fallback decision: if `news.classifier_path` is empty or `news_classifier.json` is
+missing/fails to load, the trader falls back to the existing keyword-lexicon scoring and
+logs a prominent warning; it does not fail startup. This keeps the live loop running with
+the pre-existing behavior while making the degraded path visible. The classifier is scored
+on each headline's `Title` only (matching `cmd/newsscore -method=model` and training),
+while the lexicon fallback keeps scoring `Title + Description`.
 
 ### Task 3: Signed negotiations/sanctions signal computation
 

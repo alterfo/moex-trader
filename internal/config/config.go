@@ -61,14 +61,15 @@ type Telegram struct {
 }
 
 type News struct {
-	Proxy         string          `yaml:"proxy"`
-	HistoryPath   string          `yaml:"history_path"`
-	RawPath       string          `yaml:"raw_path"`
-	TGChannels    []string        `yaml:"telegram_channels"`
-	RetroPages    int             `yaml:"retro_pages"`
-	VetoEnabled   bool            `yaml:"veto_enabled"`
-	VetoSentiment decimal.Decimal `yaml:"veto_sentiment"`
-	VetoMinCount  int             `yaml:"veto_min_count"`
+	Proxy          string          `yaml:"proxy"`
+	HistoryPath    string          `yaml:"history_path"`
+	RawPath        string          `yaml:"raw_path"`
+	ClassifierPath string          `yaml:"classifier_path"`
+	TGChannels     []string        `yaml:"telegram_channels"`
+	RetroPages     int             `yaml:"retro_pages"`
+	VetoEnabled    bool            `yaml:"veto_enabled"`
+	VetoSentiment  decimal.Decimal `yaml:"veto_sentiment"`
+	VetoMinCount   int             `yaml:"veto_min_count"`
 }
 
 type Commission struct {
@@ -112,16 +113,17 @@ const (
 )
 
 const (
-	defaultModelPath        = "model.json"
-	defaultMOEXISSBaseURL   = "https://iss.moex.com/iss"
-	defaultAlgoPackBaseURL  = "https://apim.moex.com/iss/datashop"
-	defaultFinamBaseURL     = "https://api.finam.ru"
-	defaultTinkoffEndpoint  = "sandbox-invest-public-api.tbank.ru:443"
-	defaultTinkoffOrderType = OrderTypeLimit
-	defaultPreflightDays    = 90
-	defaultPollInterval     = Duration(5 * time.Minute)
-	defaultRiskMaxLots      = 1
-	defaultCommissionBroker = "tinkoff"
+	defaultModelPath          = "model.json"
+	defaultMOEXISSBaseURL     = "https://iss.moex.com/iss"
+	defaultAlgoPackBaseURL    = "https://apim.moex.com/iss/datashop"
+	defaultFinamBaseURL       = "https://api.finam.ru"
+	defaultTinkoffEndpoint    = "sandbox-invest-public-api.tbank.ru:443"
+	defaultTinkoffOrderType   = OrderTypeLimit
+	defaultPreflightDays      = 90
+	defaultPollInterval       = Duration(5 * time.Minute)
+	defaultRiskMaxLots        = 1
+	defaultCommissionBroker   = "tinkoff"
+	defaultNewsClassifierPath = "news_classifier.json"
 )
 
 func Default() *Config {
@@ -140,9 +142,10 @@ func Default() *Config {
 		},
 		Telegram: Telegram{},
 		News: News{
-			VetoEnabled:   true,
-			VetoSentiment: decimal.NewFromFloat(0.5),
-			VetoMinCount:  1,
+			VetoEnabled:    true,
+			VetoSentiment:  decimal.NewFromFloat(0.5),
+			VetoMinCount:   1,
+			ClassifierPath: defaultNewsClassifierPath,
 		},
 		Commission: Commission{
 			Broker: defaultCommissionBroker,
@@ -457,6 +460,9 @@ func applyEnv(cfg *Config) error {
 	}
 	if v := os.Getenv("MOEX_TRADER_NEWS_RAW_PATH"); v != "" {
 		cfg.News.RawPath = v
+	}
+	if v := os.Getenv("MOEX_TRADER_NEWS_CLASSIFIER_PATH"); v != "" {
+		cfg.News.ClassifierPath = v
 	}
 	if v := os.Getenv("MOEX_TRADER_COMMISSION_RATE"); v != "" {
 		rate, err := decimal.NewFromString(v)

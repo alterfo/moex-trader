@@ -94,4 +94,5 @@ news:
   proxy: ""
   history_path: ""
   raw_path: ""
+  classifier_path: "news_classifier.json"
   telegram_channels: []
