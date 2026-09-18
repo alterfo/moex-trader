@@ -121,12 +121,7 @@ func AggregateDailySentiment(records []HistoricalNewsRecord) map[string]map[stri
 	return out
 }
 
-type TopicSignalAggregate struct {
-	Negotiations float64
-	Sanctions    float64
-}
-
-func AggregateDailyTopicSignals(records []HistoricalNewsRecord) map[string]map[string]TopicSignalAggregate {
+func AggregateDailyTopicSignals(records []HistoricalNewsRecord) map[string]map[string]features.TopicSignalAggregate {
 	type accum struct {
 		negWeighted float64
 		negWeight   float64
@@ -163,9 +158,9 @@ func AggregateDailyTopicSignals(records []HistoricalNewsRecord) map[string]map[s
 		}
 	}
 
-	out := make(map[string]map[string]TopicSignalAggregate, len(acc))
+	out := make(map[string]map[string]features.TopicSignalAggregate, len(acc))
 	for ticker, byDate := range acc {
-		out[ticker] = make(map[string]TopicSignalAggregate, len(byDate))
+		out[ticker] = make(map[string]features.TopicSignalAggregate, len(byDate))
 		for date, a := range byDate {
 			negotiations := 0.0
 			if a.negWeight > 0 {
@@ -175,10 +170,55 @@ func AggregateDailyTopicSignals(records []HistoricalNewsRecord) map[string]map[s
 			if a.sanWeight > 0 {
 				sanctions = a.sanWeighted / a.sanWeight
 			}
-			out[ticker][date] = TopicSignalAggregate{Negotiations: negotiations, Sanctions: sanctions}
+			out[ticker][date] = features.TopicSignalAggregate{Negotiations: negotiations, Sanctions: sanctions}
 		}
 	}
 	return out
+}
+
+func ApplyTopicSignalOverrides(samples []LabeledSample, topics map[string]map[string]features.TopicSignalAggregate) int {
+	applied := 0
+	for i := range samples {
+		byDate, ok := topics[samples[i].Feature.Ticker]
+		if !ok {
+			continue
+		}
+		agg, ok := byDate[dateKey(samples[i].Feature.GeneratedAt)]
+		if !ok {
+			continue
+		}
+		samples[i].Feature.NegotiationsSignal = decimal.NewFromFloat(agg.Negotiations)
+		samples[i].Feature.SanctionsSignal = decimal.NewFromFloat(agg.Sanctions)
+		applied++
+	}
+	return applied
+}
+
+func ApplyTopicSignalOverridesToCalibration(samples []CalibrationSample, topics map[string]map[string]features.TopicSignalAggregate) int {
+	if len(samples) == 0 {
+		return 0
+	}
+	negIdx, negOK := indexOfName(samples[0].Names, "negotiations_signal")
+	sanIdx, sanOK := indexOfName(samples[0].Names, "sanctions_signal")
+	if !negOK || !sanOK {
+		return 0
+	}
+
+	applied := 0
+	for i := range samples {
+		byDate, ok := topics[samples[i].Ticker]
+		if !ok {
+			continue
+		}
+		agg, ok := byDate[dateKey(samples[i].Date)]
+		if !ok {
+			continue
+		}
+		samples[i].Vector[negIdx] = agg.Negotiations
+		samples[i].Vector[sanIdx] = agg.Sanctions
+		applied++
+	}
+	return applied
 }
 
 func ApplyNewsOverride(samples []LabeledSample, news map[string]map[string]NewsAggregate) int {

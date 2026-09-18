@@ -80,8 +80,9 @@ telegram:
   # Telegram API is blocked in some networks; route it through a proxy, e.g. "socks5://127.0.0.1:3333".
   proxy: ""
 
-# Historical news archive (finanalys format) used to backfill news_sentiment/news_count
-# in cmd/exportdataset, cmd/trainmodel and cmd/calibrate (-news-history flag).
+# Historical news archive (finanalys format) used to backfill news_sentiment/news_count,
+# event features, and negotiations_signal/sanctions_signal in cmd/exportdataset,
+# cmd/trainmodel and cmd/calibrate (-news-history flag).
 # Raw JSONL archive collected by cmd/newsfetch; telegram_channels limit collection.
 news:
   # Veto gate: a conflicting real-time news item (sentiment below -veto_sentiment for a BUY,

@@ -18,6 +18,11 @@ judgments; MTM is shown separately and never drives a decision.
 > in this file was produced before these corrections and must be re-derived after
 > that retrain; the ledger rows below are retained for traceability only until then.
 
+> **Backtest/news weighting alignment (2026-09-18 review fixes):** `backtest.LoadNewsOverrides`
+> now weight-averages `news_sentiment` by `trust_weight`, matching
+> `model.AggregateDailySentiment`. `-news-history` backtests recorded before this
+> alignment used unweighted averaging and must be re-derived before reuse.
+
 ## Tail-precision falsification (Task 1)
 
 Pre-registered pooled metric over the available window of the deployed

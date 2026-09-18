@@ -1,7 +1,7 @@
 # MOEX Trader
 
 Go-трейдер для инструментов MOEX: собирает рыночные данные и новости, строит вектор
-из 18 признаков, получает сигнал `BUY`/`SELL`/`HOLD` от ансамбля **lgbm + xgb + logreg**,
+из 28 признаков (модель обучается на 18 из них), получает сигнал `BUY`/`SELL`/`HOLD` от ансамбля **lgbm + xgb + logreg**,
 прогоняет его через риск-гейт и исполняет — сначала в paper-режиме, затем в песочнице
 T-Банка. Каждый шаг пишется в SQLite как аудит-событие. Перед стартом живого цикла
 `cmd/trader` прогоняет preflight-бэктест **той же модели и конфигурации** и отказывается
@@ -35,7 +35,7 @@ T-Банка. Каждый шаг пишется в SQLite как аудит-с�
                           │
    MOEX ISS ──┐           │
    RSS news ──┼──> orchestrator.MOEXIngestor ──> features.Builder ──> domain.FeatureContext
-   AlgoPack ──┘        (котировки, свечи,            (18 признаков)          │
+   AlgoPack ──┘        (котировки, свечи,     (28-размерный вектор)          │
                         новости, стакан)                                     │
                                                                              v
                                               model.EnsembleSignalSource (или model.SignalSource)
@@ -115,7 +115,7 @@ Prometheus-сервер → `orchestrator.Run(ctx)`.
 
 ## Модель и признаки
 
-### Вектор признаков (18)
+### Вектор признаков (28 имён, модель обучается на 18)
 
 Порядок задаётся один раз в `internal/model/features.go` (`defaultFeatureOrder`/`ToVector`):
 
@@ -123,15 +123,20 @@ Prometheus-сервер → `orchestrator.Run(ctx)`.
 return_pct, realized_volatility, news_sentiment, news_count, order_book_imbalance,
 mom_5d, mom_21d, mom_63d, reversal_1d, rsi_14, dist_ma20_pct, dist_ma50_pct,
 realized_vol_21d_annualized_pct, volume_zscore_20d,
-macd_hist_pct, stoch_k_14, williams_r_14, alligator_spread_pct
+macd_hist_pct, stoch_k_14, williams_r_14, alligator_spread_pct,
+event_dividend, event_buyback, event_sanctions, event_ipo, event_report,
+event_delisting, event_mna, event_default, negotiations_signal, sanctions_signal
 ```
 
 Осилилляторы (MACD, Stochastic, Williams %R, Alligator) считаются в
-`internal/features/price_features.go`. Порядок обязан совпадать в четырёх местах:
-`internal/model/features.go`, заголовок CSV в `cmd/exportdataset/main.go`,
-`FEATURES` в `scripts/export_ensemble.py` и `scripts/compare_models.py`. Рассинхрон
+`internal/features/price_features.go`. Порядок обязан совпадать в трёх местах:
+`internal/model/features.go` и `FEATURES` в `scripts/export_ensemble.py` и
+`scripts/compare_models.py`; `cmd/exportdataset` формирует заголовок и строки CSV
+из `model.ToVector`, а не из ручного списка. Рассинхрон
 ловится на загрузке модели (`checkFeatureOrder`) и в preflight — это не молчаливый баг,
-а жёсткий отказ.
+а жёсткий отказ. В развёрнутом `ensemble_model.json` 28 имён, но обученные веса стоят
+только на 18 price/flow-признаках; `event_*`, `negotiations_signal` и
+`sanctions_signal` имеют нулевые коэффициенты и не влияют на прогноз.
 
 ### Живой источник сигнала: ансамбль
 
@@ -174,8 +179,9 @@ DATASET=/tmp/moex-dataset.csv PREDS=/tmp/moex-preds.csv python3 scripts/compare_
 `news_count`, `order_book_imbalance` в историческом CSV структурно равны нулю —
 `cmd/exportdataset` не подключает исторические новости и стаканы сам по себе. Если есть
 finanalys-формата `news_history.jsonl` (см. `cmd/newsfetch`), передай его через
-`-news-history` — `cmd/exportdataset` подмешает реальный `news_sentiment`/`news_count`
-по дате и тикеру (то же самое умеет `cmd/trainmodel -news-history` для чисто-Go модели).
+`-news-history` — `cmd/exportdataset` подмешает реальный `news_sentiment`/`news_count`,
+событийные признаки и `negotiations_signal`/`sanctions_signal` по дате и тикеру (то же
+самое умеют `cmd/trainmodel -news-history` и `cmd/calibrate -news-history`).
 `order_book_imbalance` пока всё равно всегда 0 — исторических стаканов нет.
 
 ### Резервный источник: логистическая регрессия
@@ -347,6 +353,7 @@ YAML + `.env` рядом с конфигом (реальные env-переме�
 | `tickers` | `MOEX_TRADER_TICKERS` (через запятую) |
 | `model.path` | `MOEX_TRADER_MODEL_PATH` |
 | `model.ensemble_path` | — (только YAML) |
+| `news.classifier_path` | `MOEX_TRADER_NEWS_CLASSIFIER_PATH` |
 | `moex_iss_base_url` | `MOEX_TRADER_MOEX_ISS_URL` |
 | `algopack_base_url` / `algopack_token` | `MOEX_TRADER_ALGOPACK_BASE_URL` / `_TOKEN` (секрет) |
 | `storage.path` | `MOEX_TRADER_STORAGE_PATH` |
@@ -364,6 +371,10 @@ YAML + `.env` рядом с конфигом (реальные env-переме�
 | `poll_interval` | `MOEX_TRADER_POLL_INTERVAL` |
 | `is_paper_trading` | `MOEX_TRADER_IS_PAPER_TRADING` |
 | `telegram.bot_token` / `chat_id` / `signal_tickers` / `proxy` | `MOEX_TRADER_TELEGRAM_BOT_TOKEN` (секрет) / `_CHAT_ID` / `_SIGNAL_TICKERS` / `_PROXY` |
+
+`news.classifier_path` задаёт ML-классификатор тональности заголовков для live-скоринга.
+Если путь пуст или файл не загрузился, трейдер пишет warning и откатывается на
+keyword-лексicon, не падая на старте.
 
 Telegram из этой сети напрямую недоступен: `telegram.proxy: "socks5://127.0.0.1:3333"`.
 
@@ -505,8 +516,8 @@ Preflight-гейт работает на обоих узлах одинаков�
   `docs/GO_LIVE_CHECKLIST.md` и явного согласования.
 - **Preflight использует тот же сигнал-сорс, что и лайв**, и обязан жёстко падать (а не
   «проходить с нулём»), если все решения ошиблись или истории нет.
-- **Порядок признаков зеркалится в 4 местах** (`features.go`, `cmd/exportdataset`,
-  `scripts/export_ensemble.py`, `scripts/compare_models.py`) — менять синхронно.
+- **Порядок признаков зеркалится в 3 местах** (`features.go`, `scripts/export_ensemble.py`,
+  `scripts/compare_models.py`) — `cmd/exportdataset` берёт порядок из `model.ToVector`.
 - **Авто-переобучение с атомарной подменой артефакта запрещено** без нового явного
   согласования (AUC ~0.5 — слишком близко к шуму). Feature-drift/PSI-диагностика и
   per-ticker circuit breaker — можно.
@@ -518,8 +529,8 @@ Preflight-гейт работает на обоих узлах одинаков�
 
 **Добавить признак.** (1) поле в `domain.FeatureContext`; (2) расчёт в
 `internal/features`; (3) в `ToVector`/`defaultFeatureOrder`; (4) заголовок CSV в
-`cmd/exportdataset`; (5) `FEATURES` в `scripts/export_ensemble.py` и
-`scripts/compare_models.py`; (6) переобучить ансамбль и сравнить val AUC — прошлый опыт
+`cmd/exportdataset` формируется из `ToVector` автоматически; (5) `FEATURES` в
+`scripts/export_ensemble.py` и `scripts/compare_models.py`; (6) переобучить ансамбль и сравнить val AUC — прошлый опыт
 (MACD/Stochastic/Williams/Alligator) дал ±0.005, то есть шум: сначала данные, потом фичи.
 
 **Новый сигнал-сорс.** Реализовать оба интерфейса — `orchestrator.SignalSource`

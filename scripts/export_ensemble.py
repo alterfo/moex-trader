@@ -134,9 +134,12 @@ def main():
     p_lgb = lgb_model.predict_proba(Xv)[:, 1]
     p_lr = lr.predict_proba(Xv)[:, 1]
     ens = (p_xgb + p_lgb + p_lr) / 3
-    print("val_auc xgb=%.4f lgbm=%.4f logreg=%.4f ensemble=%.4f" % (
-        roc_auc_score(yv, p_xgb), roc_auc_score(yv, p_lgb),
-        roc_auc_score(yv, p_lr), roc_auc_score(yv, ens)))
+    if len(yv) == 0 or len(set(yv)) < 2:
+        print("val_auc n/a (validation labels are empty or single-class)")
+    else:
+        print("val_auc xgb=%.4f lgbm=%.4f logreg=%.4f ensemble=%.4f" % (
+            roc_auc_score(yv, p_xgb), roc_auc_score(yv, p_lgb),
+            roc_auc_score(yv, p_lr), roc_auc_score(yv, ens)))
     np.save("/tmp/ens_val_proba.npy", ens)
     np.save("/tmp/ens_val_x.npy", Xv)
 

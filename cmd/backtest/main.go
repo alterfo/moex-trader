@@ -182,12 +182,15 @@ func run() error {
 
 	var newsOverrides map[string]map[string]backtest.NewsAggregate
 	var eventOverrides map[string]map[string]features.EventFlags
-	var topicSignalOverrides map[string]map[string]backtest.TopicSignalAggregate
+	var topicSignalOverrides map[string]map[string]features.TopicSignalAggregate
 	if newsHistory != "" {
-		newsOverrides, eventOverrides, topicSignalOverrides, err = backtest.LoadNewsOverrides(newsHistory)
+		overrides, err := backtest.LoadNewsOverrides(newsHistory)
 		if err != nil {
 			return err
 		}
+		newsOverrides = overrides.News
+		eventOverrides = overrides.Events
+		topicSignalOverrides = overrides.Topics
 		log.Printf("backtest: loaded %d tickers of news + event + topic-signal overrides from %s", len(newsOverrides), newsHistory)
 	}
 

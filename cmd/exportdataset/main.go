@@ -83,7 +83,7 @@ func run(args []string) error {
 	}
 
 	var newsHistory map[string]map[string]model.NewsAggregate
-	var topicHistory map[string]map[string]model.TopicSignalAggregate
+	var topicHistory map[string]map[string]features.TopicSignalAggregate
 	var eventHistory map[string]map[string]model.EventAggregate
 	if opts.newsHistory != "" {
 		records, err := model.LoadFinanalysNewsHistory(opts.newsHistory)
@@ -160,7 +160,7 @@ type labeledRow struct {
 
 func writeTicker(ctx context.Context, writer *csv.Writer, source backtest.HistoricalSource, builder *features.Builder,
 	ticker string, fetchFrom, till, from, split time.Time, horizonDays, warmup int, labels map[string]labeledRow,
-	newsHistory map[string]map[string]model.NewsAggregate, topicHistory map[string]map[string]model.TopicSignalAggregate, eventHistory map[string]map[string]model.EventAggregate, header []string) error {
+	newsHistory map[string]map[string]model.NewsAggregate, topicHistory map[string]map[string]features.TopicSignalAggregate, eventHistory map[string]map[string]model.EventAggregate, header []string) error {
 	candles, err := source.History(ctx, ticker, fetchFrom, till)
 	if err != nil {
 		return fmt.Errorf("history %s: %w", ticker, err)

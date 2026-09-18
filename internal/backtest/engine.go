@@ -126,17 +126,12 @@ type Config struct {
 	Logger                *log.Logger
 	NewsOverrides         map[string]map[string]NewsAggregate
 	EventOverrides        map[string]map[string]features.EventFlags
-	TopicSignalOverrides  map[string]map[string]TopicSignalAggregate
+	TopicSignalOverrides  map[string]map[string]features.TopicSignalAggregate
 }
 
 type NewsAggregate struct {
 	Sentiment float64
 	Count     int
-}
-
-type TopicSignalAggregate struct {
-	Negotiations float64
-	Sanctions    float64
 }
 
 type topicAccum struct {
@@ -146,12 +141,13 @@ type topicAccum struct {
 	sanctionsWeight      float64
 }
 
-type EventOverrides struct {
+type NewsOverrides struct {
 	News   map[string]map[string]NewsAggregate
 	Events map[string]map[string]features.EventFlags
+	Topics map[string]map[string]features.TopicSignalAggregate
 }
 
-func LoadNewsOverrides(path string) (map[string]map[string]NewsAggregate, map[string]map[string]features.EventFlags, map[string]map[string]TopicSignalAggregate, error) {
+func LoadNewsOverrides(path string) (NewsOverrides, error) {
 	type record struct {
 		Ticker      string  `json:"ticker"`
 		Sentiment   float64 `json:"sentiment"`
@@ -161,7 +157,7 @@ func LoadNewsOverrides(path string) (map[string]map[string]NewsAggregate, map[st
 	}
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("backtest: open news history: %w", err)
+		return NewsOverrides{}, fmt.Errorf("backtest: open news history: %w", err)
 	}
 	defer f.Close()
 	type accum struct {
@@ -184,6 +180,10 @@ func LoadNewsOverrides(path string) (map[string]map[string]NewsAggregate, map[st
 		}
 		ticker := strings.ToUpper(strings.TrimSpace(r.Ticker))
 		date := time.Unix(r.PubTS, 0).UTC().Format("2006-01-02")
+		trustWeight := r.TrustWeight
+		if trustWeight <= 0 {
+			trustWeight = 1
+		}
 		byDate, ok := acc[ticker]
 		if !ok {
 			byDate = make(map[string]*accum)
@@ -194,15 +194,11 @@ func LoadNewsOverrides(path string) (map[string]map[string]NewsAggregate, map[st
 			a = &accum{}
 			byDate[date] = a
 		}
-		a.wSum += r.Sentiment
-		a.w += 1.0
+		a.wSum += r.Sentiment * trustWeight
+		a.w += trustWeight
 		a.n++
 		if r.Title != "" {
 			flags := features.DetectEvents(r.Title)
-			trustWeight := r.TrustWeight
-			if trustWeight <= 0 {
-				trustWeight = 1
-			}
 			if flags.Negotiations != 0 || flags.Sanctions != 0 {
 				topicByDate, ok := topicAcc[ticker]
 				if !ok {
@@ -244,7 +240,7 @@ func LoadNewsOverrides(path string) (map[string]map[string]NewsAggregate, map[st
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, nil, nil, fmt.Errorf("backtest: read news: %w", err)
+		return NewsOverrides{}, fmt.Errorf("backtest: read news: %w", err)
 	}
 	out := make(map[string]map[string]NewsAggregate, len(acc))
 	for ticker, byDate := range acc {
@@ -264,11 +260,11 @@ func LoadNewsOverrides(path string) (map[string]map[string]NewsAggregate, map[st
 			evOut[ticker][d] = *a
 		}
 	}
-	topicOut := make(map[string]map[string]TopicSignalAggregate, len(topicAcc))
+	topicOut := make(map[string]map[string]features.TopicSignalAggregate, len(topicAcc))
 	for ticker, byDate := range topicAcc {
-		topicOut[ticker] = make(map[string]TopicSignalAggregate, len(byDate))
+		topicOut[ticker] = make(map[string]features.TopicSignalAggregate, len(byDate))
 		for d, a := range byDate {
-			var agg TopicSignalAggregate
+			var agg features.TopicSignalAggregate
 			if a.negotiationsWeight > 0 {
 				agg.Negotiations = a.negotiationsWeighted / a.negotiationsWeight
 			}
@@ -278,7 +274,7 @@ func LoadNewsOverrides(path string) (map[string]map[string]NewsAggregate, map[st
 			topicOut[ticker][d] = agg
 		}
 	}
-	return out, evOut, topicOut, nil
+	return NewsOverrides{News: out, Events: evOut, Topics: topicOut}, nil
 }
 
 func (c Config) WithDefaults() Config {

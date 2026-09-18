@@ -1,10 +1,16 @@
 package backtest
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/shopspring/decimal"
+
+	"github.com/olegsidorkin/moex-trader/internal/domain"
+	"github.com/olegsidorkin/moex-trader/internal/features"
 )
 
 func TestLoadNewsOverridesTopicSignals(t *testing.T) {
@@ -19,18 +25,20 @@ func TestLoadNewsOverridesTopicSignals(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	news, events, topics, err := LoadNewsOverrides(path)
+	overrides, err := LoadNewsOverrides(path)
 	if err != nil {
 		t.Fatalf("LoadNewsOverrides() error = %v", err)
 	}
+	news, events, topics := overrides.News, overrides.Events, overrides.Topics
 
 	day1 := "2026-08-16"
 	day2 := "2026-08-17"
 	if got := news["SBER"][day1].Count; got != 3 {
 		t.Fatalf("day1 news count = %d, want 3", got)
 	}
-	if got := news["SBER"][day1].Sentiment; got > 0.5+1e-9 || got < 0.5-1e-9 {
-		t.Fatalf("day1 news sentiment = %v, want 0.5", got)
+	wantSentiment := (0.8*0.5 + 0.4*1.5 + 0.3*1.0) / (0.5 + 1.5 + 1.0)
+	if got := news["SBER"][day1].Sentiment; got > wantSentiment+1e-9 || got < wantSentiment-1e-9 {
+		t.Fatalf("day1 news sentiment = %v, want %v", got, wantSentiment)
 	}
 	if got := events["SBER"][day1].Sanctions; got != 1 {
 		t.Fatalf("day1 event sanctions = %d, want 1", got)
@@ -57,11 +65,62 @@ func TestLoadNewsOverridesTopicSignalsNoMatches(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	_, _, topics, err := LoadNewsOverrides(path)
+	overrides, err := LoadNewsOverrides(path)
 	if err != nil {
 		t.Fatalf("LoadNewsOverrides() error = %v", err)
 	}
+	topics := overrides.Topics
 	if len(topics) != 0 {
 		t.Fatalf("expected empty topic map, got %+v", topics)
 	}
+}
+
+type topicCaptureSignal struct {
+	features []domain.FeatureContext
+}
+
+func (s *topicCaptureSignal) Generate(_ context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
+	s.features = append(s.features, feature)
+	return domain.TradeSignal{Ticker: feature.Ticker, Action: domain.ActionHold, GeneratedAt: feature.GeneratedAt}, nil
+}
+
+func TestProcessTickerDayAppliesTopicSignalOverrides(t *testing.T) {
+	candles := benchCandles(120)
+	from := candles[105].Begin
+	day := from.Format("2006-01-02")
+	signal := &topicCaptureSignal{}
+
+	engine, err := NewEngine(Config{
+		Tickers:        []string{"TEST"},
+		From:           from,
+		Till:           candles[106].Begin,
+		Deposit:        decimal.NewFromInt(100000),
+		MaxLots:        1,
+		CommissionRate: decimal.Zero,
+		SignalSource:   signal,
+		Source:         fakeSource{candles: candles},
+		TopicSignalOverrides: map[string]map[string]features.TopicSignalAggregate{
+			"TEST": {day: {Negotiations: 0.75, Sanctions: -0.6}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewEngine() error = %v", err)
+	}
+
+	if _, err := engine.Run(context.Background()); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	for _, feature := range signal.features {
+		if feature.GeneratedAt.Format("2006-01-02") != day {
+			continue
+		}
+		if !feature.NegotiationsSignal.Equal(decimal.NewFromFloat(0.75)) {
+			t.Fatalf("NegotiationsSignal = %s, want 0.75", feature.NegotiationsSignal)
+		}
+		if !feature.SanctionsSignal.Equal(decimal.NewFromFloat(-0.6)) {
+			t.Fatalf("SanctionsSignal = %s, want -0.6", feature.SanctionsSignal)
+		}
+		return
+	}
+	t.Fatalf("no feature captured for override day %s", day)
 }

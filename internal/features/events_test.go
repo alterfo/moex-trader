@@ -97,3 +97,55 @@ func TestAggregateEventsSumsNegotiations(t *testing.T) {
 		t.Fatalf("AggregateEvents negotiations = %d, want 2", got.Negotiations)
 	}
 }
+
+func TestDetectEventsSanctionsTariffEnforcement(t *testing.T) {
+	cases := []struct {
+		name string
+		text string
+		want bool
+	}{
+		{
+			name: "sanctions",
+			text: "США ввели новые санкции против банков",
+			want: true,
+		},
+		{
+			name: "tariff against oil buyers",
+			text: "Трамп ввел 100% пошлины на покупателей российской нефти",
+			want: true,
+		},
+		{
+			name: "oil price move is not tariff enforcement",
+			text: "Цена нефти выросла на три процента",
+			want: false,
+		},
+		{
+			name: "utility tariff is not sanctions signal",
+			text: "Тарифы на электроэнергию выросли",
+			want: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := DetectEvents(tc.text).Sanctions == 1
+			if got != tc.want {
+				t.Fatalf("DetectEvents(%q).Sanctions = %v, want %v", tc.text, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestEventFlagsVectorIncludesNegotiations(t *testing.T) {
+	got := EventFlags{
+		Dividend: 1, Buyback: 1, Sanctions: 1, IPO: 1,
+		Report: 1, Delisting: 1, MNA: 1, Default: 1,
+		Negotiations: 1,
+	}.Vector()
+	if len(got) != 9 {
+		t.Fatalf("Vector() length = %d, want 9", len(got))
+	}
+	if got[len(got)-1] != 1 {
+		t.Fatalf("Vector() negotiations = %v, want 1", got[len(got)-1])
+	}
+}

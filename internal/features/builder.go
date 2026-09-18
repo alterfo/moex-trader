@@ -52,9 +52,8 @@ func NewBuilderWithConfig(now func() time.Time, conf PriceFeatureConfig) *Builde
 	return &Builder{now: now, conf: conf}
 }
 
-func (b *Builder) SetNewsPolarity(scorer func(string) decimal.Decimal) *Builder {
+func (b *Builder) SetNewsPolarity(scorer func(string) decimal.Decimal) {
 	b.newsPolarity = scorer
-	return b
 }
 
 func (b *Builder) Build(input Input) (domain.FeatureContext, error) {

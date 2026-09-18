@@ -19,6 +19,11 @@ type EventFlags struct {
 	Negotiations int
 }
 
+type TopicSignalAggregate struct {
+	Negotiations float64
+	Sanctions    float64
+}
+
 func (f EventFlags) Vector() []float64 {
 	return []float64{
 		float64(f.Dividend),
@@ -29,13 +34,14 @@ func (f EventFlags) Vector() []float64 {
 		float64(f.Delisting),
 		float64(f.MNA),
 		float64(f.Default),
+		float64(f.Negotiations),
 	}
 }
 
 var (
 	evDividend     = regexp.MustCompile(`(?i)(?:дивиденд\w*|денежн\s*выплат\w*)`)
 	evBuyback      = regexp.MustCompile(`(?i)(?:buyback|выкуп\s*акц\w*|обратн\w*\s*выкуп\w*)`)
-	evSanctions    = regexp.MustCompile(`(?i)(?:санкц\w*|ограничен\w*\s*торг|блокиров\w*)`)
+	evSanctions    = regexp.MustCompile(`(?i)(?:санкц\w*|ограничен\w*\s*торг|блокиров\w*|(?:тариф|пошлин)[а-яё]*(?:\s+(?:на|против))?\s*(?:покупател[а-яё]*|импорт[а-яё]*|нефт[а-яё]*)|нефт[а-яё]*\s*(?:покупател[а-яё]*|импорт[а-яё]*))`)
 	evIPO          = regexp.MustCompile(`(?i)(?:\bipo\b|допэмисс\w*|размещ\w*\s*акц|спо\b|\bspo\b)`)
 	evReport       = regexp.MustCompile(`(?i)(?:квартальн\w*\s*(?:результат|отчет)|отчетн\w*|выручк\w*|ebitda|финанс\w*\s*результат|результат\w*\s*за\s*(?:квартал|полугодие|год))`)
 	evDelist       = regexp.MustCompile(`(?i)(?:делистинг\w*|исключ\w*\s*из|приостанов\w*\s*(?:торг|обращ)|прекращ\w*\s*(?:торг|обращ))`)

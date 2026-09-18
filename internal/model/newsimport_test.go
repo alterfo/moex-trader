@@ -10,6 +10,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/olegsidorkin/moex-trader/internal/domain"
+	"github.com/olegsidorkin/moex-trader/internal/features"
 )
 
 func writeNewsHistoryFixture(t *testing.T, lines []string) string {
@@ -173,5 +174,50 @@ func TestApplyNewsOverrideToCalibrationNoFeatureColumns(t *testing.T) {
 	}
 	if applied := ApplyNewsOverrideToCalibration(samples, map[string]map[string]NewsAggregate{"SBER": {}}); applied != 0 {
 		t.Fatalf("applied = %d, want 0 when news columns are absent", applied)
+	}
+}
+
+func TestApplyTopicSignalOverrides(t *testing.T) {
+	day := time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC)
+	samples := []LabeledSample{
+		{Feature: domain.FeatureContext{Ticker: "SBER", GeneratedAt: day}},
+		{Feature: domain.FeatureContext{Ticker: "SBER", GeneratedAt: day.AddDate(0, 0, 10)}},
+	}
+	topics := map[string]map[string]features.TopicSignalAggregate{
+		"SBER": {dateKey(day): {Negotiations: 0.6, Sanctions: -0.4}},
+	}
+
+	applied := ApplyTopicSignalOverrides(samples, topics)
+	if applied != 1 {
+		t.Fatalf("applied = %d, want 1", applied)
+	}
+	if !samples[0].Feature.NegotiationsSignal.Equal(decimal.NewFromFloat(0.6)) || !samples[0].Feature.SanctionsSignal.Equal(decimal.NewFromFloat(-0.4)) {
+		t.Fatalf("sample 0 topic signals not overridden: %+v", samples[0].Feature)
+	}
+	if !samples[1].Feature.NegotiationsSignal.IsZero() || !samples[1].Feature.SanctionsSignal.IsZero() {
+		t.Fatalf("sample 1 should remain unchanged: %+v", samples[1].Feature)
+	}
+}
+
+func TestApplyTopicSignalOverridesToCalibration(t *testing.T) {
+	day := time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC)
+	names := []string{"return_pct", "negotiations_signal", "sanctions_signal"}
+	samples := []CalibrationSample{
+		{Ticker: "SBER", Date: day, Vector: []float64{1, 0, 0}, Names: names},
+		{Ticker: "SBER", Date: day.AddDate(0, 0, 10), Vector: []float64{1, 0, 0}, Names: names},
+	}
+	topics := map[string]map[string]features.TopicSignalAggregate{
+		"SBER": {dateKey(day): {Negotiations: 0.7, Sanctions: -0.3}},
+	}
+
+	applied := ApplyTopicSignalOverridesToCalibration(samples, topics)
+	if applied != 1 {
+		t.Fatalf("applied = %d, want 1", applied)
+	}
+	if samples[0].Vector[1] != 0.7 || samples[0].Vector[2] != -0.3 {
+		t.Fatalf("sample 0 vector not overridden: %v", samples[0].Vector)
+	}
+	if samples[1].Vector[1] != 0 || samples[1].Vector[2] != 0 {
+		t.Fatalf("sample 1 should remain unchanged: %v", samples[1].Vector)
 	}
 }

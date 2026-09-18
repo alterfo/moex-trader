@@ -270,8 +270,10 @@ func runPipeline(ctx context.Context, cfg pipelineConfig, source backtest.Histor
 			return nil, nil, fmt.Errorf("load news history: %w", err)
 		}
 		news := model.AggregateDailySentiment(records)
+		topics := model.AggregateDailyTopicSignals(records)
 		applied := model.ApplyNewsOverride(samples, news)
-		log.Printf("trainmodel: applied real news_sentiment/news_count to %d/%d samples from %d records", applied, len(samples), len(records))
+		topicApplied := model.ApplyTopicSignalOverrides(samples, topics)
+		log.Printf("trainmodel: applied real news_sentiment/news_count to %d/%d samples and topic signals to %d/%d samples from %d records", applied, len(samples), topicApplied, len(samples), len(records))
 	}
 
 	trainSamples, valSamples := splitTrainVal(samples, cfg.split)

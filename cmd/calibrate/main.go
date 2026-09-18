@@ -94,8 +94,10 @@ func run(args []string, stdout io.Writer) error {
 			return fmt.Errorf("load news history: %w", err)
 		}
 		news := model.AggregateDailySentiment(records)
+		topics := model.AggregateDailyTopicSignals(records)
 		applied := model.ApplyNewsOverrideToCalibration(samples, news)
-		log.Printf("calibrate: applied real news_sentiment/news_count to %d/%d samples from %d records", applied, len(samples), len(records))
+		topicApplied := model.ApplyTopicSignalOverridesToCalibration(samples, topics)
+		log.Printf("calibrate: applied real news_sentiment/news_count to %d/%d samples and topic signals to %d/%d samples from %d records", applied, len(samples), topicApplied, len(samples), len(records))
 	}
 
 	report := model.BuildCalibrationReport(samples, tickers, horizons)
