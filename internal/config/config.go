@@ -54,10 +54,12 @@ type Risk struct {
 }
 
 type Telegram struct {
-	BotToken      string   `yaml:"-"`
-	ChatID        string   `yaml:"chat_id"`
-	SignalTickers []string `yaml:"signal_tickers"`
-	Proxy         string   `yaml:"proxy"`
+	BotToken            string   `yaml:"-"`
+	ChatID              string   `yaml:"chat_id"`
+	SignalTickers       []string `yaml:"signal_tickers"`
+	Proxy               string   `yaml:"proxy"`
+	DailySummaryEnabled bool     `yaml:"daily_summary_enabled"`
+	DailySummaryTime    string   `yaml:"daily_summary_time"`
 }
 
 type News struct {
@@ -124,6 +126,7 @@ const (
 	defaultRiskMaxLots        = 1
 	defaultCommissionBroker   = "tinkoff"
 	defaultNewsClassifierPath = "news_classifier.json"
+	defaultDailySummaryTime   = "19:05"
 )
 
 func Default() *Config {
@@ -140,7 +143,7 @@ func Default() *Config {
 			DriftPSIThreshold:        0.2,
 			DriftPSIWindow:           256,
 		},
-		Telegram: Telegram{},
+		Telegram: Telegram{DailySummaryTime: defaultDailySummaryTime},
 		News: News{
 			VetoEnabled:    true,
 			VetoSentiment:  decimal.NewFromFloat(0.5),
@@ -202,6 +205,9 @@ func Parse(data []byte) (*Config, error) {
 func (c *Config) normalize() {
 	if strings.TrimSpace(c.Tinkoff.OrderType) == "" {
 		c.Tinkoff.OrderType = defaultTinkoffOrderType
+	}
+	if strings.TrimSpace(c.Telegram.DailySummaryTime) == "" {
+		c.Telegram.DailySummaryTime = defaultDailySummaryTime
 	}
 }
 
@@ -315,6 +321,11 @@ func (c *Config) Validate() error {
 		}
 		if c.Preflight.SlippagePct.IsNegative() || c.Preflight.SlippagePct.GreaterThan(decimal.NewFromInt(1)) {
 			return fmt.Errorf("preflight.slippage_pct must be in [0,1]")
+		}
+	}
+	if c.Telegram.DailySummaryEnabled {
+		if _, err := time.Parse("15:04", strings.TrimSpace(c.Telegram.DailySummaryTime)); err != nil {
+			return fmt.Errorf("telegram.daily_summary_time must be HH:MM: %w", err)
 		}
 	}
 	if c.PollInterval <= 0 {
@@ -451,6 +462,16 @@ func applyEnv(cfg *Config) error {
 	}
 	if v := os.Getenv("MOEX_TRADER_TELEGRAM_PROXY"); v != "" {
 		cfg.Telegram.Proxy = v
+	}
+	if v := os.Getenv("MOEX_TRADER_TELEGRAM_DAILY_SUMMARY_ENABLED"); v != "" {
+		enabled, err := strconv.ParseBool(v)
+		if err != nil {
+			return fmt.Errorf("parse MOEX_TRADER_TELEGRAM_DAILY_SUMMARY_ENABLED: %w", err)
+		}
+		cfg.Telegram.DailySummaryEnabled = enabled
+	}
+	if v := os.Getenv("MOEX_TRADER_TELEGRAM_DAILY_SUMMARY_TIME"); v != "" {
+		cfg.Telegram.DailySummaryTime = v
 	}
 	if v := os.Getenv("MOEX_TRADER_NEWS_PROXY"); v != "" {
 		cfg.News.Proxy = v

@@ -255,6 +255,25 @@ func run() error {
 	} else {
 		log.Printf("tinkoff sandbox mode: orders are sent to the sandbox; account-based risk limits are enforced")
 	}
+	if cfg.Telegram.DailySummaryEnabled && telegramClient.Enabled() {
+		fire, err := time.Parse("15:04", cfg.Telegram.DailySummaryTime)
+		if err != nil {
+			return fmt.Errorf("parse daily summary time %q: %w", cfg.Telegram.DailySummaryTime, err)
+		}
+		fireOfDay := time.Duration(fire.Hour())*time.Hour + time.Duration(fire.Minute())*time.Minute
+		go runDailySummary(ctx, dailySummaryConfig{
+			store:   store,
+			history: historySource,
+			tickers: cfg.Tickers,
+			alerter: telegramClient,
+			fire:    fireOfDay,
+			now:     time.Now,
+			logger:  log.Default(),
+		})
+		log.Printf("daily summary: enabled, fires at %s MSK after the close (IMOEX + green tickers, bot day P&L)", cfg.Telegram.DailySummaryTime)
+	} else {
+		log.Printf("daily summary: disabled (config=%v telegram_enabled=%v)", cfg.Telegram.DailySummaryEnabled, telegramClient.Enabled())
+	}
 	orch.Run(ctx)
 	log.Printf("trader stopped")
 	return nil

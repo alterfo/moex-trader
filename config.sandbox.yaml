@@ -85,3 +85,9 @@ telegram:
   chat_id: ""
   signal_tickers: []
   proxy: "socks5://127.0.0.1:3333"
+  # Every evening after the close, send a brief digest: bot's day P&L (realized
+  # + MTM of open positions), fills count, IMOEX daily move and the share of
+  # tickers that closed green — context for deciding about manual long
+  # positions. Skipped automatically on non-trading days.
+  daily_summary_enabled: true
+  daily_summary_time: "19:05"

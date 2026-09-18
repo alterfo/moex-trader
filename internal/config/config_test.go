@@ -586,6 +586,49 @@ func TestTelegramSignalTickersLoaded(t *testing.T) {
 	}
 }
 
+func TestDailySummaryDefaultsAndOverrides(t *testing.T) {
+	clearEnv(t)
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if cfg.Telegram.DailySummaryEnabled {
+		t.Fatal("expected daily summary to default to disabled")
+	}
+	if cfg.Telegram.DailySummaryTime != "19:05" {
+		t.Fatalf("unexpected default daily summary time: %q", cfg.Telegram.DailySummaryTime)
+	}
+
+	cfg, err = Parse([]byte("storage:\n  path: ./trader.db\ntelegram:\n  daily_summary_enabled: true\n  daily_summary_time: \"20:30\"\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if !cfg.Telegram.DailySummaryEnabled || cfg.Telegram.DailySummaryTime != "20:30" {
+		t.Fatalf("unexpected daily summary config: %+v", cfg.Telegram)
+	}
+}
+
+func TestDailySummaryInvalidTimeRejected(t *testing.T) {
+	clearEnv(t)
+	_, err := Parse([]byte("storage:\n  path: ./trader.db\ntelegram:\n  daily_summary_enabled: true\n  daily_summary_time: \"evening\"\n"))
+	if err == nil {
+		t.Fatal("expected error for invalid daily summary time")
+	}
+}
+
+func TestDailySummaryEnvOverrides(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("MOEX_TRADER_TELEGRAM_DAILY_SUMMARY_ENABLED", "true")
+	t.Setenv("MOEX_TRADER_TELEGRAM_DAILY_SUMMARY_TIME", "21:00")
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if !cfg.Telegram.DailySummaryEnabled || cfg.Telegram.DailySummaryTime != "21:00" {
+		t.Fatalf("unexpected daily summary env config: %+v", cfg.Telegram)
+	}
+}
+
 func TestNewsDefaultsApplied(t *testing.T) {
 	clearEnv(t)
 	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\n"))

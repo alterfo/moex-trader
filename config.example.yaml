@@ -79,6 +79,12 @@ telegram:
   signal_tickers: []
   # Telegram API is blocked in some networks; route it through a proxy, e.g. "socks5://127.0.0.1:3333".
   proxy: ""
+  # Every evening after the exchange close, send a brief digest to the chat:
+  # the bot's day P&L (realized + MTM of open positions), the fills count, the
+  # IMOEX daily move and the share of configured tickers that closed green —
+  # market context for manual long positions. Non-trading days are skipped.
+  daily_summary_enabled: false
+  daily_summary_time: "19:05"
 
 # Historical news archive (finanalys format) used to backfill news_sentiment/news_count,
 # event features, and negotiations_signal/sanctions_signal in cmd/exportdataset,
