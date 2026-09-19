@@ -265,17 +265,23 @@ type fakeGate struct {
 	mu       sync.Mutex
 	requests []risk.Request
 	approve  bool
+	reason   string
 	err      error
 }
 
-func (g *fakeGate) Approve(_ context.Context, request risk.Request) (bool, error) {
+func (g *fakeGate) Approve(ctx context.Context, request risk.Request) (bool, error) {
+	decision, err := g.ApproveReason(ctx, request)
+	return decision.Approved, err
+}
+
+func (g *fakeGate) ApproveReason(_ context.Context, request risk.Request) (risk.Decision, error) {
 	g.mu.Lock()
 	g.requests = append(g.requests, request)
 	g.mu.Unlock()
 	if g.err != nil {
-		return false, g.err
+		return risk.Decision{}, g.err
 	}
-	return g.approve, nil
+	return risk.Decision{Approved: g.approve, Reason: g.reason}, nil
 }
 
 func (g *fakeGate) callCount() int {
@@ -494,7 +500,7 @@ func TestRunOnceNotifiesRejectedDecision(t *testing.T) {
 		now: now,
 	}
 	exec := &fakeExecutor{store: store, now: now}
-	gate := &fakeGate{approve: false}
+	gate := &fakeGate{approve: false, reason: "max_lots_exceeded"}
 	observer := &recordingObserver{}
 
 	orch, err := New(Options{
@@ -523,6 +529,20 @@ func TestRunOnceNotifiesRejectedDecision(t *testing.T) {
 	}
 	if exec.callCount() != 0 {
 		t.Fatalf("executor calls = %d, want 0 for a rejected signal", exec.callCount())
+	}
+
+	events, err := store.ListAuditEvents(context.Background(), time.Time{})
+	if err != nil {
+		t.Fatalf("ListAuditEvents() error = %v", err)
+	}
+	var riskPayload string
+	for _, ev := range events {
+		if ev.Stage == StageRisk {
+			riskPayload = ev.Payload
+		}
+	}
+	if !strings.Contains(riskPayload, `"approved":false`) || !strings.Contains(riskPayload, `"reason":"max_lots_exceeded"`) {
+		t.Fatalf("risk_gate payload = %q, want approved:false with reason embedding", riskPayload)
 	}
 }
 

@@ -60,7 +60,7 @@ func (t *TargetPositionExecutor) Execute(ctx context.Context, signal domain.Trad
 	if delta == 0 {
 		return t.noopFill(signal, price), nil
 	}
-	if t.skipRebalance(delta, desired) {
+	if t.skipRebalance(delta, desired, current) {
 		return t.noopFill(signal, price), nil
 	}
 	target := signal
@@ -74,15 +74,22 @@ func (t *TargetPositionExecutor) Execute(ctx context.Context, signal domain.Trad
 	return t.inner.Execute(ctx, target, price)
 }
 
-func (t *TargetPositionExecutor) skipRebalance(delta, desired int) bool {
+func (t *TargetPositionExecutor) skipRebalance(delta, desired, current int) bool {
 	if !t.minDeviationPct.IsPositive() {
 		return false
 	}
 	if desired == 0 {
 		return false
 	}
+	if absInt(delta) <= 1 && current != 0 && sameDirection(current, desired) {
+		return true
+	}
 	deviation := decimal.NewFromInt(int64(absInt(delta))).Div(decimal.NewFromInt(int64(absInt(desired))))
 	return deviation.LessThanOrEqual(t.minDeviationPct)
+}
+
+func sameDirection(left, right int) bool {
+	return (left > 0) == (right > 0)
 }
 
 func absInt(v int) int {

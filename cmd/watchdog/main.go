@@ -52,7 +52,7 @@ func run(configPath string) error {
 
 	witness := failover.NewWitnessClient(cfg.Witness.URL, witnessToken, nil)
 	peer := failover.NewPeerClient(cfg.PeerURL, heartbeatToken, nil)
-	node := newWatchdog(cfg, witness, peer, telegramClient, log.Default())
+	node := newWatchdog(cfg, witness, peer, telegramClient, env, log.Default())
 
 	server := &http.Server{
 		Addr:              cfg.Listen,

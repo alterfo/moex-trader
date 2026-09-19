@@ -184,6 +184,7 @@ func newTestWatchdog(t *testing.T, cfg *Config, witnessURL, peerURL string) *wat
 		failover.NewWitnessClient(witnessURL, testWitnessToken, nil),
 		failover.NewPeerClient(peerURL, testHeartbeatToken, nil),
 		nil,
+		nil,
 		logger,
 	)
 }
@@ -591,4 +592,30 @@ func checkSQLiteTicker(t *testing.T, path string) error {
 	}()
 	var ticker string
 	return db.QueryRow(`SELECT ticker FROM trades`).Scan(&ticker)
+}
+
+func TestMergeEnvMergesExtraOverBase(t *testing.T) {
+	base := []string{"PATH=/usr/bin", "HOME=/root", "KEEP=1"}
+	extra := map[string]string{
+		"HOME":                           "/home/user",
+		"MOEX_TRADER_TELEGRAM_BOT_TOKEN": "secret-token",
+	}
+	got := mergeEnv(base, extra)
+	want := []string{"PATH=/usr/bin", "HOME=/home/user", "KEEP=1", "MOEX_TRADER_TELEGRAM_BOT_TOKEN=secret-token"}
+	if len(got) != len(want) {
+		t.Fatalf("mergeEnv() len = %d, want %d: %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("mergeEnv()[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestMergeEnvNilExtra(t *testing.T) {
+	base := []string{"A=1"}
+	got := mergeEnv(base, nil)
+	if len(got) != 1 || got[0] != "A=1" {
+		t.Fatalf("mergeEnv(nil) = %v, want unchanged", got)
+	}
 }

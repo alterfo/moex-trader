@@ -289,7 +289,7 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string, account
 		}
 	}
 
-	approved, err := o.gate.Approve(ctx, risk.Request{
+	decision, err := o.gate.ApproveReason(ctx, risk.Request{
 		Signal: signal,
 		Market: risk.Market{
 			OrderPrice: feature.LastPrice,
@@ -306,11 +306,12 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string, account
 		return fmt.Errorf("risk gate for %s: %w", ticker, err)
 	}
 	if err := o.record(ctx, ticker, StageRisk, auditJSON(struct {
-		Approved bool `json:"approved"`
-	}{Approved: approved})); err != nil {
+		Approved bool   `json:"approved"`
+		Reason   string `json:"reason,omitempty"`
+	}{Approved: decision.Approved, Reason: decision.Reason})); err != nil {
 		return err
 	}
-	if !approved {
+	if !decision.Approved {
 		if o.metrics != nil {
 			o.metrics.IncRiskRejections()
 		}

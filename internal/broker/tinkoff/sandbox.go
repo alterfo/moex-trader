@@ -241,6 +241,70 @@ func (s *Sandbox) Snapshot(ctx context.Context) (risk.Account, error) {
 	}, nil
 }
 
+func (s *Sandbox) PositionLots(ctx context.Context, tickers []string) (map[string]int, error) {
+	accountID := s.AccountID()
+	if accountID == "" {
+		return nil, errors.New("sandbox: account is not initialized")
+	}
+	portfolio, err := s.client.GetSandboxPortfolio(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	byUID := make(map[string]*pb.PortfolioPosition, len(portfolio.GetPositions()))
+	for _, position := range portfolio.GetPositions() {
+		uid := strings.TrimSpace(position.GetInstrumentUid())
+		if uid == "" {
+			continue
+		}
+		byUID[uid] = position
+	}
+	lots := make(map[string]int, len(tickers))
+	for _, ticker := range tickers {
+		key := strings.ToUpper(strings.TrimSpace(ticker))
+		if key == "" {
+			continue
+		}
+		uid, err := s.ResolveInstrumentID(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		count, err := s.positionLots(ctx, key, byUID[uid])
+		if err != nil {
+			return nil, err
+		}
+		lots[key] = count
+	}
+	return lots, nil
+}
+
+func (s *Sandbox) positionLots(ctx context.Context, ticker string, position *pb.PortfolioPosition) (int, error) {
+	if position == nil {
+		return 0, nil
+	}
+	if quantityLots := position.GetQuantityLots(); quantityLots != nil {
+		count, err := ingestion.QuotationToDecimal(quantityLots)
+		if err != nil {
+			return 0, fmt.Errorf("sandbox: position lots for %s: %w", ticker, err)
+		}
+		return int(count.Round(0).IntPart()), nil
+	}
+	quantity, err := ingestion.QuotationToDecimal(position.GetQuantity())
+	if err != nil {
+		return 0, fmt.Errorf("sandbox: position quantity for %s: %w", ticker, err)
+	}
+	if quantity.IsZero() {
+		return 0, nil
+	}
+	lot, err := s.ResolveLotSize(ctx, ticker)
+	if err != nil {
+		return 0, err
+	}
+	if !lot.IsPositive() {
+		return 0, fmt.Errorf("sandbox: lot size for %s is not positive", ticker)
+	}
+	return int(quantity.Div(lot).Round(0).IntPart()), nil
+}
+
 // MaxOpenPositionNotional returns the largest absolute notional across the
 // account's open positions, computed as quantity times current price for each
 // position. An account with no open positions returns zero.

@@ -727,9 +727,14 @@ type recordingGate struct {
 	requests []risk.Request
 }
 
-func (g *recordingGate) Approve(_ context.Context, request risk.Request) (bool, error) {
+func (g *recordingGate) Approve(ctx context.Context, request risk.Request) (bool, error) {
+	decision, err := g.ApproveReason(ctx, request)
+	return decision.Approved, err
+}
+
+func (g *recordingGate) ApproveReason(_ context.Context, request risk.Request) (risk.Decision, error) {
 	g.requests = append(g.requests, request)
-	return g.approve, nil
+	return risk.Decision{Approved: g.approve}, nil
 }
 
 func flatDropCandles(n int, dropAt int, dropPrice int64) []moex.Candle {

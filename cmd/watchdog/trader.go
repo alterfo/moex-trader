@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -21,7 +22,7 @@ type traderProcess struct {
 	err     error
 }
 
-func startTraderProcess(cfg TraderConfig, logger *log.Logger) (*traderProcess, error) {
+func startTraderProcess(cfg TraderConfig, extraEnv map[string]string, logger *log.Logger) (*traderProcess, error) {
 	if len(cfg.Command) == 0 {
 		return nil, fmt.Errorf("trader command is empty")
 	}
@@ -34,7 +35,7 @@ func startTraderProcess(cfg TraderConfig, logger *log.Logger) (*traderProcess, e
 	writer := newMarkerWriter(os.Stdout, cfg.StartupMarker, func() { proc.active.Store(true) })
 	cmd.Stdout = writer
 	cmd.Stderr = os.Stderr
-	cmd.Env = os.Environ()
+	cmd.Env = mergeEnv(os.Environ(), extraEnv)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start trader: %w", err)
@@ -44,6 +45,28 @@ func startTraderProcess(cfg TraderConfig, logger *log.Logger) (*traderProcess, e
 		close(proc.exited)
 	}()
 	return proc, nil
+}
+
+func mergeEnv(base []string, extra map[string]string) []string {
+	if len(extra) == 0 {
+		return base
+	}
+	out := append([]string(nil), base...)
+	for key, value := range extra {
+		prefix := key + "="
+		found := false
+		for i, entry := range out {
+			if strings.HasPrefix(entry, prefix) {
+				out[i] = prefix + value
+				found = true
+				break
+			}
+		}
+		if !found {
+			out = append(out, prefix+value)
+		}
+	}
+	return out
 }
 
 func (p *traderProcess) alive() bool {

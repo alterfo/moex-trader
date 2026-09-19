@@ -25,6 +25,7 @@ type watchdog struct {
 	alerter *telegram.Client
 	logger  *log.Logger
 	now     func() time.Time
+	env     map[string]string
 
 	mu              sync.Mutex
 	state           failover.NodeState
@@ -52,7 +53,7 @@ type watchdog struct {
 	alerts  map[string]time.Time
 }
 
-func newWatchdog(cfg *Config, witness *failover.WitnessClient, peer *failover.PeerClient, alerter *telegram.Client, logger *log.Logger) *watchdog {
+func newWatchdog(cfg *Config, witness *failover.WitnessClient, peer *failover.PeerClient, alerter *telegram.Client, env map[string]string, logger *log.Logger) *watchdog {
 	if logger == nil {
 		logger = log.Default()
 	}
@@ -69,6 +70,7 @@ func newWatchdog(cfg *Config, witness *failover.WitnessClient, peer *failover.Pe
 		stateSince: time.Now(),
 		reason:     "startup",
 		alerts:     make(map[string]time.Time),
+		env:        env,
 	}
 }
 
@@ -204,7 +206,7 @@ func (w *watchdog) startTrader(ctx context.Context, now time.Time, reason string
 	if err := w.pullDB(ctx, now); err != nil {
 		w.logger.Printf("watchdog: pre-start db sync skipped: %v", err)
 	}
-	proc, err := startTraderProcess(w.cfg.Trader, w.logger)
+	proc, err := startTraderProcess(w.cfg.Trader, w.env, w.logger)
 	if err != nil {
 		w.mu.Lock()
 		w.failures++

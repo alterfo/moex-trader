@@ -44,6 +44,10 @@ func (traderTestGate) Approve(context.Context, risk.Request) (bool, error) {
 	return true, nil
 }
 
+func (traderTestGate) ApproveReason(context.Context, risk.Request) (risk.Decision, error) {
+	return risk.Decision{Approved: true}, nil
+}
+
 type traderTestExecutor struct{}
 
 func (traderTestExecutor) Execute(context.Context, domain.TradeSignal, decimal.Decimal) (executor.Fill, error) {
@@ -263,9 +267,13 @@ func TestNewBrokerRuntimeSandboxWiresLiveExecutor(t *testing.T) {
 	if _, ok := runtime.exec.(*executor.TargetPositionExecutor); !ok {
 		t.Fatalf("newBrokerRuntime() executor type = %T, want *executor.TargetPositionExecutor", runtime.exec)
 	}
-	windowed, ok := runtime.exec.(*executor.TargetPositionExecutor).Inner().(*tradingWindowExecutor)
+	cooldown, ok := runtime.exec.(*executor.TargetPositionExecutor).Inner().(*executor.RejectionCooldownExecutor)
 	if !ok {
-		t.Fatalf("newBrokerRuntime() inner executor type = %T, want *tradingWindowExecutor", runtime.exec.(*executor.TargetPositionExecutor).Inner())
+		t.Fatalf("newBrokerRuntime() inner executor type = %T, want *executor.RejectionCooldownExecutor", runtime.exec.(*executor.TargetPositionExecutor).Inner())
+	}
+	windowed, ok := cooldown.Inner().(*tradingWindowExecutor)
+	if !ok {
+		t.Fatalf("newBrokerRuntime() windowed executor type = %T, want *tradingWindowExecutor", cooldown.Inner())
 	}
 	guarded, ok := windowed.inner.(*marketHoursExecutor)
 	if !ok {
@@ -273,6 +281,9 @@ func TestNewBrokerRuntimeSandboxWiresLiveExecutor(t *testing.T) {
 	}
 	if _, ok := guarded.inner.(*executor.LiveExecutor); !ok {
 		t.Fatalf("newBrokerRuntime() guarded inner executor type = %T, want *executor.LiveExecutor", guarded.inner)
+	}
+	if runtime.positionReader == nil {
+		t.Fatal("sandbox runtime position reader is nil")
 	}
 	if runtime.accountSource == nil {
 		t.Fatal("sandbox runtime account source is nil")

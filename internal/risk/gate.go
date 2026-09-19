@@ -11,8 +11,14 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/domain"
 )
 
+type Decision struct {
+	Approved bool
+	Reason   string
+}
+
 type Gate interface {
 	Approve(ctx context.Context, request Request) (bool, error)
+	ApproveReason(ctx context.Context, request Request) (Decision, error)
 }
 
 type Market struct {
@@ -126,54 +132,59 @@ func NewLotLimitGate(maxLots int) (*HardenedGate, error) {
 }
 
 func (g *HardenedGate) Approve(ctx context.Context, request Request) (bool, error) {
+	decision, err := g.ApproveReason(ctx, request)
+	return decision.Approved, err
+}
+
+func (g *HardenedGate) ApproveReason(ctx context.Context, request Request) (Decision, error) {
 	if err := request.Signal.Validate(); err != nil {
-		return false, fmt.Errorf("risk gate: invalid signal: %w", err)
+		return Decision{}, fmt.Errorf("risk gate: invalid signal: %w", err)
 	}
 	if request.Signal.TargetLots < 0 {
-		return false, fmt.Errorf("risk gate: target lots must be non-negative")
+		return Decision{}, fmt.Errorf("risk gate: target lots must be non-negative")
 	}
 	active, err := g.killSwitchActive(ctx)
 	if err != nil {
-		return false, fmt.Errorf("risk gate: read kill switch: %w", err)
+		return Decision{}, fmt.Errorf("risk gate: read kill switch: %w", err)
 	}
 	if active {
-		return false, nil
+		return Decision{Reason: "kill_switch_active"}, nil
 	}
 	if g.breaker != nil && g.breaker.Blocked(request.Signal.Ticker) {
-		return false, nil
+		return Decision{Reason: "ticker_breaker_blocked"}, nil
 	}
 	if g.exceedsDrawdown(request.Account) {
 		if err := g.triggerKillSwitch(ctx, "drawdown limit exceeded"); err != nil {
-			return false, fmt.Errorf("risk gate: trigger kill switch: %w", err)
+			return Decision{}, fmt.Errorf("risk gate: trigger kill switch: %w", err)
 		}
-		return false, nil
+		return Decision{Reason: "drawdown_limit"}, nil
 	}
 	currentLots := 0
 	if g.positions != nil {
 		var err error
 		currentLots, err = g.positions.CurrentLots(ctx, request.Signal.Ticker)
 		if err != nil {
-			return false, fmt.Errorf("risk gate: read current position for %s: %w", request.Signal.Ticker, err)
+			return Decision{}, fmt.Errorf("risk gate: read current position for %s: %w", request.Signal.Ticker, err)
 		}
 	}
 	if request.Signal.TargetLots > g.maxLots {
-		return false, nil
+		return Decision{Reason: "max_lots_exceeded"}, nil
 	}
 	if g.exceedsMaxPosition(request.Signal, currentLots) {
-		return false, nil
+		return Decision{Reason: "max_position_exceeded"}, nil
 	}
 	if g.canceller != nil && (request.Signal.Action == domain.ActionBuy || request.Signal.Action == domain.ActionSell) && !g.hasAccountData(request.Account) {
-		return false, fmt.Errorf("risk gate: live trading requires account deposit and equity data")
+		return Decision{}, fmt.Errorf("risk gate: live trading requires account deposit and equity data")
 	}
 	if request.Signal.Action == domain.ActionBuy || request.Signal.Action == domain.ActionSell {
 		if request.Signal.TargetLots > 0 && !g.fatFingerOK(request.Market, request.Signal.Action) {
-			return false, nil
+			return Decision{Reason: "fat_finger"}, nil
 		}
 	}
 	if g.exceedsDailyLoss(request.Account) {
-		return false, nil
+		return Decision{Reason: "daily_loss"}, nil
 	}
-	return true, nil
+	return Decision{Approved: true}, nil
 }
 
 func (g *HardenedGate) exceedsMaxPosition(signal domain.TradeSignal, _ int) bool {

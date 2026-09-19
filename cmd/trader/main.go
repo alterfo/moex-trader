@@ -178,6 +178,9 @@ func run() error {
 	riskConfig := risk.DefaultConfig()
 	riskConfig.MaxLots = cfg.Risk.MaxLots
 	riskConfig.Positions = store
+	if runtime.positionReader != nil {
+		riskConfig.Positions = runtime.positionReader
+	}
 	riskConfig.Store = store
 	riskConfig.Alerter = telegramClient
 	riskConfig.Canceller = runtime.canceller
@@ -186,6 +189,7 @@ func run() error {
 		MaxCumulativeLossPct: cfg.Risk.CircuitBreakerMaxLossPct,
 		Notional:             cfg.Risk.TargetNotional,
 	})
+	seedTickerBreaker(breaker, events, log.Default())
 	riskConfig.Breaker = breaker
 	gate, err := risk.NewHardenedGate(riskConfig)
 	if err != nil {
@@ -811,11 +815,12 @@ func runExecutionQualityTracking(ctx context.Context, reporter *executionQuality
 }
 
 type brokerRuntime struct {
-	exec          executor.Executor
-	accountSource orchestrator.AccountSource
-	canceller     risk.OrderCanceller
-	borrowSource  borrowFeeSource
-	closeFn       func() error
+	exec           executor.Executor
+	accountSource  orchestrator.AccountSource
+	canceller      risk.OrderCanceller
+	borrowSource   borrowFeeSource
+	positionReader risk.PositionReader
+	closeFn        func() error
 }
 
 type borrowFeeSource interface {
@@ -948,15 +953,18 @@ func newBrokerRuntime(ctx context.Context, cfg *config.Config, store *storage.St
 			return nil, err
 		}
 		log.Printf("tinkoff sandbox: account %s ready; set tinkoff.account_id to reuse it on the next run", accountID)
-		targetExec := executor.NewTargetPositionExecutorWithConfig(windowedExecutor, store, now, executor.TargetPositionConfig{
+		cooldownExecutor := executor.NewRejectionCooldownExecutor(windowedExecutor, now, rejectedOrderThreshold, rejectedOrderCooldown, log.Default())
+		positionReader := newReconcilingPositionReader(sandbox, store, cfg.Tickers, positionReconcileTTL, now, log.Default())
+		targetExec := executor.NewTargetPositionExecutorWithConfig(cooldownExecutor, positionReader, now, executor.TargetPositionConfig{
 			RebalanceMinDeviationPct: cfg.Risk.RebalanceMinDeviationPct,
 		})
 		return &brokerRuntime{
-			exec:          targetExec,
-			accountSource: sandbox,
-			canceller:     sandbox,
-			borrowSource:  sandbox,
-			closeFn:       sandbox.Close,
+			exec:           targetExec,
+			accountSource:  sandbox,
+			canceller:      sandbox,
+			borrowSource:   sandbox,
+			positionReader: positionReader,
+			closeFn:        sandbox.Close,
 		}, nil
 	case config.BrokerFinam, config.BrokerPaper:
 		return nil, fmt.Errorf("live trading mode is not wired for broker %q: set broker: paper and is_paper_trading: true", cfg.Broker)

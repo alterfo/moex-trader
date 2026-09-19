@@ -225,3 +225,30 @@ func TestTargetPositionExecutor_RebalanceDeadbandDisabledByZeroConfig(t *testing
 		t.Fatalf("expected zero config to preserve original rebalance behavior, got %d inner calls", len(inner.signals))
 	}
 }
+
+func TestTargetPositionExecutor_RebalanceDeadbandSkipsSingleLotOnSmallTargets(t *testing.T) {
+	exec, inner, positions := newTargetPositionExecutorWithDeadband(t, "0.05")
+	ctx := context.Background()
+
+	positions.set("POSI", -16)
+	_, err := exec.Execute(ctx, domain.TradeSignal{Ticker: "POSI", Action: domain.ActionSell, TargetLots: 15}, decimal.NewFromInt(1028))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inner.signals) != 0 {
+		t.Fatalf("expected a 1-lot adjustment on a 15-lot short (6.7%%) to be skipped, got %d inner calls", len(inner.signals))
+	}
+
+	positions.set("YDEX", 0)
+	inner.signals = nil
+	_, err = exec.Execute(ctx, domain.TradeSignal{Ticker: "YDEX", Action: domain.ActionSell, TargetLots: 4}, decimal.NewFromInt(3750))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inner.signals) != 1 {
+		t.Fatalf("expected opening a 4-lot short from flat to trade, got %d inner calls", len(inner.signals))
+	}
+	if s := inner.signals[0]; s.Action != domain.ActionSell || s.TargetLots != 4 {
+		t.Fatalf("expected SELL 4, got %v lots=%d", s.Action, s.TargetLots)
+	}
+}

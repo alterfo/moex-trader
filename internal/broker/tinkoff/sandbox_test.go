@@ -767,3 +767,79 @@ func TestMaxOpenPositionNotionalRequiresAccount(t *testing.T) {
 		t.Fatal("MaxOpenPositionNotional() error = nil without account, want error")
 	}
 }
+
+func TestPositionLotsReconcilesSignedLots(t *testing.T) {
+	client := &fakeClient{
+		resolveUID: func(_ context.Context, ticker string) (string, error) {
+			return "uid-" + ticker, nil
+		},
+		portfolio: func(context.Context, string) (*pb.PortfolioResponse, error) {
+			return &pb.PortfolioResponse{Positions: []*pb.PortfolioPosition{
+				{InstrumentUid: "uid-GAZP", QuantityLots: quotation(-13, 0)},
+				{InstrumentUid: "uid-VTBR", QuantityLots: quotation(300, 0)},
+				{InstrumentUid: "uid-OTHER", QuantityLots: quotation(7, 0)},
+			}}, nil
+		},
+	}
+	sandbox := newSandboxForTest(t, client, Config{AccountID: "acc-1"})
+
+	got, err := sandbox.PositionLots(context.Background(), []string{"GAZP", "VTBR", "SBER"})
+	if err != nil {
+		t.Fatalf("PositionLots() error = %v", err)
+	}
+	want := map[string]int{"GAZP": -13, "VTBR": 300, "SBER": 0}
+	for ticker, lots := range want {
+		if got[ticker] != lots {
+			t.Fatalf("PositionLots()[%s] = %d, want %d", ticker, got[ticker], lots)
+		}
+	}
+	if len(got) != len(want) {
+		t.Fatalf("PositionLots() = %v, want %v", got, want)
+	}
+}
+
+func TestPositionLotsFallsBackToSharesAndLotSize(t *testing.T) {
+	client := &fakeClient{
+		resolveUID: func(_ context.Context, ticker string) (string, error) {
+			return "uid-" + ticker, nil
+		},
+		lotSize: func(context.Context, string) (int32, error) {
+			return 10, nil
+		},
+		portfolio: func(context.Context, string) (*pb.PortfolioResponse, error) {
+			return &pb.PortfolioResponse{Positions: []*pb.PortfolioPosition{
+				{InstrumentUid: "uid-GAZP", Quantity: quotation(-130, 0)},
+			}}, nil
+		},
+	}
+	sandbox := newSandboxForTest(t, client, Config{AccountID: "acc-1"})
+
+	got, err := sandbox.PositionLots(context.Background(), []string{"GAZP"})
+	if err != nil {
+		t.Fatalf("PositionLots() error = %v", err)
+	}
+	if got["GAZP"] != -13 {
+		t.Fatalf("PositionLots()[GAZP] = %d, want -13", got["GAZP"])
+	}
+}
+
+func TestPositionLotsRequiresAccount(t *testing.T) {
+	sandbox := newSandboxForTest(t, &fakeClient{}, Config{})
+	if _, err := sandbox.PositionLots(context.Background(), []string{"SBER"}); err == nil {
+		t.Fatal("PositionLots() error = nil without account, want error")
+	}
+}
+
+func TestPositionLotsPropagatesPortfolioError(t *testing.T) {
+	portfolioErr := errors.New("portfolio unavailable")
+	client := &fakeClient{
+		portfolio: func(context.Context, string) (*pb.PortfolioResponse, error) {
+			return nil, portfolioErr
+		},
+	}
+	sandbox := newSandboxForTest(t, client, Config{AccountID: "acc-1"})
+
+	if _, err := sandbox.PositionLots(context.Background(), []string{"SBER"}); !errors.Is(err, portfolioErr) {
+		t.Fatalf("PositionLots() error = %v, want %v", err, portfolioErr)
+	}
+}

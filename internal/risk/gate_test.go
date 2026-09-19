@@ -43,6 +43,14 @@ func newTestGate(t *testing.T) *HardenedGate {
 	return gate
 }
 
+type fakeTickerBlocker struct {
+	blocked bool
+}
+
+func (f *fakeTickerBlocker) Blocked(string) bool {
+	return f.blocked
+}
+
 type fakeCanceller struct {
 	calls int
 	err   error
@@ -121,6 +129,107 @@ func TestNewLotLimitGateRejectsInvalidMaxLots(t *testing.T) {
 		if _, err := NewLotLimitGate(maxLots); err == nil {
 			t.Fatalf("NewLotLimitGate(%d) error = nil, want error", maxLots)
 		}
+	}
+}
+
+func TestHardenedGateApproveReason(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     func() Config
+		request func() Request
+		account Account
+		want    string
+	}{
+		{
+			name:    "approved",
+			request: func() Request { return testRequest() },
+			want:    "",
+		},
+		{
+			name: "kill switch active",
+			cfg: func() Config {
+				cfg := DefaultConfig()
+				cfg.Store = &fakeKillSwitchStore{active: true}
+				return cfg
+			},
+			request: func() Request { return testRequest() },
+			want:    "kill_switch_active",
+		},
+		{
+			name: "ticker breaker blocked",
+			cfg: func() Config {
+				cfg := DefaultConfig()
+				cfg.Breaker = &fakeTickerBlocker{blocked: true}
+				return cfg
+			},
+			request: func() Request { return testRequest() },
+			want:    "ticker_breaker_blocked",
+		},
+		{
+			name:    "drawdown limit",
+			cfg:     func() Config { return DefaultConfig() },
+			request: func() Request { return testRequest() },
+			account: Account{Deposit: decimal.NewFromInt(1000), CurrentEquity: decimal.NewFromInt(900)},
+			want:    "drawdown_limit",
+		},
+		{
+			name: "max lots exceeded",
+			cfg:  func() Config { return DefaultConfig() },
+			request: func() Request {
+				r := testRequest()
+				r.Signal.TargetLots = 2
+				return r
+			},
+			want: "max_lots_exceeded",
+		},
+		{
+			name: "fat finger",
+			cfg:  func() Config { return DefaultConfig() },
+			request: func() Request {
+				r := testRequest()
+				r.Market.OrderPrice = decimal.NewFromInt(200)
+				r.Signal.Action = domain.ActionBuy
+				return r
+			},
+			want: "fat_finger",
+		},
+		{
+			name:    "daily loss",
+			cfg:     func() Config { return DefaultConfig() },
+			request: func() Request { return testRequest() },
+			account: Account{
+				Deposit:        decimal.NewFromInt(1000),
+				DayStartEquity: decimal.NewFromInt(1000),
+				CurrentEquity:  decimal.NewFromInt(990),
+			},
+			want: "daily_loss",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultConfig()
+			if tt.cfg != nil {
+				cfg = tt.cfg()
+			}
+			if cfg.MaxLots == 0 {
+				cfg.MaxLots = 1
+			}
+			gate, err := NewHardenedGate(cfg)
+			if err != nil {
+				t.Fatalf("NewHardenedGate() error = %v", err)
+			}
+			request := tt.request()
+			request.Account = tt.account
+
+			decision, err := gate.ApproveReason(context.Background(), request)
+			if err != nil {
+				t.Fatalf("ApproveReason() error = %v", err)
+			}
+			if decision.Reason != tt.want {
+				t.Fatalf("ApproveReason() = %+v, want reason %q", decision, tt.want)
+			}
+		})
 	}
 }
 
