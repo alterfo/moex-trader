@@ -49,6 +49,7 @@ type Risk struct {
 	BlackoutWindows          []string        `yaml:"blackout_windows"`
 	CircuitBreakerMaxLosses  int             `yaml:"circuit_breaker_max_losses"`
 	CircuitBreakerMaxLossPct decimal.Decimal `yaml:"circuit_breaker_max_loss_pct"`
+	KillSwitchOnDailyLoss    bool            `yaml:"kill_switch_on_daily_loss"`
 	DriftPSIThreshold        float64         `yaml:"drift_psi_threshold"`
 	DriftPSIWindow           int             `yaml:"drift_psi_window"`
 }

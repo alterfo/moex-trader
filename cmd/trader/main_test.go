@@ -835,6 +835,30 @@ func TestOrderTypeFromConfig(t *testing.T) {
 	}
 }
 
+func TestValidateCircuitBreakerConfig(t *testing.T) {
+	tests := []struct {
+		name           string
+		maxLossPct     decimal.Decimal
+		targetNotional decimal.Decimal
+		wantErr        bool
+	}{
+		{name: "breaker on, notional missing", maxLossPct: decimal.RequireFromString("0.05"), targetNotional: decimal.Zero, wantErr: true},
+		{name: "breaker on, notional set", maxLossPct: decimal.RequireFromString("0.05"), targetNotional: decimal.RequireFromString("15000"), wantErr: false},
+		{name: "breaker off, no notional", maxLossPct: decimal.Zero, targetNotional: decimal.Zero, wantErr: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateCircuitBreakerConfig(tt.maxLossPct, tt.targetNotional)
+			if tt.wantErr && err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
 func TestNewModelSignalSourceWiresIntoOrchestrator(t *testing.T) {
 	_, names := model.ToVector(domain.FeatureContext{})
 	weights := &model.Weights{

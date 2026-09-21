@@ -64,27 +64,29 @@ type TickerBlocker interface {
 }
 
 type Config struct {
-	MaxLots         int
-	MaxDailyLossPct decimal.Decimal
-	FatFingerPct    decimal.Decimal
-	MaxDrawdownPct  decimal.Decimal
-	Canceller       OrderCanceller
-	Positions       PositionReader
-	Store           KillSwitchStore
-	Alerter         KillSwitchAlerter
-	Breaker         TickerBlocker
+	MaxLots               int
+	MaxDailyLossPct       decimal.Decimal
+	FatFingerPct          decimal.Decimal
+	MaxDrawdownPct        decimal.Decimal
+	Canceller             OrderCanceller
+	Positions             PositionReader
+	Store                 KillSwitchStore
+	Alerter               KillSwitchAlerter
+	Breaker               TickerBlocker
+	KillSwitchOnDailyLoss bool
 }
 
 type HardenedGate struct {
-	maxLots         int
-	maxDailyLossPct decimal.Decimal
-	fatFingerPct    decimal.Decimal
-	maxDrawdownPct  decimal.Decimal
-	canceller       OrderCanceller
-	positions       PositionReader
-	store           KillSwitchStore
-	alerter         KillSwitchAlerter
-	breaker         TickerBlocker
+	maxLots               int
+	maxDailyLossPct       decimal.Decimal
+	fatFingerPct          decimal.Decimal
+	maxDrawdownPct        decimal.Decimal
+	canceller             OrderCanceller
+	positions             PositionReader
+	store                 KillSwitchStore
+	alerter               KillSwitchAlerter
+	breaker               TickerBlocker
+	killSwitchOnDailyLoss bool
 
 	mu         sync.RWMutex
 	killSwitch bool
@@ -113,15 +115,16 @@ func NewHardenedGate(cfg Config) (*HardenedGate, error) {
 		return nil, fmt.Errorf("risk gate: max drawdown percent must be positive")
 	}
 	return &HardenedGate{
-		maxLots:         cfg.MaxLots,
-		maxDailyLossPct: cfg.MaxDailyLossPct,
-		fatFingerPct:    cfg.FatFingerPct,
-		maxDrawdownPct:  cfg.MaxDrawdownPct,
-		canceller:       cfg.Canceller,
-		positions:       cfg.Positions,
-		store:           cfg.Store,
-		alerter:         cfg.Alerter,
-		breaker:         cfg.Breaker,
+		maxLots:               cfg.MaxLots,
+		maxDailyLossPct:       cfg.MaxDailyLossPct,
+		fatFingerPct:          cfg.FatFingerPct,
+		maxDrawdownPct:        cfg.MaxDrawdownPct,
+		canceller:             cfg.Canceller,
+		positions:             cfg.Positions,
+		store:                 cfg.Store,
+		alerter:               cfg.Alerter,
+		breaker:               cfg.Breaker,
+		killSwitchOnDailyLoss: cfg.KillSwitchOnDailyLoss,
 	}, nil
 }
 
@@ -182,6 +185,11 @@ func (g *HardenedGate) ApproveReason(ctx context.Context, request Request) (Deci
 		}
 	}
 	if g.exceedsDailyLoss(request.Account) {
+		if g.killSwitchOnDailyLoss {
+			if err := g.triggerKillSwitch(ctx, "daily loss limit exceeded"); err != nil {
+				return Decision{}, fmt.Errorf("risk gate: trigger kill switch: %w", err)
+			}
+		}
 		return Decision{Reason: "daily_loss"}, nil
 	}
 	return Decision{Approved: true}, nil

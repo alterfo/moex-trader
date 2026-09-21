@@ -51,6 +51,13 @@ func main() {
 	}
 }
 
+func validateCircuitBreakerConfig(maxLossPct, targetNotional decimal.Decimal) error {
+	if maxLossPct.Sign() > 0 && targetNotional.Sign() <= 0 {
+		return fmt.Errorf("risk.circuit_breaker_max_loss_pct=%s requires risk.target_notional>0, got %s: the cumulative-loss ticker trip would be silently disabled", maxLossPct.String(), targetNotional.String())
+	}
+	return nil
+}
+
 func run() error {
 	var configPath string
 	var metricsAddr string
@@ -184,6 +191,10 @@ func run() error {
 	riskConfig.Store = store
 	riskConfig.Alerter = telegramClient
 	riskConfig.Canceller = runtime.canceller
+	riskConfig.KillSwitchOnDailyLoss = cfg.Risk.KillSwitchOnDailyLoss
+	if err := validateCircuitBreakerConfig(cfg.Risk.CircuitBreakerMaxLossPct, cfg.Risk.TargetNotional); err != nil {
+		return err
+	}
 	breaker := risk.NewTickerBreaker(risk.TickerBreakerConfig{
 		MaxConsecutiveLosses: cfg.Risk.CircuitBreakerMaxLosses,
 		MaxCumulativeLossPct: cfg.Risk.CircuitBreakerMaxLossPct,

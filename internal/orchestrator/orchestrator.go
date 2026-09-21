@@ -24,6 +24,7 @@ const (
 	StageSignal   = "llm"
 	StageRisk     = "risk_gate"
 	StageExecutor = "executor"
+	StageSkip     = "executor_skip"
 )
 
 type Ingestor interface {
@@ -326,6 +327,19 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string, account
 			return errors.Join(fmt.Errorf("execute %s: %w", ticker, err), auditErr)
 		}
 		return fmt.Errorf("execute %s: %w", ticker, err)
+	}
+	if fill.Lots == 0 {
+		if auditErr := o.record(ctx, ticker, StageSkip, auditJSON(struct {
+			Status     string `json:"status"`
+			Action     string `json:"action"`
+			TargetLots int    `json:"target_lots"`
+		}{
+			Status:     "skipped",
+			Action:     string(signal.Action),
+			TargetLots: signal.TargetLots,
+		})); auditErr != nil {
+			return auditErr
+		}
 	}
 	o.observe(ctx, Decision{Ticker: ticker, Signal: signal, Price: feature.LastPrice, Approved: true, Fill: fill})
 	return nil

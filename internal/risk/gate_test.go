@@ -732,6 +732,74 @@ func TestHardenedGateBlocksPrePersistedKillSwitch(t *testing.T) {
 	}
 }
 
+func TestHardenedGateDailyLossKillSwitch(t *testing.T) {
+	account := Account{
+		Deposit:        decimal.RequireFromString("1000"),
+		DayStartEquity: decimal.RequireFromString("1000"),
+		CurrentEquity:  decimal.RequireFromString("990"),
+	}
+
+	t.Run("flag off rejects daily loss without kill switch", func(t *testing.T) {
+		store := &fakeKillSwitchStore{}
+		alerter := &fakeKillSwitchAlerter{}
+		cfg := DefaultConfig()
+		cfg.Store = store
+		cfg.Alerter = alerter
+		gate, err := NewHardenedGate(cfg)
+		if err != nil {
+			t.Fatalf("NewHardenedGate() error = %v", err)
+		}
+		request := testRequest()
+		request.Account = account
+
+		decision, err := gate.ApproveReason(context.Background(), request)
+		if err != nil {
+			t.Fatalf("ApproveReason() error = %v", err)
+		}
+		if decision.Reason != "daily_loss" {
+			t.Fatalf("reason = %q, want daily_loss", decision.Reason)
+		}
+		if store.active {
+			t.Fatal("kill switch must not trip when flag is off")
+		}
+		if len(alerter.reasons) != 0 {
+			t.Fatalf("alerter reasons = %v, want none", alerter.reasons)
+		}
+	})
+
+	t.Run("flag on trips kill switch on daily loss", func(t *testing.T) {
+		store := &fakeKillSwitchStore{}
+		alerter := &fakeKillSwitchAlerter{}
+		cfg := DefaultConfig()
+		cfg.Store = store
+		cfg.Alerter = alerter
+		cfg.KillSwitchOnDailyLoss = true
+		gate, err := NewHardenedGate(cfg)
+		if err != nil {
+			t.Fatalf("NewHardenedGate() error = %v", err)
+		}
+		request := testRequest()
+		request.Account = account
+
+		decision, err := gate.ApproveReason(context.Background(), request)
+		if err != nil {
+			t.Fatalf("ApproveReason() error = %v", err)
+		}
+		if decision.Reason != "daily_loss" {
+			t.Fatalf("reason = %q, want daily_loss", decision.Reason)
+		}
+		if !store.active {
+			t.Fatal("expected kill switch to be persisted as active")
+		}
+		if !gate.IsKillSwitchActive() {
+			t.Fatal("expected kill switch to be active")
+		}
+		if len(alerter.reasons) != 1 || alerter.reasons[0] != "daily loss limit exceeded" {
+			t.Fatalf("alerter reasons = %v, want daily loss limit exceeded", alerter.reasons)
+		}
+	})
+}
+
 func TestHardenedGateLocalKillSwitchBlocksAfterPersistenceFailure(t *testing.T) {
 	store := &fakeKillSwitchStore{setErr: errors.New("persist failed")}
 	cfg := DefaultConfig()

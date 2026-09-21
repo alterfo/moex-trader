@@ -261,6 +261,89 @@ func TestRunOnceCallsCyclePreparer(t *testing.T) {
 	}
 }
 
+func TestRunOnceRecordsSkippedExecutor(t *testing.T) {
+	t.Run("hold signal is recorded as executor_skip", func(t *testing.T) {
+		store := openTestStore(t)
+		now := func() time.Time { return time.Date(2024, 1, 11, 12, 30, 0, 0, time.UTC) }
+		ingestor := &fakeIngestor{inputs: map[string]features.Input{
+			"SBER": fixtureInput("SBER"),
+			"YDEX": fixtureInput("YDEX"),
+		}}
+		source := &fakeSource{
+			signal: domain.TradeSignal{
+				Action:      domain.ActionHold,
+				Confidence:  decimal.NewFromFloat(0.5),
+				Reasoning:   "hold",
+				GeneratedAt: now(),
+			},
+			now: now,
+		}
+		exec := &fakeExecutor{store: store, now: now}
+		orch := newTestOrchestrator(t, store, ingestor, source, now, exec)
+
+		orch.RunOnce(context.Background())
+
+		events, err := store.ListAuditEvents(context.Background(), time.Time{})
+		if err != nil {
+			t.Fatalf("ListAuditEvents() error = %v", err)
+		}
+		for _, ticker := range []string{"SBER", "YDEX"} {
+			if got := countEvents(events, ticker, StageSkip); got != 1 {
+				t.Fatalf("skip event count for %s = %d, want 1", ticker, got)
+			}
+			var entry domain.AuditEvent
+			for _, e := range events {
+				if e.Ticker == ticker && e.Stage == StageSkip {
+					entry = e
+				}
+			}
+			var payload struct {
+				Status string `json:"status"`
+				Action string `json:"action"`
+			}
+			if err := json.Unmarshal([]byte(entry.Payload), &payload); err != nil {
+				t.Fatalf("unmarshal skip payload %q: %v", entry.Payload, err)
+			}
+			if payload.Status != "skipped" || payload.Action != "HOLD" {
+				t.Fatalf("skip payload for %s = %+v, want status=skipped action=HOLD", ticker, payload)
+			}
+		}
+	})
+
+	t.Run("filled signal records no executor_skip", func(t *testing.T) {
+		store := openTestStore(t)
+		now := func() time.Time { return time.Date(2024, 1, 11, 12, 30, 0, 0, time.UTC) }
+		ingestor := &fakeIngestor{inputs: map[string]features.Input{
+			"SBER": fixtureInput("SBER"),
+		}}
+		source := &fakeSource{
+			signal: domain.TradeSignal{
+				Action:      domain.ActionBuy,
+				Confidence:  decimal.NewFromFloat(0.8),
+				TargetLots:  1,
+				Reasoning:   "fixture buy",
+				GeneratedAt: now(),
+			},
+			now: now,
+		}
+		exec := &fakeExecutor{store: store, now: now}
+		orch := newTestOrchestrator(t, store, ingestor, source, now, exec)
+
+		orch.RunOnce(context.Background())
+
+		events, err := store.ListAuditEvents(context.Background(), time.Time{})
+		if err != nil {
+			t.Fatalf("ListAuditEvents() error = %v", err)
+		}
+		if got := countEvents(events, "SBER", StageSkip); got != 0 {
+			t.Fatalf("skip event count = %d, want 0 for a real fill", got)
+		}
+		if got := countEvents(events, "SBER", StageExecutor); got != 1 {
+			t.Fatalf("executor event count = %d, want 1", got)
+		}
+	})
+}
+
 type fakeGate struct {
 	mu       sync.Mutex
 	requests []risk.Request
