@@ -15,7 +15,6 @@ func DefaultTickers() []string {
 		"MGNT",
 		"PLZL",
 		"CHMF",
-		"DATA",
 		"T",
 		"SBMM",
 		"VTBR",
