@@ -288,6 +288,96 @@ func (c *Client) ResolveInstrumentUID(ctx context.Context, ticker string) (strin
 	return "", fmt.Errorf("tinkoff find instrument %q: no match", ticker)
 }
 
+// FigiByTicker resolves a share ticker to its instrument FIGI (used by
+// dividend-calendar and other figi-addressed requests).
+func (c *Client) FigiByTicker(ctx context.Context, ticker string) (string, error) {
+	if !c.enabled {
+		return "", ErrPaperTrading
+	}
+	ticker = strings.TrimSpace(ticker)
+	if ticker == "" {
+		return "", errors.New("tinkoff: ticker must not be empty")
+	}
+	response, err := c.instruments.FindInstrument(ctx, &pb.FindInstrumentRequest{
+		Query:                 ticker,
+		ApiTradeAvailableFlag: true,
+	})
+	if err != nil {
+		return "", fmt.Errorf("tinkoff find instrument %q: %w", ticker, err)
+	}
+	var fallback string
+	for _, instrument := range response.GetInstruments() {
+		if instrument == nil || strings.TrimSpace(instrument.GetFigi()) == "" {
+			continue
+		}
+		if !strings.EqualFold(instrument.GetTicker(), ticker) {
+			continue
+		}
+		if instrument.GetInstrumentKind() == pb.InstrumentType_INSTRUMENT_TYPE_SHARE {
+			return instrument.GetFigi(), nil
+		}
+		if fallback == "" {
+			fallback = instrument.GetFigi()
+		}
+	}
+	if fallback != "" {
+		return fallback, nil
+	}
+	return "", fmt.Errorf("tinkoff find instrument %q: no match", ticker)
+}
+
+// Dividend is one dividend-payment event for a single instrument.
+type Dividend struct {
+	DeclaredDate time.Time
+	LastBuyDate  time.Time
+	PaymentDate  time.Time
+	DividendNet  decimal.Decimal
+	Regularity   string
+	DividendType string
+}
+
+// Dividends returns dividend events for a FIGI over [from, to], including
+// already-paid history (announced-and-executed events), matching the same
+// window semantics as Candles.
+func (c *Client) Dividends(ctx context.Context, figi string, from, to time.Time) ([]Dividend, error) {
+	if !c.enabled {
+		return nil, ErrPaperTrading
+	}
+	if strings.TrimSpace(figi) == "" {
+		return nil, errors.New("tinkoff: figi must not be empty")
+	}
+	if !from.IsZero() && !to.IsZero() && from.After(to) {
+		return nil, errors.New("tinkoff: dividends from must not be after to")
+	}
+	request := &pb.GetDividendsRequest{Figi: strings.TrimSpace(figi)}
+	if !from.IsZero() {
+		request.From = timestamppb.New(from)
+	}
+	if !to.IsZero() {
+		request.To = timestamppb.New(to)
+	}
+	response, err := c.instruments.GetDividends(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("tinkoff get dividends %q: %w", figi, err)
+	}
+	events := make([]Dividend, 0, len(response.GetDividends()))
+	for _, d := range response.GetDividends() {
+		net, err := MoneyValueToDecimal(d.GetDividendNet())
+		if err != nil {
+			return nil, fmt.Errorf("tinkoff dividends %q: %w", figi, err)
+		}
+		events = append(events, Dividend{
+			DeclaredDate: d.GetDeclaredDate().AsTime(),
+			LastBuyDate:  d.GetLastBuyDate().AsTime(),
+			PaymentDate:  d.GetPaymentDate().AsTime(),
+			DividendNet:  net,
+			Regularity:   d.GetRegularity(),
+			DividendType: d.GetDividendType(),
+		})
+	}
+	return events, nil
+}
+
 // ShareBy returns the full share instrument descriptor for a UID, including
 // the short-enabled flag and the short margin risk rates (Kshort, Dshort,
 // DshortMin). Tinkoff does not expose a borrow fee rate here.
