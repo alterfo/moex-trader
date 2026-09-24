@@ -482,3 +482,33 @@ overfit, ...)`) and confirmed the no-`-matrices` default path still prints
 No real-market walk-forward/PBO run has been recorded yet (this section adds
 the harness and tooling, not a new go/no-go number); the existing Task 7
 DSR/PBO figures above remain the current evidence and are not superseded.
+
+## News classifier recalibration attempt (2026-09-25) — negative, not deployed
+
+Attempted to recalibrate `news_classifier.json` on current market data: corpus
+`~/dev/fin/finanalys/cache/news_history.jsonl` (1517 headlines, 2026-08-14..
+09-24, 20 tickers), labels = forward excess return over IMOEX from live MOEX
+ISS candles (`cmd/trainnewsmodel`). Results on date splits:
+
+- horizon 3d (current recipe), split 2026-09-05: val AUC 0.568, val acc 0.605
+  vs baseline 0.591. Current deployed classifier (h=3, trained 2026-09-16 on
+  the 48k-sample Telegram backfill) scores **all** corpus headlines inside
+  [-0.22, 0.09] — effectively dead weight, never fires, consistent with its
+  val AUC 0.533 < baseline 0.552.
+- horizon 10d (matches the ensemble's 10d label) looks good on paper —
+  val AUC 0.80-0.89 across splits — but is a **label-imbalance/drift
+  artifact**: 84% of corpus headlines score < -0.3 (model learned "everything
+  negative"). Label diagnostics: h=10 val labels are 43 pos / 91 neg (68%
+  majority), train 87/300; a blanket-negative bias therefore fakes edge.
+  Semantically wrong: "Сбербанк рекордная прибыль" -> -0.625,
+  "АКРА повысило до AA(RU)" -> -0.566.
+- Horizon 5d: val AUC 0.587 — noise.
+
+Conclusion: the news classifier cannot be meaningfully recalibrated on
+1517 rows / 42 days; both the current noise classifier and the horizon-10
+candidate are unusable (dead / degenerate negative bias). This is the
+documented data-scarcity bottleneck (AGENTS.md), not a tuning issue. The
+deployed `news_classifier.json` is kept unchanged; a live AA-upgrade headline
+still scores -0.058 (wrong sign). Retry only after a substantially larger,
+direction-label-balanced news corpus accumulates (the 9171-article Telegram
+backfill archive itself was not retained).
