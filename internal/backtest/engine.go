@@ -57,6 +57,7 @@ type OpenPosition struct {
 	Ticker        string
 	Side          domain.Action
 	Lots          int
+	OpenedAt      time.Time
 	EntryPrice    decimal.Decimal
 	MarkPrice     decimal.Decimal
 	UnrealizedPnl decimal.Decimal
@@ -1030,6 +1031,7 @@ func openPositionsLocked(positions map[string]*position, finalMarks map[string]d
 			Ticker:        ticker,
 			Side:          side,
 			Lots:          pos.lots,
+			OpenedAt:      pos.openedAt,
 			EntryPrice:    pos.avg,
 			MarkPrice:     mark,
 			UnrealizedPnl: unrealized.Mul(decimal.NewFromInt(int64(pos.lots))),

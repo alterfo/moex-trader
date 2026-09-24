@@ -512,3 +512,49 @@ deployed `news_classifier.json` is kept unchanged; a live AA-upgrade headline
 still scores -0.058 (wrong sign). Retry only after a substantially larger,
 direction-label-balanced news corpus accumulates (the 9171-article Telegram
 backfill archive itself was not retained).
+
+## Alpha-without-beta hedge test (0) — 2026-09-25
+
+Pre-registered protocol: `docs/plans/20260925-alpha-without-beta-test.md`
+(committed `d39da47` BEFORE the run; read-before-numbers gate passed by the
+peer session). Executor: `cmd/alphahedge`. Decision test = does the deployed
+ensemble's daily alpha survive **execution-level** beta-neutralization via a
+synthetic IMOEX overlay (no position sign or size ever changes; per-trade
+alpha is invariant by construction and is NOT an acceptance condition).
+
+Pipeline: rerun of the deployed `ensemble_model.json` on the canonical 18
+tickers (incl. DATA), 2025-04-01 -> 2026-09-17, 1M deposit, 15000 RUB/pos,
+costs 0.0005 comm + 0.0005 spread + 0.0005 slip, kill-switch on. Note: this
+HEAD rerun gives 867 trades / +202640 RUB realized vs the 2026-09-17
+`betaregime-report` (862 / +194293 on an earlier engine state) — same
+structure, ~4% engine-fix drift; all numbers below are the HEAD rerun.
+
+| overlay share | leg P&L | leg costs | daily alpha (cluster t, df=5) | beta1 (eqw) | beta2 (mom) | bootstrap CI {20,40} | leave-one-out sign |
+|---|---|---|---|---|---|---|---|
+| 0.00 (unhedged) | 0 | 0 | +0.000325 (t=3.98) | -0.291 | -0.084 | + / + outside 0 | all + |
+| 0.50 | -68502 | 3744 | +0.000216 (t=3.45) | -0.181 | -0.125 | + / + outside 0 | all + |
+| 1.00 (neutral) | -137004 | 7488 | +0.000101 (t=2.10) | -0.065 | -0.171 | L20 [+0.000017,+0.000190], L40 [+0.000018,+0.000179] | all + |
+
+Block-bootstrap CI(alpha) full grid at share 1.00: L5 [-0.000002, +0.000209]
+(CI touches 0), L10 [+0.000012,+0.000196], L20 [+0.000017,+0.000190],
+L40 [+0.000018,+0.000179], L60 [+0.000030,+0.000179] (stationary, geometric
+blocks, 2000 repl, seed 42).
+
+Quarterly mean daily alpha at share 1.00 (N=487): 2025-Q2 +0.000012,
+2025-Q3 +0.000237, 2025-Q4 +0.000152, 2026-Q1 -0.000102, 2026-Q2 +0.000088,
+2026-Q3 +0.000214.
+
+**Verdict (per pre-registered bar): (A) CI excludes 0 on contiguous {20,40}:
+YES; (B) leave-one-quarter-out keeps alpha positive across all six drops:
+YES. The daily alpha survives full beta-neutral execution.** The structural
+net-short (beta1 = -0.291) contributed ~+137k RUB of the +203k unhedged
+realized P&L; removing it leaves a small but positive daily edge of ~1.0 bp/day
+(~+4.9% on deposit over the 18 months) that is robust to block length >= 10d
+and to dropping any single quarter. Consequences per the protocol's
+bifurcation: path (1) is authorized — an exposure-managed variant
+(inverse-vol per-name sizing and a config'd `max_net_exposure` as SEPARATE,
+independently validated axes; regime-gate stays demoted). Caveats that bound
+the interpretation: the edge does not survive the 5-day block (extremely
+short-memory dissolve), 2026-Q1 is negative post-hedge, per-trade alpha
+remains statistically insignificant (t≈1.47), and the overlay assumes a
+frictionless IMOEX leg (live futures would add basis/roll/financing).

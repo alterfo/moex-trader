@@ -5,6 +5,10 @@ fixed below BEFORE the first run; this document is the read-before-numbers
 gate for both sessions (reviewed by the peer session before results are
 reported).
 
+RESULT (2026-09-25): see `docs/alphahedge-report.md` and the metrics.md
+section "Alpha-without-beta hedge test (0)". Acceptance A and B both PASSED at
+share=1.0; bifurcation consequence (1) is authorized.
+
 ## 1. Context (non-goal framing)
 
 `docs/betaregime-report.md` shows the deployed ensemble's 18-month realized
