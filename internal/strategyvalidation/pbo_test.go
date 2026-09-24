@@ -52,6 +52,27 @@ func TestPBOCombinationCountForSmallBlockCount(t *testing.T) {
 	}
 }
 
+func TestDefaultSplits(t *testing.T) {
+	cases := []struct {
+		periods int
+		want    int
+	}{
+		{0, 0},
+		{1, 0},
+		{2, 2},
+		{3, 2},
+		{4, 4},
+		{15, 14},
+		{16, 16},
+		{40, 16},
+	}
+	for _, tc := range cases {
+		if got := DefaultSplits(tc.periods); got != tc.want {
+			t.Fatalf("DefaultSplits(%d) = %d, want %d", tc.periods, got, tc.want)
+		}
+	}
+}
+
 func dominantMatrix(rows, strategies int) [][]float64 {
 	matrix := make([][]float64, rows)
 	for row := 0; row < rows; row++ {

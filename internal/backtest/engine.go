@@ -23,8 +23,9 @@ import (
 )
 
 const (
-	DefaultWarmupDays = 100
-	periodsPerYear    = 252.0
+	DefaultWarmupDays        = 100
+	periodsPerYear           = 252.0
+	MinTradesForSignificance = 30
 )
 
 type SignalSource interface {
@@ -92,6 +93,9 @@ type Result struct {
 	WinningTrades        int
 	HitRate              float64
 	Sharpe               float64
+	Sortino              float64
+	Calmar               float64
+	CAGR                 float64
 	MaxDrawdownPct       float64
 	MaxDrawdownRub       decimal.Decimal
 	KillSwitchTripped    bool
@@ -103,6 +107,10 @@ type Result struct {
 	OpenPositions        []OpenPosition
 	Attribution          Attribution
 	EquityCurve          []EquityPoint
+}
+
+func (r Result) StatisticallySignificant() bool {
+	return r.ClosedTrades >= MinTradesForSignificance
 }
 
 type Config struct {
@@ -1061,12 +1069,15 @@ func (e *Engine) buildResult(curve map[time.Time]decimal.Decimal, finalMarks map
 	}
 	res.Trades = trades
 	res.OpenPositions = openPositionsLocked(e.positions, finalMarks)
-	res.Attribution = computeAttribution(trades, res.OpenPositions, DefaultAttributionTopN)
+	res.Attribution = ComputeAttribution(trades, res.OpenPositions, DefaultAttributionTopN)
 	res.EquityCurve = sortedCurve(curve)
 	res.FinalEquity = lastEquity(curve)
 	res.NetPnl = res.FinalEquity.Sub(res.Deposit)
 	res.UnrealizedPnl = res.NetPnl.Sub(res.RealizedPnlNetBorrow)
-	res.Sharpe, res.MaxDrawdownPct, res.MaxDrawdownRub = curveStats(res.EquityCurve)
+	res.Sharpe, res.Sortino, res.CAGR, res.MaxDrawdownPct, res.MaxDrawdownRub = CurveStats(res.EquityCurve)
+	if res.MaxDrawdownPct != 0 {
+		res.Calmar = res.CAGR / math.Abs(res.MaxDrawdownPct)
+	}
 	if len(res.EquityCurve) > 0 {
 		res.Start = res.EquityCurve[0].Date
 		res.End = res.EquityCurve[len(res.EquityCurve)-1].Date
@@ -1119,9 +1130,9 @@ func lastEquity(curve map[time.Time]decimal.Decimal) decimal.Decimal {
 	return curve[days[len(days)-1]]
 }
 
-func curveStats(points []EquityPoint) (sharpe float64, maxDDPct float64, maxDDRub decimal.Decimal) {
+func CurveStats(points []EquityPoint) (sharpe float64, sortino float64, cagr float64, maxDDPct float64, maxDDRub decimal.Decimal) {
 	if len(points) < 2 {
-		return 0, 0, decimal.Zero
+		return 0, 0, 0, 0, decimal.Zero
 	}
 	returns := make([]float64, 0, len(points)-1)
 	peak := points[0].Equity
@@ -1145,14 +1156,16 @@ func curveStats(points []EquityPoint) (sharpe float64, maxDDPct float64, maxDDRu
 			}
 		}
 	}
+	cagr = computeCAGR(points)
 	if len(returns) == 0 {
-		return 0, worstDDPct, worstDDRub
+		return 0, 0, cagr, worstDDPct, worstDDRub
 	}
 	mean, std := meanStd(returns)
-	if std <= 0 {
-		return 0, worstDDPct, worstDDRub
+	if std > 0 {
+		sharpe = mean / std * math.Sqrt(periodsPerYear)
 	}
-	return mean / std * math.Sqrt(periodsPerYear), worstDDPct, worstDDRub
+	sortino = sortinoRatio(returns, mean)
+	return sharpe, sortino, cagr, worstDDPct, worstDDRub
 }
 
 func meanStd(values []float64) (mean, std float64) {
@@ -1164,13 +1177,52 @@ func meanStd(values []float64) (mean, std float64) {
 		sum += v
 	}
 	mean = sum / float64(len(values))
+	if len(values) < 2 {
+		return mean, 0
+	}
 	var sq float64
 	for _, v := range values {
 		d := v - mean
 		sq += d * d
 	}
-	std = math.Sqrt(sq / float64(len(values)))
+	std = math.Sqrt(sq / float64(len(values)-1))
 	return
+}
+
+func sortinoRatio(returns []float64, mean float64) float64 {
+	if len(returns) < 2 {
+		return 0
+	}
+	var sq float64
+	for _, r := range returns {
+		if r < 0 {
+			sq += r * r
+		}
+	}
+	downside := math.Sqrt(sq / float64(len(returns)-1))
+	if downside <= 0 {
+		return 0
+	}
+	return mean / downside * math.Sqrt(periodsPerYear)
+}
+
+func computeCAGR(points []EquityPoint) float64 {
+	if len(points) < 2 {
+		return 0
+	}
+	first := points[0]
+	last := points[len(points)-1]
+	initial, _ := first.Equity.Float64()
+	final, _ := last.Equity.Float64()
+	if initial <= 0 || final <= 0 {
+		return 0
+	}
+	days := last.Date.Sub(first.Date).Hours() / 24
+	years := days / 365.25
+	if years <= 0 {
+		return 0
+	}
+	return (math.Pow(final/initial, 1/years) - 1) * 100
 }
 
 func tickersNormalized(tickers []string) []string {

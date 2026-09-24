@@ -29,7 +29,7 @@ type Attribution struct {
 	TradeCount      int
 }
 
-func computeAttribution(trades []Trade, open []OpenPosition, topN int) Attribution {
+func ComputeAttribution(trades []Trade, open []OpenPosition, topN int) Attribution {
 	if topN <= 0 {
 		topN = DefaultAttributionTopN
 	}

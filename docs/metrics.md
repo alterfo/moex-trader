@@ -404,3 +404,81 @@ all in the final test window). The early-window differences are colsample
 dilution from two extra zero-variance columns, not learned signal value. This
 needs a richer historical news backfill before the comparison can test the
 signals themselves (plan data-availability caveat).
+
+## Backtest metrics: Sortino, Calmar, CAGR, min-trades floor
+
+`internal/backtest.Result` (`engine.go`) now also reports `Sortino`, `Calmar`,
+and `CAGR`, and exposes `Result.StatisticallySignificant()` /
+`MinTradesForSignificance = 30`. `Result.Markdown()` prints all three plus a
+`⚠ N closed trades < 30 — metrics are not statistically significant` warning
+line when the run has fewer than 30 closed trades.
+
+Two Sharpe conventions coexist in this codebase and are **not** directly
+comparable:
+
+- `internal/backtest.curveStats` (engine) computes an **annualized** Sharpe
+  and Sortino from daily equity-curve returns, using **sample standard
+  deviation** (N-1, via `meanStd`) times `sqrt(252)`. This changed from
+  population std (N) to sample std (N-1) so it agrees with the estimator
+  below; the shift moves historical backtest Sharpe values by a few tenths
+  of a percent, not their sign or order of magnitude.
+- `internal/strategyvalidation.SharpeRatio` (used by PSR/DSR/Harvey-Liu/PBO
+  in the Attempt registry above) is a **per-period, non-annualized** sample
+  Sharpe computed directly on the registry's quarterly return series. It is
+  deliberately left un-annualized because DSR/PSR are calibrated on the same
+  period granularity as the input series.
+
+`Sortino` uses the same sample-std convention, restricted to the downside
+(negative daily returns only), annualized the same way. `CAGR` is computed
+from the first/last equity-curve point and the elapsed calendar days
+(`(final/initial)^(365.25/days) - 1`, in percent). `Calmar = CAGR /
+|MaxDrawdownPct|` (0 when max drawdown is 0).
+
+## HTML tearsheet and an automated walk-forward harness
+
+`internal/tearsheet` renders a self-contained HTML report (`html/template` +
+hand-built inline SVG, no external assets or JS) from a `backtest.Result`:
+key-metrics grid, equity-curve and drawdown SVGs, per-ticker attribution, and
+the full closed-trades table, plus a sibling `<path>.metrics.json` summary.
+Wired into `cmd/backtest` as `-tearsheet <path>`.
+
+`internal/trainrun` is `cmd/trainmodel`'s former `runPipeline` extracted into
+an importable package (`trainrun.Run`) so both `cmd/trainmodel` and the new
+`cmd/walkforward` share one train+OOS-backtest implementation; behavior is
+unchanged (verified by moving the existing end-to-end/leakage tests into
+`internal/trainrun` and rerunning them).
+
+`cmd/walkforward` is a new CLI that actually iterates walk-forward windows
+instead of only recording them for audit (`internal/walkforward` previously
+only persisted a single window's decisions). `internal/walkforward.GenerateWindowSpecs`
+builds rolling or anchored (`-anchored`) `(from, split, till)` windows from
+`-train-days/-test-days/-step-days`; the CLI retrains via `trainrun.Run` on
+each window's `[from, split)`, evaluates OOS on `[split, till)`, and persists
+each window's config/model hash (`walkforward.Save`, unchanged) plus its OOS
+metrics (`walkforward.SaveMetrics`, new: Sharpe/Sortino/Calmar/CAGR/MaxDD/hit
+rate/`StatisticallySignificant`). `internal/walkforward.Aggregate` chains the
+per-window OOS equity curves into one compounding index (each window's
+returns are stitched onto the previous window's ending level, since each
+window is its own fresh-deposit backtest) and reuses the now-exported
+`backtest.CurveStats` / `backtest.ComputeAttribution` to produce a single
+aggregate `backtest.Result`, which gets the same `Markdown()` report and
+`-tearsheet` HTML as a normal backtest.
+
+**PBO was dormant** (see the Task 7 section above: `Registry.Matrices` empty,
+`PBOComputable() == false`). `cmd/walkforward -candidates <file.json>` runs a
+grid of candidate configs (buy/sell thresholds, horizon, deadband) across the
+same window periods, builds a `periods x candidates` matrix of
+`NetPnl/deposit` returns, archives it as JSON (`{"<pbo-key>": matrix}`,
+default path `<wf-dir>/pbo_matrix.json`), and calls the existing
+`strategyvalidation.ProbabilityOfBacktestOverfitting` (CSCV) directly, split
+count via the new `strategyvalidation.DefaultSplits` (largest even value <=
+`min(periods, 16)`). `cmd/strategyvalidation -matrices <path>` loads that
+archive into `Registry.Matrices` so `PBOComputable()` and the printed PBO are
+real instead of the permanent "NOT computable" placeholder — verified
+end-to-end with a synthetic matrix (`PBO[key]: 0.0000 (s=6, 0/20 combinations
+overfit, ...)`) and confirmed the no-`-matrices` default path still prints
+"NOT computable".
+
+No real-market walk-forward/PBO run has been recorded yet (this section adds
+the harness and tooling, not a new go/no-go number); the existing Task 7
+DSR/PBO figures above remain the current evidence and are not superseded.

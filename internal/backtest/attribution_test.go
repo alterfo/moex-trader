@@ -26,7 +26,7 @@ func TestComputeAttributionGroupsRealizedByTicker(t *testing.T) {
 		{Ticker: "GAZP", UnrealizedPnl: dec("-5")},
 	}
 
-	attribution := computeAttribution(trades, open, DefaultAttributionTopN)
+	attribution := ComputeAttribution(trades, open, DefaultAttributionTopN)
 
 	if !attribution.RealizedTotal.Equal(dec("120")) {
 		t.Fatalf("RealizedTotal = %s, want 120", attribution.RealizedTotal)
@@ -70,7 +70,7 @@ func TestComputeAttributionTopTradeConcentration(t *testing.T) {
 		{Ticker: "B", NetPnl: dec("90")},
 		{Ticker: "C", NetPnl: dec("-20")},
 	}
-	attribution := computeAttribution(trades, nil, 1)
+	attribution := ComputeAttribution(trades, nil, 1)
 	want := 90.0 / 120.0
 	if math.Abs(attribution.TopTradeShare-want) > 1e-9 {
 		t.Fatalf("TopTradeShare = %f, want %f", attribution.TopTradeShare, want)
@@ -79,7 +79,7 @@ func TestComputeAttributionTopTradeConcentration(t *testing.T) {
 		t.Fatal("TopTickerShare should be non-zero")
 	}
 
-	all := computeAttribution(trades, nil, len(trades))
+	all := ComputeAttribution(trades, nil, len(trades))
 	if math.Abs(all.TopTradeShare-1.0) > 1e-9 {
 		t.Fatalf("TopTradeShare with topN=len(trades) = %f, want 1.0", all.TopTradeShare)
 	}
@@ -91,7 +91,7 @@ func TestComputeAttributionTopTickerConcentration(t *testing.T) {
 		{Ticker: "B", NetPnl: dec("90")},
 		{Ticker: "C", NetPnl: dec("-20")},
 	}
-	attribution := computeAttribution(trades, nil, 1)
+	attribution := ComputeAttribution(trades, nil, 1)
 	want := 90.0 / 120.0
 	if math.Abs(attribution.TopTickerShare-want) > 1e-9 {
 		t.Fatalf("TopTickerShare = %f, want %f", attribution.TopTickerShare, want)
@@ -99,7 +99,7 @@ func TestComputeAttributionTopTickerConcentration(t *testing.T) {
 }
 
 func TestComputeAttributionEmpty(t *testing.T) {
-	attribution := computeAttribution(nil, nil, DefaultAttributionTopN)
+	attribution := ComputeAttribution(nil, nil, DefaultAttributionTopN)
 	if len(attribution.Tickers) != 0 {
 		t.Fatalf("expected no tickers, got %+v", attribution.Tickers)
 	}

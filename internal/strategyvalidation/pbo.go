@@ -8,6 +8,23 @@ type PBOResult struct {
 	PBO     float64
 }
 
+// DefaultSplits picks a CSCV split count s for ProbabilityOfBacktestOverfitting
+// given the number of available periods: the largest even value <= min(periods, 16),
+// or 0 if fewer than 2 periods are available (PBO is not computable).
+func DefaultSplits(periods int) int {
+	if periods < 2 {
+		return 0
+	}
+	s := min(periods, 16)
+	if s%2 != 0 {
+		s--
+	}
+	if s < 2 {
+		return 0
+	}
+	return s
+}
+
 func ProbabilityOfBacktestOverfitting(matrix [][]float64, s int) PBOResult {
 	result := PBOResult{}
 	if len(matrix) < s || s < 2 || s%2 != 0 {

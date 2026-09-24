@@ -34,11 +34,18 @@ func (r Result) Markdown() string {
 	if r.ClosedTrades > 0 {
 		fmt.Fprintf(&b, "- Hit rate: %.1f%%\n", r.HitRate*100)
 	}
+	fmt.Fprintf(&b, "- CAGR: %.2f%%\n", r.CAGR)
 	fmt.Fprintf(&b, "- Sharpe (annualized): %.2f\n", r.Sharpe)
+	fmt.Fprintf(&b, "- Sortino (annualized): %.2f\n", r.Sortino)
+	fmt.Fprintf(&b, "- Calmar: %.2f\n", r.Calmar)
 	fmt.Fprintf(&b, "- Max drawdown: %.2f%% (%s RUB)\n", r.MaxDrawdownPct, r.MaxDrawdownRub.String())
 	fmt.Fprintf(&b, "- Kill switch tripped: %v\n", r.KillSwitchTripped)
 	fmt.Fprintf(&b, "- Kill switch frozen days: %d\n", r.KillSwitchFrozenDays)
-	fmt.Fprintf(&b, "- Daily-loss blocked days: %d\n\n", r.DailyLossBlockedDays)
+	fmt.Fprintf(&b, "- Daily-loss blocked days: %d\n", r.DailyLossBlockedDays)
+	if !r.StatisticallySignificant() {
+		fmt.Fprintf(&b, "- ⚠ %d closed trades < %d — metrics are not statistically significant\n", r.ClosedTrades, MinTradesForSignificance)
+	}
+	b.WriteString("\n")
 
 	b.WriteString("## Attribution\n\n")
 	fmt.Fprintf(&b, "%s\n", attributionSummary(r.Attribution))

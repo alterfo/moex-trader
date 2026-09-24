@@ -25,6 +25,7 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/model"
 	"github.com/olegsidorkin/moex-trader/internal/spread"
 	"github.com/olegsidorkin/moex-trader/internal/storage"
+	"github.com/olegsidorkin/moex-trader/internal/tearsheet"
 	"github.com/olegsidorkin/moex-trader/internal/walkforward"
 )
 
@@ -57,6 +58,7 @@ func run() error {
 	var maxHoldBars int
 	var cachePath string
 	var outPath string
+	var tearsheetPath string
 	var killSwitch bool
 	var signalSourceName string
 	var modelPath string
@@ -88,6 +90,7 @@ func run() error {
 	flag.IntVar(&maxHoldBars, "max-hold-bars", 0, "force-close a position after this many decision bars (0 = hold until the signal changes)")
 	flag.StringVar(&cachePath, "cache", "", "path to persistent decision cache (e.g. .backtest-cache.json)")
 	flag.StringVar(&outPath, "out", "", "path to write markdown report (default: -)")
+	flag.StringVar(&tearsheetPath, "tearsheet", "", "when set, write an HTML tearsheet to this path plus a <path>.metrics.json summary")
 	flag.BoolVar(&killSwitch, "kill-switch", true, "enable drawdown kill switch")
 	flag.StringVar(&signalSourceName, "signal-source", signalSourceModel, "signal source: model, rule, csvprob or ensemble")
 	flag.StringVar(&modelPath, "model-path", "", "path to trained model JSON (default: model.path from config)")
@@ -346,6 +349,21 @@ func run() error {
 		log.Printf("backtest: report written to %s", outPath)
 	} else {
 		fmt.Print(report)
+	}
+
+	if tearsheetPath != "" {
+		html, metricsJSON, err := tearsheet.Render(*result)
+		if err != nil {
+			return fmt.Errorf("render tearsheet: %w", err)
+		}
+		if err := os.WriteFile(tearsheetPath, html, 0o644); err != nil {
+			return fmt.Errorf("write tearsheet %q: %w", tearsheetPath, err)
+		}
+		metricsPath := tearsheetPath + ".metrics.json"
+		if err := os.WriteFile(metricsPath, metricsJSON, 0o644); err != nil {
+			return fmt.Errorf("write tearsheet metrics %q: %w", metricsPath, err)
+		}
+		log.Printf("backtest: tearsheet written to %s (metrics: %s)", tearsheetPath, metricsPath)
 	}
 	return nil
 }
