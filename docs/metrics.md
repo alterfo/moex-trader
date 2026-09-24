@@ -558,3 +558,46 @@ the interpretation: the edge does not survive the 5-day block (extremely
 short-memory dissolve), 2026-Q1 is negative post-hedge, per-trade alpha
 remains statistically insignificant (t≈1.47), and the overlay assumes a
 frictionless IMOEX leg (live futures would add basis/roll/financing).
+**Borrow caveat (added 2026-09-25): all (0) numbers above were produced with
+`-borrow-pct-day` not wired (engine default = 0) — the book is structurally
+net-short, so the alpha was computed without short-borrow cost. Re-run with
+`-borrow-pct-day 0.00005` (short-leg notional x 0.00005/day) via the same
+executor: share=0 alpha 0.000316 (t=3.84), share=0.5 alpha 0.000206 (t=3.25),
+share=1.0 **alpha 0.000090 (t=1.85, p=0.124)**, CI {20,40} still excludes 0
+(L10 [+0.000000,+0.000185] touches 0, L20 [+0.000004,+0.000179],
+L40 [+0.000006,+0.000169]), all six LOO drops positive -> pre-registered
+acceptance (A)+(B) still HOLD at the base rate, but the edge is thinner
+(1.0 bp -> 0.9 bp/day) and the shortest block is borderline. At 2x the rate
+(`0.00010`) acceptance **(A) FAILS**: CI {20,40} no longer excludes 0
+(L20 [-0.000008,+0.000170], L40 [-0.000006,+0.000158], only L60 positive;
+LOO (B) still holds). Survival of the alpha is therefore sensitive to the
+actual live short-borrow rate; treat ~0.00005/day as the load-bearing input.
+
+## Managed-beta leverage grid (1) — 2026-09-25
+
+Same executor, canonical 18 tickers, window 2025-04-01 -> 2026-09-17, 1M
+deposit, **`-shares 1` (beta-neutral book)**, costs comm/spread/slip
+0.0005/0.0005/0.0005, **`-borrow-pct-day 0.00005`** (now mandatory per the
+2026-09-25 decision: borrow drag scales with short notional, and leverage
+widens it). "Leverage" here = raising `-target-notional` (bigger positions,
+same 1M deposit) — NO broker margin/borrowed capital. Acceptance: max DD
+<= 3% in all six quarters AND realized net P&L positive at every multiplier
+(judged on realized, not MTM, per the house invariant).
+
+| target notional | realized net of borrow | daily alpha (t, df=5) | CI {20,40} | max quarterly DD | result |
+|---|---|---|---|---|---|
+| 15000 (1x) | +197275 | +0.000090 (t=1.85) | exclude 0 (marginal L10) | 1.11% (2026-Q1) | PASS (baseline) |
+| 30000 (2x) | +395785 | +0.000195 (t=1.92) | exclude 0 | 2.15% (2026-Q1) | **PASS** |
+| 45000 (3x) | +589992 | +0.000293 (t=2.01) | exclude 0 incl. L5 | 2.56% (2025-Q2) | **PASS** |
+| 60000 (4x) | +753632 | +0.000364 (t=1.95) | exclude 0 | **3.55% (2025-Q3)**, 3.39% (2025-Q2), 3.02% (2026-Q1) | **FAIL** |
+
+Verdict: the beta-neutral book supports 2-3x position-notional scaling under
+the 3% drawdown budget: realized P&L scales near-linearly with notional
+(1x->3x roughly triples it), and the 2026-09-16 notional-20000 precedent of
+breaching the 3% cap is confirmed on the hedged book at 4x (~5-7%/yr clean
+alpha on 1M at 2-3x, borrow at base rate). Beyond 3x the 3% risk-gate binds;
+combined with the borrow-rate sensitivity above, the margin of safety at the
+top of the ladder is thin. consequence for the (1) axis: wire
+`risk.target_notional` at **30000-45000** (2-3x) with `max_net_exposure`
+bounded so the per-quarter DD stays under 3%, and re-confirm the live
+short-borrow rate before setting more than 3x.

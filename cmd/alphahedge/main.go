@@ -33,7 +33,7 @@ func main() {
 
 func run() error {
 	var configPath, tickersStr, fromStr, tillStr, ensemblePath, outPath string
-	var depositStr, commissionStr, spreadStr, slippageStr, targetNotionalStr, sharesStr string
+	var depositStr, commissionStr, spreadStr, slippageStr, borrowPctDayStr, targetNotionalStr, sharesStr string
 	var blocksStr string
 	var k, rebalanceEvery, maxLots, bootstrapRepl int
 	var blockSeed int64
@@ -48,6 +48,7 @@ func run() error {
 	flag.StringVar(&commissionStr, "commission-rate", "0.0005", "commission rate per fill")
 	flag.StringVar(&spreadStr, "spread-pct", "0.0005", "half-spread cost per fill as fraction of price")
 	flag.StringVar(&slippageStr, "slippage-pct", "0.0005", "slippage cost per fill as fraction of price")
+	flag.StringVar(&borrowPctDayStr, "borrow-pct-day", "0", "short-borrow cost per day as fraction of short-leg notional (e.g. 0.00005 = 0.005%)")
 	flag.StringVar(&targetNotionalStr, "target-notional", "15000", "target ruble notional per position")
 	flag.StringVar(&sharesStr, "shares", "0,0.5,1", "overlay shares of net exposure to test")
 	flag.StringVar(&blocksStr, "blocks", "5,10,20,40,60", "mean geometric block lengths (trading days)")
@@ -95,6 +96,13 @@ func run() error {
 	slippagePct, err := decimal.NewFromString(slippageStr)
 	if err != nil {
 		return fmt.Errorf("parse -slippage-pct: %w", err)
+	}
+	borrowPctPerDay, err := decimal.NewFromString(borrowPctDayStr)
+	if err != nil {
+		return fmt.Errorf("parse -borrow-pct-day: %w", err)
+	}
+	if borrowPctPerDay.IsNegative() {
+		return fmt.Errorf("-borrow-pct-day must be non-negative")
 	}
 	targetNotional, err := decimal.NewFromString(targetNotionalStr)
 	if err != nil {
@@ -200,6 +208,7 @@ func run() error {
 			CommissionRate: commissionRate,
 			SpreadPct:      spreadPct,
 			SlippagePct:    slippagePct,
+			BorrowPctPerDay: borrowPctPerDay,
 			WarmupDays:     warmupDays,
 			KillSwitch:     true,
 			SignalSource:   signalSource,
@@ -245,10 +254,10 @@ func run() error {
 	writef(&report, "# Alpha-without-beta hedge test (0)\n\n")
 	writef(&report, "- Window: %s -> %s\n", from.Format("2006-01-02"), till.Format("2006-01-02"))
 	writef(&report, "- Tickers: %s\n", strings.Join(tickers, ", "))
-	writef(&report, "- Deposit %s, target notional %s, costs comm/spread/slip %s/%s/%s\n",
-		deposit.String(), targetNotional.String(), commissionRate.String(), spreadPct.String(), slippagePct.String())
-	writef(&report, "- Ensemble realized / unrealized: %.2f / %.2f RUB, closed trades %d\n",
-		toFloat(ensResult.RealizedPnl), toFloat(ensResult.UnrealizedPnl), ensResult.ClosedTrades)
+	writef(&report, "- Deposit %s, target notional %s, costs comm/spread/slip %s/%s/%s, borrow %s/day\n",
+		deposit.String(), targetNotional.String(), commissionRate.String(), spreadPct.String(), slippagePct.String(), borrowPctPerDay.String())
+	writef(&report, "- Ensemble realized / unrealized: %.2f / %.2f RUB, closed trades %d, total borrow %.2f RUB, realized net of borrow %.2f RUB\n",
+		toFloat(ensResult.RealizedPnl), toFloat(ensResult.UnrealizedPnl), ensResult.ClosedTrades, toFloat(ensResult.TotalBorrow), toFloat(ensResult.RealizedPnlNetBorrow))
 
 	beta, err := perTickerBeta(mem, tickers, from, till, imoexCandles)
 	if err != nil {
@@ -291,6 +300,11 @@ func run() error {
 			}
 			writef(&report, "| %s -> %s | %d | %.6f |\n",
 				w.From.Format("2006-01-02"), w.Till.Format("2006-01-02"), len(vals), mean(vals))
+		}
+		writef(&report, "\n| quarter | max DD %% |\n|---|---|\n")
+		for _, w := range windows {
+			writef(&report, "| %s -> %s | %.4f |\n",
+				w.From.Format("2006-01-02"), w.Till.Format("2006-01-02"), maxDrawdownPctWithin(adj, w.From, w.Till))
 		}
 		writef(&report, "\nLeave-one-quarter-out alpha: %s\n\n", formatLeaveOneOut(dailyY, dailyX, dailyClusters, windows))
 	}
@@ -336,6 +350,31 @@ type seg struct {
 	from       time.Time
 	till       time.Time
 	beta       float64
+}
+
+func maxDrawdownPctWithin(points []backtest.EquityPoint, from, till time.Time) float64 {
+	pts := append([]backtest.EquityPoint(nil), points...)
+	sort.Slice(pts, func(i, j int) bool { return pts[i].Date.Before(pts[j].Date) })
+	var peak decimal.Decimal
+	var worst float64
+	for i := range pts {
+		if pts[i].Date.Before(from) || pts[i].Date.After(till) {
+			continue
+		}
+		if peak.IsZero() {
+			peak = pts[i].Equity
+		}
+		if pts[i].Equity.GreaterThan(peak) {
+			peak = pts[i].Equity
+		}
+		if !peak.IsZero() {
+			dd := peak.Sub(pts[i].Equity).Div(peak).Mul(decimal.NewFromInt(100))
+			if v, _ := dd.Float64(); v > worst {
+				worst = v
+			}
+		}
+	}
+	return worst
 }
 
 func dailyExposure(mem *memorySource, res *backtest.Result, tickers []string, beta map[string]float64, till time.Time) map[time.Time]float64 {
