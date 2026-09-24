@@ -50,7 +50,12 @@ drift is rejected, (2) stays research-only and the business case rests on the
 - ex-date = first trading day strictly AFTER LastBuyDate (MOEX T+1
   settlement as of 2025+). Record-date semantics verified against 1-2
   historical LastBuy/record pairs before running (sub-gate).
-- Entry (primary): close of LastBuyDate - 3 trading days.
+- Entry (grid, mirrors the (0) block-length robustness rule): close of
+  LastBuyDate - k trading days for k in {-1, -2, -3, -5, -10}. PRIMARY
+  offset k=-3 (no literature canon behind it — classic capture buys close
+  T-1 and sells on/after ex-date — hence a grid, never a single point).
+  Acceptance (section 4) must hold on a CONTIGUOUS subset of offsets
+  CONTAINING {-2, -3, -5}: a single lucky offset decides nothing.
 - Exit (primary): close of ex-date (LastBuyDate + 1 trading day).
 - Held-to-+5TD exit for the same events is SENSITIVITY ONLY (never a
   separate acceptance claim).
@@ -60,27 +65,62 @@ drift is rejected, (2) stays research-only and the business case rests on the
 
 ## 4. Gate statistics (pre-registered)
 
-- Per-event net return r_e = (exitClose + (1-0.13)*div*divLots) / (entryClose
-  * divLots) - 1 minus both-leg costs (comm+spread+slip x order).
-- Primary (A): bootstrap CI of the mean net return over events, with
-  per-ticker clustering stationary block bootstrap (geometric blocks,
-  mean block = 3 events, 2000 repl, seed 42); continuous exclusion of 0 over
-  the event-count grid spanning at least the central 60% of events.
-- Primary (B): leave-one-ticker-out — mean net return stays positive after
-  dropping any of the 18 tickers (catches a single-name story masquerading
-  as a premium).
-- Mass bar: >= 30 studied events total (else "not enough events" verdict, not
-  accept/reject).
-- Secondary (descriptive): gap ratio = (ex-date open - prev close)/divnet
-  (a <1 ratio is the classic drift seed); reported but never acceptance.
+- Per-event net return r_e(k) = (exitClose(k) + (1-0.13)*div*divLots) /
+  (entryClose(k) * divLots) - 1 minus both-leg costs (comm+spread+slip),
+  computed for each entry offset k in {-1,-2,-3,-5,-10}.
+- MARKET ADJUSTMENT (calendar-clustering guard): every r_e is measured as
+  EXCESS over IMOEX close-close total return over the SAME [entry(k), exit]
+  window: r_e^ex = r_e - r_imoex(entry->exit). Russian dividends cluster in a
+  spring wave (2022+ regime): 60-70% of events can share one 4-6-week market
+  regime, correlated across different tickers. The raw mean drift is
+  inflated by that common regime; the excess measure removes it to first
+  order (the same trick as (0)'s IMOEX regression). All statistics below run
+  on r_e^ex.
+- Correlation structure: events are NEVER treated as independent when they
+  share a regime. Two clusterings:
+  * WAVE = SPRING (LastBuyDate in Feb-May), AUTUMN (Aug-Nov), OTHER per
+    calendar year. Within-wave residuals are correlated; resampling respects
+    it.
+  * Season = 6-week window of the year (9 buckets: Feb-1, Mar-2, ...). A
+    "one good March" premium (lives in one 6-week season) must fail (B).
+- Primary (A): bootstrap CI of the mean excess drift, resampling WHOLE WAVES
+  (geometric blocks over the wave sequence, 2000 repl, seed 42); CI excludes
+  0 on a CONTIGUOUS subset of offsets CONTAINING {-2,-3,-5} (grid
+  robustness, mirroring (0)'s block-length rule).
+- Primary (B): stability under drops on BOTH axes:
+  * leave-one-ticker-out (any of the 18 tickers dropped; mean stays >0);
+  * leave-one-season-out (any 6-week season dropped; mean stays >0) AND
+    leave-one-calendar-year-out (any single dividend year dropped) — the
+    direct analogues of (0)'s leave-one-quarter-out that killed the
+    2026-Q2-driven t-stat;
+  * leave-one-WAVE-out (drop the entire spring wave once).
+- Mass and coverage bar: >= 30 studied events AND >= 2 distinct waves AND
+  >= 20% of events outside the largest wave; else verdict
+  "season-concentrated data, insufficient" (NOT accept/reject).
+- Secondary (descriptive only): gap ratio = (ex-date open - prev close) /
+  divnet (a <1 ratio is the classic drift seed) — reported, never acceptance.
 
-## 5. Go/no-go consequence
+## 5. Out-of-sample framing (explicit, must not be over-read)
+
+No proper historical OOS holdout exists here: too few events for an
+independently-trained split. Per our own (0) precedent, a WALK-FORWARD or
+held-out split is NOT possible at ~30-60 event scale. The historical ACCEPT
+is therefore **hypothesis confirmation on the training data, not proof on
+new data**. The true out-of-sample test is the spring 2027 wave traded live
+in the sandbox — the historical number is a necessary but never sufficient
+gate. This asymmetry is load-bearing: an historical ACCEPT must not trim a
+single day of the live proving window, and the go-live checklist keeps its
+own 2-3 months of consecutive positive sandbox realized P&L regardless of
+this study's outcome.
+
+## 6. Go/no-go consequence
 
 - ACCEPT -> dividend capture becomes a pre-registered overlay on the same 18
   names, sized within the 3% DD cap (max a third of the book in dividend
   positions), routed through the existing risk gates (TradingStatus,
   marketHours, no_trade_after_open, kill-switch); paper-validated first in
   the live loop mirror (replay), then live in the sandbox for its own
-  2-3-month proving window into the spring 2027 wave.
+  2-3-month proving window into the spring 2027 wave. The historical accept
+  IS the paper validation; the live wave decides.
 - REJECT or "not enough events" -> (2) closes as research-only; business case
   = (1)-cap 2x path alone; dividend capture not re-opened without new data.
