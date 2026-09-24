@@ -71,6 +71,42 @@ Two agent sessions share this repo. Zone boundaries:
 - **News-aware retrain deployed (2026-09-17)**: live news ingestion window widened 2d→10d (`internal/orchestrator/ingest.go: newsWindow`, `telegramLiveMaxPages` 3→15 to actually reach back that far) and confirmed already ticker-filtered before reaching the model (`filterMatches` in `ingest.go`). The previously-deployed `ensemble_model.json` had **zero** learned weight on `news_sentiment`/`news_count` (coef 0.0 in the logistic head, 0 of 13180 tree splits) simply because training data had no real news history — not a deliberate exclusion (only the 8 event_* features were deliberately dropped, see the 2026-09-17 feature-subset rule above). Backfilled 6 months of real Telegram news (9171 articles, `cmd/newsfetch -retro-from`), scored with `news_classifier.json`, and retrained the same 18-feature abs-10d recipe on it (`cmd/exportdataset -news-history` + `scripts/export_ensemble.py`). Holdout comparison on an identical window (2026-06-19..09-17, 1M deposit, 15000₽/position, spread+slippage 0.05%+0.05%, **realized** P&L not headline MTM): with real news +56379₽/253 trades/DD 1.60% vs an identical-window no-news control +40102₽/205 trades/DD 1.09% — a genuine ~40% realized-P&L improvement, not MTM noise (checked both ways). Re-adding the 8 event features on top of real news (541/15187 rows non-zero, still sparse) still underperforms the 18-feature set (+31161₽ vs +33395₽ MTM on the smaller pre-correction run) — the 2026-09-17 feature-subset finding holds even with partial real event data. Deployed: `ensemble_model.json` replaced, 90-day no-news preflight check (matches the live startup gate, which does not inject `-news-history`) passed at +25699₽. Caveat: holdout is 3 months (205-253 trades) with the news backfill mostly overlapping the training side of the split — not a multi-quarter walk-forward; revisit once more months of live news accumulate.
 - **RF macro factor-weighting proposal — logged, not implemented (2026-09-17, split-debate consensus)**: user proposed hand-normalized weights for 7 macro factors (negotiations/sanctions 35%, geo-oil/Iran 20%, Fed decision 12%, CBR rate 12%, OPEC+ 10%, AI-bubble 8%, RF dividends 3%) as classifier priors. Debate consensus (Skeptic vs Proponent, 2 rounds, no dissent): do not hardcode hand-set weights anywhere — this model only takes learned coefficients; no ingestion infra exists for oil/Fed/CBR-rate price series (verified zero matches in the Go codebase); headline-triggered detectors for OPEC+/Fed/CBR/Iran would repeat the already-documented "sparse event features dilute `colsample_bytree`" failure at 4x scale, and OPEC+/Fed/CBR additionally need outcome-direction classification (hawkish/dovish, cut/hold), a harder problem than the presence-only detection `event_sanctions` does. Gated backlog: revisit only after (a) `negotiations-sanctions-signal-feature`'s own AUC/backtest evidence gate reports whether the simpler negotiations/sanctions signal helps at all, and (b) the attempt-registry/DSR-PBO infrastructure from the strategy-validation plan exists, so this doesn't get added as an ad hoc untested feature.
 
+## Income levers closed, futures-hedge feasibility is the only remaining lever (2026-09-25)
+
+Both income paths explored since 2026-09-16 are closed by evidence; the live
+trader (PID 1764, `config.sandbox.yaml`, `target_notional 15000`, no cap) is
+**the best-tested configuration and must NOT be changed** — every alternative
+tested today (leverage 2-3x unhedged, `max_net_exposure`, dividend capture)
+performs worse on realized P&L and/or DD. Treat it as the control point and
+accumulate a 2-3-month proving period.
+
+- **(2) dividend capture REJECTED** (commit `ebb13b9`): 123 events, 65 in the
+  study window, gap ratio −0.97 (ex-date decline fully priced); primary
+  offsets {−2,−3,−5} fail under both tax 0.13/0.00; only offset −1 at tax=0
+  excludes 0 (outside the pre-registered subset). Report:
+  `docs/dividendstudy-report.md`; calendar `data/dividends.jsonl`.
+- **(1) managed-beta leverage closed on the unhedged book** (commits
+  `bc84403`, `abe614d`): `risk.max_net_exposure` built and contains the 3%
+  DD only at 2x+60k (+72545 realized, DD≤2.21%), which underperforms live 1x
+  (+179045, DD 2.05%); the cap is cliff-like (60k→75k flips 2026-Q1 DD
+  0.55%→3.46%) and 3x fails at every cap (concentration). Root cause: the
+  unhedged book's income IS its market beta, and an aggregate cap destroys
+  the cross-name diversification (124-249 trades vs 781-939 uncapped).
+  Grid + verdict: `docs/metrics.md` "max_net_exposure on the unhedged book".
+  `max_net_exposure` ships as defence-in-depth guardrail only, not as a
+  sizing mechanism; backtest/alphahedge expose it via `-max-net-exposure`.
+- **Futures-hedge feasibility — RESEARCH BACKLOG (only remaining lever)**:
+  the 2-3x income is validated ONLY on the beta-neutral book (leverage grid,
+  realized +395785/+589992, DD 2.15%/2.56%) whose IMOEX overlay leg is
+  synthetic in backtest — live it needs a real index-futures hedge on
+  T-Invest. Engineering task, not a measurement; no code yet. **Next step
+  (explicit): verify T-Invest API/broker support for (a) MOEX index futures
+  (IMOEX future MIX and/or RTS), (b) margin/leverage trading, (c) futures
+  candle market data, (d) futures availability inside the T-Invest sandbox
+  so the overlay leg can be wired and preflight-tested before real money.
+  If futures are unavailable, the income-lever search is exhausted under
+  current constraints and the live 1x stays the operating optimum.**
+
 ## Strategy validation tooling (2026-09-17)
 
 - `docs/metrics.md` is the metrics ledger; its format is enforced by `internal/metricsdoc` (`TestRepositoryMetricsDocumentPassesLint`), and the headline numbers must remain present. Record every analysis number there in the same commit.
