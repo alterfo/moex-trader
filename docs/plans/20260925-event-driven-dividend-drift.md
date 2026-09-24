@@ -51,9 +51,11 @@ drift is rejected, (2) stays research-only and the business case rests on the
   settlement as of 2025+). Record-date semantics verified against 1-2
   historical LastBuy/record pairs before running (sub-gate).
 - Entry (grid, mirrors the (0) block-length robustness rule): close of
-  LastBuyDate - k trading days for k in {-1, -2, -3, -5, -10}. PRIMARY
+  LastBuyDate + k trading days for k in {-1, -2, -3, -5, -10} (k negative
+  => entry k trading days BEFORE LastBuyDate, i.e. still entitled). PRIMARY
   offset k=-3 (no literature canon behind it — classic capture buys close
   T-1 and sells on/after ex-date — hence a grid, never a single point).
+  Implementation index: entryIdx = lastBuyIdx + k.
   Acceptance (section 4) must hold on a CONTIGUOUS subset of offsets
   CONTAINING {-2, -3, -5}: a single lucky offset decides nothing.
 - Exit (primary): close of ex-date (LastBuyDate + 1 trading day).

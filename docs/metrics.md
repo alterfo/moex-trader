@@ -65,6 +65,38 @@ source debate but their window/cost/realized-vs-MTM provenance was not
 committed. They are kept as ledger rows so the numbers are not lost, but they
 must be re-derived before they can be cited as evidence.
 
+## Dividend capture event-study (2) — REJECTED 2026-09-25
+
+Pre-registered protocol: `docs/plans/20260925-event-driven-dividend-drift.md`;
+tool `cmd/dividendstudy`; calendar `data/dividends.jsonl` (123 events 2021-2027
+via T-Invest `GetDividends`, 65 in study window 2024-01-01..2026-12-19).
+Position 30000 RUB notional, lot-quantized (GAZP/GMKN/MTSS/RUAL=10, rest 1),
+costs comm+spread+slip 0.05% per leg, exit at ex-date close.
+
+Mean excess return over IMOEX by entry offset (td before LastBuyDate);
+bootstrap CI resampling whole waves (seed 42, 2000 repl); tax = holding-tax on
+received dividend (0.13 worst-case, 0.00 if `DividendNet` is already net):
+
+| offset | excess (tax 0.13) | CI (tax 0.13) | excess (tax 0.00) | CI (tax 0.00) | LOO (0.13 / 0.00) |
+|---|---|---|---|---|---|
+| -10 | +0.0050 | [-0.0149,+0.0198] | +0.0114 | [-0.0083,+0.0263] | year fail / all pass |
+| -5 | -0.0027 | [-0.0165,+0.0104] | +0.0037 | [-0.0102,+0.0168] | ticker..wave fail / year+wave fail |
+| -3 (primary) | -0.0063 | [-0.0223,+0.0097] | +0.0001 | [-0.0165,+0.0165] | all 4 fail / all 4 fail |
+| -2 | -0.0034 | [-0.0124,+0.0067] | +0.0030 | [-0.0066,+0.0137] | all 4 fail / season+year+wave fail |
+| -1 | +0.0006 | [-0.0052,+0.0079] | +0.0071 | [+0.0008,+0.0151] * | all 4 fail / all pass |
+
+Mean gap ratio **-0.97** (ex-date open ~ one full dividend below LastBuy close:
+the drop is ~fully priced). Cover: 65 events, 9 waves, 80% outside largest
+wave — mass bars pass; rejection is falsification, not data scarcity.
+
+Verdict: **REJECT** — pre-registered acceptance needs a contiguous subset
+containing {-2,-3,-5}; all of those contain 0 in CI and fail leave-one-out
+under both tax conventions. Only offset -1 excludes 0 (and only at tax 0.00)
+— outside the pre-registered subset, a single lucky offset decides nothing by
+protocol. Dividend capture is not deployable as the (2) income bet; the income
+lever reverts to (1) at 2-3x notional under a `max_net_exposure` cap. Detail:
+`docs/dividendstudy-report.md`.
+
 ## Process rule (incident E4, two-session race)
 
 Metric-bearing changes are committed immediately. A session must only read
