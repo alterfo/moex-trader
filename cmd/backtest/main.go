@@ -54,6 +54,7 @@ func run() error {
 	var spreadDBPath string
 	var spreadMinObs int
 	var borrowPctDayStr string
+	var maxNetExposureStr string
 	var lookbackDays int
 	var maxHoldBars int
 	var cachePath string
@@ -86,6 +87,7 @@ func run() error {
 	flag.IntVar(&spreadMinObs, "spread-min-obs", 1, "minimum ingest observations required before a per-ticker spread overrides -spread-pct")
 	flag.StringVar(&slippageStr, "slippage-pct", "0", "additional adverse slippage applied against each fill, as a fraction of price (e.g. 0.0005 = 0.05%)")
 	flag.StringVar(&borrowPctDayStr, "borrow-pct-day", "0", "short-borrow cost per day as a fraction of short-leg notional (e.g. 0.00005 = 0.005%)")
+	flag.StringVar(&maxNetExposureStr, "max-net-exposure", "0", "cap on aggregate signed net position notional in RUB (0 = disabled)")
 	flag.IntVar(&lookbackDays, "lookback-days", 30, "max decision points per ticker (0 = unlimited)")
 	flag.IntVar(&maxHoldBars, "max-hold-bars", 0, "force-close a position after this many decision bars (0 = hold until the signal changes)")
 	flag.StringVar(&cachePath, "cache", "", "path to persistent decision cache (e.g. .backtest-cache.json)")
@@ -127,6 +129,10 @@ func run() error {
 	borrowPctPerDay, err := decimal.NewFromString(borrowPctDayStr)
 	if err != nil {
 		return fmt.Errorf("parse -borrow-pct-day: %w", err)
+	}
+	maxNetExposure, err := decimal.NewFromString(maxNetExposureStr)
+	if err != nil {
+		return fmt.Errorf("parse -max-net-exposure: %w", err)
 	}
 	var targetNotional decimal.Decimal
 	if targetNotionalStr != "" {
@@ -296,6 +302,7 @@ func run() error {
 		Till:                  till,
 		Deposit:               deposit,
 		MaxLots:               maxLots,
+		MaxNetExposure:        maxNetExposure,
 		CommissionRate:        commissionRate,
 		SpreadPct:             spreadPct,
 		SpreadPcts:            spreadPcts,

@@ -184,6 +184,38 @@ func TestStoreCurrentLots(t *testing.T) {
 	}
 }
 
+func TestStoreNetExposure(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	events := []domain.AuditEvent{
+		// SBER: +10 @ 200 avg-cost 2000; then -4 @ 220 -> exposure 2000 + 220*(-4) = 1120, shares 6.
+		{ID: "sber-buy", Ticker: "SBER", Stage: "executor", Payload: `{"ticker":"SBER","action":"BUY","lots":10,"price":"200"}`, CreatedAt: now},
+		{ID: "sber-sell", Ticker: "SBER", Stage: "executor", Payload: `{"ticker":"SBER","action":"SELL","lots":4,"price":"220"}`, CreatedAt: now.Add(time.Second)},
+		// YDEX short: -5 @ 3000 -> -15000.
+		{ID: "ydex-short", Ticker: "YDEX", Stage: "executor", Payload: `{"ticker":"YDEX","action":"SELL","lots":5,"price":"3000"}`, CreatedAt: now},
+		// Priced-zero fill is skipped for exposure but Priced-less is not
+		// (legacy fills without price cannot be valued).
+		{ID: "noprice", Ticker: "MTSS", Stage: "executor", Payload: `{"ticker":"MTSS","action":"BUY","lots":7,"price":"0"}`, CreatedAt: now},
+		{ID: "malformed", Ticker: "SBER", Stage: "executor", Payload: `{not-json`, CreatedAt: now},
+	}
+	for _, event := range events {
+		if err := store.InsertAuditEvent(ctx, event); err != nil {
+			t.Fatalf("InsertAuditEvent(%s) error = %v", event.ID, err)
+		}
+	}
+
+	got, err := store.NetExposure(ctx)
+	if err != nil {
+		t.Fatalf("NetExposure() error = %v", err)
+	}
+	// 1120 - 15000 = -13880 (zero-priced MTSS fill contributes nothing).
+	if !got.Equal(decimal.RequireFromString("-13880")) {
+		t.Fatalf("NetExposure() = %s, want -13880", got.String())
+	}
+}
+
 func TestInsertAuditEventDuplicateIDFails(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()

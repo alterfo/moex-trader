@@ -34,6 +34,7 @@ func main() {
 func run() error {
 	var configPath, tickersStr, fromStr, tillStr, ensemblePath, outPath string
 	var depositStr, commissionStr, spreadStr, slippageStr, borrowPctDayStr, targetNotionalStr, sharesStr string
+	var maxNetExposureStr string
 	var blocksStr string
 	var k, rebalanceEvery, maxLots, bootstrapRepl int
 	var blockSeed int64
@@ -49,6 +50,7 @@ func run() error {
 	flag.StringVar(&spreadStr, "spread-pct", "0.0005", "half-spread cost per fill as fraction of price")
 	flag.StringVar(&slippageStr, "slippage-pct", "0.0005", "slippage cost per fill as fraction of price")
 	flag.StringVar(&borrowPctDayStr, "borrow-pct-day", "0", "short-borrow cost per day as fraction of short-leg notional (e.g. 0.00005 = 0.005%)")
+	flag.StringVar(&maxNetExposureStr, "max-net-exposure", "0", "cap on aggregate signed net position notional in RUB (0 = disabled)")
 	flag.StringVar(&targetNotionalStr, "target-notional", "15000", "target ruble notional per position")
 	flag.StringVar(&sharesStr, "shares", "0,0.5,1", "overlay shares of net exposure to test")
 	flag.StringVar(&blocksStr, "blocks", "5,10,20,40,60", "mean geometric block lengths (trading days)")
@@ -103,6 +105,13 @@ func run() error {
 	}
 	if borrowPctPerDay.IsNegative() {
 		return fmt.Errorf("-borrow-pct-day must be non-negative")
+	}
+	maxNetExposure, err := decimal.NewFromString(maxNetExposureStr)
+	if err != nil {
+		return fmt.Errorf("parse -max-net-exposure: %w", err)
+	}
+	if maxNetExposure.IsNegative() {
+		return fmt.Errorf("-max-net-exposure must be non-negative")
 	}
 	targetNotional, err := decimal.NewFromString(targetNotionalStr)
 	if err != nil {
@@ -205,6 +214,7 @@ func run() error {
 			Till:           till,
 			Deposit:        deposit,
 			MaxLots:        maxLots,
+			MaxNetExposure: maxNetExposure,
 			CommissionRate: commissionRate,
 			SpreadPct:      spreadPct,
 			SlippagePct:    slippagePct,

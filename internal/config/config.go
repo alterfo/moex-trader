@@ -43,6 +43,7 @@ type Storage struct {
 type Risk struct {
 	MaxLots                  int             `yaml:"max_lots"`
 	TargetNotional           decimal.Decimal `yaml:"target_notional"`
+	MaxNetExposure           decimal.Decimal `yaml:"max_net_exposure"`
 	MaxSlippagePct           decimal.Decimal `yaml:"max_slippage_pct"`
 	RebalanceMinDeviationPct decimal.Decimal `yaml:"rebalance_min_deviation_pct"`
 	NoTradeAfterOpenMinutes  int             `yaml:"no_trade_after_open_minutes"`
@@ -241,6 +242,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Risk.TargetNotional.IsNegative() {
 		return fmt.Errorf("risk.target_notional must be non-negative")
+	}
+	if c.Risk.MaxNetExposure.IsNegative() {
+		return fmt.Errorf("risk.max_net_exposure must be non-negative")
 	}
 	if c.Risk.MaxSlippagePct.IsNegative() || c.Risk.MaxSlippagePct.GreaterThan(decimal.NewFromInt(1)) {
 		return fmt.Errorf("risk.max_slippage_pct must be in [0,1]")
@@ -444,6 +448,13 @@ func applyEnv(cfg *Config) error {
 			return fmt.Errorf("parse MOEX_TRADER_RISK_TARGET_NOTIONAL: %w", err)
 		}
 		cfg.Risk.TargetNotional = targetNotional
+	}
+	if v := os.Getenv("MOEX_TRADER_RISK_MAX_NET_EXPOSURE"); v != "" {
+		maxNetExposure, err := decimal.NewFromString(v)
+		if err != nil {
+			return fmt.Errorf("parse MOEX_TRADER_RISK_MAX_NET_EXPOSURE: %w", err)
+		}
+		cfg.Risk.MaxNetExposure = maxNetExposure
 	}
 	if v := os.Getenv("MOEX_TRADER_RISK_REBALANCE_MIN_DEVIATION_PCT"); v != "" {
 		minDeviationPct, err := decimal.NewFromString(v)

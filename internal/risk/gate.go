@@ -26,6 +26,10 @@ type Market struct {
 	Bid        decimal.Decimal
 	Ask        decimal.Decimal
 	PrevClose  decimal.Decimal
+	// LotSize is the number of underlying shares per 1 lot for the ticker the
+	// order is about. 1 when the engine/subsystem works in share-sized units
+	// (backtest), the real exchange lot size in live execution.
+	LotSize decimal.Decimal
 }
 
 type Account struct {
@@ -48,6 +52,14 @@ type PositionReader interface {
 	CurrentLots(ctx context.Context, ticker string) (int, error)
 }
 
+// NetExposureReader reports the signed aggregate net position notional in RUB
+// across the whole book (sum over open positions of signed lots * price).
+// Positive = net long, negative = net short. Implemented by the backtest
+// engine (mark-priced) and the live fill ledger (average-cost priced).
+type NetExposureReader interface {
+	NetExposure(ctx context.Context) (decimal.Decimal, error)
+}
+
 type KillSwitchStore interface {
 	IsKillSwitchActive(ctx context.Context) (bool, error)
 	SetKillSwitchActive(ctx context.Context, active bool) error
@@ -68,6 +80,7 @@ type Config struct {
 	MaxDailyLossPct       decimal.Decimal
 	FatFingerPct          decimal.Decimal
 	MaxDrawdownPct        decimal.Decimal
+	MaxNetExposure        decimal.Decimal
 	Canceller             OrderCanceller
 	Positions             PositionReader
 	Store                 KillSwitchStore
@@ -81,6 +94,7 @@ type HardenedGate struct {
 	maxDailyLossPct       decimal.Decimal
 	fatFingerPct          decimal.Decimal
 	maxDrawdownPct        decimal.Decimal
+	maxNetExposure        decimal.Decimal
 	canceller             OrderCanceller
 	positions             PositionReader
 	store                 KillSwitchStore
@@ -114,11 +128,15 @@ func NewHardenedGate(cfg Config) (*HardenedGate, error) {
 	if cfg.MaxDrawdownPct.Sign() <= 0 {
 		return nil, fmt.Errorf("risk gate: max drawdown percent must be positive")
 	}
+	if cfg.MaxNetExposure.IsNegative() {
+		return nil, fmt.Errorf("risk gate: max net exposure must be non-negative")
+	}
 	return &HardenedGate{
 		maxLots:               cfg.MaxLots,
 		maxDailyLossPct:       cfg.MaxDailyLossPct,
 		fatFingerPct:          cfg.FatFingerPct,
 		maxDrawdownPct:        cfg.MaxDrawdownPct,
+		maxNetExposure:        cfg.MaxNetExposure,
 		canceller:             cfg.Canceller,
 		positions:             cfg.Positions,
 		store:                 cfg.Store,
@@ -176,6 +194,9 @@ func (g *HardenedGate) ApproveReason(ctx context.Context, request Request) (Deci
 	if g.exceedsMaxPosition(request.Signal, currentLots) {
 		return Decision{Reason: "max_position_exceeded"}, nil
 	}
+	if g.exceedsMaxNetExposure(ctx, request) {
+		return Decision{Reason: "max_net_exposure_exceeded"}, nil
+	}
 	if g.canceller != nil && (request.Signal.Action == domain.ActionBuy || request.Signal.Action == domain.ActionSell) && !g.hasAccountData(request.Account) {
 		return Decision{}, fmt.Errorf("risk gate: live trading requires account deposit and equity data")
 	}
@@ -201,6 +222,38 @@ func (g *HardenedGate) exceedsMaxPosition(signal domain.TradeSignal, _ int) bool
 	}
 	desired := signedLots(signal.Action, signal.TargetLots)
 	return absInt(desired) > g.maxLots
+}
+
+// exceedsMaxNetExposure rejects orders that would push the book's aggregate
+// net position notional (RUB) beyond MaxNetExposure. 0 disables the cap.
+// A configured cap fails closed when the reader does not expose the book,
+// because an unverifiable exposure bound must not silently allow an order.
+func (g *HardenedGate) exceedsMaxNetExposure(ctx context.Context, request Request) bool {
+	if g.maxNetExposure.Sign() <= 0 {
+		return false
+	}
+	if request.Signal.Action != domain.ActionBuy && request.Signal.Action != domain.ActionSell {
+		return false
+	}
+	if request.Signal.TargetLots == 0 || request.Market.OrderPrice.Sign() <= 0 {
+		return false
+	}
+	reader, ok := g.positions.(NetExposureReader)
+	if !ok {
+		return true
+	}
+	current, err := reader.NetExposure(ctx)
+	if err != nil {
+		return true
+	}
+	delta := decimal.NewFromInt(int64(signedLots(request.Signal.Action, request.Signal.TargetLots)))
+	lotSize := request.Market.LotSize
+	if lotSize.IsZero() {
+		lotSize = decimal.NewFromInt(1)
+	}
+	delta = delta.Mul(lotSize).Mul(request.Market.OrderPrice)
+	projected := current.Add(delta)
+	return projected.Abs().GreaterThan(g.maxNetExposure)
 }
 
 func signedLots(action domain.Action, lots int) int {

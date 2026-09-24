@@ -120,6 +120,7 @@ type Config struct {
 	Till                  time.Time
 	Deposit               decimal.Decimal
 	MaxLots               int
+	MaxNetExposure        decimal.Decimal
 	CommissionRate        decimal.Decimal
 	SpreadPct             decimal.Decimal
 	SpreadPcts            map[string]decimal.Decimal
@@ -368,6 +369,7 @@ func NewEngine(cfg Config) (*Engine, error) {
 
 	riskCfg := risk.DefaultConfig()
 	riskCfg.MaxLots = cfg.MaxLots
+	riskCfg.MaxNetExposure = cfg.MaxNetExposure
 	riskCfg.Positions = engine
 	if cfg.KillSwitch {
 		riskCfg.Store = engine.kill
@@ -391,6 +393,27 @@ func (e *Engine) CurrentLots(_ context.Context, ticker string) (int, error) {
 		return -pos.lots, nil
 	}
 	return pos.lots, nil
+}
+
+// NetExposure reports the signed aggregate net position notional in RUB
+// (sum of signed lots * average entry price over open positions).
+func (e *Engine) NetExposure(_ context.Context) (decimal.Decimal, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	total := decimal.Zero
+	for _, pos := range e.positions {
+		if pos == nil || pos.lots <= 0 {
+			continue
+		}
+		var signed int
+		if pos.action == domain.ActionSell {
+			signed = -pos.lots
+		} else {
+			signed = pos.lots
+		}
+		total = total.Add(pos.avg.Mul(decimal.NewFromInt(int64(signed))))
+	}
+	return total, nil
 }
 
 func (e *Engine) Run(ctx context.Context) (*Result, error) {
@@ -716,6 +739,7 @@ func (e *Engine) processTickerDay(ctx context.Context, run *tickerBacktest, d in
 		Market: risk.Market{
 			OrderPrice: execPrice,
 			PrevClose:  candles[d].Close,
+			LotSize:    decimal.NewFromInt(1),
 		},
 		Account: account,
 	})
@@ -797,6 +821,7 @@ func (e *Engine) applyTargetPositionWithAccount(ctx context.Context, ticker stri
 		Market: risk.Market{
 			OrderPrice: execPrice,
 			PrevClose:  execPrice,
+			LotSize:    decimal.NewFromInt(1),
 		},
 		Account: account,
 	})

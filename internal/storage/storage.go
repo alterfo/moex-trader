@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/olegsidorkin/moex-trader/internal/domain"
+	"github.com/shopspring/decimal"
 	_ "modernc.org/sqlite"
 )
 
@@ -216,7 +217,7 @@ func (s *Store) CurrentLots(ctx context.Context, ticker string) (int, error) {
 	}
 	defer rows.Close()
 
-	total := 0
+	shares := 0
 	for rows.Next() {
 		var payload string
 		if err := rows.Scan(&payload); err != nil {
@@ -231,13 +232,74 @@ func (s *Store) CurrentLots(ctx context.Context, ticker string) (int, error) {
 		}
 		switch fill.Action {
 		case domain.ActionBuy:
-			total += fill.Lots
+			shares += fill.Lots
 		case domain.ActionSell:
-			total -= fill.Lots
+			shares -= fill.Lots
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return 0, fmt.Errorf("iterate executor audit events for %q: %w", ticker, err)
+	}
+	return shares, nil
+}
+
+// NetExposure reports the signed aggregate net position notional in RUB across
+// all tickers, priced at the average cost recorded in the fill ledger. This is
+// the same ledger CurrentLots reads, so exposure is consistent with the lots
+// the gate sees (untradeable holdings a human keeps on the shared sandbox
+// account are not visible — only the bot's own fills).
+func (s *Store) NetExposure(ctx context.Context) (decimal.Decimal, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT payload
+		 FROM audit_events
+		 WHERE stage = 'executor'
+		 ORDER BY created_at ASC, id ASC`,
+	)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("list executor audit events: %w", err)
+	}
+	defer rows.Close()
+
+	avg := make(map[string]struct {
+		shares int
+		cost   decimal.Decimal
+	})
+	for rows.Next() {
+		var payload string
+		if err := rows.Scan(&payload); err != nil {
+			return decimal.Zero, fmt.Errorf("scan executor audit event: %w", err)
+		}
+		var fill struct {
+			Ticker string            `json:"ticker"`
+			Action domain.Action     `json:"action"`
+			Lots   int               `json:"lots"`
+			Price  decimal.Decimal   `json:"price"`
+		}
+		if err := json.Unmarshal([]byte(payload), &fill); err != nil {
+			continue
+		}
+		if strings.TrimSpace(fill.Ticker) == "" || fill.Price.Sign() <= 0 {
+			continue
+		}
+		signed := fill.Lots
+		if fill.Action == domain.ActionSell {
+			signed = -fill.Lots
+		}
+		entry := avg[fill.Ticker]
+		entry.shares += signed
+		entry.cost = entry.cost.Add(fill.Price.Mul(decimal.NewFromInt(int64(signed))))
+		avg[fill.Ticker] = entry
+	}
+	if err := rows.Err(); err != nil {
+		return decimal.Zero, fmt.Errorf("iterate executor audit events: %w", err)
+	}
+
+	total := decimal.Zero
+	for _, entry := range avg {
+		if entry.shares == 0 {
+			continue
+		}
+		total = total.Add(entry.cost)
 	}
 	return total, nil
 }

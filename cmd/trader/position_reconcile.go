@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/olegsidorkin/moex-trader/internal/risk"
 )
 
@@ -60,6 +62,17 @@ func (r *reconcilingPositionReader) CurrentLots(ctx context.Context, ticker stri
 		return lots[strings.ToUpper(strings.TrimSpace(ticker))], nil
 	}
 	return r.fallback.CurrentLots(ctx, ticker)
+}
+
+// NetExposure reports signed net position notional from the local fill ledger
+// (the broker gives lots, not prices, so average-cost pricing is the only
+// consistent exposure read here). It is the same ledger the fallback
+// CurrentLots uses, so the two never disagree.
+func (r *reconcilingPositionReader) NetExposure(ctx context.Context) (decimal.Decimal, error) {
+	if reader, ok := r.fallback.(risk.NetExposureReader); ok {
+		return reader.NetExposure(ctx)
+	}
+	return decimal.Zero, nil
 }
 
 func (r *reconcilingPositionReader) snapshot(ctx context.Context) (map[string]int, bool) {

@@ -866,3 +866,141 @@ func TestHardenedGateKillSwitchStillCancelsAndAlertsOnPersistenceFailure(t *test
 		t.Fatalf("alerter reasons = %v, want drawdown limit exceeded", alerter.reasons)
 	}
 }
+
+type fakeNetExposureReader struct {
+	net   decimal.Decimal
+	err   error
+	calls int
+}
+
+func (f *fakeNetExposureReader) CurrentLots(context.Context, string) (int, error) {
+	return 0, nil
+}
+
+func (f *fakeNetExposureReader) NetExposure(context.Context) (decimal.Decimal, error) {
+	f.calls++
+	return f.net, f.err
+}
+
+func TestHardenedGateMaxNetExposure(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.MaxLots = 100
+	cfg.MaxNetExposure = decimal.RequireFromString("6000")
+	reader := &fakeNetExposureReader{}
+	cfg.Positions = reader
+	gate, err := NewHardenedGate(cfg)
+	if err != nil {
+		t.Fatalf("NewHardenedGate() error = %v", err)
+	}
+
+	buy := func(lots int) domain.TradeSignal {
+		return domain.TradeSignal{
+			Ticker: "SBER", Action: domain.ActionBuy, Confidence: decimal.NewFromInt(1),
+			TargetLots: lots, GeneratedAt: time.Now(),
+		}
+	}
+	sell := func(lots int) domain.TradeSignal {
+		return domain.TradeSignal{
+			Ticker: "SBER", Action: domain.ActionSell, Confidence: decimal.NewFromInt(1),
+			TargetLots: lots, GeneratedAt: time.Now(),
+		}
+	}
+	approve := func(t *testing.T, signal domain.TradeSignal, wantReason string) {
+		t.Helper()
+		request := testRequest()
+		request.Signal = signal
+		decision, err := gate.ApproveReason(context.Background(), request)
+		if err != nil {
+			t.Fatalf("ApproveReason() error = %v", err)
+		}
+		if decision.Approved != (wantReason == "") {
+			t.Fatalf("Approved = %v, want %v (reason=%q)", decision.Approved, wantReason == "", decision.Reason)
+		}
+		if decision.Reason != wantReason {
+			t.Fatalf("Reason = %q, want %q", decision.Reason, wantReason)
+		}
+	}
+
+	// Order 10 lots at 100 w/ real lot size 30: delta=+30000 -> reject at 6000.
+	request := testRequest()
+	request.Market.LotSize = decimal.NewFromInt(30)
+	reader.net = decimal.Zero
+	{
+		r := request
+		r.Signal = buy(10)
+		decision, err := gate.ApproveReason(context.Background(), r)
+		if err != nil {
+			t.Fatalf("ApproveReason() error = %v", err)
+		}
+		if decision.Approved || decision.Reason != "max_net_exposure_exceeded" {
+			t.Fatalf("want max_net_exposure_exceeded, got approved=%v reason=%q", decision.Approved, decision.Reason)
+		}
+	}
+
+	// Same shape, 1 lot: delta=+3000 -> approved.
+	approve(t, buy(1), "")
+
+	// Existing short -5000, BUY 1 lot (lot 30): +3000 -> -2000 -> approved.
+	reader.net = decimal.RequireFromString("-5000")
+	approve(t, buy(1), "")
+
+	// Existing long +5000, SELL 1 lot: -3000 -> +2000 -> approved.
+	reader.net = decimal.RequireFromString("5000")
+	approve(t, sell(1), "")
+
+	// Existing long +5900, BUY 1 lot (lot 30): +3000 -> +8900 -> reject.
+	reader.net = decimal.RequireFromString("5900")
+	{
+		r := request
+		r.Signal = buy(1)
+		decision, err := gate.ApproveReason(context.Background(), r)
+		if err != nil {
+			t.Fatalf("ApproveReason() error = %v", err)
+		}
+		if decision.Approved || decision.Reason != "max_net_exposure_exceeded" {
+			t.Fatalf("want max_net_exposure_exceeded, got approved=%v reason=%q", decision.Approved, decision.Reason)
+		}
+	}
+
+	// Zero LotSize falls back to 1: SELL 1 lot at 100 -> delta -100.
+	reader.net = decimal.RequireFromString("5500")
+	{
+		r := testRequest()
+		r.Signal = sell(1)
+		decision, err := gate.ApproveReason(context.Background(), r)
+		if err != nil {
+			t.Fatalf("ApproveReason() error = %v", err)
+		}
+		if !decision.Approved || decision.Reason != "" {
+			t.Fatalf("want approved with default lot size 1, got approved=%v reason=%q", decision.Approved, decision.Reason)
+		}
+	}
+}
+
+func TestHardenedGateMaxNetExposureFailsClosedWithoutReader(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.MaxNetExposure = decimal.RequireFromString("6000")
+	cfg.Positions = nil
+	gate, err := NewHardenedGate(cfg)
+	if err != nil {
+		t.Fatalf("NewHardenedGate() error = %v", err)
+	}
+	decision, err := gate.ApproveReason(context.Background(), testRequest())
+	if err != nil {
+		t.Fatalf("ApproveReason() error = %v", err)
+	}
+	if decision.Approved {
+		t.Fatal("expected fail-closed when cap is configured without a NetExposureReader")
+	}
+	if decision.Reason != "max_net_exposure_exceeded" {
+		t.Fatalf("Reason = %q, want max_net_exposure_exceeded", decision.Reason)
+	}
+}
+
+func TestHardenedGateRejectsNegativeMaxNetExposure(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.MaxNetExposure = decimal.NewFromFloat(-1)
+	if _, err := NewHardenedGate(cfg); err == nil {
+		t.Fatal("NewHardenedGate() error = nil, want error for negative max net exposure")
+	}
+}

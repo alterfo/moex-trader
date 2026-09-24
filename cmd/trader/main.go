@@ -184,6 +184,7 @@ func run() error {
 
 	riskConfig := risk.DefaultConfig()
 	riskConfig.MaxLots = cfg.Risk.MaxLots
+	riskConfig.MaxNetExposure = cfg.Risk.MaxNetExposure
 	riskConfig.Positions = store
 	if runtime.positionReader != nil {
 		riskConfig.Positions = runtime.positionReader
@@ -1152,6 +1153,7 @@ type preflight struct {
 	slippagePct     decimal.Decimal
 	borrowPctPerDay decimal.Decimal
 	maxLots         int
+	maxNetExposure  decimal.Decimal
 	commissionRate  decimal.Decimal
 	tickers         []string
 	source          backtest.SignalSource
@@ -1178,6 +1180,7 @@ func newPreflight(cfg *config.Config, source backtest.SignalSource, history back
 		slippagePct:     cfg.Preflight.SlippagePct,
 		borrowPctPerDay: borrowcost.StressRatePerDay(),
 		maxLots:         cfg.Risk.MaxLots,
+		maxNetExposure:  cfg.Risk.MaxNetExposure,
 		commissionRate:  cfg.Commission.Rate,
 		tickers:         append([]string(nil), cfg.Tickers...),
 		source:          source,
@@ -1197,7 +1200,7 @@ func (p *preflight) withSpreadPcts(table map[string]decimal.Decimal) *preflight 
 
 func preflightConfigHash(cfg *config.Config) string {
 	h := sha256.New()
-	fmt.Fprintf(h, "tickers=%v|model=%s|ensemble=%s|preflight_days=%d|deposit=%s|min_net_pnl=%s|min_closed_trades=%d|spread=%s|slippage=%s|borrow_pct_per_day=%s|max_lots=%d|target_notional=%s|commission=%s",
+	fmt.Fprintf(h, "tickers=%v|model=%s|ensemble=%s|preflight_days=%d|deposit=%s|min_net_pnl=%s|min_closed_trades=%d|spread=%s|slippage=%s|borrow_pct_per_day=%s|max_lots=%d|max_net_exposure=%s|target_notional=%s|commission=%s",
 		cfg.Tickers,
 		cfg.Model.Path,
 		cfg.Model.EnsemblePath,
@@ -1209,6 +1212,7 @@ func preflightConfigHash(cfg *config.Config) string {
 		cfg.Preflight.SlippagePct.String(),
 		borrowcost.StressRatePerDay().String(),
 		cfg.Risk.MaxLots,
+		cfg.Risk.MaxNetExposure.String(),
 		cfg.Risk.TargetNotional.String(),
 		cfg.Commission.Rate.String(),
 	)
@@ -1234,6 +1238,7 @@ func (p *preflight) check(ctx context.Context) error {
 		Till:            till,
 		Deposit:         p.deposit,
 		MaxLots:         p.maxLots,
+		MaxNetExposure:  p.maxNetExposure,
 		CommissionRate:  p.commissionRate,
 		SpreadPct:       p.spreadPct,
 		SpreadPcts:      p.spreadPcts,

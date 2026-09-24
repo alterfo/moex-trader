@@ -297,6 +297,7 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string, account
 			Bid:        feature.Bid,
 			Ask:        feature.Ask,
 			PrevClose:  feature.PrevClose,
+			LotSize:    feature.LotSize,
 		},
 		Account: account,
 	})
