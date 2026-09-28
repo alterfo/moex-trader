@@ -3,6 +3,7 @@ package news
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -16,6 +17,12 @@ import (
 )
 
 const defaultHTTPTimeout = 10 * time.Second
+
+const newsUserAgent = "Mozilla/5.0 (compatible; moex-trader/1.0)"
+
+// SourceTypeMOEXSiteNews fetches https://iss.moex.com/iss/sitenews.json —
+// free, no-auth exchange operational notices (no per-security filter).
+const SourceTypeMOEXSiteNews = "moex_sitenews"
 
 type Fetcher struct {
 	httpClient *http.Client
@@ -37,7 +44,7 @@ type Article struct {
 }
 
 func (f *Fetcher) Fetch(ctx context.Context, source Source) ([]Article, error) {
-	if source.Type != "" && source.Type != "rss" {
+	if source.Type != "" && source.Type != "rss" && source.Type != SourceTypeMOEXSiteNews {
 		return nil, fmt.Errorf("unsupported source type %q", source.Type)
 	}
 	if strings.TrimSpace(source.URL) == "" {
@@ -47,7 +54,12 @@ func (f *Fetcher) Fetch(ctx context.Context, source Source) ([]Article, error) {
 	if err != nil {
 		return nil, fmt.Errorf("build news request %q: %w", source.URL, err)
 	}
-	req.Header.Set("Accept", "application/rss+xml, application/xml, text/xml")
+	req.Header.Set("User-Agent", newsUserAgent)
+	if source.Type == SourceTypeMOEXSiteNews {
+		req.Header.Set("Accept", "application/json")
+	} else {
+		req.Header.Set("Accept", "application/rss+xml, application/xml, text/xml")
+	}
 	resp, err := f.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("get news %q: %w", source.URL, err)
@@ -60,6 +72,9 @@ func (f *Fetcher) Fetch(ctx context.Context, source Source) ([]Article, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("read news %q: %w", source.URL, err)
+	}
+	if source.Type == SourceTypeMOEXSiteNews {
+		return parseMOEXSiteNews(body, source)
 	}
 	return parseRSS(body, source)
 }
@@ -110,6 +125,56 @@ func parseRSSDate(raw string) (time.Time, error) {
 		}
 	}
 	return time.Time{}, fmt.Errorf("unsupported RSS date format %q", raw)
+}
+
+type moexSiteNewsResponse struct {
+	SiteNews struct {
+		Columns []string `json:"columns"`
+		Data    [][]any  `json:"data"`
+	} `json:"sitenews"`
+}
+
+func parseMOEXSiteNews(data []byte, source Source) ([]Article, error) {
+	var resp moexSiteNewsResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("parse moex sitenews %q: %w", source.Name, err)
+	}
+	idIdx := moexSiteNewsColumnIndex(resp.SiteNews.Columns, "id")
+	titleIdx := moexSiteNewsColumnIndex(resp.SiteNews.Columns, "title")
+	publishedIdx := moexSiteNewsColumnIndex(resp.SiteNews.Columns, "published_at")
+	if idIdx < 0 || titleIdx < 0 || publishedIdx < 0 {
+		return nil, fmt.Errorf("parse moex sitenews %q: missing expected columns", source.Name)
+	}
+	articles := make([]Article, 0, len(resp.SiteNews.Data))
+	for _, row := range resp.SiteNews.Data {
+		title, _ := row[titleIdx].(string)
+		title = strings.TrimSpace(html.UnescapeString(title))
+		if title == "" {
+			continue
+		}
+		publishedRaw, _ := row[publishedIdx].(string)
+		publishedAt, err := parseRSSDate(publishedRaw)
+		if err != nil {
+			continue
+		}
+		id, _ := row[idIdx].(float64)
+		articles = append(articles, Article{
+			Title:       title,
+			Link:        fmt.Sprintf("https://www.moex.com/n%d", int64(id)),
+			PublishedAt: publishedAt,
+			Source:      source,
+		})
+	}
+	return articles, nil
+}
+
+func moexSiteNewsColumnIndex(columns []string, name string) int {
+	for i, column := range columns {
+		if column == name {
+			return i
+		}
+	}
+	return -1
 }
 
 type rssFeed struct {
@@ -209,7 +274,7 @@ func (f *Fetcher) FetchTelegram(ctx context.Context, source Source, since time.T
 		if err != nil {
 			return nil, fmt.Errorf("build telegram request %q: %w", reqURL, err)
 		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; moex-trader/1.0)")
+		req.Header.Set("User-Agent", newsUserAgent)
 		resp, err := f.httpClient.Do(req)
 		if err != nil {
 			return nil, fmt.Errorf("get telegram channel %q: %w", source.Channel, err)

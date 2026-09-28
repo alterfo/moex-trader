@@ -33,17 +33,22 @@ const rssFixture = `<?xml version="1.0" encoding="UTF-8"?>
 
 func TestDefaultSources(t *testing.T) {
 	sources := DefaultSources()
-	if len(sources) != 14 {
-		t.Fatalf("expected 14 sources, got %d", len(sources))
+	if len(sources) != 17 {
+		t.Fatalf("expected 17 sources, got %d", len(sources))
 	}
 	rssCount := 0
 	telegramCount := 0
+	siteNewsCount := 0
 	for _, source := range sources {
-		if source.Type == "telegram" {
+		switch source.Type {
+		case "telegram":
 			telegramCount++
 			continue
+		case SourceTypeMOEXSiteNews:
+			siteNewsCount++
+		default:
+			rssCount++
 		}
-		rssCount++
 		if source.URL == "" {
 			t.Fatalf("source %q has empty URL", source.Name)
 		}
@@ -51,8 +56,39 @@ func TestDefaultSources(t *testing.T) {
 			t.Fatalf("source %q has zero trust weight", source.Name)
 		}
 	}
-	if rssCount != 12 || telegramCount != 2 {
-		t.Fatalf("expected 12 RSS and 2 telegram sources, got %d and %d", rssCount, telegramCount)
+	if rssCount != 14 || telegramCount != 2 || siteNewsCount != 1 {
+		t.Fatalf("expected 14 RSS, 2 telegram, 1 moex_sitenews source, got %d, %d, %d", rssCount, telegramCount, siteNewsCount)
+	}
+}
+
+func TestGoogleNewsSources(t *testing.T) {
+	sources := GoogleNewsSources([]string{"sber", " gazp ", "unknownticker", "gldrub_tom"})
+	if len(sources) != 3 {
+		t.Fatalf("expected 3 sources (unknown ticker skipped), got %d: %+v", len(sources), sources)
+	}
+	if sources[0].Name != "Google News: SBER" {
+		t.Fatalf("unexpected name %q", sources[0].Name)
+	}
+	if !strings.Contains(sources[0].URL, "q=%D0%A1%D0%B1%D0%B5%D1%80%D0%B1%D0%B0%D0%BD%D0%BA+%D0%B0%D0%BA%D1%86%D0%B8%D0%B8") {
+		t.Fatalf("expected URL-encoded %q query, got %q", "Сбербанк акции", sources[0].URL)
+	}
+	if !strings.HasPrefix(sources[1].URL, "https://news.google.com/rss/search?") {
+		t.Fatalf("unexpected URL %q", sources[1].URL)
+	}
+	if sources[2].Name != "Google News: GLDRUB_TOM" || !strings.Contains(sources[2].URL, "%D1%86%D0%B5%D0%BD%D0%B0") {
+		t.Fatalf("expected GLDRUB_TOM to use the non-equity %q suffix, got %+v", "цена", sources[2])
+	}
+	for _, s := range sources {
+		if s.TrustWeight.IsZero() {
+			t.Fatalf("source %q has zero trust weight", s.Name)
+		}
+	}
+}
+
+func TestAllSourcesCombinesDefaultAndGoogleNews(t *testing.T) {
+	sources := AllSources([]string{"SBER", "GAZP"})
+	if len(sources) != len(DefaultSources())+2 {
+		t.Fatalf("expected DefaultSources()+2, got %d", len(sources))
 	}
 }
 
@@ -185,6 +221,85 @@ func TestFetchTimeout(t *testing.T) {
 	_, err := fetcher.Fetch(context.Background(), Source{URL: server.URL})
 	if err == nil {
 		t.Fatal("expected error for request timeout")
+	}
+}
+
+func TestFetchSetsBrowserUserAgent(t *testing.T) {
+	var gotUA string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUA = r.Header.Get("User-Agent")
+		w.Header().Set("Content-Type", "application/rss+xml")
+		fmt.Fprint(w, rssFixture)
+	}))
+	defer server.Close()
+
+	fetcher := NewFetcher(nil)
+	if _, err := fetcher.Fetch(context.Background(), Source{Name: "test", URL: server.URL}); err != nil {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+	if gotUA == "" || gotUA == "Go-http-client/1.1" {
+		t.Fatalf("expected a browser-like User-Agent, got %q", gotUA)
+	}
+}
+
+func TestFetchMOEXSiteNews(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"sitenews":{"columns":["id","tag","title","published_at","modified_at"],`+
+			`"data":[[104631,"site","О начале торгов","2026-09-28 18:58:38","2026-09-28 18:58:25"],`+
+			`[104630,"site","Информация &amp; уведомление","2026-09-28 18:02:35","2026-09-28 18:31:54"]]}}`)
+	}))
+	defer server.Close()
+
+	fetcher := NewFetcher(nil)
+	source := Source{Name: "MOEX сайт-новости", URL: server.URL, Type: SourceTypeMOEXSiteNews, TrustWeight: decimal.NewFromFloat(1.0)}
+	articles, err := fetcher.Fetch(context.Background(), source)
+	if err != nil {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+	if len(articles) != 2 {
+		t.Fatalf("expected 2 articles, got %d", len(articles))
+	}
+	if articles[0].Title != "О начале торгов" {
+		t.Fatalf("unexpected first title %q", articles[0].Title)
+	}
+	if articles[0].Link != "https://www.moex.com/n104631" {
+		t.Fatalf("unexpected link %q", articles[0].Link)
+	}
+	if articles[1].Title != "Информация & уведомление" {
+		t.Fatalf("expected HTML entity unescaped, got %q", articles[1].Title)
+	}
+	if articles[0].PublishedAt.IsZero() {
+		t.Fatal("expected parsed publish date")
+	}
+}
+
+func TestFetchMOEXSiteNewsMalformedJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"sitenews":`)
+	}))
+	defer server.Close()
+
+	fetcher := NewFetcher(nil)
+	_, err := fetcher.Fetch(context.Background(), Source{URL: server.URL, Type: SourceTypeMOEXSiteNews})
+	if err == nil {
+		t.Fatal("expected error for malformed JSON")
+	}
+	if !strings.Contains(err.Error(), "parse moex sitenews") {
+		t.Fatalf("expected parse moex sitenews error, got %v", err)
+	}
+}
+
+func TestFetchMOEXSiteNewsMissingColumns(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"sitenews":{"columns":["id","title"],"data":[[1,"x"]]}}`)
+	}))
+	defer server.Close()
+
+	fetcher := NewFetcher(nil)
+	_, err := fetcher.Fetch(context.Background(), Source{URL: server.URL, Type: SourceTypeMOEXSiteNews})
+	if err == nil {
+		t.Fatal("expected error for missing published_at column")
 	}
 }
 

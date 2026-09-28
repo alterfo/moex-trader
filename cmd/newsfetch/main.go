@@ -94,7 +94,7 @@ func run(args []string) error {
 	fetcher := news.NewFetcher(httpClient)
 	matcher := news.NewMatcher(news.DefaultAliases())
 
-	sources := news.DefaultSources()
+	sources := news.AllSources(cfg.Tickers)
 	if opts.retroFrom != "" {
 		sources = telegramOnly(sources)
 	}

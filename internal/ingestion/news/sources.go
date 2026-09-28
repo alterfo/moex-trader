@@ -1,6 +1,12 @@
 package news
 
-import "github.com/shopspring/decimal"
+import (
+	"net/url"
+	"strings"
+	"unicode"
+
+	"github.com/shopspring/decimal"
+)
 
 type Source struct {
 	Name        string
@@ -26,7 +32,67 @@ func DefaultSources() []Source {
 		{Name: "Финмаркет", URL: "https://www.finmarket.ru/rss/mainnews.asp", TrustWeight: decimal.NewFromFloat(1.0)},
 		{Name: "MarketTwits (TG)", Type: "telegram", Channel: "markettwits", TrustWeight: decimal.NewFromFloat(0.25)},
 		{Name: "Банкста (TG)", Type: "telegram", Channel: "banksta", TrustWeight: decimal.NewFromFloat(0.1)},
+		{Name: "MOEX сайт-новости", URL: "https://iss.moex.com/iss/sitenews.json?limit=50", Type: SourceTypeMOEXSiteNews, TrustWeight: decimal.NewFromFloat(1.0)},
+		{Name: "ЦБ РФ: Пресс-релизы", URL: "https://www.cbr.ru/rss/RssPress", TrustWeight: decimal.NewFromFloat(1.0)},
+		{Name: "ЦБ РФ: Новости", URL: "https://www.cbr.ru/rss/RssNews", TrustWeight: decimal.NewFromFloat(1.0)},
 	}
+}
+
+// googleNewsQuerySuffix overrides the default "акции" search-query suffix for
+// tickers that are commodities/FX, not equities (GLDRUB_TOM etc. are tracked
+// for features/hedging but are not traded — see AGENTS.md).
+var googleNewsQuerySuffix = map[string]string{
+	"GLDRUB_TOM": "цена",
+	"SLVRUB_TOM": "цена",
+	"CNYRUB_TOM": "курс",
+}
+
+// GoogleNewsSources builds one Google News RSS source per ticker
+// (https://news.google.com/rss/search), using the ticker's primary alias
+// from DefaultAliases() as the search term. Google dedupes across the wire
+// services already covered by DefaultSources(), so these are additive
+// coverage (regulator/company-specific angle), not a replacement.
+func GoogleNewsSources(tickers []string) []Source {
+	aliases := DefaultAliases()
+	sources := make([]Source, 0, len(tickers))
+	for _, raw := range tickers {
+		ticker := strings.ToUpper(strings.TrimSpace(raw))
+		aliasList := aliases[ticker]
+		if len(aliasList) == 0 {
+			continue
+		}
+		suffix := "акции"
+		if override, ok := googleNewsQuerySuffix[ticker]; ok {
+			suffix = override
+		}
+		query := capitalizeFirstRune(aliasList[0]) + " " + suffix
+		values := url.Values{}
+		values.Set("q", query)
+		values.Set("hl", "ru")
+		values.Set("gl", "RU")
+		values.Set("ceid", "RU:RU")
+		sources = append(sources, Source{
+			Name:        "Google News: " + ticker,
+			URL:         "https://news.google.com/rss/search?" + values.Encode(),
+			TrustWeight: decimal.NewFromFloat(0.9),
+		})
+	}
+	return sources
+}
+
+// AllSources returns DefaultSources() plus a per-ticker GoogleNewsSources()
+// feed for each of tickers.
+func AllSources(tickers []string) []Source {
+	return append(DefaultSources(), GoogleNewsSources(tickers)...)
+}
+
+func capitalizeFirstRune(s string) string {
+	runes := []rune(s)
+	if len(runes) == 0 {
+		return s
+	}
+	runes[0] = unicode.ToUpper(runes[0])
+	return string(runes)
 }
 
 func DefaultAliases() map[string][]string {
