@@ -671,3 +671,67 @@ depends on (124-249 trades vs 781-939 uncapped). Consequences: (i) stay at
 live book; (ii) the real 2-3x income lever is the futures hedge ([0] path),
 not a net-exposure cap; (iii) `max_net_exposure` ships and stays available as
 a defense-in-depth fail-closed guardrail only, not as the sizing mechanism.
+
+## News classifier rebuild from a fresh 9596-article backfill (2026-09-29) — negative, NOT deployed
+
+Second, larger attempt at the news sentiment classifier, prompted by the live
+trader's own `news_classifier.json` (2026-09-16) scoring **below the majority
+class baseline** (val acc 0.529 vs baseline 0.552, val AUC 0.533). The
+2026-09-25 attempt used only 1517 finanalys headlines; this one rebuilt a
+9596-article archive from scratch (the 9171-article 2026-09-17 backfill was
+never retained — see the section above).
+
+Archive: `cmd/newsfetch -out data/news_history.jsonl` — RSS/Google/ЦБ/MOEX at
+`-since-days 30` (2315 records) plus `-retro-from 2026-04-01` Telegram retro
+(7281 records), 2026-04-01..09-29, 42 tickers. Labels: forward excess return
+over IMOEX from live MOEX ISS candles, `cmd/trainnewsmodel`, horizon 3d.
+
+| variant | articles | train_n | val_n | train AUC | val AUC | val acc | baseline | Δ acc |
+|---|---|---|---|---|---|---|---|---|
+| deployed 2026-09-16 | 48294 (Telegram) | 48294 | 2364 | 0.690 | 0.533 | 0.529 | 0.552 | −0.023 |
+| A all tickers, split 08-15 | 9596 | 2855 | 1349 | 0.840 | 0.531 | 0.538 | 0.570 | −0.032 |
+| B config tickers only, split 08-15 | 3415 | 759 | 497 | 0.950 | **0.493** | 0.469 | 0.511 | −0.042 |
+| C all tickers, split 09-01 | 9596 | 3115 | 1089 | 0.830 | 0.527 | 0.534 | 0.576 | −0.042 |
+| D all tickers, `-max-tickers-per-article 1` | 6858 | 2125 | 970 | 0.880 | **0.540** | 0.535 | 0.580 | −0.045 |
+
+**Every variant is below the majority-class baseline on accuracy**, and the
+train→val AUC gap (0.31–0.46) is severe overfitting. With ~1000 validation
+samples the standard error on AUC is ≈0.016, so the 0.527–0.540 spread across
+variants is noise — none of them is distinguishable from the deployed model,
+and none beats chance direction.
+
+Sample loss is the mechanism: 9596 articles yield only 2855 train samples
+because `BuildNewsLabels` drops tickers whose `source.History` fails
+(`internal/model/newsclassifier.go:246`) and truncates the tail where
+`exitIdx >= len(candles)`. The 2026-09-16 classifier had 48294 train samples;
+today's rebuild has 2855 — a 17x reduction that no longer reaches the
+original archive depth (Telegram retro reaches 2 channels only, RSS has no
+history API).
+
+**The decisive finding is behavioural, not the AUC.** Scoring 800 unique
+archive headlines through each model (`cmd/newsscore -method model`):
+
+| model | score range | mean | share \|score\|>0.1 | share < 0 |
+|---|---|---|---|---|
+| deployed `news_classifier.json` | [−0.247, +0.266] | −0.039 | 7.8% | 83.0% |
+| A | [−0.699, +0.796] | −0.061 | 63.5% | 66.9% |
+| D | [−0.807, +0.691] | −0.076 | 63.6% | 66.4% |
+| B | [−0.925, +0.966] | −0.090 | 67.1% | 70.6% |
+
+The deployed classifier is **dead** — 92% of its scores sit inside ±0.1, so
+`news_sentiment` contributes ~0 to the live feature vector. The freshly trained
+variants are **alive**: they fire with confident values on ~64% of headlines.
+Since their accuracy is below the majority baseline, deploying them would swap
+a currently-harmless near-zero feature for an actively wrong one. The dead
+deployed model is the safer of the two, and no change is justified.
+
+Conclusion: confirms and strengthens the 2026-09-25 verdict on 6x more data.
+The blocker is the unrecoverable archive depth, not tuning. `news_classifier.json`
+stays at the 2026-09-16 artifact. Retry only when a substantially larger,
+direction-label-balanced corpus accumulates (i.e. after months of live
+`cmd/newsfetch` appends, not a one-off backfill).
+
+ToS note: this training set intentionally includes the 2 Telegram channels and
+17 per-ticker Google News feeds, per the user's explicit decision recorded in
+AGENTS.md. These numbers are therefore measured on ToS-restricted sources and
+must not be quoted as if the corpus were clean.
