@@ -270,10 +270,10 @@ func (s *Store) NetExposure(ctx context.Context) (decimal.Decimal, error) {
 			return decimal.Zero, fmt.Errorf("scan executor audit event: %w", err)
 		}
 		var fill struct {
-			Ticker string            `json:"ticker"`
-			Action domain.Action     `json:"action"`
-			Lots   int               `json:"lots"`
-			Price  decimal.Decimal   `json:"price"`
+			Ticker string          `json:"ticker"`
+			Action domain.Action   `json:"action"`
+			Lots   int             `json:"lots"`
+			Price  decimal.Decimal `json:"price"`
 		}
 		if err := json.Unmarshal([]byte(payload), &fill); err != nil {
 			continue

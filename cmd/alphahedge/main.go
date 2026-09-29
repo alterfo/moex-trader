@@ -209,21 +209,21 @@ func run() error {
 
 	engineConfig := func(signalSource backtest.SignalSource) backtest.Config {
 		return backtest.Config{
-			Tickers:        tickers,
-			From:           from,
-			Till:           till,
-			Deposit:        deposit,
-			MaxLots:        maxLots,
-			MaxNetExposure: maxNetExposure,
-			CommissionRate: commissionRate,
-			SpreadPct:      spreadPct,
-			SlippagePct:    slippagePct,
+			Tickers:         tickers,
+			From:            from,
+			Till:            till,
+			Deposit:         deposit,
+			MaxLots:         maxLots,
+			MaxNetExposure:  maxNetExposure,
+			CommissionRate:  commissionRate,
+			SpreadPct:       spreadPct,
+			SlippagePct:     slippagePct,
 			BorrowPctPerDay: borrowPctPerDay,
-			WarmupDays:     warmupDays,
-			KillSwitch:     true,
-			SignalSource:   signalSource,
-			Source:         mem,
-			FeatureConfig:  features.PriceFeatureConfig{},
+			WarmupDays:      warmupDays,
+			KillSwitch:      true,
+			SignalSource:    signalSource,
+			Source:          mem,
+			FeatureConfig:   features.PriceFeatureConfig{},
 		}
 	}
 
@@ -249,9 +249,9 @@ func run() error {
 		return fmt.Errorf("build momentum plan: %w", err)
 	}
 	momentumResult, err := runEngine(ctx, engineConfig(&momentum.SignalSource{
-		Plan:          momentumPlan,
+		Plan:           momentumPlan,
 		TargetNotional: targetNotional,
-		MaxLots:       maxLots,
+		MaxLots:        maxLots,
 	}))
 	if err != nil {
 		return fmt.Errorf("momentum backtest: %w", err)
@@ -563,7 +563,7 @@ func formatBootstrap(boot []bootstrapCI) string {
 		if ci.Hi < 0 || ci.Lo > 0 {
 			b = 1
 		}
-		out = append(out, fmt.Sprintf("L=%g: [%.6f, %.6f]%s", ci.Block, ci.Lo, ci.Hi, map[int]string{1: "*"} [b]))
+		out = append(out, fmt.Sprintf("L=%g: [%.6f, %.6f]%s", ci.Block, ci.Lo, ci.Hi, map[int]string{1: "*"}[b]))
 		if ci.Block == 20 && b == 1 {
 			has20 = true
 		}

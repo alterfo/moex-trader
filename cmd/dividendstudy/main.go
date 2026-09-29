@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/olegsidorkin/moex-trader/internal/backtest"
 	"github.com/olegsidorkin/moex-trader/internal/config"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
-	"github.com/olegsidorkin/moex-trader/internal/backtest"
 	"github.com/shopspring/decimal"
 )
 
@@ -30,14 +30,14 @@ type dividendRecord struct {
 }
 
 type event struct {
-	ticker     string
-	lastBuy    time.Time
-	divNet     float64
-	wave       string
-	season     int
-	year       int
-	entryIdx   int
-	exitIdx    int
+	ticker   string
+	lastBuy  time.Time
+	divNet   float64
+	wave     string
+	season   int
+	year     int
+	entryIdx int
+	exitIdx  int
 }
 
 var lotByTicker = map[string]int{
@@ -196,12 +196,12 @@ func run() error {
 			continue
 		}
 		events = append(events, event{
-			ticker:  ticker,
-			lastBuy: lb,
-			divNet:  divNet,
-			wave:    waveOf(lb),
+			ticker:   ticker,
+			lastBuy:  lb,
+			divNet:   divNet,
+			wave:     waveOf(lb),
 			season:   sixWeekOf(lb),
-			year:    lb.Year(),
+			year:     lb.Year(),
 			entryIdx: idx,
 			exitIdx:  idx + 1,
 		})
