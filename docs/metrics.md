@@ -634,7 +634,7 @@ top of the ladder is thin. consequence for the (1) axis: wire
 bounded so the per-quarter DD stays under 3%, and re-confirm the live
 short-borrow rate before setting more than 3x.
 
-## `max_net_exposure` on the unhedged book — 2026-09-25
+## `max_net_exposure` on the unhedged book — 2026-09-25, recomputed at HEAD on 2026-09-30
 
 Same executor, canonical 18 tickers, identical window/costs/borrow as the
 grid above, but **`-shares 0` (the actual live book — no futures hedge)**.
@@ -643,30 +643,40 @@ OrderPrice-based deltas (lot-aware in live, LotSize=1 in backtest). Combined
 with the unhedged baseline from `docs/dividendstudy-report.md` (2026-09-25:
 unhedged 2x/3x DD 3.71%/4.43% > 3% kill-switch limit).
 
-| target notional | max_net_exposure | realized net of borrow | closed trades | max quarterly DD | result |
-|---|---|---|---|---|---|
-| 15000 (1x, live) | 0 | +179045 | 781 | 2.05% (2026-Q1) | **PASS** |
-| 15000 (1x) | 90000 | +78592 | 295 | 1.59% (2026-Q1) | PASS (income halved by cap) |
-| 30000 (2x) | 0 | +361018 | 914 | **3.76% (2026-Q1)** | FAIL |
-| 30000 (2x) | 60000 | +72545 | 124 | 2.21% (2026-Q4) | PASS, wide margin |
-| 30000 (2x) | 60000, borrow 0.0001 (2x-stress) | +64833 | 125 | 2.30% (2026-Q4) | PASS |
-| 30000 (2x) | 75000 | +84341 | 246 | **3.46% (2026-Q1)** | FAIL (cliff) |
-| 30000 (2x) | 90000 | +96699 | 249 | 2.91% (2026-Q1) | PASS (knife-edge) |
-| 45000 (3x) | 0 | +526517 | 939 | **4.66% (2026-Q1)** | FAIL |
-| 45000 (3x) | 90000 | +84165 | 205 | **4.00% (2026-Q1)** | FAIL |
-| 45000 (3x) | 120000 | +106789 | 220 | **3.99% (2026-Q1)**, 3.53% (2026-Q4) | FAIL |
+**All 10 rows below were re-run on 2026-09-30** at HEAD (`88d0958`→`8157903`,
+`cmd/alphahedge -shares 0`) with the same 2025-04-01 → 2026-09-17 window,
+deposit 1000000, costs 0.0005/0.0005/0.0005 and borrow 0.00005/day. The
+original 2026-09-25 numbers are preserved below in the "was" column. Every
+row moved up, and the live 1x baseline rose from +179045 to +197275, so the
+2026-09-25 figures predate the 2026-09-17 feature fixes. Conclusions are
+unchanged; the cliff is now measured, not inferred.
+
+| target notional | max_net_exposure | realized net of borrow | closed trades | max quarterly DD | result | was (2026-09-25) |
+|---|---|---|---|---|---|---|
+| 15000 (1x, live) | 0 | +197275 | 871 | 1.96% (2026-Q1) | **PASS** | +179045 / 781 / 2.05% |
+| 15000 (1x) | 90000 | +87861 | 341 | 1.71% (2026-Q1) | PASS (income cut 55% by cap) | +78592 / 295 / 1.59% |
+| 30000 (2x) | 0 | +395785 | 1012 | **3.57% (2026-Q1)** | FAIL | +361018 / 914 / 3.76% |
+| 30000 (2x) | 60000 | +81730 | 234 | 2.21% (2026-Q1) | PASS, wide margin | +72545 / 124 / 2.21% |
+| 30000 (2x) | 60000, borrow 0.0001 (2x-stress) | +74033 | 234 | 2.31% (2026-Q1) | PASS | +64833 / 125 / 2.30% |
+| 30000 (2x) | 75000 | −6555 | 50 | 2.52% (2025-Q3) | **FAIL (income turned negative)** | +84341 / 246 / 3.46% |
+| 30000 (2x) | 90000 | +144058 | 249 | 1.94% (2026-Q3) | PASS | +96699 / 249 / 2.91% |
+| 45000 (3x) | 0 | +589992 | 1050 | **4.26% (2026-Q1)** | FAIL | +526517 / 939 / 4.66% |
+| 45000 (3x) | 90000 | −19338 | 74 | **4.95% (2026-Q3)** | **FAIL (income and DD both worse)** | +84165 / 205 / 4.00% |
+| 45000 (3x) | 120000 | +127923 | 188 | **3.85% (2026-Q1)** | FAIL | +106789 / 220 / 3.99% |
 
 Verdict: `max_net_exposure` does **not** turn 2-3x on the unhedged book into a
 safe income upgrade. The only cap-level that keeps every quarter <= 3% (2x +
-60k, DD <= 2.21%, <= 2.30% under 2x-borrow stress) earns +72545 over the
-window — **less than the current live 1x (+179045, DD 2.05%)**. The cap is
-discontinuous: 60k->75k flips 2026-Q1 DD from 0.55% to 3.46% (cliff, not a
-smooth tradeoff); 90k passes at 2.91% but sits knife-edge on the cliff. 3x
-fails at every cap (90k/120k -> 3.99-4.00%) because the aggregate cap empties
-the book down to 2 positions and raises concentration (2x45k > 3x30k at equal
-notional). Root cause: the unhedged book's income IS its market beta, and an
+60k, DD 2.21%, 2.31% under 2x-borrow stress) earns +81730 over the window —
+**less than half the current live 1x (+197275, DD 1.96%)**. 3x fails at every
+cap, and at 90k the cap now makes results *worse on both axes at once*:
+realized −19338 and DD 4.95% (vs 4.00% uncapped), the only row in the grid that
+is worse than its own uncapped control. The cap is discontinuous and its
+cliff is non-monotonic: 60k→75k at 2x turns +81730 into −6555 (trade count
+collapsing 234 → 50 as the cap empties the book), while 90k recovers to
++144058 — so the profitable region is non-contiguous and cannot be tuned
+into. Root cause: the unhedged book's income IS its market beta, and an
 aggregate cap barrels away the cross-name diversification the strategy
-depends on (124-249 trades vs 781-939 uncapped). Consequences: (i) stay at
+depends on (234-341 trades vs 871-1050 uncapped). Consequences: (i) stay at
 `target_notional 15000` (1x) unhedged — it is the operating optimum of the
 live book; (ii) the real 2-3x income lever is the futures hedge ([0] path),
 not a net-exposure cap; (iii) `max_net_exposure` ships and stays available as
