@@ -735,3 +735,61 @@ ToS note: this training set intentionally includes the 2 Telegram channels and
 17 per-ticker Google News feeds, per the user's explicit decision recorded in
 AGENTS.md. These numbers are therefore measured on ToS-restricted sources and
 must not be quoted as if the corpus were clean.
+
+## `max_net_exposure` on a 100% short book — 2026-09-30
+
+Trigger: the live book failed on 2026-09-30 with 17 short positions, net
+≈ −210k RUB against a gross of ≈ +210k RUB, and realized P&L of −4.53 RUB
+over 60 closed trades. The question this grid answers is what a
+`max_net_exposure` cap would have cost **that** structure — not whether it
+would have saved it.
+
+Method: synthetic forced-short via `-signal-source csvprob`, SELL on every bar
+and BUY on the final bar (2026-09-17) so the result is realized rather than
+open-position MTM. The CSV date set was taken from MOEX ISS and verified
+identical to the engine's candle set (8674 rows == the ensemble control's
+`Decisions: 8674`). Protocol otherwise identical to `abe614d`: canonical 18
+tickers, 2025-04-01 → 2026-09-17, deposit 1000000, `target_notional` 15000,
+`max_lots` 1000, commission 0.0005, spread 0.0005, slippage 0.0005, borrow
+0.00005/day, kill-switch on, `-lookback-days 0`, realized net of borrow.
+
+| max_net_exposure | realized net of borrow | income hit vs all-short cap 0 | closed trades | max DD | names in book |
+|---|---|---|---|---|---|
+| 0 (all-short control) | +51381 | — | 1581 | 5.83% | 18 |
+| 30000 | +4981 | **−46400 (−90.3%)** | 2 | 0.86% | 2 (YDEX, OZON) |
+| 45000 | +5864 | **−45518 (−88.6%)** | 3 | 1.04% | 3 (+ SBER) |
+| 60000 | +8831 | **−42551 (−82.8%)** | 4 | 0.87% | 4 (+ LKOH) |
+| 90000 | +11484 | **−39898 (−77.7%)** | 6 | 1.68% | 6 (+ GAZP, GMKN) |
+
+Verdict: **rejected.** A cap costs 78–90% of the directional book's realized
+income and is not a risk knob for it. The mechanism is not gradual
+de-risking — `risk.Gate` is an order-level fail-closed check
+(`internal/risk/gate.go:227-257`) that never resizes an existing position.
+Against a constant SELL every bar, the first N tickers to fill the cap
+consume it, every later order is rejected, and the book freezes for the
+remaining 18 months: closed trades collapse 1581 → 2/3/4/6, and only the
+final close-out ever books. So the capped rows are **not** a scaled version of
+the same book but an arbitrary subset picked by ticker iteration order.
+
+Two caveats that cut against over-reading this table:
+
+- The income hits are therefore a **lower bound** on the cap's true cost. The
+  rows measure a frozen arbitrary subset, whereas a real concentrated book
+  rebalances; the comparable rebalancing variant is worse, not better. Name
+  selection here is not reproducible as a strategy.
+- The uncapped all-short control breaches the 3% kill-switch DD limit on its
+  own (DD 5.83%, 39 daily-loss blocked days) before any cap is applied. That
+  is a property of holding 18×15000 short simultaneously, not of the cap —
+  and it means the live loss was **not** caused by a missing
+  `max_net_exposure`.
+
+Baseline drift, recorded for honesty: rerunning the `abe614d` protocol
+unchanged at HEAD (ensemble source, 18 tickers, same window/costs/borrow)
+gives realized **+197275 net of borrow / 871 closed trades / DD 2.63%**,
+not the +179045 / 781 / 2.05% recorded in the `abe614d` table above — that row
+predates the 2026-09-17 feature fixes. Every income hit in *this* table is
+therefore computed against the fresh all-short cap-0 control measured in the
+same run, never against the stale ledger number.
+
+This strengthens rather than revises the 2026-09-25 verdict: `max_net_exposure`
+ships as defence-in-depth only. Live stays 1x, `target_notional` 15000, cap 0.
