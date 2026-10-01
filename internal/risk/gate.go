@@ -42,6 +42,16 @@ type Request struct {
 	Signal  domain.TradeSignal
 	Market  Market
 	Account Account
+
+	// ExposureDeltaLots is the signed lot change THIS order applies to its own
+	// ticker, positive = buy. It is separate from Signal.TargetLots because
+	// the target-position path carries the absolute target position there while
+	// incremental callers carry the order size. Exposure must be projected
+	// from the delta: reading the absolute target as a delta double-counts the
+	// position already held, and under a gross cap that makes the order which
+	// flattens a position look like a fresh full-size entry. Nil means
+	// Signal.TargetLots is the order size (incremental callers).
+	ExposureDeltaLots *int
 }
 
 type OrderCanceller interface {
@@ -52,10 +62,22 @@ type PositionReader interface {
 	CurrentLots(ctx context.Context, ticker string) (int, error)
 }
 
+// ExposureReader reports the signed position notional in RUB per ticker, keyed
+// by upper-cased ticker. Pricing basis is the reader's own: the backtest engine
+// uses average entry price, the live fill ledger average cost. A ticker absent
+// from the map is flat. One snapshot backs both the gross book size and the
+// per-ticker projection, so the two never disagree on basis.
+type ExposureReader interface {
+	ExposureByTicker(ctx context.Context) (map[string]decimal.Decimal, error)
+}
+
 // NetExposureReader reports the signed aggregate net position notional in RUB
 // across the whole book (sum over open positions of signed lots * price).
-// Positive = net long, negative = net short. Implemented by the backtest
-// engine (mark-priced) and the live fill ledger (average-cost priced).
+// Positive = net long, negative = net short.
+//
+// Kept as a fallback for readers that predate ExposureReader. It cannot bound
+// risk on its own: longs and shorts cancel, so a book long 500k and short 500k
+// reads as zero. Prefer ExposureReader for the cap.
 type NetExposureReader interface {
 	NetExposure(ctx context.Context) (decimal.Decimal, error)
 }
@@ -76,10 +98,13 @@ type TickerBlocker interface {
 }
 
 type Config struct {
-	MaxLots               int
-	MaxDailyLossPct       decimal.Decimal
-	FatFingerPct          decimal.Decimal
-	MaxDrawdownPct        decimal.Decimal
+	MaxLots         int
+	MaxDailyLossPct decimal.Decimal
+	FatFingerPct    decimal.Decimal
+	MaxDrawdownPct  decimal.Decimal
+	// MaxNetExposure caps the book's GROSS position notional (sum of |net|
+	// per ticker), not the signed net. 0 disables the cap. Kept under its
+	// historical name for config compatibility; see exceedsMaxNetExposure.
 	MaxNetExposure        decimal.Decimal
 	Canceller             OrderCanceller
 	Positions             PositionReader
@@ -224,10 +249,28 @@ func (g *HardenedGate) exceedsMaxPosition(signal domain.TradeSignal, _ int) bool
 	return absInt(desired) > g.maxLots
 }
 
-// exceedsMaxNetExposure rejects orders that would push the book's aggregate
-// net position notional (RUB) beyond MaxNetExposure. 0 disables the cap.
-// A configured cap fails closed when the reader does not expose the book,
-// because an unverifiable exposure bound must not silently allow an order.
+// exceedsMaxNetExposure rejects orders that would push the book's exposure
+// beyond MaxNetExposure. 0 disables the cap.
+//
+// The bound is GROSS exposure — the sum over tickers of |signed position
+// notional| — not signed net. Net cannot bound risk: a long 500k and a short
+// 500k net to zero and would sail past a 60k cap while carrying 1M of gross
+// risk, purely because the two sides happened to be equal size. Gross also
+// removes the cancellation-driven order dependence: under a net cap, which
+// names got filled depended on how much opposing exposure happened to be
+// booked first, not on signal quality.
+//
+// Projection is per ticker, not book-wide addition: this order changes one
+// name, so only that name's leg is replaced. Treating every order as purely
+// additive to gross would make the cap block the very orders that REDUCE risk
+// (closing or trimming a position), which would strand open positions. What is
+// checked is |other names| + |this name after the order|.
+//
+// A reader exposing only the legacy NetExposureReader still works, with the
+// weaker cancelling semantics retained for compatibility; it cannot see
+// per-ticker legs and so stays conservative on reductions. A configured cap
+// fails closed when neither is available, because an unverifiable exposure
+// bound must not silently allow an order.
 func (g *HardenedGate) exceedsMaxNetExposure(ctx context.Context, request Request) bool {
 	if g.maxNetExposure.Sign() <= 0 {
 		return false
@@ -238,6 +281,46 @@ func (g *HardenedGate) exceedsMaxNetExposure(ctx context.Context, request Reques
 	if request.Signal.TargetLots == 0 || request.Market.OrderPrice.Sign() <= 0 {
 		return false
 	}
+	deltaLots := signedLots(request.Signal.Action, request.Signal.TargetLots)
+	if request.ExposureDeltaLots != nil {
+		deltaLots = *request.ExposureDeltaLots
+	}
+	if deltaLots == 0 {
+		return false
+	}
+	delta := decimal.NewFromInt(int64(deltaLots))
+	lotSize := request.Market.LotSize
+	if lotSize.IsZero() {
+		lotSize = decimal.NewFromInt(1)
+	}
+	delta = delta.Mul(lotSize).Mul(request.Market.OrderPrice)
+
+	reader, ok := g.positions.(ExposureReader)
+	if !ok {
+		return g.exceedsMaxNetExposureLegacy(ctx, delta)
+	}
+	book, err := reader.ExposureByTicker(ctx)
+	if err != nil {
+		return true
+	}
+	ticker := normalizeTicker(request.Signal.Ticker)
+	thisLeg := book[ticker]
+	others := decimal.Zero
+	for name, notional := range book {
+		if name == ticker {
+			continue
+		}
+		others = others.Add(notional.Abs())
+	}
+	projected := others.Add(thisLeg.Add(delta).Abs())
+	return projected.GreaterThan(g.maxNetExposure)
+}
+
+// exceedsMaxNetExposureLegacy keeps the cap working for readers that only
+// expose an aggregate. Without per-ticker legs it cannot tell an exit from an
+// entry, so it adds the order to the signed book and takes the absolute value —
+// the original behaviour, conservative on reductions.
+func (g *HardenedGate) exceedsMaxNetExposureLegacy(ctx context.Context, delta decimal.Decimal) bool {
 	reader, ok := g.positions.(NetExposureReader)
 	if !ok {
 		return true
@@ -246,14 +329,7 @@ func (g *HardenedGate) exceedsMaxNetExposure(ctx context.Context, request Reques
 	if err != nil {
 		return true
 	}
-	delta := decimal.NewFromInt(int64(signedLots(request.Signal.Action, request.Signal.TargetLots)))
-	lotSize := request.Market.LotSize
-	if lotSize.IsZero() {
-		lotSize = decimal.NewFromInt(1)
-	}
-	delta = delta.Mul(lotSize).Mul(request.Market.OrderPrice)
-	projected := current.Add(delta)
-	return projected.Abs().GreaterThan(g.maxNetExposure)
+	return current.Add(delta).Abs().GreaterThan(g.maxNetExposure)
 }
 
 func signedLots(action domain.Action, lots int) int {

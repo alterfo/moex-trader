@@ -75,6 +75,15 @@ func (r *reconcilingPositionReader) NetExposure(ctx context.Context) (decimal.De
 	return decimal.Zero, nil
 }
 
+// ExposureByTicker delegates to the fallback's per-ticker book. Preferred by
+// the risk gate over NetExposure, which would cancel longs against shorts.
+func (r *reconcilingPositionReader) ExposureByTicker(ctx context.Context) (map[string]decimal.Decimal, error) {
+	if reader, ok := r.fallback.(risk.ExposureReader); ok {
+		return reader.ExposureByTicker(ctx)
+	}
+	return map[string]decimal.Decimal{}, nil
+}
+
 func (r *reconcilingPositionReader) snapshot(ctx context.Context) (map[string]int, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

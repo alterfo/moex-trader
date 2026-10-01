@@ -111,6 +111,28 @@ accumulate a 2-3-month proving period.
   Grid + verdict: `docs/metrics.md` "max_net_exposure on the unhedged book".
   `max_net_exposure` ships as defence-in-depth guardrail only, not as a
   sizing mechanism; backtest/alphahedge expose it via `-max-net-exposure`.
+- **`max_net_exposure` means GROSS, not signed net (2026-10-01)**: the cap
+  bounds `Σ_ticker |signed position notional|`. The old signed-net basis was
+  blind to gross risk — long 500k SBER + short 500k OZON net to **zero** and
+  passed a 60k cap carrying 1M of risk — and made *which* names filled depend
+  on how much opposing exposure was booked first. Flag/config name
+  (`-max-net-exposure`, `MaxNetExposure`) unchanged on purpose.
+  Three invariants when touching this cap:
+  (1) **Project per ticker, never book-wide addition.** The order replaces only
+  its own ticker's leg; the bound is `|other names| + |this name after|`.
+  Adding `|delta|` to total gross makes the cap reject *risk-reducing* orders —
+  an intermediate implementation passed cap 0 and silently blocked every
+  flatten-to-flat order (all-short grid: 2-6 closed trades → **0**, drawdown
+  unchanged, result left as open-position MTM).
+  (2) **`Signal.TargetLots` is NOT the exposure delta.** In the target-position
+  path it is the absolute target that `recordFill` reconciles to; reading it as
+  a delta double-counts the held position (a real pre-existing bug, fixed here).
+  `risk.Request.ExposureDeltaLots` carries the signed delta; nil means
+  "TargetLots is the order size" (live `EnsembleSignalSource`, incremental).
+  (3) **Re-run the all-short grid** (`docs/metrics.md` "signed net → gross")
+  after any cap change — net ≡ gross there, so every row must stay bit-identical;
+  a changed row means the projection is wrong, not that the market moved.
+  Live keeps `max_net_exposure: 0`, so this commit changed no live behavior.
 - **Futures-hedge feasibility — RESEARCH BACKLOG (only remaining lever)**:
   the 2-3x income is validated ONLY on the beta-neutral book (leverage grid,
   realized +395785/+589992, DD 2.15%/2.56%) whose IMOEX overlay leg is

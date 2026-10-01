@@ -397,6 +397,7 @@ func (e *Engine) CurrentLots(_ context.Context, ticker string) (int, error) {
 
 // NetExposure reports the signed aggregate net position notional in RUB
 // (sum of signed lots * average entry price over open positions).
+// Longs and shorts cancel here; the risk gate caps on ExposureByTicker instead.
 func (e *Engine) NetExposure(_ context.Context) (decimal.Decimal, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -405,15 +406,33 @@ func (e *Engine) NetExposure(_ context.Context) (decimal.Decimal, error) {
 		if pos == nil || pos.lots <= 0 {
 			continue
 		}
-		var signed int
-		if pos.action == domain.ActionSell {
-			signed = -pos.lots
-		} else {
-			signed = pos.lots
-		}
-		total = total.Add(pos.avg.Mul(decimal.NewFromInt(int64(signed))))
+		total = total.Add(e.signedPositionNotionalLocked(pos))
 	}
 	return total, nil
+}
+
+// ExposureByTicker reports signed position notional per upper-cased ticker
+// (average entry price basis). The risk gate caps the sum of |notional| across
+// tickers, so opposite signs must not cancel.
+func (e *Engine) ExposureByTicker(_ context.Context) (map[string]decimal.Decimal, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	out := make(map[string]decimal.Decimal, len(e.positions))
+	for ticker, pos := range e.positions {
+		if pos == nil || pos.lots <= 0 {
+			continue
+		}
+		out[normalizeTicker(ticker)] = e.signedPositionNotionalLocked(pos)
+	}
+	return out, nil
+}
+
+func (e *Engine) signedPositionNotionalLocked(pos *position) decimal.Decimal {
+	signed := pos.lots
+	if pos.action == domain.ActionSell {
+		signed = -pos.lots
+	}
+	return pos.avg.Mul(decimal.NewFromInt(int64(signed)))
 }
 
 func (e *Engine) Run(ctx context.Context) (*Result, error) {
@@ -800,24 +819,29 @@ func (e *Engine) applyTargetPositionWithAccount(ctx context.Context, ticker stri
 		return nil
 	}
 
+	// The gate's contract is Signal.TargetLots = the absolute target position for
+	// this ticker (what recordFill below reconciles to), while exposure must be
+	// projected from the CHANGE this order makes. Send the delta explicitly:
+	// reading the absolute target as a delta double-counts the position already
+	// held and, under a gross cap, makes the order that flattens a position
+	// look like a fresh full-size entry. Direction follows the delta too — a
+	// trim from -15000 to -5000 is a BUY of 10000.
 	action := domain.ActionBuy
 	if signedLots < 0 {
 		action = domain.ActionSell
 	}
-	targetLots := signedLots
-	if targetLots < 0 {
-		targetLots = -targetLots
-	}
+	deltaSigned := signedLots - current
 	signal := domain.TradeSignal{
 		Ticker:      ticker,
 		Action:      action,
 		Confidence:  decimal.NewFromInt(1),
-		TargetLots:  targetLots,
+		TargetLots:  absLots(signedLots),
 		Reasoning:   "target-position",
 		GeneratedAt: day,
 	}
 	approved, err := e.gate.Approve(ctx, risk.Request{
-		Signal: signal,
+		Signal:            signal,
+		ExposureDeltaLots: &deltaSigned,
 		Market: risk.Market{
 			OrderPrice: execPrice,
 			PrevClose:  execPrice,
@@ -1261,4 +1285,8 @@ func tickersNormalized(tickers []string) []string {
 		}
 	}
 	return out
+}
+
+func normalizeTicker(ticker string) string {
+	return strings.ToUpper(strings.TrimSpace(ticker))
 }

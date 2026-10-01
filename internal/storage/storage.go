@@ -243,12 +243,12 @@ func (s *Store) CurrentLots(ctx context.Context, ticker string) (int, error) {
 	return shares, nil
 }
 
-// NetExposure reports the signed aggregate net position notional in RUB across
-// all tickers, priced at the average cost recorded in the fill ledger. This is
-// the same ledger CurrentLots reads, so exposure is consistent with the lots
-// the gate sees (untradeable holdings a human keeps on the shared sandbox
-// account are not visible — only the bot's own fills).
-func (s *Store) NetExposure(ctx context.Context) (decimal.Decimal, error) {
+// ledgerExposure replays the executor fill ledger and returns the signed
+// position notional per upper-cased ticker, priced at average cost. This is the
+// same ledger CurrentLots reads, so exposure is consistent with the lots the
+// gate sees (untradeable holdings a human keeps on the shared sandbox account
+// are not visible — only the bot's own fills).
+func (s *Store) ledgerExposure(ctx context.Context) (map[string]decimal.Decimal, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT payload
 		 FROM audit_events
@@ -256,7 +256,7 @@ func (s *Store) NetExposure(ctx context.Context) (decimal.Decimal, error) {
 		 ORDER BY created_at ASC, id ASC`,
 	)
 	if err != nil {
-		return decimal.Zero, fmt.Errorf("list executor audit events: %w", err)
+		return nil, fmt.Errorf("list executor audit events: %w", err)
 	}
 	defer rows.Close()
 
@@ -267,7 +267,7 @@ func (s *Store) NetExposure(ctx context.Context) (decimal.Decimal, error) {
 	for rows.Next() {
 		var payload string
 		if err := rows.Scan(&payload); err != nil {
-			return decimal.Zero, fmt.Errorf("scan executor audit event: %w", err)
+			return nil, fmt.Errorf("scan executor audit event: %w", err)
 		}
 		var fill struct {
 			Ticker string          `json:"ticker"`
@@ -278,30 +278,54 @@ func (s *Store) NetExposure(ctx context.Context) (decimal.Decimal, error) {
 		if err := json.Unmarshal([]byte(payload), &fill); err != nil {
 			continue
 		}
-		if strings.TrimSpace(fill.Ticker) == "" || fill.Price.Sign() <= 0 {
+		ticker := strings.ToUpper(strings.TrimSpace(fill.Ticker))
+		if ticker == "" || fill.Price.Sign() <= 0 {
 			continue
 		}
 		signed := fill.Lots
 		if fill.Action == domain.ActionSell {
 			signed = -fill.Lots
 		}
-		entry := avg[fill.Ticker]
+		entry := avg[ticker]
 		entry.shares += signed
 		entry.cost = entry.cost.Add(fill.Price.Mul(decimal.NewFromInt(int64(signed))))
-		avg[fill.Ticker] = entry
+		avg[ticker] = entry
 	}
 	if err := rows.Err(); err != nil {
-		return decimal.Zero, fmt.Errorf("iterate executor audit events: %w", err)
+		return nil, fmt.Errorf("iterate executor audit events: %w", err)
 	}
 
-	total := decimal.Zero
-	for _, entry := range avg {
+	out := make(map[string]decimal.Decimal, len(avg))
+	for ticker, entry := range avg {
 		if entry.shares == 0 {
 			continue
 		}
-		total = total.Add(entry.cost)
+		out[ticker] = entry.cost
+	}
+	return out, nil
+}
+
+// NetExposure reports the signed aggregate net position notional in RUB across
+// all tickers. Longs and shorts cancel here, so it cannot bound risk on its
+// own; the risk gate caps on ExposureByTicker instead.
+func (s *Store) NetExposure(ctx context.Context) (decimal.Decimal, error) {
+	book, err := s.ledgerExposure(ctx)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	total := decimal.Zero
+	for _, notional := range book {
+		total = total.Add(notional)
 	}
 	return total, nil
+}
+
+// ExposureByTicker reports signed position notional per upper-cased ticker,
+// priced at average cost in the same fill ledger NetExposure reads. The risk
+// gate sums |notional| across tickers, so a book long one name and short
+// another at equal size must not cancel: it reports both legs in full here.
+func (s *Store) ExposureByTicker(ctx context.Context) (map[string]decimal.Decimal, error) {
+	return s.ledgerExposure(ctx)
 }
 
 func scanAuditEvents(rows *sql.Rows) ([]domain.AuditEvent, error) {

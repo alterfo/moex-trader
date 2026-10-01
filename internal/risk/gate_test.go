@@ -882,6 +882,142 @@ func (f *fakeNetExposureReader) NetExposure(context.Context) (decimal.Decimal, e
 	return f.net, f.err
 }
 
+type fakeExposureReader struct {
+	net   decimal.Decimal
+	book  map[string]decimal.Decimal
+	err   error
+	calls int
+}
+
+func (f *fakeExposureReader) CurrentLots(context.Context, string) (int, error) {
+	return 0, nil
+}
+
+func (f *fakeExposureReader) NetExposure(context.Context) (decimal.Decimal, error) {
+	return f.net, f.err
+}
+
+func (f *fakeExposureReader) ExposureByTicker(context.Context) (map[string]decimal.Decimal, error) {
+	f.calls++
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := make(map[string]decimal.Decimal, len(f.book))
+	for k, v := range f.book {
+		out[k] = v
+	}
+	return out, nil
+}
+
+// TestHardenedGateMaxExposureCapsGrossNotNet covers the cancellation hole: a
+// book long 500k and short 500k nets to zero, so a signed-net cap read it as
+// empty and let an order through despite 1M of gross risk. The cap must bound
+// gross, so the same order is now rejected.
+func TestHardenedGateMaxExposureCapsGrossNotNet(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.MaxLots = 100
+	cfg.MaxNetExposure = decimal.RequireFromString("60000")
+	reader := &fakeExposureReader{
+		net: decimal.Zero, // perfectly hedged book
+		book: map[string]decimal.Decimal{
+			"SBER": decimal.RequireFromString("500000"),
+			"OZON": decimal.RequireFromString("-500000"),
+		},
+	}
+	cfg.Positions = reader
+	gate, err := NewHardenedGate(cfg)
+	if err != nil {
+		t.Fatalf("NewHardenedGate() error = %v", err)
+	}
+
+	request := testRequest()
+	request.Signal = domain.TradeSignal{
+		Ticker: "GAZP", Action: domain.ActionBuy, Confidence: decimal.NewFromInt(1),
+		TargetLots: 1, GeneratedAt: time.Now(),
+	}
+	decision, err := gate.ApproveReason(context.Background(), request)
+	if err != nil {
+		t.Fatalf("ApproveReason() error = %v", err)
+	}
+	if reader.calls == 0 {
+		t.Fatal("gate did not read per-ticker exposure")
+	}
+	if decision.Approved || decision.Reason != "max_net_exposure_exceeded" {
+		t.Fatalf("hedged book with 1M gross passed a 60k cap: approved=%v reason=%q", decision.Approved, decision.Reason)
+	}
+}
+
+// TestHardenedGateMaxExposureGrossUncappedBelowLimit keeps the gross path from
+// over-rejecting: the same hedged shape, sized under the cap, must pass.
+func TestHardenedGateMaxExposureGrossUncappedBelowLimit(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.MaxLots = 100
+	cfg.MaxNetExposure = decimal.RequireFromString("60000")
+	cfg.Positions = &fakeExposureReader{
+		net: decimal.Zero,
+		book: map[string]decimal.Decimal{
+			"SBER": decimal.RequireFromString("5000"),
+			"OZON": decimal.RequireFromString("-5000"),
+		},
+	}
+	gate, err := NewHardenedGate(cfg)
+	if err != nil {
+		t.Fatalf("NewHardenedGate() error = %v", err)
+	}
+
+	request := testRequest()
+	request.Signal = domain.TradeSignal{
+		Ticker: "GAZP", Action: domain.ActionBuy, Confidence: decimal.NewFromInt(1),
+		TargetLots: 1, GeneratedAt: time.Now(),
+	}
+	decision, err := gate.ApproveReason(context.Background(), request)
+	if err != nil {
+		t.Fatalf("ApproveReason() error = %v", err)
+	}
+	if !decision.Approved {
+		t.Fatalf("small gross book rejected under cap: reason=%q", decision.Reason)
+	}
+}
+
+// TestHardenedGateMaxExposureAllowsReducingOrder is the regression guard for
+// treating the cap as book-wide addition. Closing or trimming REDUCES gross, so
+// it must be approved even from a book sitting exactly at the cap — otherwise
+// the bot could open up to the cap and then be unable to flatten.
+func TestHardenedGateMaxExposureAllowsReducingOrder(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.MaxLots = 10000
+	cfg.MaxNetExposure = decimal.RequireFromString("60000")
+	cfg.Positions = &fakeExposureReader{
+		// exactly at the cap: 600 lots short at 100 RUB = 60000 gross
+		book: map[string]decimal.Decimal{"SBER": decimal.RequireFromString("-60000")},
+	}
+	gate, err := NewHardenedGate(cfg)
+	if err != nil {
+		t.Fatalf("NewHardenedGate() error = %v", err)
+	}
+
+	approve := func(action domain.Action, lots int) Decision {
+		t.Helper()
+		request := testRequest()
+		request.Signal = domain.TradeSignal{
+			Ticker: "SBER", Action: action, Confidence: decimal.NewFromInt(1),
+			TargetLots: lots, GeneratedAt: time.Now(),
+		}
+		decision, err := gate.ApproveReason(context.Background(), request)
+		if err != nil {
+			t.Fatalf("ApproveReason() error = %v", err)
+		}
+		return decision
+	}
+
+	if decision := approve(domain.ActionBuy, 100); !decision.Approved {
+		t.Fatalf("BUY reducing gross from 60000 to 50000 was blocked: reason=%q", decision.Reason)
+	}
+	if decision := approve(domain.ActionSell, 100); decision.Approved {
+		t.Fatal("SELL growing gross from 60000 to 70000 passed a 60000 cap")
+	}
+}
+
 func TestHardenedGateMaxNetExposure(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.MaxLots = 100

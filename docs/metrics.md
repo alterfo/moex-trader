@@ -636,6 +636,12 @@ short-borrow rate before setting more than 3x.
 
 ## `max_net_exposure` on the unhedged book — 2026-09-25, recomputed at HEAD on 2026-09-30
 
+> **Semantics note (2026-10-01):** every row below was produced with the OLD
+> signed-net cap, before it was changed to gross. On this book the two agree for
+> most rows only because the positions happen not to cancel; re-read these
+> numbers as "signed-net cap", not as current `max_net_exposure` behaviour. See
+> "`max_net_exposure` semantics change: signed net → gross — 2026-10-01".
+
 Same executor, canonical 18 tickers, identical window/costs/borrow as the
 grid above, but **`-shares 0` (the actual live book — no futures hedge)**.
 `max_net_exposure` caps |signed aggregate net position notional| at
@@ -745,6 +751,65 @@ ToS note: this training set intentionally includes the 2 Telegram channels and
 17 per-ticker Google News feeds, per the user's explicit decision recorded in
 AGENTS.md. These numbers are therefore measured on ToS-restricted sources and
 must not be quoted as if the corpus were clean.
+
+## `max_net_exposure` semantics change: signed net → gross — 2026-10-01
+
+Decision (user, final): the cap now bounds **GROSS** exposure — the sum over
+tickers of `|signed position notional|` — instead of `|signed aggregate net|`.
+The flag, config key (`max_net_exposure`) and `risk.Config.MaxNetExposure` keep
+their names; only the meaning changed. Implemented as `risk.ExposureReader`
+(`ExposureByTicker`), with `NetExposureReader` kept only as a fallback for
+readers that do not expose per-ticker legs.
+
+Why: the net cap is blind to gross risk. A long 500k in SBER and a short 500k
+in OZON net to **zero** and sail past a 60k cap while carrying **1M** of gross
+risk, purely because the two legs happened to match in size. Net also made
+*which* names got filled depend on how much opposing exposure happened to be
+booked first. Gross removes that order dependence. For defence-in-depth this
+matters more than income — every income lever on the unhedged book is already
+closed by evidence, and the cap ships as a guardrail, not a lever.
+
+Two implementation details that are load-bearing:
+
+- **Projection is per ticker, not book-wide addition.** The order replaces only
+  its own ticker's leg; what is tested is `|other names| + |this name after|`.
+  Treating every order as purely additive to gross makes the cap block the very
+  orders that *reduce* risk (closing/trimming), which strands open positions.
+- **`Signal.TargetLots` is not the delta.** In the target-position path it is
+  the absolute target that `recordFill` reconciles to, while exposure must be
+  projected from the change the order makes. Reading the target as a delta
+  double-counts the position already held. `risk.Request.ExposureDeltaLots`
+  now carries the signed delta explicitly; nil means "TargetLots is the order
+  size" (the live `EnsembleSignalSource` path, which is incremental).
+
+This also fixed a latent bug: the target-position path used to hand the gate an
+absolute target that the gate read as a delta, double-counting every existing
+position in the cap projection.
+
+### Regression check: 100% short grid unchanged
+
+Per the acceptance criterion, the 2026-09-30 all-short grid was re-run after the
+change. On that book no positions cancel by sign, so net ≡ gross and every
+number must be identical. All five rows reproduce **exactly** (realized net of
+borrow, closed trades and max DD):
+
+| cap | realized net of borrow | closed trades | max DD | vs 8157903 |
+|---|---|---|---|---|
+| 0 | +51381.3719969013531337807737386387384896435 | 1581 | 5.83% | identical |
+| 30000 | +4981.29619215 | 2 | 0.86% | identical |
+| 45000 | +5863.689259878 | 3 | 1.04% | identical |
+| 60000 | +8830.730678178 | 4 | 0.87% | identical |
+| 90000 | +11483.628720054 | 6 | 1.68% | identical |
+
+An intermediate implementation that added `|delta|` to book-wide gross passed
+this check on cap 0 but collapsed the capped rows to **0 closed trades** at an
+unchanged drawdown — i.e. it silently blocked the final flatten-to-flat order
+and left the whole result as open-position MTM. That is why the grid was re-run
+rather than trusted, and why the per-ticker projection and the regression test
+`TestHardenedGateMaxExposureAllowsReducingOrder` exist.
+
+Live is unaffected: `config.sandbox.yaml` keeps `max_net_exposure: 0` (cap
+disabled), so no live behavior changed with this commit.
 
 ## `max_net_exposure` on a 100% short book — 2026-09-30
 
