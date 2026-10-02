@@ -811,6 +811,71 @@ rather than trusted, and why the per-ticker projection and the regression test
 Live is unaffected: `config.sandbox.yaml` keeps `max_net_exposure: 0` (cap
 disabled), so no live behavior changed with this commit.
 
+## Where the 9596 news articles are actually lost — 2026-10-01
+
+Measurement, not opinion. Re-audited the 2026-09-29 archive
+(`data/news_history.jsonl`, 9596 records, `cmd/trainnewsmodel` defaults
+horizon 3d, split 2026-08-15) with an instrumented replica of
+`BuildNewsLabels` that counts every drop point and **asserts it produces the
+same sample count as the real function**. Reproduce with:
+
+```
+MOEX_TRADER_NEWS_AUDIT_ARCHIVE=$PWD/data/news_history.jsonl \
+  go test ./internal/model/ -run TestNewsLabelsDropAudit -v
+```
+
+| stage | articles lost | note |
+|---|---|---|
+| input archive | 9596 | 42 tickers |
+| dropped: empty ticker/date | 0 | |
+| **(a)** ticker dropped, `source.History` error | **0** | no ticker fails lookup |
+| **(a)** ticker dropped, `< horizon+2` candles | **0** | no ticker is short of history |
+| **(b)** article `pubIdx < 0` | **0** | no article predates its last candle |
+| **(c)** article `exitIdx >= len(candles)` | 385 | genuine tail, expected |
+| (d) entry/exit price <= 0 | 0 | |
+| **(e)** IMOEX entry candle missing | **2757** | **not one of the three suspected points** |
+| **(f)** IMOEX exit candle missing | **2055** | **not one of the three suspected points** |
+| samples produced | **4399** | train 2855 / val 1544 at the 2026-08-15 split |
+
+`train = 2855` reproduces the documented figure exactly, confirming the audit
+matches the original run.
+
+**The hypothesis was wrong: (a) and (b) cost nothing.** The entire loss is
+the IMOEX benchmark lookup at (e)/(f), which kills 4812 of the 9596 pairs —
+more than the 5197 "lost" headline implies, because those drops happen after
+(c). Cause: **96.5% of the missing index dates are weekends** (Sat 2347 + Sun
+2300 of 4812; only 165 are Fridays). Verified directly against MOEX ISS:
+
+- `SBER` returns **real weekend bars** — 15 bars for 2026-06-01..06-15, 4 of
+  them weekend, with genuine OHLC (Sat 06-06 open 322.21 close 322.45).
+- `IMOEX` returns **no weekend bars** — 10 bars for the same window, 0 weekend.
+
+So MOEX publishes weekend sessions for equities while the index is not
+calculated then. A stock's `entryIdx`/`exitIdx` lands on a Saturday/Sunday bar,
+`indexByDate[dateKey(...)]` misses, and the pair is dropped. This is a
+**calendar-alignment bug, not a ticker-mapping problem** — worth fixing on its
+own merits, and it is cheap: dropping weekend bars before the loop would
+recover up to ~4647 samples, roughly doubling the corpus.
+
+### Same root cause reaches the PRICE model — unresolved
+
+`internal/model/dataset.go:126,134` builds price labels with
+`candles[d+1+horizonDays]` — bar-index arithmetic on the **same unfiltered
+ISS series**, and nothing in the repo filters weekends (`grep` for
+`weekday|Saturday|Sunday` over `internal/` and `cmd/` returns no hits outside
+tests). Two consequences to investigate before trusting horizon names:
+
+- the deployed "abs-10d" label is 10 **bars**, and with ~15 bars per 11
+  weekdays that is roughly 7 trading days, not 10 — so `horizon-days 10` is
+  mislabelled and the label horizon is systematically short;
+- the backtest engine also executes on those weekend bars while live has
+  market-hours guards, which is a live-vs-backtest parity gap.
+
+This is a **finding, not a change**: nothing in the price pipeline was touched
+here. It needs its own measurement (rebuild the dataset with weekends dropped
+and compare AUC / realized P&L / DD) before any retrain, and it interacts with
+the train-wide/trade-narrow experiment still to be run.
+
 ## `max_net_exposure` on a 100% short book — 2026-09-30
 
 Trigger: the live book failed on 2026-09-30 with 17 short positions, net
