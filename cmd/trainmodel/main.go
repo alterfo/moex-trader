@@ -53,6 +53,7 @@ type options struct {
 	outPath            string
 	newsHistory        string
 	labelMode          string
+	horizonMode        string
 }
 
 func main() {
@@ -176,6 +177,7 @@ func parseOptions(args []string) (options, error) {
 	fs.StringVar(&opts.outPath, "out", opts.outPath, "path to write trained model JSON")
 	fs.StringVar(&opts.newsHistory, "news-history", "", "path to a finanalys-format news_history.jsonl to override news_sentiment/news_count with real historical values where available")
 	fs.StringVar(&opts.labelMode, "label-mode", "excess", "label target: excess (vs IMOEX) or absolute forward return")
+	fs.StringVar(&opts.horizonMode, "horizon-mode", "", "forward-window unit: \"\" / bars (fixed bar count) or calendar_days (nearest candle to entry+horizon-days)")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}

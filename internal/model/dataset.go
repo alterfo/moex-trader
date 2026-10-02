@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -34,6 +35,54 @@ const (
 	LabelModeAbsolute LabelMode = "absolute"
 )
 
+// HorizonMode selects how the forward-return window is measured. HorizonModeBars
+// (the default) advances a fixed number of candle indices, which is the only
+// sensible unit on intraday bars. HorizonModeCalendarDays advances to the candle
+// nearest entry+horizonDays in wall-clock time - necessary on daily equity bars
+// because MOEX runs weekend sessions, so a fixed bar count spans a different
+// number of calendar days per ticker.
+type HorizonMode string
+
+const (
+	HorizonModeBars         HorizonMode = ""
+	HorizonModeCalendarDays HorizonMode = "calendar_days"
+)
+
+// forwardExitIndex returns the index of the candle that closes a forward window
+// opened at entryIdx. HorizonModeBars returns entryIdx+horizonDays (the
+// historical behavior). HorizonModeCalendarDays returns the candle whose Begin
+// is nearest entry.Begin+horizonDays, so every ticker measures the same
+// wall-clock window even when weekend sessions make bar counts diverge. Returns
+// -1 when the window reaches past the end of the series.
+func forwardExitIndex(candles []moex.Candle, entryIdx, horizonDays int, mode HorizonMode) int {
+	if entryIdx < 0 || entryIdx >= len(candles) {
+		return -1
+	}
+	if mode != HorizonModeCalendarDays {
+		exitIdx := entryIdx + horizonDays
+		if exitIdx >= len(candles) {
+			return -1
+		}
+		return exitIdx
+	}
+	target := candles[entryIdx].Begin.AddDate(0, 0, horizonDays)
+	rel := sort.Search(len(candles)-entryIdx, func(j int) bool {
+		return !candles[entryIdx+j].Begin.Before(target)
+	})
+	after := entryIdx + rel
+	if after >= len(candles) || after <= entryIdx {
+		return -1
+	}
+	before := after - 1
+	if before <= entryIdx {
+		return after
+	}
+	if target.Sub(candles[before].Begin) < candles[after].Begin.Sub(target) {
+		return before
+	}
+	return after
+}
+
 // BuildSamples labels each decision day/bar by the sign of its forward
 // return (see LabelMode). commissionPct is the one-way commission rate (e.g.
 // 0.0005 for 0.05%); pass 0 to disable cost-adjustment and keep prior
@@ -44,7 +93,7 @@ const (
 // comparable to round-trip costs; on multi-day horizons this cost floor is
 // negligible next to deadbandPct and changes nothing in practice.
 func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64, mode LabelMode, commissionPct float64) ([]LabeledSample, error) {
-	return buildSamples(ctx, source, tickers, from, till, horizonDays, deadbandPct, mode, commissionPct, features.PriceFeatureConfig{})
+	return buildSamples(ctx, source, tickers, from, till, horizonDays, deadbandPct, mode, commissionPct, features.PriceFeatureConfig{}, HorizonModeBars)
 }
 
 // BuildSamplesWithFeatureConfig behaves exactly like BuildSamples but scales
@@ -52,10 +101,16 @@ func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 // features.PriceFeatureConfig) - needed for intraday sources where a bar is
 // minutes, not a day. The zero config is identical to BuildSamples.
 func BuildSamplesWithFeatureConfig(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64, mode LabelMode, commissionPct float64, featureCfg features.PriceFeatureConfig) ([]LabeledSample, error) {
-	return buildSamples(ctx, source, tickers, from, till, horizonDays, deadbandPct, mode, commissionPct, featureCfg)
+	return buildSamples(ctx, source, tickers, from, till, horizonDays, deadbandPct, mode, commissionPct, featureCfg, HorizonModeBars)
 }
 
-func buildSamples(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64, mode LabelMode, commissionPct float64, featureCfg features.PriceFeatureConfig) ([]LabeledSample, error) {
+// BuildSamplesWithOptions is BuildSamplesWithFeatureConfig plus an explicit
+// horizon unit. horizonMode "" is identical to BuildSamplesWithFeatureConfig.
+func BuildSamplesWithOptions(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64, mode LabelMode, commissionPct float64, featureCfg features.PriceFeatureConfig, horizonMode HorizonMode) ([]LabeledSample, error) {
+	return buildSamples(ctx, source, tickers, from, till, horizonDays, deadbandPct, mode, commissionPct, featureCfg, horizonMode)
+}
+
+func buildSamples(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64, mode LabelMode, commissionPct float64, featureCfg features.PriceFeatureConfig, horizonMode HorizonMode) ([]LabeledSample, error) {
 	if source == nil {
 		return nil, fmt.Errorf("model: historical source is required")
 	}
@@ -123,7 +178,8 @@ func buildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 			if decisionDay.Before(from) {
 				continue
 			}
-			if d+1+horizonDays >= len(candles) {
+			exitIdx := forwardExitIndex(candles, d+1, horizonDays, horizonMode)
+			if exitIdx < 0 {
 				continue
 			}
 			entryCandle := candles[d+1]
@@ -131,7 +187,7 @@ func buildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 			if entry.Sign() <= 0 {
 				continue
 			}
-			exitCandle := candles[d+1+horizonDays]
+			exitCandle := candles[exitIdx]
 			exit := exitCandle.Close
 			if exit.Sign() <= 0 {
 				continue

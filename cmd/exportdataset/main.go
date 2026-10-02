@@ -38,6 +38,7 @@ type options struct {
 	tillStr       string
 	splitStr      string
 	horizonDays   int
+	horizonMode   string
 	deadbandPct   float64
 	labelMode     string
 	commissionPct float64
@@ -113,7 +114,7 @@ func run(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	samples, err := model.BuildSamplesWithFeatureConfig(ctx, source, tickers, from, till, opts.horizonDays, opts.deadbandPct, model.LabelMode(opts.labelMode), opts.commissionPct, featureCfg)
+	samples, err := model.BuildSamplesWithOptions(ctx, source, tickers, from, till, opts.horizonDays, opts.deadbandPct, model.LabelMode(opts.labelMode), opts.commissionPct, featureCfg, model.HorizonMode(opts.horizonMode))
 	if err != nil {
 		return fmt.Errorf("build labeled samples: %w", err)
 	}
@@ -278,6 +279,7 @@ func parseOptions(args []string) (options, error) {
 	fs.StringVar(&opts.tillStr, "till", "", "dataset end YYYY-MM-DD")
 	fs.StringVar(&opts.splitStr, "split", "", "train/val split YYYY-MM-DD")
 	fs.IntVar(&opts.horizonDays, "horizon-days", opts.horizonDays, "forward-return horizon, in trading days on daily bars or in bars when -interval-min is set")
+	fs.StringVar(&opts.horizonMode, "horizon-mode", "", "forward-window unit: \"\" / bars (fixed bar count) or calendar_days (nearest candle to entry+horizon-days)")
 	fs.Float64Var(&opts.deadbandPct, "deadband-pct", opts.deadbandPct, "label deadband percent")
 	fs.StringVar(&opts.labelMode, "label-mode", "excess", "label target: excess (vs IMOEX) or absolute forward return")
 	fs.Float64Var(&opts.commissionPct, "commission-pct", 0, "one-way commission rate (e.g. 0.0005); widens the dead zone by round-trip cost plus the entry bar's spread proxy (0 = disabled, matches prior behavior)")

@@ -23,6 +23,7 @@ type Config struct {
 	Till               time.Time
 	Split              time.Time
 	HorizonDays        int
+	HorizonMode        model.HorizonMode
 	DeadbandPct        float64
 	LabelCommissionPct float64
 	IntervalMin        int
@@ -48,7 +49,7 @@ func Run(ctx context.Context, cfg Config, source backtest.HistoricalSource, stdo
 		now = time.Now
 	}
 
-	samples, err := model.BuildSamplesWithFeatureConfig(ctx, source, cfg.Tickers, cfg.From, cfg.Till, cfg.HorizonDays, cfg.DeadbandPct, cfg.LabelMode, cfg.LabelCommissionPct, features.PriceFeatureConfig{BarsPerDay: cfg.FeatureBPD})
+	samples, err := model.BuildSamplesWithOptions(ctx, source, cfg.Tickers, cfg.From, cfg.Till, cfg.HorizonDays, cfg.DeadbandPct, cfg.LabelMode, cfg.LabelCommissionPct, features.PriceFeatureConfig{BarsPerDay: cfg.FeatureBPD}, cfg.HorizonMode)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build samples: %w", err)
 	}

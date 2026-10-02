@@ -857,24 +857,43 @@ calculated then. A stock's `entryIdx`/`exitIdx` lands on a Saturday/Sunday bar,
 own merits, and it is cheap: dropping weekend bars before the loop would
 recover up to ~4647 samples, roughly doubling the corpus.
 
-### Same root cause reaches the PRICE model — unresolved
+### Same root cause reaches the PRICE model — MEASURED 2026-10-02
 
-`internal/model/dataset.go:126,134` builds price labels with
-`candles[d+1+horizonDays]` — bar-index arithmetic on the **same unfiltered
-ISS series**, and nothing in the repo filters weekends (`grep` for
-`weekday|Saturday|Sunday` over `internal/` and `cmd/` returns no hits outside
-tests). Two consequences to investigate before trusting horizon names:
+`internal/model/dataset.go` builds price labels with `candles[d+1+horizonDays]`
+— bar-index arithmetic on the same unfiltered ISS series. It was measured with
+the env-gated `TestHorizonAudit` / `TestHorizonModeLabelDiff`
+(`MOEX_TRADER_HORIZON_AUDIT=1`), 18 deployed tickers, 2024-01-01..2026-10-01.
+**Both earlier hypotheses were wrong:**
 
-- the deployed "abs-10d" label is 10 **bars**, and with ~15 bars per 11
-  weekdays that is roughly 7 trading days, not 10 — so `horizon-days 10` is
-  mislabelled and the label horizon is systematically short;
-- the backtest engine also executes on those weekend bars while live has
-  market-hours guards, which is a live-vs-backtest parity gap.
+1. **The weekend bars are real sessions, not phantom.** `SBER` Sat
+   2026-06-06 carries volume 1 373 638 and 55 intra-day 10-min bars; Sun
+   2026-06-07 volume 930 144; `OZON`/`YDEX` likewise (10-26k). So MOEX trades
+   equities 7 days/week while IMOEX is not calculated on weekends.
+2. **There is no live/backtest parity gap.** Live's `marketHoursExecutor`
+   (cmd/trader/main.go:1030) asks the broker `TradingStatus`
+   (internal/broker/tinkoff/sandbox.go:168) — in a weekend session it returns
+   open, so live trades exactly the bars backtest does. The `+179k`/`+197k`
+   track record is **not** invalidated by this mechanism.
 
-This is a **finding, not a change**: nothing in the price pipeline was touched
-here. It needs its own measurement (rebuild the dataset with weekends dropped
-and compare AUC / realized P&L / DD) before any retrain, and it interacts with
-the train-wide/trade-narrow experiment still to be run.
+What *is* real: a fixed **10-bar** window spans a different **calendar** time
+per ticker because weekend-session participation differs. Pooled over 14 041
+labels: effective **weekday** horizon 7-11 (mean **9.31**); only **9.3%** of
+labels get exactly 10 weekday sessions. Mean **calendar** span per ticker ranges
+**11.33 d** (DATA) to **13.69 d** (OZON) with within-ticker ranges 10-63 d —
+i.e. "abs-10d" actually measures an **11.3-13.7-day** window, and it is
+**not constant across tickers** (~+21% OZON vs DATA). This is the label-timing
+inconsistency, and it is a real candidate for the AUC~0.50-0.52 ceiling.
+
+Rebuilding through the real `BuildSamples` with `HorizonModeCalendarDays`
+(the new `-horizon-mode calendar_days` option, `internal/model/dataset.go`
+`forwardExitIndex`, default unchanged = bars): bars emits 12 926 labels,
+calendar 12 819; of 12 328 common `(ticker, decision-day)` keys **667 (5.41%)**
+change sign, plus 598 only-bars and 491 only-calendar status changes.
+
+The walk-forward comparison (bars vs calendar_days, identical 6-quarter window
+2025-04-01..2026-09-17, absolute-10d recipe) is **pending** — recorded here on
+completion. This interacts with the train-wide/trade-narrow experiment, still
+deferred.
 
 ## `max_net_exposure` on a 100% short book — 2026-09-30
 

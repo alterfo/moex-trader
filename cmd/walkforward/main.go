@@ -55,6 +55,7 @@ func run() error {
 	var epochs int
 	var buyPct, sellPct float64
 	var labelMode string
+	var horizonMode string
 	var intervalMin int
 	var featureBPD int
 	var newsHistory string
@@ -89,6 +90,7 @@ func run() error {
 	flag.Float64Var(&buyPct, "buy-pct", 0.55, "probability at/above which to BUY")
 	flag.Float64Var(&sellPct, "sell-pct", 0.45, "probability at/below which to SELL")
 	flag.StringVar(&labelMode, "label-mode", "excess", "label target: excess (vs IMOEX) or absolute forward return")
+	flag.StringVar(&horizonMode, "horizon-mode", "", "forward-window unit: \"\" / bars (fixed bar count) or calendar_days (nearest candle to entry+horizon-days)")
 	flag.IntVar(&intervalMin, "interval-min", 0, "candle interval in minutes for intraday bars (24 or 0 = daily)")
 	flag.IntVar(&featureBPD, "feature-bars-per-day", 0, "scale day-named feature windows by this many bars/session")
 	flag.StringVar(&newsHistory, "news-history", "", "path to a finanalys-format news_history.jsonl")
@@ -199,6 +201,7 @@ func run() error {
 			maxLots:            maxLots,
 			labelCommissionPct: labelCommissionPct,
 			labelMode:          model.LabelMode(labelMode),
+			horizonMode:        model.HorizonMode(horizonMode),
 			intervalMin:        intervalMin,
 			featureBPD:         resolvedBPD,
 			trainCfg:           baseTrainCfg,
@@ -222,6 +225,7 @@ func run() error {
 			Till:               spec.Till,
 			Split:              spec.Split,
 			HorizonDays:        horizonDays,
+			HorizonMode:        model.HorizonMode(horizonMode),
 			DeadbandPct:        deadbandPct,
 			LabelCommissionPct: labelCommissionPct,
 			IntervalMin:        intervalMin,
@@ -365,6 +369,7 @@ type candidatesRunConfig struct {
 	maxLots            int
 	labelCommissionPct float64
 	labelMode          model.LabelMode
+	horizonMode        model.HorizonMode
 	intervalMin        int
 	featureBPD         int
 	trainCfg           model.TrainConfig
@@ -396,6 +401,7 @@ func runCandidates(ctx context.Context, cfg candidatesRunConfig, source backtest
 				Till:               spec.Till,
 				Split:              spec.Split,
 				HorizonDays:        candidate.HorizonDays,
+				HorizonMode:        cfg.horizonMode,
 				DeadbandPct:        candidate.DeadbandPct,
 				LabelCommissionPct: cfg.labelCommissionPct,
 				IntervalMin:        cfg.intervalMin,
