@@ -890,10 +890,27 @@ Rebuilding through the real `BuildSamples` with `HorizonModeCalendarDays`
 calendar 12 819; of 12 328 common `(ticker, decision-day)` keys **667 (5.41%)**
 change sign, plus 598 only-bars and 491 only-calendar status changes.
 
-The walk-forward comparison (bars vs calendar_days, identical 6-quarter window
-2025-04-01..2026-09-17, absolute-10d recipe) is **pending** — recorded here on
-completion. This interacts with the train-wide/trade-narrow experiment, still
-deferred.
+The bars-vs-calendar comparison ran on the deployed ensemble pipeline:
+`exportdataset -news-history data/news_history.jsonl` (18 tickers, 2024-01-01..
+2026-09-17, split 2026-06-18, horizon 10, absolute, deadband 0.5%) →
+`scripts/export_ensemble.py` (18 price/flow columns, colsample 0.8) →
+`cmd/backtest -signal-source ensemble`. Identical holdout 2026-06-19..
+2026-09-17, 1M deposit, 15 000₽/position, commission 0.05%, spread+slippage
+0.05%+0.05%, `-lookback-days 0`:
+
+| horizon unit | val AUC (2026-06-18..09-16) | realized | closed trades | max DD |
+|---|---|---|---|---|
+| bars (deployed) | 0.4610 | +53 786.79 | 204 | 1.58% |
+| calendar_days | 0.4635 | +40 355.35 | 217 | 1.97% |
+
+The bars baseline reproduces the documented news-aware holdout realized
+(+56 379 @ 277ebf7) to ~5%, validating the pipeline. Calendar mode moves AUC by
+**+0.0025** (inside the ±0.005 noise band) while realized P&L drops **−25%** and
+max DD rises **1.58% → 1.97%**. **The label-timing inconsistency is real, but it
+is not the AUC ceiling, and redefining the horizon to calendar days is worse** —
+the deployed bars recipe stays. Caveat: this is a single 3-month holdout (204-217
+trades); a 6-quarter walk-forward would strengthen it but is not run because the
+AUC signal — the quantity the hypothesis is actually about — is flat.
 
 ## `max_net_exposure` on a 100% short book — 2026-09-30
 
