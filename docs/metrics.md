@@ -738,6 +738,46 @@ regime-balanced validation; and/or a finer hedge instrument or a larger book so
 the hedge actually neutralizes without swamping the signal). It is NOT a
 deployment-ready income source on its own. Do not change the live config.
 
+### Phase 2b: regime-balanced training — MEASURED 2026-10-03, REJECTED
+
+Hypothesis: the excess model overfits the dominant (down) market regime, so
+reweighting training samples to balance market regimes should help. Implemented
+as an env-gated, **inference-neutral** option in `scripts/export_ensemble.py`
+(`ENSEMBLE_REGIME_BALANCE`, `ENSEMBLE_REGIME_WINDOW`, `ENSEMBLE_REGIME_BUCKETS`);
+default off, so the deployed pipeline is byte-for-byte unchanged. Market state at
+the decision date is proxied by the **trailing cross-sectional mean of
+`return_pct`** (recoverable from the dataset itself, so no Go change and no
+look-ahead); training rows are ranked by that trailing return, split into
+equal-size quantile buckets, and weighted inversely to bucket frequency. Same
+excess dataset and 18-feature recipe as phase 2.
+
+| variant | window / buckets | weighted rows | val AUC xgb / lgbm / logreg / ensemble |
+|---|---|---|---|
+| excess unweighted (phase-2 baseline) | - | - | 0.5447 / 0.5237 / 0.4570 / **0.5226** |
+| rb21 b3 | 21 / 3 | 7483 | 0.5075 / 0.5099 / 0.4025 / 0.4964 |
+| rb21 b2 | 21 / 2 | 7483 | 0.5045 / 0.5058 / 0.4055 / 0.4948 |
+| rb63 b3 | 63 / 3 | 7483 | 0.4977 / 0.4886 / 0.4706 / 0.4804 |
+| rb63 b4 | 63 / 4 | 7483 | 0.5028 / 0.5003 / 0.4717 / 0.4887 |
+
+Every balanced variant lands **below** the unweighted excess AUC (0.5226), and
+below the absolute baseline too. Hedged book (real MX fine, share 1.0, fee 0,
+2000 repl) confirms it is not an AUC-only artifact:
+
+| variant | trades / realized | leg P&L | avg contracts | alpha/day (cluster t, df=5) | CI {20,40} excludes 0 |
+|---|---|---|---|---|---|
+| rb21 b3 | 1336 / +24629 | -53186 | 32.65 | -0.000124 (t=-1.574, p=0.176) | NO |
+| rb21 b2 | 1374 / +6051 | -51259 | 32.67 | -0.000165 (t=-1.942, p=0.110) | YES (entirely negative) |
+
+**Verdict: regime-balanced training REJECTED.** It systematically lowers val AUC
+and, after a realistic fine hedge, the residual alpha turns **negative** (rb21b2
+CI excludes 0 on the negative side). The unweighted excess model already handles
+the regime mix; forcing regime parity adds variance without signal. Separately,
+**beta-residualized price features are deferred**: they require the IMOEX series
+inside the live feature path (`internal/orchestrator` ingest -> `internal/features`),
+i.e. a cross-zone change with a live/backtest parity risk, and the label change
+already captures most of the market-neutrality — expected marginal gain is low
+relative to that risk. The live config and `ensemble_model.json` are untouched.
+
 ## Managed-beta leverage grid (1) — 2026-09-25
 
 Same executor, canonical 18 tickers, window 2025-04-01 -> 2026-09-17, 1M

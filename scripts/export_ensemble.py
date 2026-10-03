@@ -24,6 +24,9 @@ FEATURES = os.environ.get("ENSEMBLE_FEATURES14","").split(",") if os.environ.get
 ORDER = os.environ.get("ENSEMBLE_FEATURE_ORDER", "")
 ORDER = ORDER.split(",") if ORDER else FEATURES
 TRAIN_TILL = os.environ.get("ENSEMBLE_TRAIN_TILL", "")
+REGIME_BALANCE = os.environ.get("ENSEMBLE_REGIME_BALANCE", "")
+REGIME_WINDOW = int(os.environ.get("ENSEMBLE_REGIME_WINDOW", "21"))
+REGIME_BUCKETS = int(os.environ.get("ENSEMBLE_REGIME_BUCKETS", "3"))
 
 
 def expand(values, default, names):
@@ -82,18 +85,32 @@ def main():
     X = train[FEATURES].to_numpy(dtype=float)
     y = train["label"].to_numpy(dtype=int)
 
+    sample_weight = None
+    if REGIME_BALANCE:
+        mkt = df.groupby("date")["return_pct"].mean().sort_index()
+        trail = mkt.rolling(REGIME_WINDOW, min_periods=max(2, REGIME_WINDOW // 3)).sum()
+        regime = train["date"].map(trail)
+        valid = regime.notna()
+        buckets = pd.Series(np.nan, index=train.index)
+        buckets.loc[valid] = pd.qcut(regime[valid].rank(method="first"), REGIME_BUCKETS, labels=False)
+        counts = buckets.value_counts()
+        w = pd.Series(1.0, index=train.index)
+        w.loc[valid] = buckets.loc[valid].map(lambda b: 1.0 / counts[b])
+        sample_weight = (w / w.mean()).to_numpy(dtype=float)
+        print("regime_balance window=%d buckets=%s weighted_rows=%d" % (REGIME_WINDOW, counts.to_dict(), int(valid.sum())))
+
     xgb_model = xgb.XGBClassifier(
         n_estimators=300, learning_rate=0.03, max_depth=3,
         colsample_bytree=0.8, subsample=0.8, random_state=42,
         base_score=0.5, eval_metric="logloss",
-    ).fit(X, y)
+    ).fit(X, y, sample_weight=sample_weight)
 
     lgb_model = lgb.LGBMClassifier(
         n_estimators=300, learning_rate=0.03, num_leaves=15,
         colsample_bytree=0.8, subsample=0.8, random_state=42, verbose=-1,
-    ).fit(X, y)
+    ).fit(X, y, sample_weight=sample_weight)
 
-    lr = make_pipeline(StandardScaler(), LogisticRegression(C=1.0, max_iter=2000)).fit(X, y)
+    lr = make_pipeline(StandardScaler(), LogisticRegression(C=1.0, max_iter=2000)).fit(X, y, logisticregression__sample_weight=sample_weight)
     scaler = lr.named_steps["standardscaler"]
     reg = lr.named_steps["logisticregression"]
 
