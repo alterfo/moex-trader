@@ -36,7 +36,8 @@ func run() error {
 	var depositStr, commissionStr, spreadStr, slippageStr, borrowPctDayStr, targetNotionalStr, sharesStr string
 	var maxNetExposureStr string
 	var blocksStr string
-	var k, rebalanceEvery, maxLots, bootstrapRepl int
+	var overlayMode, futuresInitialMarginStr, futuresUnitValueStr, futuresFeeStr, futuresGOFinStr, futuresRounding string
+	var k, rebalanceEvery, maxLots, bootstrapRepl, futuresRollDays int
 	var blockSeed int64
 
 	flag.StringVar(&configPath, "config", "config.sandbox.yaml", "path to config YAML")
@@ -54,6 +55,13 @@ func run() error {
 	flag.StringVar(&targetNotionalStr, "target-notional", "15000", "target ruble notional per position")
 	flag.StringVar(&sharesStr, "shares", "0,0.5,1", "overlay shares of net exposure to test")
 	flag.StringVar(&blocksStr, "blocks", "5,10,20,40,60", "mean geometric block lengths (trading days)")
+	flag.StringVar(&overlayMode, "overlay-mode", "synthetic", "hedge overlay model: synthetic|futures")
+	flag.IntVar(&futuresRollDays, "futures-roll-days", 3, "calendar days before last-trade date to roll to the next MX contract")
+	flag.StringVar(&futuresInitialMarginStr, "futures-initial-margin", "27464", "RUB initial margin (GO) per MX contract")
+	flag.StringVar(&futuresUnitValueStr, "futures-unit-value", "1", "RUB per price unit (STEPPRICE/MINSTEP)")
+	flag.StringVar(&futuresFeeStr, "futures-fee-per-contract", "15.18", "exchange+broker fee per contract per side")
+	flag.StringVar(&futuresGOFinStr, "futures-go-financing-pct-day", "0", "daily financing cost as fraction of GO per contract (0 = free margin)")
+	flag.StringVar(&futuresRounding, "futures-rounding", "nearest", "contract quantization: nearest|zero")
 	flag.IntVar(&k, "k", 5, "top-k (and bottom-k for long+short) momentum selection")
 	flag.IntVar(&rebalanceEvery, "rebalance-every", 10, "rebalance every N trading days")
 	flag.IntVar(&maxLots, "max-lots", 1000, "risk-gate max lots ceiling")
@@ -116,6 +124,29 @@ func run() error {
 	targetNotional, err := decimal.NewFromString(targetNotionalStr)
 	if err != nil {
 		return fmt.Errorf("parse -target-notional: %w", err)
+	}
+
+	if overlayMode != "synthetic" && overlayMode != "futures" {
+		return fmt.Errorf("-overlay-mode must be synthetic or futures")
+	}
+	futuresInitialMargin, err := decimal.NewFromString(futuresInitialMarginStr)
+	if err != nil {
+		return fmt.Errorf("parse -futures-initial-margin: %w", err)
+	}
+	futuresUnitValue, err := decimal.NewFromString(futuresUnitValueStr)
+	if err != nil {
+		return fmt.Errorf("parse -futures-unit-value: %w", err)
+	}
+	futuresFee, err := decimal.NewFromString(futuresFeeStr)
+	if err != nil {
+		return fmt.Errorf("parse -futures-fee-per-contract: %w", err)
+	}
+	futuresGOFin, err := decimal.NewFromString(futuresGOFinStr)
+	if err != nil {
+		return fmt.Errorf("parse -futures-go-financing-pct-day: %w", err)
+	}
+	if futuresRounding != "nearest" && futuresRounding != "zero" {
+		return fmt.Errorf("-futures-rounding must be nearest or zero")
 	}
 
 	from, err := time.Parse("2006-01-02", fromStr)
@@ -278,8 +309,40 @@ func run() error {
 	exposureByDay := dailyExposure(mem, ensResult, tickers, beta, till)
 	imoexDaily := betaregime.DailyReturnsFromCandles(imoexCandles)
 
+	var futuresContracts []mxContract
+	var futuresCloses map[string]map[time.Time]decimal.Decimal
+	if overlayMode == "futures" {
+		futuresContracts = defaultMXSchedule()
+		if futuresCloses, err = fetchFuturesCloses(ctx, fetchSource, futuresContracts, fetchFrom.AddDate(0, 0, -40), till); err != nil {
+			return fmt.Errorf("fetch futures history: %w", err)
+		}
+		writef(&report, "- Overlay mode: real IMOEX futures (MX), roll %d days before expiry, GO %s RUB, unit %s RUB, fee %s RUB/contract/side, GO financing %s/day\n\n",
+			futuresRollDays, futuresInitialMargin.String(), futuresUnitValue.String(), futuresFee.String(), futuresGOFin.String())
+	}
+
 	for _, share := range shares {
-		adj, legTotal, legCost := overlayCurve(ensResult.EquityCurve, exposureByDay, imoexDaily, share, commissionRate, spreadPct)
+		var adj []backtest.EquityPoint
+		var legTotal, legCost float64
+		var futuresNote string
+		if overlayMode == "futures" {
+			fr := futuresOverlayCurve(ensResult.EquityCurve, exposureByDay, futuresCloses, futuresContracts, futuresConfig{
+				Share:             share,
+				RollDays:          futuresRollDays,
+				GOFinancingPctDay: toFloat(futuresGOFin),
+				InitialMargin:     toFloat(futuresInitialMargin),
+				UnitValue:         toFloat(futuresUnitValue),
+				CostRate:          toFloat(commissionRate.Add(spreadPct)),
+				FeePerContract:    toFloat(futuresFee),
+				RoundToZero:       futuresRounding == "zero",
+			})
+			adj = fr.Curve
+			legTotal = fr.LegPnl
+			legCost = fr.TradeCosts + fr.FinancingCosts
+			futuresNote = fmt.Sprintf("- Futures leg: %d rolls, avg %.2f contracts, max %d, trade costs %.2f, financing %.2f RUB\n",
+				fr.Rolls, fr.AvgContracts, fr.MaxContracts, fr.TradeCosts, fr.FinancingCosts)
+		} else {
+			adj, legTotal, legCost = overlayCurve(ensResult.EquityCurve, exposureByDay, imoexDaily, share, commissionRate, spreadPct)
+		}
 		adjReturns := betaregime.DailyReturnsFromCurve(adj)
 		dailyY, dailyX, dailyClusters, _, skipped := betaregime.AlignDaily(adjReturns, benchReturns, momentumReturns, windows)
 		reg, err := betaregime.FitClusterOLS(dailyY, dailyX, dailyClusters)
@@ -295,6 +358,9 @@ func run() error {
 
 		writef(&report, "## Overlay share %.2f\n\n", share)
 		writef(&report, "- Leg P&L: %.2f RUB, leg costs: %.2f RUB\n", legTotal, legCost)
+		if futuresNote != "" {
+			writef(&report, "%s", futuresNote)
+		}
 		writef(&report, "- Daily regression (cluster by quarter): N=%d, skipped=%d, R2=%.4f\n", reg.Observations, skipped, reg.R2)
 		writef(&report, "- alpha=%.6f (cluster t=%.3f, p=%.4f), beta1(eqw)=%.4f, beta2(mom)=%.4f\n",
 			reg.Coef[0], reg.TStat[0], reg.PValue[0], reg.Coef[1], reg.Coef[2])

@@ -60,3 +60,25 @@ Leave-one-quarter-out alpha: drop 2025-04-01: 0.000221; drop 2025-07-01: 0.00018
 
 Leave-one-quarter-out alpha: drop 2025-04-01: 0.000117; drop 2025-07-01: 0.000072; drop 2025-10-01: 0.000098; drop 2026-01-05: 0.000138; drop 2026-04-01: 0.000100; drop 2026-07-01: 0.000080
 
+## Real IMOEX-futures overlay (2026-10-02) — alpha does NOT survive
+
+The numbers above use a frictionless synthetic IMOEX leg. Re-run with the
+tradable instrument (`-overlay-mode futures`, real MX front-month series, roll
+3 days before expiry, notional 230000 RUB, GO 27464 RUB, fee 15.18 RUB/contract/
+side, borrow 0, 2000 repl). HEAD base rerun: 778 closed trades, realized
++184077 RUB. Full table + verdict in `docs/metrics.md` ("Real IMOEX-futures
+overlay").
+
+| overlay | share | avg contracts | leg P&L | leg costs | alpha (t, df=5) | CI {20,40} excludes 0 |
+|---|---|---|---|---|---|---|
+| synthetic | 1.00 | - | -132158 | 7244 | +0.000080 (t=1.83) | YES |
+| real MX, nearest | 1.00 | 0.48 | -174800 | 16906 | -0.000036 (t=-0.49) | NO |
+| real MX, fine (unit 0.01) | 1.00 | 46.7 | -144940 | 14314 | +0.000028 (t=0.39) | NO |
+
+One MX contract (230000 RUB) is coarse against an average ~107000 RUB
+beta-exposure (0/1 bang-bang hedge). At share 1.0 the real hedge flips alpha
+negative/insignificant; even a hypothetical fine-grained MX loses significance
+(basis/roll + close-vs-index drag ~12800 RUB the synthetic omitted). The (0)
+"alpha survives" verdict is superseded; the beta-neutral income lever is closed
+at the current ~200k book size.
+

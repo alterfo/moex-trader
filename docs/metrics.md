@@ -605,6 +605,64 @@ acceptance (A)+(B) still HOLD at the base rate, but the edge is thinner
 LOO (B) still holds). Survival of the alpha is therefore sensitive to the
 actual live short-borrow rate; treat ~0.00005/day as the load-bearing input.
 
+## Real IMOEX-futures overlay: the (0) alpha does NOT survive the actual instrument — 2026-10-02
+
+The (0) test above assumed a **frictionless** IMOEX leg. This run replaces it
+with the tradable instrument. Executor: `cmd/alphahedge -overlay-mode futures`
+(new `cmd/alphahedge/futures.go`). Real MX front-month series fetched from MOEX
+ISS FORTS (contracts MXM5/MXU5/MXZ5/MXH6/MXM6/MXU6, quarterly roll **3 calendar
+days before the last-trade date**), contract notional = `LASTSETTLEPRICE x
+(STEPPRICE/MINSTEP) x LOTVOLUME` = 230000 x 1 x 1 = **230000 RUB** (GO 27464
+RUB ~ 11.9%), fee 15.18 RUB/contract/side, GO financing optional (`-futures-go-
+financing-pct-day`, 0 here = free margin). Everything else identical to (0):
+canonical 18 tickers, 2025-04-01 -> 2026-09-17, 1M deposit, 15000 RUB/pos,
+costs comm/spread/slip 0.0005 each, borrow 0, 2000 bootstrap repl.
+
+HEAD rerun base for this table: 778 closed trades, realized +184077 RUB
+(engine drift vs the 2026-09-25 ledger's +202640; **all rows below are the same
+run**, so the comparison is internally consistent).
+
+| overlay | share | avg contracts | leg P&L | leg costs | avg daily alpha (cluster t, df=5) | beta1 eqw | bootstrap CI {20,40} excludes 0 |
+|---|---|---|---|---|---|---|---|
+| none (unhedged) | 0.00 | - | 0 | 0 | +0.000300 (t=3.68) | -0.287 | YES |
+| synthetic (cash IMOEX) | 0.50 | - | -66079 | 3622 | +0.000193 (t=3.18) | -0.179 | YES |
+| synthetic (cash IMOEX) | 1.00 | - | -132158 | 7244 | +0.000080 (t=1.83) | -0.065 | YES |
+| **real MX, nearest** | 0.50 | 0.03 | -19000 | 1681 | +0.000266 (t=3.12) | -0.284 | YES* |
+| **real MX, nearest** | 1.00 | 0.48 | **-174800** | 16906 | **-0.000036 (t=-0.49)** | -0.053 | **NO** |
+| real MX, fine (unit 0.01) | 1.00 | 46.7 | -144940 | 14314 | +0.000028 (t=0.39) | -0.054 | NO |
+
+\* share 0.50 on the full-size contract "survives" only because the hedge almost
+never fires (avg 0.03 contracts) — it is effectively unhedged, not a hedge.
+
+Findings:
+
+- **One MX contract is 230000 RUB against an average beta-exposure of ~107000
+  RUB** (avg 0.48 contracts at share 1.0, max 1). The hedge is a **bang-bang**
+  0/1 instrument at this book size; the quantization residual (up to +/- half a
+  contract) is comparable to the signal being hedged.
+- At share 1.0 the real hedge **flips the alpha negative and insignificant**
+  (t=-0.49, CI includes 0) and costs 2.3x the synthetic overlay (16906 vs 7244
+  RUB in fees/rolls/notional).
+- **Even with a hypothetical fine-grained instrument** (finely divisible MX,
+  avg 46.7 contracts) the alpha loses significance (t=0.39, CI includes 0):
+  ~12800 RUB of P&L separates it from the synthetic overlay — basis/roll yield
+  and close-vs-index tracking that the frictionless cash-IMOEX leg omitted.
+- LOO/quarter tables: share 1.0 real-MX quarterly alphas are
+  +0.000074/+0.000111/-0.000264/-0.000193/-0.000065/+0.000263 (2 of 6 negative,
+  the trend-down quarters carry it), consistent with the synthetic sign but
+  swamped by the hedge tracking error.
+
+**Verdict:** the "alpha without beta" claim of (0) **does not survive contact
+with the real instrument**. The book's realized P&L is predominantly a net-short
+IMOEX-beta bet (unhedged alpha t=3.68); once beta is actually neutralized with
+available futures, the residual is statistically indistinguishable from zero net
+of realistic basis/roll/fees. This **supersedes the "(0) alpha survives"
+conclusion and closes the beta-neutral income lever at the current ~200k book
+size**; the live 1x unhedged config remains the operating optimum. Reopening
+requires either a much larger book (so one contract is a small fraction of
+exposure) or per-name single-stock futures (finer granularity + exact per-name
+beta) — neither is measured here.
+
 ## Managed-beta leverage grid (1) — 2026-09-25
 
 Same executor, canonical 18 tickers, window 2025-04-01 -> 2026-09-17, 1M
