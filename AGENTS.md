@@ -134,17 +134,38 @@ accumulate a 2-3-month proving period.
   after any cap change — net ≡ gross there, so every row must stay bit-identical;
   a changed row means the projection is wrong, not that the market moved.
   Live keeps `max_net_exposure: 0`, so this commit changed no live behavior.
-- **Futures-hedge feasibility — RESEARCH BACKLOG (only remaining lever)**:
-  the 2-3x income is validated ONLY on the beta-neutral book (leverage grid,
-  realized +395785/+589992, DD 2.15%/2.56%) whose IMOEX overlay leg is
-  synthetic in backtest — live it needs a real index-futures hedge on
-  T-Invest. Engineering task, not a measurement; no code yet. **Next step
-  (explicit): verify T-Invest API/broker support for (a) MOEX index futures
-  (IMOEX future MIX and/or RTS), (b) margin/leverage trading, (c) futures
-  candle market data, (d) futures availability inside the T-Invest sandbox
-  so the overlay leg can be wired and preflight-tested before real money.
-  If futures are unavailable, the income-lever search is exhausted under
-  current constraints and the live 1x stays the operating optimum.**
+- **Futures hedge MEASURED, and the whole beta/market-neutral line is CLOSED
+  (2026-10-02/03).** The T-Invest feasibility probe (`cmd/tinvestprobe`) came
+  back all-yes (MOEX index futures MX + margin + futures candles + sandbox), so
+  the "engineering task, not a measurement" backlog was actually measured:
+  - **Phase 1, real IMOEX-futures overlay** (`cmd/alphahedge/futures.go`,
+    commit `10b26bb`): a real MX contract is 230000 RUB notional vs ~107k avg
+    beta exposure, so the hedge is bang-bang (one contract ≈ 2x the book's
+    beta); at share 1.0 the leg loses ~-175k and the residual alpha goes to
+    t≈-0.49 (CI includes 0). Real hedge kills the alpha — the synthetic-leg
+    claim does not survive the actual instrument. `docs/metrics.md`
+    "Real IMOEX-futures overlay".
+  - **Phase 2, excess-to-IMOEX labels** (commit `54daff4`): retraining on
+    market-neutral labels raises val AUC **+0.040** (0.4824→0.5226) and halves
+    the beta loading, a positive residual alpha — but after a realistic fine
+    hedge it is only **t≈2.0, p≈0.10** (below the pre-registered bar) and still
+    needs a finer instrument. Not deployable on its own. `docs/metrics.md`
+    "Market-neutral retraining".
+  - **Phase 2b, regime-balanced training REJECTED** (commit `620e669`):
+    inverse-frequency reweighting by trailing market regime lowers val AUC in
+    every variant (0.4804–0.4964 vs 0.5226) and turns the hedged residual alpha
+    **negative**. Env-gated in `scripts/export_ensemble.py`, default off.
+  - **Beta-residualized price features DECLINED by the user (2026-10-03)**:
+    they need the IMOEX series inside the live feature path
+    (`internal/orchestrator` ingest → `internal/features`), a cross-zone change
+    with live/backtest parity risk, and the label change above already captures
+    most of the market-neutrality — defer permanently unless a new reason
+    appears.
+  **Consequence: the income-lever search is exhausted under current constraints
+  and the live 1x book (`config.sandbox.yaml`, `target_notional 15000`, no cap)
+  stays the operating optimum. Do not reopen the beta/market-neutral line
+  without a new, pre-registered reason (finer hedge instrument or a materially
+  larger book).**
 
 ## Strategy validation tooling (2026-09-17)
 
