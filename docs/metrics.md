@@ -663,6 +663,81 @@ requires either a much larger book (so one contract is a small fraction of
 exposure) or per-name single-stock futures (finer granularity + exact per-name
 beta) — neither is measured here.
 
+## Market-neutral retraining: excess-to-IMOEX labels improve predictability and neutrality, residual alpha marginal — 2026-10-03
+
+Phase 2 of the beta/regime work (phase 1 = real futures overlay above).
+Question: does the model have residual (market-neutral) signal when trained on
+**excess-to-IMOEX** labels instead of absolute forward return? Pipeline (both
+label modes, otherwise identical):
+
+```
+exportdataset -config config.sandbox.yaml -from 2024-01-01 -till 2026-09-17
+  -split 2026-06-18 -horizon-days 10 -deadband-pct 0.5 -label-mode <absolute|excess>
+  -news-history data/news_history.jsonl -out /tmp/p2_<mode>.csv
+scripts/export_ensemble.py  (18 price/flow columns, 28-name order, colsample 0.8)
+cmd/alphahedge -ensemble-path <model> [-overlay-mode synthetic|futures]
+```
+
+Label balance (13 438 rows): absolute 5398 pos / 6802 neg / 1238 hold; excess
+4116 / 4179 / 5143 hold (excess is balanced but the 0.5%-deadband swallows far
+more rows — an important caveat: fewer directional training labels).
+
+| model | val AUC (2026-06-18..09-16) xgb / lgbm / logreg / ensemble |
+|---|---|
+| absolute | 0.4895 / 0.4922 / 0.4634 / **0.4824** |
+| excess | 0.5447 / 0.5237 / 0.4570 / **0.5226** |
+
+Ensemble AUC gap **+0.040**, far outside the documented +/-0.005 noise band:
+the market-neutral label is materially more predictable.
+
+Book results (alphahedge, 2025-04-01 -> 2026-09-17, 1M, 15000 RUB/pos, costs
+0.0005/0.0005/0.0005, borrow 0 unless noted, 2000 repl). Both models are
+**rebuilt here**, not the deployed artifact, so the comparison is internal.
+
+| model | overlay | trades / realized | leg P&L | avg contracts | alpha/day (cluster t, df=5) | beta1 unhedged/hedged | CI {20,40} excludes 0 |
+|---|---|---|---|---|---|---|---|
+| absolute | none | 789 / +221316 | 0 | - | +0.000363 (t=6.02) | -0.302 / - | YES |
+| absolute | synthetic 1.0 | - | -143051 | - | +0.000130 (t=4.43) | / -0.066 | YES |
+| absolute | real MX nearest 1.0 | - | -189900 | 0.42 | +0.000007 (t=0.12) | / -0.056 | **NO** |
+| absolute | real MX fine 1.0 | - | -165809 | 39.8 | +0.000062 (t=1.21) | / -0.057 | NO |
+| excess | none | 392 / +81881 | 0 | - | +0.000175 (t=2.96) | -0.189 / - | YES |
+| excess | synthetic 1.0 | - | -43117 | - | +0.000108 (t=3.46) | / -0.073 | YES |
+| excess | real MX nearest 1.0 | - | -33100 | 0.10 | +0.000125 (t=2.49, p=0.055) | / -0.029 | YES |
+| excess | real MX fine 1.0 | - | -48030 | 21.7 | +0.000085 (t=2.04, p=0.097) | / -0.079 | **NO** |
+| excess, borrow 5bp/d | synthetic 1.0 | - | -43117 | - | +0.000102 (t=3.17) | / -0.073 | YES |
+
+Findings:
+
+- **Excess labels work as intended**: the unhedged excess book loads beta1
+  **-0.189 vs -0.302** for absolute (roughly halved), and carries a real
+  intercept (alpha +0.000175, t=2.96) rather than a pure net-short beta bet.
+- The excess book's realized P&L is ~2.6x lower (+81881 vs +221316) with ~half
+  the trades — the missing chunk is exactly the beta the absolute model was
+  harvesting.
+- The **"real MX nearest, share 1.0" CI-excludes-0 for excess is an artifact**:
+  at this book's lower beta the coarse 230k contract fires only rarely
+  (avg 0.10 contracts, max 1), so that row is essentially unhedged. It is NOT
+  evidence the alpha survives neutralization.
+- **With a fine, actually-neutralizing hedge** (avg 21.7 contracts, fee 0 to
+  isolate basis) the excess alpha is 0.000085/day (t=2.04, p=0.097, CI touches
+  -0.000006 at L5) — positive and ~2.7x the dead absolute-model residual
+  (0.000062, t=1.21), but **just short of the pre-registered significance bar**.
+  ~0.85 bp/day ~ +4.2% on deposit over 18 months before the (0) borrow caveat.
+- Borrow 5bp/day only shaves the synthetic share-1 excess alpha 0.000108 ->
+  0.000102 (CI still excludes 0); the excess book is less short, so borrow drag
+  is milder than for the absolute book.
+- 2026-Q3 is the only true OOS quarter (model val ends 2026-06-18); its excess
+  alpha is positive, but one quarter is not enough to confirm.
+
+**Verdict: market-neutral retraining is a genuine improvement over the absolute
+recipe (AUC +0.040, beta loading halved, a positive residual alpha that the
+absolute model does not have), but the residual alpha after a realistic fine
+hedge is still only marginal (t~2.0) and does not clear the pre-registered bar.**
+Direction is worth continuing (next: beta-residualized price features and
+regime-balanced validation; and/or a finer hedge instrument or a larger book so
+the hedge actually neutralizes without swamping the signal). It is NOT a
+deployment-ready income source on its own. Do not change the live config.
+
 ## Managed-beta leverage grid (1) — 2026-09-25
 
 Same executor, canonical 18 tickers, window 2025-04-01 -> 2026-09-17, 1M
