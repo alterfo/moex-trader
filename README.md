@@ -334,11 +334,25 @@ SQLite (`modernc.org/sqlite`, WAL + busy timeout 5000ms), файл из `storage
 знает о ручных позициях человека на том же счёте — SELL по такому тикеру откроет шорт,
 а не продаст акции человека.
 
-Наблюдаемость: Prometheus на `:9090` (`-metrics-addr`) — `signals_generated_total`,
-`risk_rejections_total`, `llm_inference_duration_seconds`; Telegram — ошибки генерации
-сигналов, kill switch и решения BUY/SELL с исходом исполнения (фильтр
-`telegram.signal_tickers`, дедупликация по «тикер + действие + исход»); `cmd/verifier` —
-markdown-отчёт по P&L (gross, комиссии, net).
+Наблюдаемость: Prometheus на `:9090` (`-metrics-addr`). Метрики (полный список —
+`docs/metrics.md` «Observability metrics and alerts (Task 6)»):
+
+- `moex_trader_inference_duration_seconds` — гистограмма времени генерации сигнала;
+- `signals_generated_total` — счётчик сигналов;
+- `risk_rejections_total{reason}` — отклонения риск-гейта по причине;
+- `executor_skips_total{reason}` — пропуски исполнения по причине;
+- `signal_probability` — гистограмма уверенности модели;
+- `candle_age_seconds{ticker}` — возраст последней свечи;
+- `feature_psi{feature}` — PSI-дрейф признаков;
+- `position_notional{ticker}`, `gross_exposure` — позиции и суммарная экспозиция;
+- `lease_held` — удержание торгового lease;
+- `var_95` / `var_99` / `es_95` / `es_99` — 1-дневные VaR/ES книги (только мониторинг).
+
+Telegram: ошибки генерации сигналов, kill switch, решения BUY/SELL с исходом исполнения
+(фильтр `telegram.signal_tickers`, дедупликация по «тикер + действие + исход»), а также
+cooldown-алерты probability collapse / устаревшие свечи / breach PSI
+(`internal/alert/telegram/watch.go`). `cmd/verifier` — markdown-отчёт по P&L (gross,
+комиссии, net).
 
 ## Конфигурация
 
@@ -371,6 +385,10 @@ YAML + `.env` рядом с конфигом (реальные env-переме�
 | `poll_interval` | `MOEX_TRADER_POLL_INTERVAL` |
 | `is_paper_trading` | `MOEX_TRADER_IS_PAPER_TRADING` |
 | `telegram.bot_token` / `chat_id` / `signal_tickers` / `proxy` | `MOEX_TRADER_TELEGRAM_BOT_TOKEN` (секрет) / `_CHAT_ID` / `_SIGNAL_TICKERS` / `_PROXY` |
+
+Экспериментальные ключи 2026-10-04 (только YAML, по умолчанию выключены):
+`risk.vol_scale` (`enabled`/`min_mult`/`max_mult`), `risk.sector_caps`/`risk.sectors`,
+`alerts.*` (`probability_collapse_window`, `stale_candle_age`, `cooldown`).
 
 `news.classifier_path` задаёт ML-классификатор тональности заголовков для live-скоринга.
 Если путь пуст или файл не загрузился, трейдер пишет warning и откатывается на
@@ -412,16 +430,26 @@ go run ./cmd/oosfreeze -action status
 go run ./cmd/strategyvalidation
 ```
 
-Тесты:
+Тесты и линт:
 
 ```sh
-go test ./...
-go vet ./...
+make check          # go test ./... + go vet ./...
 gofmt -l .
 ```
 
-Внешние сервисы в тестах замоканы (`httptest`, in-memory fake-и, `miniredis`), сеть не
-используется. Перед коммитом эти три команды обязательны.
+CI (`.github/workflows/ci.yml`) запускает `make check` на push и PR на версии Go из
+`go.mod`. Внешние сервисы в тестах замоканы (`httptest`, in-memory fake-и, `miniredis`),
+сеть не используется. Перед коммитом `make check` и `gofmt -l .` обязательны.
+
+Новые флаги и ключи (2026-10-04, дефолты = старое поведение):
+
+- `-embargo-bars N` (`cmd/walkforward`, `cmd/backtest -wf-dir`, `cmd/trainmodel`) — выброс обучающих строк, чей label-выход попадает в тестовое окно (`0` = старое поведение).
+- `cmd/strategyvalidation -returns-dirs a,b,c` — join per-window `period_returns.csv` в матрицу и расчёт PBO.
+- `cmd/strategyvalidation -reliability <wf-dir>` — Brier/ECE и таблица надёжности.
+- `-label-mode absolute_tr` + `-dividends` (`cmd/exportdataset`, `cmd/trainmodel`) — total-return разметка с дивидендами.
+- `-train-tickers` / `-train-min-turnover` (`cmd/exportdataset`) — расширенный обучающий универсум с point-in-time фильтром ликвидности.
+- `-vol-scale`, `-vol-scale-min`, `-vol-scale-max` (`cmd/backtest`, `cmd/walkforward`) — волатильностное масштабирование позиции (выключено).
+- `-sector-caps`, `-sectors` (`cmd/backtest`, `cmd/walkforward`) — секторные лимиты (конфиг `risk.sector_caps` / `risk.sectors`).
 
 ## Отказоустойчивость: основной Mac + резервный ai-box
 

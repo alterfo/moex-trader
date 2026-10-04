@@ -213,8 +213,8 @@
 
 ### Task 15: [Final] Update documentation
 
-- [ ] `AGENTS.md`: purged walk-forward is the standard validation; PBO computable; experiment verdicts (one bullet each, with metrics.md section names); new alerts and metrics
-- [ ] `README.md`: CI, `make check`, new flags, metrics list
+- [x] `AGENTS.md`: purged walk-forward is the standard validation; PBO computable; experiment verdicts (one bullet each, with metrics.md section names); new alerts and metrics
+- [x] `README.md`: CI, `make check`, new flags, metrics list
 
 ## Technical Details
 
