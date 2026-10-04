@@ -128,11 +128,11 @@
 
 ### Task 4: Period-return matrices and computable PBO
 
-- [ ] persist a daily realized-P&L series per window in the `-wf-dir` output (`period_returns.csv`, date + realized net), extend `walkforward.Window.Validate`
-- [ ] add `cmd/strategyvalidation -returns-dirs a,b,c` that joins variants by date into the matrix and calls `ProbabilityOfBacktestOverfitting` with `DefaultSplits`
-- [ ] register every attempt of this plan in `internal/strategyvalidation/registry.go` (control + Tasks 7–11 variants)
-- [ ] write tests: date join with gaps, mismatched calendars error, PBO on a synthetic matrix with a known answer
-- [ ] run `make check` — must pass before Task 5
+- [x] persist a daily realized-P&L series per window in the `-wf-dir` output (`period_returns.csv`, date + realized net), extend `walkforward.Window.Validate`
+- [x] add `cmd/strategyvalidation -returns-dirs a,b,c` that joins variants by date into the matrix and calls `ProbabilityOfBacktestOverfitting` with `DefaultSplits`
+- [x] register every attempt of this plan in `internal/strategyvalidation/registry.go` (control + Tasks 7–11 variants)
+- [x] write tests: date join with gaps, mismatched calendars error, PBO on a synthetic matrix with a known answer
+- [x] run `make check` — must pass before Task 5
 
 ### Task 5: Honest baseline (measurement)
 

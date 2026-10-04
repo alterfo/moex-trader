@@ -266,6 +266,13 @@ func run() error {
 			EmbargoBars:     embargoBars,
 		}
 		window := walkforward.Window{ID: windowID, Config: wfConfig}
+		returns := walkforward.DailyRealizedPnl(*result)
+		if err := window.SetPeriodReturns(returns); err != nil {
+			return fmt.Errorf("window %d/%d (%s): period returns: %w", i+1, len(specs), windowID, err)
+		}
+		if err := walkforward.SavePeriodReturns(windowDir, returns); err != nil {
+			return fmt.Errorf("window %d/%d (%s): persist period returns: %w", i+1, len(specs), windowID, err)
+		}
 		if err := walkforward.Save(windowDir, window, modelOut); err != nil {
 			return fmt.Errorf("window %d/%d (%s): persist: %w", i+1, len(specs), windowID, err)
 		}

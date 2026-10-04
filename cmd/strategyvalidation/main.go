@@ -2,19 +2,25 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"maps"
 	"math"
 	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/olegsidorkin/moex-trader/internal/strategyvalidation"
+	"github.com/olegsidorkin/moex-trader/internal/walkforward"
 )
 
 func main() {
 	var matricesPath string
+	var returnsDirs string
 	flag.StringVar(&matricesPath, "matrices", "", "path to a JSON {key: period-return-matrix} archive (e.g. produced by cmd/walkforward -candidates) to merge into the registry")
+	flag.StringVar(&returnsDirs, "returns-dirs", "", "comma-separated wf-dirs, each containing per-window period_returns.csv files; joins variants by date and computes PBO")
 	flag.Parse()
 
 	registry := strategyvalidation.DefaultRegistry()
@@ -23,6 +29,17 @@ func main() {
 			fmt.Fprintf(os.Stderr, "load -matrices %q: %v\n", matricesPath, err)
 			os.Exit(1)
 		}
+	}
+	if returnsDirs != "" {
+		matrix, err := loadReturnsDirsMatrix(splitReturnsDirs(returnsDirs))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "load -returns-dirs %q: %v\n", returnsDirs, err)
+			os.Exit(1)
+		}
+		if registry.Matrices == nil {
+			registry.Matrices = make(map[string][][]float64)
+		}
+		registry.Matrices["returns_dirs"] = matrix
 	}
 	summary := registry.Summary()
 	returns := registry.Series["abs10d_quarterly_realized_return"]
@@ -61,7 +78,7 @@ func main() {
 
 	fmt.Println()
 	if !registry.PBOComputable() {
-		fmt.Println("PBO: NOT computable from summary-only registry (no per-strategy period-return matrices archived; pass -matrices <path> from cmd/walkforward -candidates)")
+		fmt.Println("PBO: NOT computable from summary-only registry (no per-strategy period-return matrices archived; pass -matrices <path> or -returns-dirs a,b,c)")
 	} else {
 		keys := make([]string, 0, len(registry.Matrices))
 		for key := range registry.Matrices {
@@ -85,6 +102,67 @@ func main() {
 	for _, attempt := range registry.Attempts {
 		fmt.Printf("- %s | %s | %s | %.4f %s | %s | %s\n", attempt.Name, attempt.Source, attempt.Metric, attempt.Value, attempt.Unit, attempt.Status, attempt.Notes)
 	}
+}
+
+func loadReturnsDirsMatrix(returnsDirs []string) ([][]float64, error) {
+	variants := make([][]strategyvalidation.DailyReturn, 0, len(returnsDirs))
+	for _, dir := range returnsDirs {
+		series, err := loadVariantDailyReturns(dir)
+		if err != nil {
+			return nil, fmt.Errorf("returns dir %q: %w", dir, err)
+		}
+		variants = append(variants, series)
+	}
+	_, matrix, err := strategyvalidation.JoinDailyReturns(variants)
+	if err != nil {
+		return nil, err
+	}
+	return matrix, nil
+}
+
+func loadVariantDailyReturns(dir string) ([]strategyvalidation.DailyReturn, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var series []strategyvalidation.DailyReturn
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		windowDir := filepath.Join(dir, entry.Name())
+		path := filepath.Join(windowDir, walkforward.PeriodReturnsFileName)
+		if _, err := os.Stat(path); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return nil, err
+		}
+		returns, err := walkforward.LoadPeriodReturns(windowDir)
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range returns {
+			value, _ := r.RealizedNet.Float64()
+			series = append(series, strategyvalidation.DailyReturn{Date: r.Date, Value: value})
+		}
+	}
+	if len(series) == 0 {
+		return nil, fmt.Errorf("no %s files found under %q", walkforward.PeriodReturnsFileName, dir)
+	}
+	return series, nil
+}
+
+func splitReturnsDirs(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func loadMatricesInto(registry *strategyvalidation.Registry, path string) error {

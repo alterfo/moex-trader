@@ -22,6 +22,7 @@ const (
 	StatusControl   = "control"
 	StatusReference = "reference"
 	StatusBenchmark = "benchmark"
+	StatusPending   = "pending"
 )
 
 const defaultDeposit = 1_000_000.0
@@ -77,6 +78,12 @@ func DefaultRegistry() Registry {
 		{Name: "task4_six_quarter_total_mtm", Source: "docs/metrics.md:task-4", Metric: "mtm_pnl", Value: 163901.86, Unit: "RUB", Status: StatusReference, Notes: "MTM is shown separately"},
 		{Name: "task5_preflight_realized", Source: "docs/metrics.md:task-5", Metric: "realized_pnl", Value: 43040.38, Unit: "RUB", Status: StatusSelected, Notes: "90-day preflight, 197 closed trades, DD 1.07%"},
 		{Name: "task5_preflight_mtm", Source: "docs/metrics.md:task-5", Metric: "mtm_pnl", Value: 38818.21, Unit: "RUB", Status: StatusReference, Notes: "90-day preflight MTM"},
+		{Name: "purged_walkforward_control", Source: "plan:20261004-model-quality-and-robustness", Metric: "realized_pnl_6q_purged", Value: 0, Unit: "RUB", Status: StatusControl, Notes: "Task 5 purged-walk-forward control, pending measurement"},
+		{Name: "experiment_a_dividend_adjusted", Source: "plan:20261004-model-quality-and-robustness", Metric: "realized_pnl_6q_purged", Value: 0, Unit: "RUB", Status: StatusPending, Notes: "Task 7 dividend-adjusted total-return labels, pending measurement"},
+		{Name: "experiment_b_wide_train_narrow_trade", Source: "plan:20261004-model-quality-and-robustness", Metric: "realized_pnl_6q_purged", Value: 0, Unit: "RUB", Status: StatusPending, Notes: "Task 8 wide-train / narrow-trade universe, pending measurement"},
+		{Name: "experiment_c_probability_calibration", Source: "plan:20261004-model-quality-and-robustness", Metric: "realized_pnl_6q_purged", Value: 0, Unit: "RUB", Status: StatusPending, Notes: "Task 9 calibration and ensemble-vs-members, pending measurement"},
+		{Name: "experiment_d_volatility_scaled", Source: "plan:20261004-model-quality-and-robustness", Metric: "realized_pnl_6q_purged", Value: 0, Unit: "RUB", Status: StatusPending, Notes: "Task 10 volatility-scaled sizing, pending measurement"},
+		{Name: "experiment_e_sector_caps", Source: "plan:20261004-model-quality-and-robustness", Metric: "realized_pnl_6q_purged", Value: 0, Unit: "RUB", Status: StatusPending, Notes: "Task 11 sector exposure cap, pending measurement"},
 	}
 	series := map[string][]float64{
 		"abs10d_quarterly_realized_pnl":    []float64{42453.50, 9171.72, 19600.27, -6655.63, 41695.40, 47216.95},

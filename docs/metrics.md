@@ -238,6 +238,31 @@ the computation. The PBO < 0.2 go/no-go check therefore stays open until the
 per-attempt matrices are persisted (Task 13 walk-forward persistence and the
 Task 17 formal metrics table are the natural sources).
 
+## Period-return matrices and pre-registered attempts (Task 4)
+
+`cmd/walkforward` and `cmd/backtest -wf-dir` now persist one
+`period_returns.csv` per window (`date,realized_net`, one row per trading day,
+decimal strings) alongside `window.json`; the window record stores the file
+name and a SHA256 of the CSV and `Window.Validate`/`Load` check both, so a
+tampered or missing daily series fails loudly. Daily realized net is the sum
+of closed-trade `NetPnl` by close date, matching the existing realized-P&L
+definition (gross minus commission).
+
+`cmd/strategyvalidation -returns-dirs a,b,c` loads each variant's per-window
+CSVs, joins them by date into a `trading_dates x variants` matrix (missing
+dates filled with 0), and computes CSCV PBO via
+`ProbabilityOfBacktestOverfitting` with `DefaultSplits`. Disjoint variant
+calendars are an error. This makes PBO computable from separately-run
+walk-forwards without the old single-run `-candidates` grid.
+
+The registry now pre-registers the six attempts of this plan before any of
+their numbers exist, so the multiple-testing penalty is honest from the start:
+`purged_walkforward_control` (Task 5) plus `experiment_a`..`experiment_e`
+(Tasks 7-11), all `realized_pnl_6q_purged` with value 0 and status `pending`
+(the control is `control`). Runtime `DefaultRegistry` attempt count is now
+47 = 41 historical attempts + 6 pre-registered. The Task 7 table above is the
+historical 41-attempt DSR computation and is not recomputed here.
+
 ## Gap-stress test (Task 8)
 
 Models overnight gaps against the deployed strategy's open portfolio at the

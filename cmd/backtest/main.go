@@ -344,7 +344,14 @@ func run() error {
 			ConfigHash: wfConfigHash,
 			Decisions:  recorder.Decisions(),
 		}
+		returns := walkforward.DailyRealizedPnl(*result)
+		if err := window.SetPeriodReturns(returns); err != nil {
+			return fmt.Errorf("persist period returns: %w", err)
+		}
 		windowDir := filepath.Join(wfDir, window.ID)
+		if err := walkforward.SavePeriodReturns(windowDir, returns); err != nil {
+			return fmt.Errorf("persist walk-forward period returns: %w", err)
+		}
 		if err := walkforward.Save(windowDir, window, wfModelFile); err != nil {
 			return fmt.Errorf("persist walk-forward window: %w", err)
 		}

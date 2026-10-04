@@ -58,13 +58,15 @@ type Decision struct {
 }
 
 type Window struct {
-	ID          string     `json:"id"`
-	Config      Config     `json:"config"`
-	ConfigHash  string     `json:"config_hash"`
-	ModelSHA256 string     `json:"model_sha256,omitempty"`
-	ModelFile   string     `json:"model_file,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	Decisions   []Decision `json:"decisions"`
+	ID                  string     `json:"id"`
+	Config              Config     `json:"config"`
+	ConfigHash          string     `json:"config_hash"`
+	ModelSHA256         string     `json:"model_sha256,omitempty"`
+	ModelFile           string     `json:"model_file,omitempty"`
+	PeriodReturnsFile   string     `json:"period_returns_file,omitempty"`
+	PeriodReturnsSHA256 string     `json:"period_returns_sha256,omitempty"`
+	CreatedAt           time.Time  `json:"created_at"`
+	Decisions           []Decision `json:"decisions"`
 }
 
 func NewWindowID(start, end time.Time) string {
@@ -238,6 +240,15 @@ func Load(dir string) (Window, error) {
 			return Window{}, fmt.Errorf("walk-forward: model SHA256 mismatch in %q", dir)
 		}
 	}
+	if w.PeriodReturnsFile != "" {
+		returnsData, err := os.ReadFile(filepath.Join(dir, w.PeriodReturnsFile))
+		if err != nil {
+			return Window{}, fmt.Errorf("walk-forward: read period returns %q: %w", filepath.Join(dir, w.PeriodReturnsFile), err)
+		}
+		if HashBytes(returnsData) != w.PeriodReturnsSHA256 {
+			return Window{}, fmt.Errorf("walk-forward: period returns SHA256 mismatch in %q", dir)
+		}
+	}
 	return w, nil
 }
 
@@ -265,6 +276,12 @@ func (w Window) Validate() error {
 	}
 	if w.ModelFile != "" && w.ModelSHA256 == "" {
 		return fmt.Errorf("walk-forward: model SHA256 is required when a model file is present")
+	}
+	if w.PeriodReturnsFile == "" && w.PeriodReturnsSHA256 != "" {
+		return fmt.Errorf("walk-forward: period returns file is required when a SHA256 is present")
+	}
+	if w.PeriodReturnsFile != "" && w.PeriodReturnsSHA256 == "" {
+		return fmt.Errorf("walk-forward: period returns SHA256 is required when a file is present")
 	}
 	seen := make(map[string]struct{}, len(w.Decisions))
 	for _, d := range w.Decisions {
