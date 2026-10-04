@@ -206,10 +206,10 @@
 
 ### Task 14: Verify acceptance criteria
 
-- [ ] all Overview items implemented or explicitly recorded as negative results
-- [ ] every new flag defaults to old behaviour (golden backtest unchanged unless Task 13 deployed)
-- [ ] `go test ./...`, `go vet ./...`, `go test ./internal/failover/ ./cmd/witness/ ./cmd/watchdog/` all pass
-- [ ] `TestDeployedModelArtifactsMatchFeatureOrder` and `TestRepositoryMetricsDocumentPassesLint` pass
+- [x] all Overview items implemented or explicitly recorded as negative results
+- [x] every new flag defaults to old behaviour (golden backtest unchanged unless Task 13 deployed)
+- [x] `go test ./...`, `go vet ./...`, `go test ./internal/failover/ ./cmd/witness/ ./cmd/watchdog/` all pass
+- [x] `TestDeployedModelArtifactsMatchFeatureOrder` and `TestRepositoryMetricsDocumentPassesLint` pass
 
 ### Task 15: [Final] Update documentation
 
