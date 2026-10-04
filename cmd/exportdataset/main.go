@@ -18,6 +18,7 @@ import (
 
 	"github.com/olegsidorkin/moex-trader/internal/backtest"
 	"github.com/olegsidorkin/moex-trader/internal/config"
+	"github.com/olegsidorkin/moex-trader/internal/dividends"
 	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
@@ -46,6 +47,7 @@ type options struct {
 	featureBPD    int
 	outPath       string
 	newsHistory   string
+	dividends     string
 }
 
 func main() {
@@ -114,7 +116,14 @@ func run(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	samples, err := model.BuildSamplesWithOptions(ctx, source, tickers, from, till, opts.horizonDays, opts.deadbandPct, model.LabelMode(opts.labelMode), opts.commissionPct, featureCfg, model.HorizonMode(opts.horizonMode))
+	var divRecords []dividends.Record
+	if model.LabelMode(opts.labelMode) == model.LabelModeAbsoluteTR {
+		divRecords, err = loadDividendCalendar(opts.dividends)
+		if err != nil {
+			return err
+		}
+	}
+	samples, err := model.BuildSamplesWithDividends(ctx, source, tickers, from, till, opts.horizonDays, opts.deadbandPct, model.LabelMode(opts.labelMode), opts.commissionPct, featureCfg, model.HorizonMode(opts.horizonMode), divRecords)
 	if err != nil {
 		return fmt.Errorf("build labeled samples: %w", err)
 	}
@@ -287,6 +296,7 @@ func parseOptions(args []string) (options, error) {
 	fs.IntVar(&opts.featureBPD, "feature-bars-per-day", 0, "scale day-named feature windows by this many bars/session (0 = keep raw bar-count windows; -1 = auto/calendar from -interval-min; positive = explicit)")
 	fs.StringVar(&opts.outPath, "out", "dataset.csv", "output CSV path")
 	fs.StringVar(&opts.newsHistory, "news-history", "", "path to a finanalys-format news_history.jsonl to override news_sentiment/news_count with real historical values where available")
+	fs.StringVar(&opts.dividends, "dividends", "data/dividends.jsonl", "path to the dividend calendar JSONL used by -label-mode absolute_tr")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}
@@ -331,6 +341,17 @@ func parseDate(value, name string) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("parse -%s: %w", name, err)
 	}
 	return parsed, nil
+}
+
+func loadDividendCalendar(path string) ([]dividends.Record, error) {
+	records, err := dividends.Load(path)
+	if err != nil {
+		return nil, fmt.Errorf("load dividend calendar: %w", err)
+	}
+	if len(records) == 0 {
+		return nil, fmt.Errorf("dividend calendar %s is empty; -label-mode absolute_tr requires dividend records", path)
+	}
+	return records, nil
 }
 
 func splitComma(s string) []string {

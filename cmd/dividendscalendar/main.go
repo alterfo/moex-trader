@@ -11,19 +11,9 @@ import (
 	"time"
 
 	"github.com/olegsidorkin/moex-trader/internal/config"
+	"github.com/olegsidorkin/moex-trader/internal/dividends"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/tinkoff"
 )
-
-type dividendRecord struct {
-	Ticker       string    `json:"ticker"`
-	Figi         string    `json:"figi"`
-	DeclaredDate time.Time `json:"declared_date"`
-	LastBuyDate  time.Time `json:"last_buy_date"`
-	PaymentDate  time.Time `json:"payment_date"`
-	DividendNet  string    `json:"dividend_net"`
-	Regularity   string    `json:"regularity"`
-	DividendType string    `json:"dividend_type"`
-}
 
 func main() {
 	if err := run(); err != nil {
@@ -94,7 +84,7 @@ func run() error {
 			if ev.DividendType == "Cancelled" {
 				continue
 			}
-			rec := dividendRecord{
+			rec := dividends.Record{
 				Ticker:       ticker,
 				Figi:         figi,
 				DeclaredDate: ev.DeclaredDate,

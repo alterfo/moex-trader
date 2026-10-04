@@ -13,6 +13,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/olegsidorkin/moex-trader/internal/backtest"
+	"github.com/olegsidorkin/moex-trader/internal/dividends"
 	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/model"
 )
@@ -38,6 +39,7 @@ type Config struct {
 	NewsHistory        string
 	LabelMode          model.LabelMode
 	EmbargoBars        int
+	Dividends          []dividends.Record
 	Now                func() time.Time
 }
 
@@ -50,7 +52,7 @@ func Run(ctx context.Context, cfg Config, source backtest.HistoricalSource, stdo
 		now = time.Now
 	}
 
-	samples, err := model.BuildSamplesWithOptions(ctx, source, cfg.Tickers, cfg.From, cfg.Till, cfg.HorizonDays, cfg.DeadbandPct, cfg.LabelMode, cfg.LabelCommissionPct, features.PriceFeatureConfig{BarsPerDay: cfg.FeatureBPD}, cfg.HorizonMode)
+	samples, err := model.BuildSamplesWithDividends(ctx, source, cfg.Tickers, cfg.From, cfg.Till, cfg.HorizonDays, cfg.DeadbandPct, cfg.LabelMode, cfg.LabelCommissionPct, features.PriceFeatureConfig{BarsPerDay: cfg.FeatureBPD}, cfg.HorizonMode, cfg.Dividends)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build samples: %w", err)
 	}

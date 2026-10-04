@@ -311,6 +311,37 @@ curve. (2) `scripts/export_ensemble.py` embargo purge had a string-vs-
 Timestamp comparison bug that crashed the embargo-10 training path; fixed by
 parsing `label_date` with `pd.to_datetime` before the cutoff comparison.
 
+## Experiment A: dividend-adjusted (total-return) labels (2026-10-04)
+
+Same pipeline as the Task 5 control but with `LabelModeAbsoluteTR`: whenever a
+dividend ex-date (first trading session after `last_buy_date`) falls inside
+(entry, exit], `dividend_net` is added to the exit price before the 10-day
+forward return is computed. Dataset rebuilt on the ai-box with the identical
+17-ticker, 434-day-warmup, cost-widened recipe
+(`-label-mode absolute_tr -commission-pct 0.0005 -dividends data/dividends.jsonl`),
+then the same per-window embargo-10 ensemble retrain + OOS backtest. Label
+balance moves 2855 pos / 3509 neg (control) to 2934 pos / 3347 neg (TR).
+
+| window | control realized | TR realized | control trades | TR trades | control max DD | TR max DD | control kill | TR kill | control val AUC | TR val AUC |
+|---|---|---|---|---|---|---|---|---|---|---|
+| q1 (2025-03-05 -> 2025-06-05) | +4301.27 | +5866.61 | 66 | 64 | 3.57% | 3.49% | yes | yes | 0.5947 | 0.5978 |
+| q2 (2025-06-06 -> 2025-09-05) | +9.36 | -304.50 | 215 | 212 | 3.50% | 3.63% | no | no | 0.5730 | 0.5777 |
+| q3 (2025-09-06 -> 2025-12-03) | +34089.03 | +17936.85 | 193 | 201 | 0.90% | 1.58% | no | no | 0.5301 | 0.5288 |
+| q4 (2025-12-04 -> 2026-03-04) | -12339.10 | -10116.08 | 187 | 184 | 2.46% | 2.07% | no | no | 0.5257 | 0.5195 |
+| w2 (2026-03-05 -> 2026-06-06) | +2676.41 | -8232.75 | 141 | 131 | 1.17% | 2.60% | no | no | 0.4872 | 0.4943 |
+| w1 (2026-06-07 -> 2026-09-16) | +31092.50 | +25446.12 | 283 | 276 | 3.05% | 3.89% | no | no | 0.5115 | 0.5113 |
+| total | +59829.47 | +30596.25 | 1085 | 1068 | — | — | — | — | — | — |
+
+Realized P&L is closed-trade gross minus commission. Verdict: **REJECT**.
+Dividend-adjusted labels lose -29233.22 RUB (-48.9%) of realized P&L versus
+the purged control and stay positive in only 3 of 6 windows (control: 5 of 6),
+while mean val AUC is statistically unchanged (0.5382 vs 0.5370, +0.0012,
+inside the +/-0.005 noise band) — the dividend signal is too small relative to
+the 10-day holding window to help, and it degrades the windows where it adds
+noise (q2, w2). `experiment_a_dividend_adjusted` is marked rejected in the
+registry. Persisted per-window `period_returns.csv` under
+`/home/oleg/moex-trader-task7/wf/tr_17`.
+
 ## Gap-stress test (Task 8)
 
 Models overnight gaps against the deployed strategy's open portfolio at the

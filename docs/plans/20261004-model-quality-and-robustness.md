@@ -151,11 +151,11 @@
 
 ### Task 7: Experiment A — dividend-adjusted (total-return) labels
 
-- [ ] add `LabelModeAbsoluteTR` in `internal/model/dataset.go`: when an ex-date (session after `last_buy_date`) falls in (entry, exit], add `dividend_net` to the exit price before computing the return; load `data/dividends.jsonl` via the existing reader in `cmd/dividendscalendar`/`internal` (extract to a shared package if it lives in `cmd`)
-- [ ] expose `-label-mode absolute_tr` in `cmd/exportdataset` and `cmd/trainmodel`
-- [ ] write tests: label unchanged without a dividend in the window, dividend at exit day included, dividend at entry day excluded, missing calendar file is an error (not silently absolute)
-- [ ] on the ai-box: export, train via `scripts/export_ensemble.py`, run the purged walk-forward; record AUC/realized/DD per window vs control in `docs/metrics.md` "Experiment A" in the same commit
-- [ ] run `make check` — must pass before Task 8
+- [x] add `LabelModeAbsoluteTR` in `internal/model/dataset.go`: when an ex-date (session after `last_buy_date`) falls in (entry, exit], add `dividend_net` to the exit price before computing the return; load `data/dividends.jsonl` via the existing reader in `cmd/dividendscalendar`/`internal` (extract to a shared package if it lives in `cmd`)
+- [x] expose `-label-mode absolute_tr` in `cmd/exportdataset` and `cmd/trainmodel`
+- [x] write tests: label unchanged without a dividend in the window, dividend at exit day included, dividend at entry day excluded, missing calendar file is an error (not silently absolute)
+- [x] on the ai-box: export, train via `scripts/export_ensemble.py`, run the purged walk-forward; record AUC/realized/DD per window vs control in `docs/metrics.md` "Experiment A" in the same commit
+- [x] run `make check` — must pass before Task 8
 
 ### Task 8: Experiment B — wide training universe, unchanged trading universe
 

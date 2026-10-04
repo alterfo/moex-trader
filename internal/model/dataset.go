@@ -11,6 +11,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/olegsidorkin/moex-trader/internal/backtest"
+	"github.com/olegsidorkin/moex-trader/internal/dividends"
 	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
@@ -31,8 +32,9 @@ type LabeledSample struct {
 type LabelMode string
 
 const (
-	LabelModeExcess   LabelMode = "excess"
-	LabelModeAbsolute LabelMode = "absolute"
+	LabelModeExcess     LabelMode = "excess"
+	LabelModeAbsolute   LabelMode = "absolute"
+	LabelModeAbsoluteTR LabelMode = "absolute_tr"
 )
 
 // HorizonMode selects how the forward-return window is measured. HorizonModeBars
@@ -93,7 +95,7 @@ func forwardExitIndex(candles []moex.Candle, entryIdx, horizonDays int, mode Hor
 // comparable to round-trip costs; on multi-day horizons this cost floor is
 // negligible next to deadbandPct and changes nothing in practice.
 func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64, mode LabelMode, commissionPct float64) ([]LabeledSample, error) {
-	return buildSamples(ctx, source, tickers, from, till, horizonDays, deadbandPct, mode, commissionPct, features.PriceFeatureConfig{}, HorizonModeBars)
+	return buildSamples(ctx, source, tickers, from, till, horizonDays, deadbandPct, mode, commissionPct, features.PriceFeatureConfig{}, HorizonModeBars, nil)
 }
 
 // BuildSamplesWithFeatureConfig behaves exactly like BuildSamples but scales
@@ -101,16 +103,24 @@ func BuildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 // features.PriceFeatureConfig) - needed for intraday sources where a bar is
 // minutes, not a day. The zero config is identical to BuildSamples.
 func BuildSamplesWithFeatureConfig(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64, mode LabelMode, commissionPct float64, featureCfg features.PriceFeatureConfig) ([]LabeledSample, error) {
-	return buildSamples(ctx, source, tickers, from, till, horizonDays, deadbandPct, mode, commissionPct, featureCfg, HorizonModeBars)
+	return buildSamples(ctx, source, tickers, from, till, horizonDays, deadbandPct, mode, commissionPct, featureCfg, HorizonModeBars, nil)
 }
 
 // BuildSamplesWithOptions is BuildSamplesWithFeatureConfig plus an explicit
 // horizon unit. horizonMode "" is identical to BuildSamplesWithFeatureConfig.
 func BuildSamplesWithOptions(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64, mode LabelMode, commissionPct float64, featureCfg features.PriceFeatureConfig, horizonMode HorizonMode) ([]LabeledSample, error) {
-	return buildSamples(ctx, source, tickers, from, till, horizonDays, deadbandPct, mode, commissionPct, featureCfg, horizonMode)
+	return buildSamples(ctx, source, tickers, from, till, horizonDays, deadbandPct, mode, commissionPct, featureCfg, horizonMode, nil)
 }
 
-func buildSamples(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64, mode LabelMode, commissionPct float64, featureCfg features.PriceFeatureConfig, horizonMode HorizonMode) ([]LabeledSample, error) {
+// BuildSamplesWithDividends is BuildSamplesWithOptions plus a dividend
+// calendar used by LabelModeAbsoluteTR: for every ex-date (the first trading
+// session after last_buy_date) inside (entry, exit], the net dividend is added
+// to the exit price before the forward return is computed.
+func BuildSamplesWithDividends(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64, mode LabelMode, commissionPct float64, featureCfg features.PriceFeatureConfig, horizonMode HorizonMode, divs []dividends.Record) ([]LabeledSample, error) {
+	return buildSamples(ctx, source, tickers, from, till, horizonDays, deadbandPct, mode, commissionPct, featureCfg, horizonMode, divs)
+}
+
+func buildSamples(ctx context.Context, source backtest.HistoricalSource, tickers []string, from, till time.Time, horizonDays int, deadbandPct float64, mode LabelMode, commissionPct float64, featureCfg features.PriceFeatureConfig, horizonMode HorizonMode, divs []dividends.Record) ([]LabeledSample, error) {
 	if source == nil {
 		return nil, fmt.Errorf("model: historical source is required")
 	}
@@ -126,8 +136,11 @@ func buildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 	if mode == "" {
 		mode = LabelModeExcess
 	}
-	if mode != LabelModeExcess && mode != LabelModeAbsolute {
+	if mode != LabelModeExcess && mode != LabelModeAbsolute && mode != LabelModeAbsoluteTR {
 		return nil, fmt.Errorf("model: unknown label mode %q", mode)
+	}
+	if mode == LabelModeAbsoluteTR && divs == nil {
+		return nil, fmt.Errorf("model: dividend calendar is required for absolute_tr label mode")
 	}
 	normalized := normalizeTickers(tickers)
 	if len(normalized) == 0 {
@@ -170,6 +183,10 @@ func buildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 		if len(candles) < warmup+1 {
 			continue
 		}
+		divCalendar, err := buildExDividendCalendar(ticker, candles, divs)
+		if err != nil {
+			return nil, err
+		}
 		for d := warmup; d < len(candles); d++ {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
@@ -191,6 +208,9 @@ func buildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 			exit := exitCandle.Close
 			if exit.Sign() <= 0 {
 				continue
+			}
+			if mode == LabelModeAbsoluteTR {
+				exit = exit.Add(dividendAdjustment(divCalendar, entryCandle.Begin, exitCandle.Begin))
 			}
 
 			indexEntry, ok := indexByDate[dateKey(entryCandle.Begin)]
@@ -242,6 +262,54 @@ func buildSamples(ctx context.Context, source backtest.HistoricalSource, tickers
 		}
 	}
 	return samples, nil
+}
+
+type exDividend struct {
+	exDate time.Time
+	net    decimal.Decimal
+}
+
+// buildExDividendCalendar maps each dividend event to its ex-date (the first
+// trading session strictly after last_buy_date) for one ticker. Events whose
+// ex-date falls outside the available candle series are dropped, and multiple
+// events sharing an ex-date are summed.
+func buildExDividendCalendar(ticker string, candles []moex.Candle, records []dividends.Record) ([]exDividend, error) {
+	byExDate := make(map[time.Time]decimal.Decimal)
+	for _, rec := range records {
+		if !strings.EqualFold(strings.TrimSpace(rec.Ticker), ticker) {
+			continue
+		}
+		net, err := rec.Net()
+		if err != nil {
+			return nil, fmt.Errorf("model: dividend %s: invalid dividend_net %q: %w", ticker, rec.DividendNet, err)
+		}
+		idx := sort.Search(len(candles), func(i int) bool {
+			return candles[i].Begin.After(rec.LastBuyDate)
+		})
+		if idx >= len(candles) {
+			continue
+		}
+		byExDate[candles[idx].Begin] = byExDate[candles[idx].Begin].Add(net)
+	}
+	if len(byExDate) == 0 {
+		return nil, nil
+	}
+	out := make([]exDividend, 0, len(byExDate))
+	for exDate, net := range byExDate {
+		out = append(out, exDividend{exDate: exDate, net: net})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].exDate.Before(out[j].exDate) })
+	return out, nil
+}
+
+func dividendAdjustment(calendar []exDividend, entry, exit time.Time) decimal.Decimal {
+	total := decimal.Zero
+	for _, ev := range calendar {
+		if ev.exDate.After(entry) && !ev.exDate.After(exit) {
+			total = total.Add(ev.net)
+		}
+	}
+	return total
 }
 
 func indexCandlesByDate(candles []moex.Candle) map[string]moex.Candle {

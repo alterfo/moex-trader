@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -216,6 +217,22 @@ func TestWriteTickerWritesTopicSignalColumns(t *testing.T) {
 	}
 }
 
+func TestLoadDividendCalendarMissingFileErrors(t *testing.T) {
+	if _, err := loadDividendCalendar("/nonexistent/dividends.jsonl"); err == nil {
+		t.Fatal("loadDividendCalendar() error = nil, want missing-file error")
+	}
+}
+
+func TestLoadDividendCalendarEmptyFileErrors(t *testing.T) {
+	path := t.TempDir() + "/dividends.jsonl"
+	if err := writeTestFile(path, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadDividendCalendar(path); err == nil {
+		t.Fatal("loadDividendCalendar() error = nil, want empty-calendar error")
+	}
+}
+
 func TestDatasetHeaderMirrorsFeatureOrder(t *testing.T) {
 	header := datasetHeader()
 	if len(header) < 7 {
@@ -239,4 +256,8 @@ func TestDatasetHeaderMirrorsFeatureOrder(t *testing.T) {
 	if names[len(names)-2] != "negotiations_signal" || names[len(names)-1] != "sanctions_signal" {
 		t.Fatalf("new signal names missing from feature order tail: %v", names[len(names)-2:])
 	}
+}
+
+func writeTestFile(path, content string) error {
+	return os.WriteFile(path, []byte(content), 0o644)
 }

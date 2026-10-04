@@ -156,3 +156,9 @@ func TestResolveWindowRejectsEmbargoLargerThanTrainingWindow(t *testing.T) {
 		t.Fatal("resolveWindow() error = nil, want embargo-larger-than-window error")
 	}
 }
+
+func TestLoadDividendCalendarMissingFileErrors(t *testing.T) {
+	if _, err := loadDividendCalendar("/nonexistent/dividends.jsonl"); err == nil {
+		t.Fatal("loadDividendCalendar() error = nil, want missing-file error")
+	}
+}

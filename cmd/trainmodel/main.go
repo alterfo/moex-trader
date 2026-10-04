@@ -17,6 +17,7 @@ import (
 
 	"github.com/olegsidorkin/moex-trader/internal/backtest"
 	"github.com/olegsidorkin/moex-trader/internal/config"
+	"github.com/olegsidorkin/moex-trader/internal/dividends"
 	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/model"
@@ -55,6 +56,7 @@ type options struct {
 	labelMode          string
 	horizonMode        string
 	embargoBars        int
+	dividends          string
 }
 
 func main() {
@@ -117,6 +119,13 @@ func run(args []string, stdout io.Writer) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	var divRecords []dividends.Record
+	if model.LabelMode(opts.labelMode) == model.LabelModeAbsoluteTR {
+		divRecords, err = loadDividendCalendar(opts.dividends)
+		if err != nil {
+			return err
+		}
+	}
 	_, _, err = trainrun.Run(ctx, trainrun.Config{
 		Tickers:            tickers,
 		From:               from,
@@ -141,6 +150,7 @@ func run(args []string, stdout io.Writer) error {
 		NewsHistory:    opts.newsHistory,
 		LabelMode:      model.LabelMode(opts.labelMode),
 		EmbargoBars:    opts.embargoBars,
+		Dividends:      divRecords,
 		Now:            time.Now,
 	}, source, stdout)
 	return err
@@ -181,6 +191,7 @@ func parseOptions(args []string) (options, error) {
 	fs.StringVar(&opts.labelMode, "label-mode", "excess", "label target: excess (vs IMOEX) or absolute forward return")
 	fs.StringVar(&opts.horizonMode, "horizon-mode", "", "forward-window unit: \"\" / bars (fixed bar count) or calendar_days (nearest candle to entry+horizon-days)")
 	fs.IntVar(&opts.embargoBars, "embargo-bars", 0, "training samples with a label exit within this many bars before the validation split are purged")
+	fs.StringVar(&opts.dividends, "dividends", "data/dividends.jsonl", "path to the dividend calendar JSONL used by -label-mode absolute_tr")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}
@@ -238,6 +249,17 @@ func computeSplitDate(till time.Time, splitDateStr string, valDays int) (time.Ti
 		return time.Time{}, errors.New("val-days must be positive when split-date is not set")
 	}
 	return till.AddDate(0, 0, -valDays), nil
+}
+
+func loadDividendCalendar(path string) ([]dividends.Record, error) {
+	records, err := dividends.Load(path)
+	if err != nil {
+		return nil, fmt.Errorf("load dividend calendar: %w", err)
+	}
+	if len(records) == 0 {
+		return nil, fmt.Errorf("dividend calendar %s is empty; -label-mode absolute_tr requires dividend records", path)
+	}
+	return records, nil
 }
 
 func splitComma(s string) []string {
