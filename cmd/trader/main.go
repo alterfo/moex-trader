@@ -124,6 +124,8 @@ func run() error {
 		return err
 	}
 	telegramClient := telegram.New(cfg.Telegram.BotToken, cfg.Telegram.ChatID, telegramHTTPClient)
+	appMetrics := metrics.New()
+	watch := telegram.NewWatch(telegramClient, watchConfigFrom(cfg))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -155,9 +157,15 @@ func run() error {
 	}
 	liveModelSource := modelSource
 	if driftMonitor != nil {
-		liveModelSource = &driftSignalSource{source: modelSource, monitor: driftMonitor}
+		liveModelSource = &driftSignalSource{
+			source:  modelSource,
+			monitor: driftMonitor,
+			metrics: appMetrics,
+			watch:   watch,
+			logger:  log.Default(),
+		}
 	}
-	bandSource := orchestrator.NewSignalHysteresisSource(liveModelSource, orchestrator.DefaultSignalHysteresisPolls)
+	bandSource := orchestrator.NewSignalHysteresisSource(newProbabilityWatchSource(liveModelSource, watch, log.Default()), orchestrator.DefaultSignalHysteresisPolls)
 	gatedSource := newNewsGateSignalSource(bandSource, cfg.News, telegramClient, log.Default())
 	signalSource := newAlertingSignalSource(gatedSource, telegramClient, log.Default())
 	notifier := newDecisionNotifier(telegramClient, log.Default(), cfg.Telegram.SignalTickers)
@@ -208,7 +216,12 @@ func run() error {
 		return fmt.Errorf("create risk gate: %w", err)
 	}
 
-	appMetrics := metrics.New()
+	var exposureReader risk.ExposureReader
+	if reader, ok := riskConfig.Positions.(risk.ExposureReader); ok {
+		exposureReader = reader
+	}
+	appMetrics.SetLeaseHeld(true)
+	go runExposureMetrics(ctx, appMetrics, exposureReader, cfg.PollInterval.Std(), time.Now, log.Default())
 
 	metricsMux := http.NewServeMux()
 	metricsMux.Handle("/metrics", appMetrics.Handler())
@@ -247,6 +260,7 @@ func run() error {
 		Metrics:          appMetrics,
 		AccountSource:    runtime.accountSource,
 		Observer:         &fanoutObserver{observers: []orchestrator.DecisionObserver{notifier, &breakerFillObserver{breaker: breaker, logger: log.Default()}, &fillQualityObserver{logger: log.Default()}}},
+		CandleObserver:   &watchCandleObserver{watch: watch, now: time.Now, loc: mskLocation(), logger: log.Default()},
 		KillSwitch:       store,
 		Shadow:           shadow,
 		ShadowDigestPath: shadowDigestPath,
@@ -626,20 +640,126 @@ func newDriftMonitor(cfg *config.Config, logger *log.Logger) (*drift.Monitor, er
 	return drift.NewMonitor(reference, cfg.Risk.DriftPSIThreshold, window, window, logger), nil
 }
 
-// driftSignalSource observes every live feature vector through the PSI monitor
-// and then delegates to the wrapped model. It emits warnings only; it never
-// changes the decision.
 type driftSignalSource struct {
 	source  orchestrator.SignalSource
 	monitor *drift.Monitor
+	metrics *metrics.Metrics
+	watch   *telegram.Watch
+	logger  *log.Logger
 }
 
 func (s *driftSignalSource) Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
 	if s.monitor != nil {
 		vector, order := model.ToVector(feature)
-		s.monitor.Observe(vector, order)
+		for _, warning := range s.monitor.Observe(vector, order) {
+			if s.metrics != nil {
+				s.metrics.SetFeaturePSI(warning.Feature, warning.PSI)
+			}
+			if s.watch != nil {
+				if _, err := s.watch.ObservePSI(ctx, warning.Feature, warning.PSI); err != nil {
+					s.logger.Printf("trader: psi breach alert for %s: %v", warning.Feature, err)
+				}
+			}
+		}
 	}
 	return s.source.Generate(ctx, feature)
+}
+
+type probabilityWatchSource struct {
+	source orchestrator.SignalSource
+	watch  *telegram.Watch
+	logger *log.Logger
+}
+
+func newProbabilityWatchSource(source orchestrator.SignalSource, watch *telegram.Watch, logger *log.Logger) *probabilityWatchSource {
+	if logger == nil {
+		logger = log.Default()
+	}
+	return &probabilityWatchSource{source: source, watch: watch, logger: logger}
+}
+
+func (s *probabilityWatchSource) Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
+	signal, err := s.source.Generate(ctx, feature)
+	if err != nil {
+		return signal, err
+	}
+	if s.watch != nil {
+		if _, alertErr := s.watch.ObserveProbability(ctx, signal.Confidence.InexactFloat64()); alertErr != nil {
+			s.logger.Printf("trader: probability collapse alert for %s: %v", feature.Ticker, alertErr)
+		}
+	}
+	return signal, nil
+}
+
+type watchCandleObserver struct {
+	watch  *telegram.Watch
+	now    func() time.Time
+	loc    *time.Location
+	logger *log.Logger
+}
+
+func (o *watchCandleObserver) ObserveCandle(ctx context.Context, ticker string, age time.Duration) {
+	if o.watch == nil {
+		return
+	}
+	if _, err := o.watch.ObserveCandleAge(ctx, ticker, age, telegram.TradingSessionActive(o.now(), o.loc)); err != nil {
+		if o.logger != nil {
+			o.logger.Printf("trader: stale candle alert for %s: %v", ticker, err)
+		}
+	}
+}
+
+func watchConfigFrom(cfg *config.Config) telegram.WatchConfig {
+	conf := telegram.DefaultWatchConfig()
+	if cfg != nil {
+		conf.ProbabilityWindow = cfg.Alerts.ProbabilityCollapseWindow
+		conf.StaleCandleAge = cfg.Alerts.StaleCandleAge.Std()
+		conf.Cooldown = cfg.Alerts.Cooldown.Std()
+	}
+	return conf
+}
+
+func mskLocation() *time.Location {
+	if loc, err := time.LoadLocation("Europe/Moscow"); err == nil {
+		return loc
+	}
+	return time.FixedZone("MSK", 3*3600)
+}
+
+func runExposureMetrics(ctx context.Context, m *metrics.Metrics, reader risk.ExposureReader, interval time.Duration, now func() time.Time, logger *log.Logger) {
+	if m == nil || reader == nil {
+		return
+	}
+	if now == nil {
+		now = time.Now
+	}
+	if logger == nil {
+		logger = log.Default()
+	}
+	update := func() {
+		book, err := reader.ExposureByTicker(ctx)
+		if err != nil {
+			logger.Printf("trader: read exposure metrics: %v", err)
+			return
+		}
+		gross := decimal.Zero
+		for ticker, notional := range book {
+			m.SetPositionNotional(ticker, notional)
+			gross = gross.Add(notional.Abs())
+		}
+		m.SetGrossExposure(gross)
+	}
+	update()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			update()
+		}
+	}
 }
 
 // fanoutObserver fans a decision out to multiple observers.

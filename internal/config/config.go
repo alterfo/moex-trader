@@ -21,6 +21,7 @@ type Config struct {
 	Storage         Storage    `yaml:"storage"`
 	Risk            Risk       `yaml:"risk"`
 	Telegram        Telegram   `yaml:"telegram"`
+	Alerts          Alerts     `yaml:"alerts"`
 	News            News       `yaml:"news"`
 	Commission      Commission `yaml:"commission"`
 	Finam           Finam      `yaml:"finam"`
@@ -62,6 +63,12 @@ type Telegram struct {
 	Proxy               string   `yaml:"proxy"`
 	DailySummaryEnabled bool     `yaml:"daily_summary_enabled"`
 	DailySummaryTime    string   `yaml:"daily_summary_time"`
+}
+
+type Alerts struct {
+	ProbabilityCollapseWindow int      `yaml:"probability_collapse_window"`
+	StaleCandleAge            Duration `yaml:"stale_candle_age"`
+	Cooldown                  Duration `yaml:"cooldown"`
 }
 
 type News struct {
@@ -129,6 +136,9 @@ const (
 	defaultCommissionBroker   = "tinkoff"
 	defaultNewsClassifierPath = "news_classifier.json"
 	defaultDailySummaryTime   = "19:05"
+	defaultProbCollapseWindow = 20
+	defaultStaleCandleAge     = 24 * time.Hour
+	defaultAlertCooldown      = time.Hour
 )
 
 func Default() *Config {
@@ -146,6 +156,11 @@ func Default() *Config {
 			DriftPSIWindow:           256,
 		},
 		Telegram: Telegram{DailySummaryTime: defaultDailySummaryTime},
+		Alerts: Alerts{
+			ProbabilityCollapseWindow: defaultProbCollapseWindow,
+			StaleCandleAge:            Duration(defaultStaleCandleAge),
+			Cooldown:                  Duration(defaultAlertCooldown),
+		},
 		News: News{
 			VetoEnabled:    true,
 			VetoSentiment:  decimal.NewFromFloat(0.5),
@@ -332,6 +347,15 @@ func (c *Config) Validate() error {
 		if _, err := time.Parse("15:04", strings.TrimSpace(c.Telegram.DailySummaryTime)); err != nil {
 			return fmt.Errorf("telegram.daily_summary_time must be HH:MM: %w", err)
 		}
+	}
+	if c.Alerts.ProbabilityCollapseWindow < 0 {
+		return fmt.Errorf("alerts.probability_collapse_window must be non-negative")
+	}
+	if c.Alerts.StaleCandleAge < 0 {
+		return fmt.Errorf("alerts.stale_candle_age must be non-negative")
+	}
+	if c.Alerts.Cooldown < 0 {
+		return fmt.Errorf("alerts.cooldown must be non-negative")
 	}
 	if c.PollInterval <= 0 {
 		return fmt.Errorf("poll_interval must be positive")

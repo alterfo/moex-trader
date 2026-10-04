@@ -1040,3 +1040,39 @@ func TestPreflightValidation(t *testing.T) {
 		t.Fatal("Preflight.Enabled = true, want false")
 	}
 }
+
+func TestAlertsDefaultsApplied(t *testing.T) {
+	cfg := Default()
+	if cfg.Alerts.ProbabilityCollapseWindow != 20 {
+		t.Fatalf("probability_collapse_window = %d, want 20", cfg.Alerts.ProbabilityCollapseWindow)
+	}
+	if cfg.Alerts.StaleCandleAge.Std() != 24*time.Hour {
+		t.Fatalf("stale_candle_age = %v, want 24h", cfg.Alerts.StaleCandleAge.Std())
+	}
+	if cfg.Alerts.Cooldown.Std() != time.Hour {
+		t.Fatalf("cooldown = %v, want 1h", cfg.Alerts.Cooldown.Std())
+	}
+}
+
+func TestAlertsLoadedAndValidated(t *testing.T) {
+	cfg, err := Parse([]byte("tickers: [SBER]\nstorage:\n  path: ./test.db\nmodel:\n  path: model.json\nalerts:\n  probability_collapse_window: 30\n  stale_candle_age: 2h\n  cooldown: 30m\n"))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if cfg.Alerts.ProbabilityCollapseWindow != 30 {
+		t.Fatalf("probability_collapse_window = %d, want 30", cfg.Alerts.ProbabilityCollapseWindow)
+	}
+	if cfg.Alerts.StaleCandleAge.Std() != 2*time.Hour {
+		t.Fatalf("stale_candle_age = %v, want 2h", cfg.Alerts.StaleCandleAge.Std())
+	}
+	if cfg.Alerts.Cooldown.Std() != 30*time.Minute {
+		t.Fatalf("cooldown = %v, want 30m", cfg.Alerts.Cooldown.Std())
+	}
+}
+
+func TestAlertsNegativeRejected(t *testing.T) {
+	_, err := Parse([]byte("tickers: [SBER]\nstorage:\n  path: ./test.db\nmodel:\n  path: model.json\nalerts:\n  probability_collapse_window: -1\n"))
+	if err == nil {
+		t.Fatal("Parse() error = nil, want validation error for negative probability_collapse_window")
+	}
+}

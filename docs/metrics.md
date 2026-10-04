@@ -1215,3 +1215,38 @@ same run, never against the stale ledger number.
 
 This strengthens rather than revises the 2026-09-25 verdict: `max_net_exposure`
 ships as defence-in-depth only. Live stays 1x, `target_notional` 15000, cap 0.
+
+## Observability metrics and alerts (Task 6)
+
+Live-trader Prometheus metrics added in `internal/metrics/metrics.go`, wired
+through `internal/orchestrator` and `cmd/trader`. The old
+`llm_inference_duration_seconds` was renamed to
+`moex_trader_inference_duration_seconds` (the pipeline is a model, not an LLM).
+
+Metrics exposed on the trader's `/metrics` endpoint:
+
+| metric | type | labels | source |
+|---|---|---|---|
+| `moex_trader_inference_duration_seconds` | histogram | — | orchestrator signal generation |
+| `signals_generated_total` | counter | — | orchestrator |
+| `risk_rejections_total` | counter | `reason` | risk gate decision |
+| `executor_skips_total` | counter | `reason` | approved decisions the executor skipped |
+| `signal_probability` | histogram | — | model confidence per poll |
+| `candle_age_seconds` | gauge | `ticker` | newest ingested candle age |
+| `feature_psi` | gauge | `feature` | drift monitor warnings |
+| `position_notional` | gauge | `ticker` | signed exposure per ticker (RUB) |
+| `gross_exposure` | gauge | — | sum of absolute per-ticker notionals (RUB) |
+| `lease_held` | gauge | — | 1 while this process holds the trading lease |
+
+Telegram alerts (`internal/alert/telegram/watch.go`), each gated by a cooldown:
+
+| alert | trigger | default threshold | default cooldown |
+|---|---|---|---|
+| probability collapse | more than 90% of the last N probabilities inside [0.45, 0.55] | N = 20, fraction 0.9, band 0.45–0.55 | 1h |
+| stale candles | candle age above threshold during the trading session | 24h (daily candle pipeline) | 1h |
+| PSI breach | drift monitor warning above the configured PSI threshold | drift_psi_threshold 0.2 | 1h |
+
+Defaults come from `config.alerts` (`probability_collapse_window`,
+`stale_candle_age`, `cooldown`); negative values are rejected. Nothing here
+changes the live recipe: all new config keys default to the values above and
+the alert senders are no-ops unless Telegram credentials are configured.

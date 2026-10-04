@@ -143,11 +143,11 @@
 
 ### Task 6: Observability — metrics and alerts
 
-- [ ] in `internal/metrics/metrics.go` rename `LLMInferenceDuration` to `InferenceDuration` (metric `moex_trader_inference_duration_seconds`), update `internal/orchestrator/orchestrator.go`; grep `deploy/` and `cmd/pnlexporter` for the old metric name and update them
-- [ ] add `risk_rejections_total{reason}` (from `risk.Decision.Reason`), `executor_skips_total{reason}`, `signal_probability` histogram, `candle_age_seconds{ticker}`, `feature_psi{feature}` (from `internal/drift`), `position_notional{ticker}`, `gross_exposure`, `lease_held`
-- [ ] add Telegram alerts via `internal/alert/telegram`: probability collapse (>90% of the last N ensemble probabilities inside [0.45, 0.55]), stale candles (age > configurable threshold during the trading session), PSI breach already logged now also alerts; each with a cooldown to avoid spam
-- [ ] write tests for every new metric's update path and for each alert's trigger and cooldown
-- [ ] run `make check` — must pass before Task 7
+- [x] in `internal/metrics/metrics.go` rename `LLMInferenceDuration` to `InferenceDuration` (metric `moex_trader_inference_duration_seconds`), update `internal/orchestrator/orchestrator.go`; grep `deploy/` and `cmd/pnlexporter` for the old metric name and update them
+- [x] add `risk_rejections_total{reason}` (from `risk.Decision.Reason`), `executor_skips_total{reason}`, `signal_probability` histogram, `candle_age_seconds{ticker}`, `feature_psi{feature}` (from `internal/drift`), `position_notional{ticker}`, `gross_exposure`, `lease_held`
+- [x] add Telegram alerts via `internal/alert/telegram`: probability collapse (>90% of the last N ensemble probabilities inside [0.45, 0.55]), stale candles (age > configurable threshold during the trading session), PSI breach already logged now also alerts; each with a cooldown to avoid spam
+- [x] write tests for every new metric's update path and for each alert's trigger and cooldown
+- [x] run `make check` — must pass before Task 7
 
 ### Task 7: Experiment A — dividend-adjusted (total-return) labels
 

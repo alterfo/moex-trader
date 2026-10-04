@@ -68,6 +68,10 @@ type DecisionObserver interface {
 	Observe(ctx context.Context, decision Decision)
 }
 
+type CandleObserver interface {
+	ObserveCandle(ctx context.Context, ticker string, age time.Duration)
+}
+
 type Options struct {
 	Tickers          []string
 	Ingestor         Ingestor
@@ -83,6 +87,7 @@ type Options struct {
 	Account          risk.Account
 	AccountSource    AccountSource
 	Observer         DecisionObserver
+	CandleObserver   CandleObserver
 	KillSwitch       KillSwitchState
 	Shadow           *ShadowReconciler
 	ShadowDigestPath string
@@ -103,6 +108,7 @@ type Orchestrator struct {
 	account          risk.Account
 	accountSource    AccountSource
 	observer         DecisionObserver
+	candleObserver   CandleObserver
 	killSwitch       KillSwitchState
 	shadow           *ShadowReconciler
 	shadowDigestPath string
@@ -164,6 +170,7 @@ func New(opts Options) (*Orchestrator, error) {
 		account:          opts.Account,
 		accountSource:    opts.AccountSource,
 		observer:         opts.Observer,
+		candleObserver:   opts.CandleObserver,
 		killSwitch:       opts.KillSwitch,
 		shadow:           opts.Shadow,
 		shadowDigestPath: opts.ShadowDigestPath,
@@ -253,10 +260,20 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string, account
 		return err
 	}
 
+	if o.metrics != nil || o.candleObserver != nil {
+		age := candleAge(input.Candles, o.now())
+		if o.metrics != nil {
+			o.metrics.SetCandleAge(ticker, age.Seconds())
+		}
+		if o.candleObserver != nil {
+			o.candleObserver.ObserveCandle(ctx, ticker, age)
+		}
+	}
+
 	started := time.Now()
 	signal, err := o.source.Generate(ctx, feature)
 	if o.metrics != nil {
-		o.metrics.ObserveLLMInference(time.Since(started))
+		o.metrics.ObserveInference(time.Since(started))
 	}
 	if err != nil {
 		if auditErr := o.record(ctx, ticker, StageSignal, auditError("generate signal", err)); auditErr != nil {
@@ -269,6 +286,7 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string, account
 	}
 	if o.metrics != nil {
 		o.metrics.IncSignalsGenerated()
+		o.metrics.ObserveSignalProbability(signal.Confidence)
 	}
 	if strings.TrimSpace(signal.Ticker) != "" && !strings.EqualFold(signal.Ticker, ticker) {
 		mismatchErr := fmt.Errorf("signal ticker %q does not match requested ticker %q", signal.Ticker, ticker)
@@ -315,7 +333,7 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string, account
 	}
 	if !decision.Approved {
 		if o.metrics != nil {
-			o.metrics.IncRiskRejections()
+			o.metrics.IncRiskRejections(decision.Reason)
 		}
 		o.observe(ctx, Decision{Ticker: ticker, Signal: signal, Price: feature.LastPrice, Approved: false})
 		return nil
@@ -330,6 +348,9 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string, account
 		return fmt.Errorf("execute %s: %w", ticker, err)
 	}
 	if fill.Lots == 0 {
+		if o.metrics != nil {
+			o.metrics.IncExecutorSkips(executorSkipReason(signal))
+		}
 		if auditErr := o.record(ctx, ticker, StageSkip, auditJSON(struct {
 			Status     string `json:"status"`
 			Action     string `json:"action"`
@@ -387,4 +408,14 @@ func auditJSON(value any) string {
 
 func auditError(operation string, err error) string {
 	return auditJSON(map[string]string{"operation": operation, "error": err.Error()})
+}
+
+func executorSkipReason(signal domain.TradeSignal) string {
+	if signal.HoldReason != "" {
+		return signal.HoldReason
+	}
+	if signal.Action == domain.ActionHold {
+		return domain.HoldReasonModel
+	}
+	return "skip"
 }

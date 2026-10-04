@@ -278,3 +278,17 @@ func filterMatches(matches []news.MatchedArticle, ticker string) []news.MatchedA
 	}
 	return out
 }
+
+func candleAge(candles []moex.Candle, now time.Time) time.Duration {
+	if len(candles) == 0 {
+		return 0
+	}
+	end := candles[len(candles)-1].End
+	if end.IsZero() {
+		end = candles[len(candles)-1].Begin
+	}
+	if end.IsZero() || now.Before(end) {
+		return 0
+	}
+	return now.Sub(end)
+}

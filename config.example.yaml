@@ -88,6 +88,15 @@ telegram:
   daily_summary_enabled: false
   daily_summary_time: "19:05"
 
+# Monitoring alerts (cooldown-gated Telegram messages; no-ops without bot credentials).
+alerts:
+  # Alert when more than 90% of the last N ensemble probabilities fall inside [0.45, 0.55].
+  probability_collapse_window: 20
+  # Alert when the newest ingested daily candle is older than this during the trading session.
+  stale_candle_age: 24h
+  # Minimum gap between repeated alerts of the same kind.
+  cooldown: 1h
+
 # Historical news archive (finanalys format) used to backfill news_sentiment/news_count,
 # event features, and negotiations_signal/sanctions_signal in cmd/exportdataset,
 # cmd/trainmodel and cmd/calibrate (-news-history flag).
