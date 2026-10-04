@@ -159,11 +159,11 @@
 
 ### Task 8: Experiment B — wide training universe, unchanged trading universe
 
-- [ ] add `-train-tickers` to `cmd/exportdataset` (separate from trading tickers), with point-in-time membership: a ticker contributes rows only on dates it traded with median 20-day turnover ≥ a threshold computed from data available on that date (no future liquidity); FX tickers rejected
-- [ ] build the wide list from ISS TQBR shares (store the list with its fetch date in `data/`)
-- [ ] write tests: rows before a ticker's eligibility are dropped, eligibility uses only past bars, FX in the list is an error
-- [ ] on the ai-box: train on the wide set, trade/evaluate on the 17 config tickers with the purged walk-forward; record in `docs/metrics.md` "Experiment B" in the same commit
-- [ ] run `make check` — must pass before Task 9
+- [x] add `-train-tickers` to `cmd/exportdataset` (separate from trading tickers), with point-in-time membership: a ticker contributes rows only on dates it traded with median 20-day turnover ≥ a threshold computed from data available on that date (no future liquidity); FX tickers rejected
+- [x] build the wide list from ISS TQBR shares (store the list with its fetch date in `data/`)
+- [x] write tests: rows before a ticker's eligibility are dropped, eligibility uses only past bars, FX in the list is an error
+- [x] on the ai-box: train on the wide set, trade/evaluate on the 17 config tickers with the purged walk-forward; record in `docs/metrics.md` "Experiment B" in the same commit
+- [x] run `make check` — must pass before Task 9
 
 ### Task 9: Experiment C — probability calibration and ensemble vs members
 

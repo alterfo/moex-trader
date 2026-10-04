@@ -88,7 +88,7 @@ func TestWriteTickerKeysLabelsPerBarWithinADay(t *testing.T) {
 	}
 
 	err := writeTicker(context.Background(), writer, source, features.NewBuilder(time.Now),
-		"TEST", start, till, from, from, defaultHorizonDays, warmup, labels, nil, nil, nil, header)
+		"TEST", start, till, from, from, defaultHorizonDays, warmup, labels, nil, nil, nil, header, false, nil)
 	if err != nil {
 		t.Fatalf("writeTicker: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestWriteTickerRowMatchesHeader(t *testing.T) {
 	labels := map[string]labeledRow{}
 
 	err := writeTicker(context.Background(), writer, source, features.NewBuilder(time.Now),
-		"TEST", start, till, from, split, defaultHorizonDays, minLabelCandles, labels, news, nil, events, header)
+		"TEST", start, till, from, split, defaultHorizonDays, minLabelCandles, labels, news, nil, events, header, false, nil)
 	if err != nil {
 		t.Fatalf("writeTicker: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestWriteTickerWritesTopicSignalColumns(t *testing.T) {
 	}
 
 	err := writeTicker(context.Background(), writer, source, features.NewBuilder(time.Now),
-		"TEST", start, till, from, from, defaultHorizonDays, minLabelCandles, map[string]labeledRow{}, nil, topics, nil, header)
+		"TEST", start, till, from, from, defaultHorizonDays, minLabelCandles, map[string]labeledRow{}, nil, topics, nil, header, false, nil)
 	if err != nil {
 		t.Fatalf("writeTicker: %v", err)
 	}
@@ -260,4 +260,111 @@ func TestDatasetHeaderMirrorsFeatureOrder(t *testing.T) {
 
 func writeTestFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0o644)
+}
+
+func TestValidateTrainTickersRejectsFX(t *testing.T) {
+	for _, ticker := range []string{"GLDRUB_TOM", "CNYRUB_TOD", "USDRUB_TOM"} {
+		if err := validateTrainTickers([]string{ticker}); err == nil {
+			t.Fatalf("validateTrainTickers(%q) error = nil, want FX rejection", ticker)
+		}
+	}
+	if err := validateTrainTickers([]string{"SBER", "LKOH", "GAZP"}); err != nil {
+		t.Fatalf("validateTrainTickers(equities) error = %v, want nil", err)
+	}
+}
+
+func TestWriteTickerTrainOnlyDropsValAndUnlabeledRows(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	candles := makeCandles(start, minLabelCandles+4, 1)
+	source := &fakeSource{candles: map[string][]moex.Candle{"TEST": candles}}
+
+	from := start.AddDate(0, 0, minLabelCandles)
+	till := candles[len(candles)-1].Begin
+	split := start.AddDate(0, 0, minLabelCandles+1)
+	labels := map[string]labeledRow{
+		"TEST|" + barKey(candles[minLabelCandles].Begin):   {label: 1, date: from},
+		"TEST|" + barKey(candles[minLabelCandles+1].Begin): {label: 0, date: start.AddDate(0, 0, minLabelCandles+2)},
+	}
+
+	var buf bytes.Buffer
+	writer := csv.NewWriter(&buf)
+	err := writeTicker(context.Background(), writer, source, features.NewBuilder(time.Now),
+		"TEST", start, till, from, split, defaultHorizonDays, minLabelCandles, labels, nil, nil, nil, datasetHeader(), true, nil)
+	if err != nil {
+		t.Fatalf("writeTicker: %v", err)
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		t.Fatalf("writer: %v", err)
+	}
+
+	rows, err := csv.NewReader(strings.NewReader(buf.String())).ReadAll()
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("got %d rows, want 1 (only the train-labeled row)", len(rows))
+	}
+	if rows[0][2] != "1" || rows[0][4] != "train" {
+		t.Fatalf("row = %v, want label 1 and split train", rows[0])
+	}
+}
+
+func TestWriteTickerEligibilityDropsRowsBeforeThreshold(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	candles := makeCandles(start, minLabelCandles+40, 1)
+	for i := range candles {
+		if i >= minLabelCandles+16 {
+			candles[i].Value = decimal.NewFromInt(1000000)
+		}
+	}
+	source := &fakeSource{candles: map[string][]moex.Candle{"TEST": candles}}
+
+	from := start.AddDate(0, 0, minLabelCandles)
+	till := candles[len(candles)-1].Begin
+	split := start.AddDate(1, 0, 0)
+	labels := make(map[string]labeledRow)
+	for d := minLabelCandles; d < len(candles); d++ {
+		labels["TEST|"+barKey(candles[d].Begin)] = labeledRow{label: 1, date: candles[d].Begin}
+	}
+	threshold := decimal.NewFromInt(500000)
+	eligible := func(candles []moex.Candle, d int) bool {
+		return model.LiquidOn(candles, d, model.TurnoverWindow, threshold)
+	}
+
+	var buf bytes.Buffer
+	writer := csv.NewWriter(&buf)
+	err := writeTicker(context.Background(), writer, source, features.NewBuilder(time.Now),
+		"TEST", start, till, from, split, defaultHorizonDays, minLabelCandles, labels, nil, nil, nil, datasetHeader(), true, eligible)
+	if err != nil {
+		t.Fatalf("writeTicker: %v", err)
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		t.Fatalf("writer: %v", err)
+	}
+
+	rows, err := csv.NewReader(strings.NewReader(buf.String())).ReadAll()
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if len(rows) == 0 {
+		t.Fatal("expected some eligible rows, got 0")
+	}
+	if len(rows) != 15 {
+		t.Fatalf("got %d rows, want 15 (only decision days 89..103 are liquid)", len(rows))
+	}
+	if rows[0][1] != dateKey(candles[89].Begin) {
+		t.Fatalf("first row date = %s, want %s (rows before eligibility must be dropped)", rows[0][1], dateKey(candles[89].Begin))
+	}
+	for _, row := range rows {
+		date, err := time.Parse("2006-01-02", row[1])
+		if err != nil {
+			t.Fatalf("parse row date: %v", err)
+		}
+		idx := int(date.Sub(start).Hours() / 24)
+		if !model.LiquidOn(candles, idx, model.TurnoverWindow, threshold) {
+			t.Fatalf("row at %s (idx %d) is not eligible but was written", row[1], idx)
+		}
+	}
 }

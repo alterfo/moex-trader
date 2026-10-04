@@ -342,6 +342,43 @@ noise (q2, w2). `experiment_a_dividend_adjusted` is marked rejected in the
 registry. Persisted per-window `period_returns.csv` under
 `/home/oleg/moex-trader-task7/wf/tr_17`.
 
+## Experiment B: wide training universe, unchanged trading universe (2026-10-04)
+
+Trains the same absolute-10d, 18-feature, 0.60/0.40 ensemble on a wider
+universe while trading and evaluating only the 17 config tickers. The wide
+list is `data/train_tickers.json`: 262 common+preferred shares on ISS TQBR
+(`SECTYPE` 1/2, fetched 2026-10-04 via `cmd/listtqbr`). A name contributes a
+training row only on dates where its trailing median 20-day turnover is at
+least 10,000,000 RUB, computed from bars available on that date only
+(`-train-tickers` + `-train-min-turnover 10000000`, `internal/model/liquidity.go`),
+and only train-split rows are kept for the 140 wide-only names, so the
+validation/evaluation set stays exactly the 17 trading tickers. FX tickers are
+rejected outright. The 17-ticker train/val rows are byte-identical to the
+control (train 5398, val 966, none 4380); the wide set adds 27557 labeled
+training rows across 140 names (label 0 = 15965, label 1 = 11592).
+
+| window | control realized | wide realized | control trades | wide trades | control max DD | wide max DD | control kill | wide kill | control val AUC | wide val AUC |
+|---|---|---|---|---|---|---|---|---|---|---|
+| q1 (2025-03-05 -> 2025-06-05) | +4301.27 | +2757.66 | 66 | 36 | 3.57% | 4.38% | yes | yes | 0.5947 | 0.5679 |
+| q2 (2025-06-06 -> 2025-09-05) | +9.36 | -193.10 | 215 | 162 | 3.50% | 3.37% | no | no | 0.5730 | 0.5452 |
+| q3 (2025-09-06 -> 2025-12-03) | +34089.03 | +36987.00 | 193 | 157 | 0.90% | 0.93% | no | no | 0.5301 | 0.5065 |
+| q4 (2025-12-04 -> 2026-03-04) | -12339.10 | -9034.41 | 187 | 139 | 2.46% | 2.36% | no | no | 0.5257 | 0.4880 |
+| w2 (2026-03-05 -> 2026-06-06) | +2676.41 | +15475.07 | 141 | 87 | 1.17% | 0.59% | no | no | 0.4872 | 0.4927 |
+| w1 (2026-06-07 -> 2026-09-16) | +31092.50 | +40825.25 | 283 | 186 | 3.05% | 2.20% | no | no | 0.5115 | 0.5106 |
+| total | +59829.47 | +86817.47 | 1085 | 767 | — | — | — | — | — | — |
+
+Realized P&L is closed-trade gross minus commission. Verdict: **REJECT**.
+The wide set raises total realized P&L to +86817.47 RUB (+45.1% vs control)
+and matches/exceeds the control in 4 of 6 windows, but it fails the
+pre-registered gate on two other criteria: mean val AUC drops to 0.5185 vs
+control 0.5370 (-0.0185, outside the +/-0.005 band) and q1 has max DD 4.38%
+with the kill switch tripping (criterion requires DD <= 3% in every window
+and the kill switch never trips). The extra names help realized P&L mostly in
+w2/w1 while diluting discriminative signal on the early windows.
+`experiment_b_wide_train_narrow_trade` is marked rejected in the registry.
+Persisted per-window `period_returns.csv` under
+`/home/oleg/moex-trader-task8/wf/wide_17`.
+
 ## Gap-stress test (Task 8)
 
 Models overnight gaps against the deployed strategy's open portfolio at the

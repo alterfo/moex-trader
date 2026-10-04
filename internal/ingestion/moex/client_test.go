@@ -95,6 +95,46 @@ func TestCandles(t *testing.T) {
 	}
 }
 
+func TestListSecurities(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/engines/stock/markets/shares/boards/TQBR/securities.json" {
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.URL.Query().Get("securities.columns"); got != "SECID,SECTYPE" {
+			t.Errorf("unexpected securities.columns %q", got)
+		}
+		payload := map[string]any{
+			"securities": map[string]any{
+				"columns": []string{"SECID", "SECTYPE"},
+				"data": [][]any{
+					{"SBER", "1"},
+					{"SBERP", "2"},
+					{"SBMM", "J"},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(payload)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, nil)
+	securities, err := client.ListSecurities(context.Background(), "stock", "shares", "TQBR")
+	if err != nil {
+		t.Fatalf("ListSecurities() error = %v", err)
+	}
+	if len(securities) != 3 {
+		t.Fatalf("got %d securities, want 3", len(securities))
+	}
+	if securities[0].SecID != "SBER" || securities[0].SecType != "1" {
+		t.Fatalf("unexpected first security: %+v", securities[0])
+	}
+	if securities[1].SecType != "2" || securities[2].SecType != "J" {
+		t.Fatalf("unexpected sectypes: %+v", securities)
+	}
+}
+
 func TestLastPrice(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/engines/stock/markets/shares/boards/TQBR/securities/SBER.json" {

@@ -35,11 +35,17 @@ type Security struct {
 	Market string
 }
 
+type ListedSecurity struct {
+	SecID   string
+	SecType string
+}
+
 type Candle struct {
 	Open   decimal.Decimal
 	Close  decimal.Decimal
 	High   decimal.Decimal
 	Low    decimal.Decimal
+	Value  decimal.Decimal
 	Volume decimal.Decimal
 	Begin  time.Time
 	End    time.Time
@@ -55,6 +61,7 @@ type issResponse struct {
 	Description issBlock `json:"description"`
 	Boards      issBlock `json:"boards"`
 	Candles     issBlock `json:"candles"`
+	Securities  issBlock `json:"securities"`
 	Marketdata  issBlock `json:"marketdata"`
 }
 
@@ -84,6 +91,42 @@ func (c *Client) LookupSecurity(ctx context.Context, ticker string) (Security, e
 		return empty, fmt.Errorf("moex lookup %q: missing engine/market/board in response", ticker)
 	}
 	return Security{SecID: secid, Board: boardID, Engine: engine, Market: market}, nil
+}
+
+func (c *Client) ListSecurities(ctx context.Context, engine, market, board string) ([]ListedSecurity, error) {
+	path := fmt.Sprintf("/engines/%s/markets/%s/boards/%s/securities.json",
+		url.PathEscape(engine), url.PathEscape(market), url.PathEscape(board))
+	query := url.Values{}
+	query.Set("iss.meta", "off")
+	query.Set("securities.columns", "SECID,SECTYPE")
+	resp, err := c.getJSON(ctx, path+"?"+query.Encode())
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Securities.Columns) == 0 {
+		return nil, fmt.Errorf("moex securities for %s/%s/%s: response has no securities block", engine, market, board)
+	}
+	secidIdx := resp.Securities.columnIndex("SECID")
+	if secidIdx < 0 {
+		return nil, fmt.Errorf("moex securities for %s/%s/%s: missing SECID column", engine, market, board)
+	}
+	sectypeIdx := resp.Securities.columnIndex("SECTYPE")
+	out := make([]ListedSecurity, 0, len(resp.Securities.Data))
+	for _, row := range resp.Securities.Data {
+		if secidIdx >= len(row) {
+			continue
+		}
+		secid := stringify(row, secidIdx)
+		if secid == "" {
+			continue
+		}
+		sectype := ""
+		if sectypeIdx >= 0 && sectypeIdx < len(row) {
+			sectype = stringify(row, sectypeIdx)
+		}
+		out = append(out, ListedSecurity{SecID: secid, SecType: sectype})
+	}
+	return out, nil
 }
 
 func (c *Client) Candles(ctx context.Context, sec Security, interval int, from, till time.Time) ([]Candle, error) {
@@ -230,6 +273,10 @@ func parseCandle(columns []string, row []any) (Candle, error) {
 	if err != nil {
 		return Candle{}, err
 	}
+	value, err := decimalAt("value")
+	if err != nil {
+		return Candle{}, err
+	}
 	begin, err := parseISSDateTime(stringifyRow(columns, row, "begin"))
 	if err != nil {
 		return Candle{}, err
@@ -238,7 +285,7 @@ func parseCandle(columns []string, row []any) (Candle, error) {
 	if err != nil {
 		return Candle{}, err
 	}
-	return Candle{Open: open, Close: close, High: high, Low: low, Volume: volume, Begin: begin, End: end}, nil
+	return Candle{Open: open, Close: close, High: high, Low: low, Value: value, Volume: volume, Begin: begin, End: end}, nil
 }
 
 func (b issBlock) firstString(column string) string {

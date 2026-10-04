@@ -33,21 +33,23 @@ const (
 )
 
 type options struct {
-	configPath    string
-	tickersFlag   string
-	fromStr       string
-	tillStr       string
-	splitStr      string
-	horizonDays   int
-	horizonMode   string
-	deadbandPct   float64
-	labelMode     string
-	commissionPct float64
-	intervalMin   int
-	featureBPD    int
-	outPath       string
-	newsHistory   string
-	dividends     string
+	configPath       string
+	tickersFlag      string
+	fromStr          string
+	tillStr          string
+	splitStr         string
+	horizonDays      int
+	horizonMode      string
+	deadbandPct      float64
+	labelMode        string
+	commissionPct    float64
+	intervalMin      int
+	featureBPD       int
+	outPath          string
+	newsHistory      string
+	dividends        string
+	trainTickers     string
+	trainMinTurnover string
 }
 
 func main() {
@@ -77,13 +79,21 @@ func run(args []string) error {
 		return err
 	}
 
-	tickers := splitComma(opts.tickersFlag)
-	if len(tickers) == 0 {
-		tickers = cfg.Tickers
+	tradingTickers := normalizeTickerList(splitComma(opts.tickersFlag))
+	if len(tradingTickers) == 0 {
+		tradingTickers = normalizeTickerList(cfg.Tickers)
 	}
-	if len(tickers) == 0 {
+	if len(tradingTickers) == 0 {
 		return errors.New("tickers must not be empty")
 	}
+
+	trainTickers := normalizeTickerList(splitComma(opts.trainTickers))
+	if len(trainTickers) == 0 {
+		trainTickers = tradingTickers
+	} else if err := validateTrainTickers(trainTickers); err != nil {
+		return err
+	}
+	allTickers := unionUnique(tradingTickers, trainTickers)
 
 	var newsHistory map[string]map[string]model.NewsAggregate
 	var topicHistory map[string]map[string]features.TopicSignalAggregate
@@ -123,7 +133,7 @@ func run(args []string) error {
 			return err
 		}
 	}
-	samples, err := model.BuildSamplesWithDividends(ctx, source, tickers, from, till, opts.horizonDays, opts.deadbandPct, model.LabelMode(opts.labelMode), opts.commissionPct, featureCfg, model.HorizonMode(opts.horizonMode), divRecords)
+	samples, err := model.BuildSamplesWithDividends(ctx, source, allTickers, from, till, opts.horizonDays, opts.deadbandPct, model.LabelMode(opts.labelMode), opts.commissionPct, featureCfg, model.HorizonMode(opts.horizonMode), divRecords)
 	if err != nil {
 		return fmt.Errorf("build labeled samples: %w", err)
 	}
@@ -151,13 +161,34 @@ func run(args []string) error {
 		return fmt.Errorf("write header: %w", err)
 	}
 
-	for _, ticker := range tickers {
+	for _, ticker := range tradingTickers {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 		builder := features.NewBuilderWithConfig(time.Now, featureCfg)
-		if err := writeTicker(ctx, writer, source, builder, ticker, fetchFrom, till, from, split, opts.horizonDays, featureCfg.WarmupCandles(), labelByKey, newsHistory, topicHistory, eventHistory, header); err != nil {
+		if err := writeTicker(ctx, writer, source, builder, ticker, fetchFrom, till, from, split, opts.horizonDays, featureCfg.WarmupCandles(), labelByKey, newsHistory, topicHistory, eventHistory, header, false, nil); err != nil {
 			return err
+		}
+	}
+	if len(trainTickers) > 0 && !sameTickerList(tradingTickers, trainTickers) {
+		minTurnover, err := decimal.NewFromString(opts.trainMinTurnover)
+		if err != nil {
+			return fmt.Errorf("parse -train-min-turnover: %w", err)
+		}
+		eligible := func(candles []moex.Candle, d int) bool {
+			return model.LiquidOn(candles, d, model.TurnoverWindow, minTurnover)
+		}
+		for _, ticker := range trainTickers {
+			if containsTicker(tradingTickers, ticker) {
+				continue
+			}
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			builder := features.NewBuilderWithConfig(time.Now, featureCfg)
+			if err := writeTicker(ctx, writer, source, builder, ticker, fetchFrom, till, from, split, opts.horizonDays, featureCfg.WarmupCandles(), labelByKey, newsHistory, topicHistory, eventHistory, header, true, eligible); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -170,7 +201,7 @@ type labeledRow struct {
 
 func writeTicker(ctx context.Context, writer *csv.Writer, source backtest.HistoricalSource, builder *features.Builder,
 	ticker string, fetchFrom, till, from, split time.Time, horizonDays, warmup int, labels map[string]labeledRow,
-	newsHistory map[string]map[string]model.NewsAggregate, topicHistory map[string]map[string]features.TopicSignalAggregate, eventHistory map[string]map[string]model.EventAggregate, header []string) error {
+	newsHistory map[string]map[string]model.NewsAggregate, topicHistory map[string]map[string]features.TopicSignalAggregate, eventHistory map[string]map[string]model.EventAggregate, header []string, trainOnly bool, eligible func([]moex.Candle, int) bool) error {
 	candles, err := source.History(ctx, ticker, fetchFrom, till)
 	if err != nil {
 		return fmt.Errorf("history %s: %w", ticker, err)
@@ -181,6 +212,9 @@ func writeTicker(ctx context.Context, writer *csv.Writer, source backtest.Histor
 	for d := warmup; d < len(candles); d++ {
 		if ctx.Err() != nil {
 			return ctx.Err()
+		}
+		if eligible != nil && !eligible(candles, d) {
+			continue
 		}
 		decisionDay := candles[d].Begin
 		if decisionDay.Before(from) {
@@ -232,6 +266,9 @@ func writeTicker(ctx context.Context, writer *csv.Writer, source backtest.Histor
 		row[0] = ticker
 		row[1] = dateKey(decisionDay)
 		if label, ok := labels[key]; ok {
+			if trainOnly && !label.date.Before(split) {
+				continue
+			}
 			row[2] = fmt.Sprintf("%d", int(label.label))
 			row[3] = dateKey(label.date)
 			if label.date.Before(split) {
@@ -239,6 +276,8 @@ func writeTicker(ctx context.Context, writer *csv.Writer, source backtest.Histor
 			} else {
 				row[4] = "val"
 			}
+		} else if trainOnly {
+			continue
 		}
 		for i, value := range vec {
 			row[5+i] = formatFloat(value)
@@ -276,9 +315,10 @@ func barKey(t time.Time) string {
 
 func parseOptions(args []string) (options, error) {
 	opts := options{
-		configPath:  defaultConfigPath,
-		horizonDays: defaultHorizonDays,
-		deadbandPct: defaultDeadbandPct,
+		configPath:       defaultConfigPath,
+		horizonDays:      defaultHorizonDays,
+		deadbandPct:      defaultDeadbandPct,
+		trainMinTurnover: "10000000",
 	}
 	fs := flag.NewFlagSet("exportdataset", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -297,6 +337,8 @@ func parseOptions(args []string) (options, error) {
 	fs.StringVar(&opts.outPath, "out", "dataset.csv", "output CSV path")
 	fs.StringVar(&opts.newsHistory, "news-history", "", "path to a finanalys-format news_history.jsonl to override news_sentiment/news_count with real historical values where available")
 	fs.StringVar(&opts.dividends, "dividends", "data/dividends.jsonl", "path to the dividend calendar JSONL used by -label-mode absolute_tr")
+	fs.StringVar(&opts.trainTickers, "train-tickers", "", "comma-separated extra training tickers (default: same as trading tickers); FX tickers rejected")
+	fs.StringVar(&opts.trainMinTurnover, "train-min-turnover", opts.trainMinTurnover, "minimum median 20-day turnover (RUB) for a -train-tickers name to contribute a training row")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}
@@ -364,6 +406,66 @@ func splitComma(s string) []string {
 		}
 	}
 	return out
+}
+
+func normalizeTickerList(tickers []string) []string {
+	out := make([]string, 0, len(tickers))
+	for _, ticker := range tickers {
+		ticker = strings.ToUpper(strings.TrimSpace(ticker))
+		if ticker != "" {
+			out = append(out, ticker)
+		}
+	}
+	return out
+}
+
+func unionUnique(a, b []string) []string {
+	out := make([]string, 0, len(a)+len(b))
+	for _, ticker := range a {
+		if !containsTicker(out, ticker) {
+			out = append(out, ticker)
+		}
+	}
+	for _, ticker := range b {
+		if !containsTicker(out, ticker) {
+			out = append(out, ticker)
+		}
+	}
+	return out
+}
+
+func containsTicker(tickers []string, want string) bool {
+	for _, ticker := range tickers {
+		if ticker == want {
+			return true
+		}
+	}
+	return false
+}
+
+func sameTickerList(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for _, ticker := range a {
+		if !containsTicker(b, ticker) {
+			return false
+		}
+	}
+	return true
+}
+
+func isFXTicker(ticker string) bool {
+	return strings.HasSuffix(ticker, "_TOM") || strings.HasSuffix(ticker, "_TOD")
+}
+
+func validateTrainTickers(tickers []string) error {
+	for _, ticker := range tickers {
+		if isFXTicker(ticker) {
+			return fmt.Errorf("train ticker %q is an FX instrument and must not be trained on", ticker)
+		}
+	}
+	return nil
 }
 
 func datasetHeader() []string {

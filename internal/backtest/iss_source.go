@@ -138,8 +138,8 @@ func parseCandles(columns []string, rows [][]any) []moex.Candle {
 	for _, row := range rows {
 		c := moex.Candle{Open: decAt(columns, row, "open"), Close: decAt(columns, row, "close"),
 			High: decAt(columns, row, "high"), Low: decAt(columns, row, "low"),
-			Volume: decAt(columns, row, "volume"),
-			Begin:  timeAt(columns, row, "begin"), End: timeAt(columns, row, "end")}
+			Value: decAt(columns, row, "value"), Volume: decAt(columns, row, "volume"),
+			Begin: timeAt(columns, row, "begin"), End: timeAt(columns, row, "end")}
 		out = append(out, c)
 	}
 	return out
