@@ -167,11 +167,11 @@
 
 ### Task 9: Experiment C — probability calibration and ensemble vs members
 
-- [ ] add `internal/model/reliability.go`: Brier score, ECE (10 bins), reliability table from (probability, realized label) pairs
-- [ ] add `cmd/strategyvalidation -reliability <wf-dir>` reading persisted decision probabilities and realized labels
-- [ ] write tests for Brier/ECE on known inputs and empty/degenerate inputs
-- [ ] on the ai-box: report reliability per member and for the ensemble; run purged walk-forward for each single member at 0.60/0.40 as registered variants; record in `docs/metrics.md` "Experiment C" in the same commit
-- [ ] run `make check` — must pass before Task 10
+- [x] add `internal/model/reliability.go`: Brier score, ECE (10 bins), reliability table from (probability, realized label) pairs
+- [x] add `cmd/strategyvalidation -reliability <wf-dir>` reading persisted decision probabilities and realized labels
+- [x] write tests for Brier/ECE on known inputs and empty/degenerate inputs
+- [x] on the ai-box: report reliability per member and for the ensemble; run purged walk-forward for each single member at 0.60/0.40 as registered variants; record in `docs/metrics.md` "Experiment C" in the same commit
+- [x] run `make check` — must pass before Task 10
 
 ### Task 10: Experiment D — volatility-scaled position size
 

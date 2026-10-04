@@ -379,6 +379,60 @@ w2/w1 while diluting discriminative signal on the early windows.
 Persisted per-window `period_returns.csv` under
 `/home/oleg/moex-trader-task8/wf/wide_17`.
 
+## Experiment C: probability calibration and ensemble-vs-members (2026-10-04)
+
+Adds probability-calibration tooling (`internal/model/reliability.go`: Brier
+score, 10-bin ECE, reliability table) and a `cmd/strategyvalidation
+-reliability <wf-dir>` reader. `cmd/backtest -wf-dir` now persists one
+`reliability.csv` per window (`date,ticker,probability,label`) where the label
+is the same absolute-10d / 0.5%-deadband forward-return label used for
+training, computed only for decision dates whose forward window is complete.
+The same Task 5 embargo-10 per-window ensemble artifacts are replayed four
+ways through the new `-ensemble-member` flag: ensemble average, LGBM only,
+XGBoost only, logistic regression only, all at buy/sell 0.60/0.40.
+
+Reliability over the six purged windows (pooled decision/realized-label
+pairs):
+
+| member | samples | Brier | ECE (10 bins) |
+|---|---:|---:|---:|
+| ensemble | 7046 | 0.302700 | 0.209763 |
+| lgb | 7825 | 0.330966 | 0.255687 |
+| xgb | 7030 | 0.311151 | 0.222077 |
+| logistic | 7046 | 0.290461 | 0.199672 |
+
+The logistic member has the best calibration; every model is still materially
+miscalibrated in the tails (positive rate near 0.42-0.55 in both extreme bins
+despite predicted probabilities near 0.07 and 0.93). Per-window realized P&L
+(closed trades, gross minus commission):
+
+| window | ensemble realized | lgb realized | xgb realized | logistic realized |
+|---|---:|---:|---:|---:|
+| q1 (2025-03-05 -> 2025-06-05) | +4301.27 | +2729.41 | +3653.26 | -1249.64 |
+| q2 (2025-06-06 -> 2025-09-05) | +9.36 | -10924.04 | -5940.92 | -4772.99 |
+| q3 (2025-09-06 -> 2025-12-03) | +34089.03 | +10658.77 | +24486.59 | +43237.16 |
+| q4 (2025-12-04 -> 2026-03-04) | -12339.10 | -9134.91 | -10402.34 | -7407.85 |
+| w2 (2026-03-05 -> 2026-06-06) | +2676.41 | +432.66 | +3356.23 | +15346.89 |
+| w1 (2026-06-07 -> 2026-09-16) | +31092.50 | +25405.11 | +26728.56 | +36229.09 |
+| total | +59829.47 | +19166.99 | +41881.38 | +81382.67 |
+
+Per-member summary:
+
+| member | total realized | trades | positive windows | worst max DD | kill-tripped windows | mean val AUC |
+|---|---:|---:|---:|---:|---:|---:|
+| ensemble | +59829.47 | 1085 | 5/6 | 3.57% | 1 | 0.5370 |
+| lgb | +19166.99 | 1578 | 4/6 | 3.26% | 0 | 0.5245 |
+| xgb | +41881.38 | 1175 | 4/6 | 3.79% | 1 | 0.5037 |
+| logistic | +81382.67 | 904 | 3/6 | 3.69% | 1 | 0.5653 |
+
+Realized P&L is closed-trade gross minus commission; the ensemble rerun is
+bit-identical to the Task 5 control at +59829.47 RUB. The logistic single
+member leads on both realized P&L and calibration, but no deploy decision is
+made here — Task 13 evaluates all C variants against the pre-registered gate
+(note logistic and xgb trip the kill switch in q1 and have worst DD above 3%).
+Persisted `wf-dir` runs and `reliability.csv` files are under
+`/home/oleg/moex-trader-task9/wf/c_{ensemble,lgb,xgb,logistic}`.
+
 ## Gap-stress test (Task 8)
 
 Models overnight gaps against the deployed strategy's open portfolio at the

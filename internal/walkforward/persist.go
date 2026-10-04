@@ -20,29 +20,34 @@ import (
 )
 
 const (
-	windowFileName = "window.json"
-	modelFileName  = "model.json"
+	windowFileName      = "window.json"
+	modelFileName       = "model.json"
+	ReliabilityFileName = "reliability.csv"
 )
 
 type Config struct {
-	WindowStart     time.Time `json:"window_start"`
-	WindowEnd       time.Time `json:"window_end"`
-	SignalSource    string    `json:"signal_source"`
-	ModelPath       string    `json:"model_path,omitempty"`
-	Deposit         string    `json:"deposit"`
-	MaxLots         int       `json:"max_lots"`
-	CommissionRate  string    `json:"commission_rate"`
-	SpreadPct       string    `json:"spread_pct"`
-	SlippagePct     string    `json:"slippage_pct"`
-	BorrowPctPerDay string    `json:"borrow_pct_per_day"`
-	TargetNotional  string    `json:"target_notional,omitempty"`
-	Tickers         []string  `json:"tickers"`
-	BuyThreshold    float64   `json:"buy_threshold"`
-	SellThreshold   float64   `json:"sell_threshold"`
-	FeatureOrder    []string  `json:"feature_order"`
-	SpreadMinObs    int       `json:"spread_min_obs"`
-	SpreadDBPath    string    `json:"spread_db_path,omitempty"`
-	EmbargoBars     int       `json:"embargo_bars,omitempty"`
+	WindowStart      time.Time `json:"window_start"`
+	WindowEnd        time.Time `json:"window_end"`
+	SignalSource     string    `json:"signal_source"`
+	ModelPath        string    `json:"model_path,omitempty"`
+	Deposit          string    `json:"deposit"`
+	MaxLots          int       `json:"max_lots"`
+	CommissionRate   string    `json:"commission_rate"`
+	SpreadPct        string    `json:"spread_pct"`
+	SlippagePct      string    `json:"slippage_pct"`
+	BorrowPctPerDay  string    `json:"borrow_pct_per_day"`
+	TargetNotional   string    `json:"target_notional,omitempty"`
+	Tickers          []string  `json:"tickers"`
+	BuyThreshold     float64   `json:"buy_threshold"`
+	SellThreshold    float64   `json:"sell_threshold"`
+	FeatureOrder     []string  `json:"feature_order"`
+	SpreadMinObs     int       `json:"spread_min_obs"`
+	SpreadDBPath     string    `json:"spread_db_path,omitempty"`
+	EmbargoBars      int       `json:"embargo_bars,omitempty"`
+	EnsembleMember   string    `json:"ensemble_member,omitempty"`
+	LabelMode        string    `json:"label_mode,omitempty"`
+	LabelHorizonBars int       `json:"label_horizon_bars,omitempty"`
+	LabelDeadbandPct float64   `json:"label_deadband_pct,omitempty"`
 }
 
 type Decision struct {
@@ -65,6 +70,8 @@ type Window struct {
 	ModelFile           string     `json:"model_file,omitempty"`
 	PeriodReturnsFile   string     `json:"period_returns_file,omitempty"`
 	PeriodReturnsSHA256 string     `json:"period_returns_sha256,omitempty"`
+	ReliabilityFile     string     `json:"reliability_file,omitempty"`
+	ReliabilitySHA256   string     `json:"reliability_sha256,omitempty"`
 	CreatedAt           time.Time  `json:"created_at"`
 	Decisions           []Decision `json:"decisions"`
 }
@@ -249,6 +256,15 @@ func Load(dir string) (Window, error) {
 			return Window{}, fmt.Errorf("walk-forward: period returns SHA256 mismatch in %q", dir)
 		}
 	}
+	if w.ReliabilityFile != "" {
+		reliabilityData, err := os.ReadFile(filepath.Join(dir, w.ReliabilityFile))
+		if err != nil {
+			return Window{}, fmt.Errorf("walk-forward: read reliability %q: %w", filepath.Join(dir, w.ReliabilityFile), err)
+		}
+		if HashBytes(reliabilityData) != w.ReliabilitySHA256 {
+			return Window{}, fmt.Errorf("walk-forward: reliability SHA256 mismatch in %q", dir)
+		}
+	}
 	return w, nil
 }
 
@@ -282,6 +298,12 @@ func (w Window) Validate() error {
 	}
 	if w.PeriodReturnsFile != "" && w.PeriodReturnsSHA256 == "" {
 		return fmt.Errorf("walk-forward: period returns SHA256 is required when a file is present")
+	}
+	if w.ReliabilityFile == "" && w.ReliabilitySHA256 != "" {
+		return fmt.Errorf("walk-forward: reliability file is required when a SHA256 is present")
+	}
+	if w.ReliabilityFile != "" && w.ReliabilitySHA256 == "" {
+		return fmt.Errorf("walk-forward: reliability SHA256 is required when a file is present")
 	}
 	seen := make(map[string]struct{}, len(w.Decisions))
 	for _, d := range w.Decisions {

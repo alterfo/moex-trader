@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/olegsidorkin/moex-trader/internal/model"
 	"github.com/olegsidorkin/moex-trader/internal/strategyvalidation"
 	"github.com/olegsidorkin/moex-trader/internal/walkforward"
 )
@@ -19,8 +20,10 @@ import (
 func main() {
 	var matricesPath string
 	var returnsDirs string
+	var reliabilityDir string
 	flag.StringVar(&matricesPath, "matrices", "", "path to a JSON {key: period-return-matrix} archive (e.g. produced by cmd/walkforward -candidates) to merge into the registry")
 	flag.StringVar(&returnsDirs, "returns-dirs", "", "comma-separated wf-dirs, each containing per-window period_returns.csv files; joins variants by date and computes PBO")
+	flag.StringVar(&reliabilityDir, "reliability", "", "wf-dir whose per-window reliability.csv files are aggregated into Brier/ECE/reliability-table report")
 	flag.Parse()
 
 	registry := strategyvalidation.DefaultRegistry()
@@ -40,6 +43,15 @@ func main() {
 			registry.Matrices = make(map[string][][]float64)
 		}
 		registry.Matrices["returns_dirs"] = matrix
+	}
+	if reliabilityDir != "" {
+		pairs, err := loadReliabilityPairs(reliabilityDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "load -reliability %q: %v\n", reliabilityDir, err)
+			os.Exit(1)
+		}
+		printReliabilityReport(pairs)
+		return
 	}
 	summary := registry.Summary()
 	returns := registry.Series["abs10d_quarterly_realized_return"]
@@ -118,6 +130,42 @@ func loadReturnsDirsMatrix(returnsDirs []string) ([][]float64, error) {
 		return nil, err
 	}
 	return matrix, nil
+}
+
+func loadReliabilityPairs(dir string) ([]model.ReliabilityPair, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var pairs []model.ReliabilityPair
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		rows, err := walkforward.LoadReliability(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			pairs = append(pairs, model.ReliabilityPair{Probability: row.Probability, Label: row.Label})
+		}
+	}
+	if len(pairs) == 0 {
+		return nil, fmt.Errorf("no reliability rows found under %q", dir)
+	}
+	return pairs, nil
+}
+
+func printReliabilityReport(pairs []model.ReliabilityPair) {
+	stats, table := model.ComputeReliability(pairs, 10)
+	fmt.Printf("Reliability samples: %d\n", stats.Samples)
+	fmt.Printf("Brier score: %.6f\n", stats.Brier)
+	fmt.Printf("ECE (10 bins): %.6f\n", stats.ECE)
+	fmt.Println("Reliability table:")
+	fmt.Printf("%-12s %-8s %-14s %-12s %-12s\n", "bin", "count", "mean predicted", "positive rate", "error")
+	for _, bin := range table {
+		fmt.Printf("[%4.2f,%4.2f] %-8d %-14.4f %-12.4f %-12.4f\n", bin.Start, bin.End, bin.Count, bin.MeanProbability, bin.PositiveRate, bin.CalibrationError)
+	}
 }
 
 func loadVariantDailyReturns(dir string) ([]strategyvalidation.DailyReturn, error) {

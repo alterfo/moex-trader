@@ -244,6 +244,49 @@ func TestEnsembleRawProbabilityRejectsMismatchAndNil(t *testing.T) {
 	}
 }
 
+func TestEnsembleSignalSourceMemberProbability(t *testing.T) {
+	feature := domain.FeatureContext{Ticker: "SBER"}
+	modelPath := filepath.Join(t.TempDir(), "model.json")
+	raw, err := json.Marshal(writeDeterministicModel(t, 2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(modelPath, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadEnsembleModel(modelPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	all, err := (&EnsembleSignalSource{Model: loaded}).RawProbability(feature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lgb, err := (&EnsembleSignalSource{Model: loaded, Member: EnsembleMemberLGB}).RawProbability(feature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	xgb, err := (&EnsembleSignalSource{Model: loaded, Member: EnsembleMemberXGB}).RawProbability(feature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logistic, err := (&EnsembleSignalSource{Model: loaded, Member: EnsembleMemberLogistic}).RawProbability(feature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(all-(lgb+xgb+logistic)/3) > 1e-12 {
+		t.Fatalf("ensemble member average mismatch: all=%v lgb=%v xgb=%v logistic=%v", all, lgb, xgb, logistic)
+	}
+	if math.Abs(lgb-0.5) > 1e-12 || math.Abs(xgb-0.5) > 1e-12 {
+		t.Fatalf("tree members should be neutral with empty trees: lgb=%v xgb=%v", lgb, xgb)
+	}
+
+	if _, err := (&EnsembleSignalSource{Model: loaded, Member: EnsembleMember("nope")}).RawProbability(feature); err == nil {
+		t.Fatal("RawProbability with unknown member: error = nil, want error")
+	}
+}
+
 func TestEnsembleValidateRejectsMalformedArtifact(t *testing.T) {
 	order := append([]string(nil), defaultFeatureOrder...)
 	zeros := make([]float64, len(order))

@@ -106,10 +106,20 @@ func validateTree(t *treeNode, features int) error {
 	return nil
 }
 
+type EnsembleMember string
+
+const (
+	EnsembleMemberAll      EnsembleMember = ""
+	EnsembleMemberLGB      EnsembleMember = "lgb"
+	EnsembleMemberXGB      EnsembleMember = "xgb"
+	EnsembleMemberLogistic EnsembleMember = "logistic"
+)
+
 type EnsembleSignalSource struct {
 	Model          *EnsembleModel
 	MaxLots        int
 	TargetNotional decimal.Decimal
+	Member         EnsembleMember
 }
 
 func (s *EnsembleSignalSource) Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
@@ -156,7 +166,10 @@ func (s *EnsembleSignalSource) RawProbability(feature domain.FeatureContext) (fl
 		return 0, fmt.Errorf("ensemble: feature vector length %d does not match order %d", len(vector), len(names))
 	}
 
-	probability := s.Model.Probability(vector)
+	probability, err := s.memberProbability(vector)
+	if err != nil {
+		return 0, err
+	}
 	if math.IsNaN(probability) || math.IsInf(probability, 0) {
 		return 0, fmt.Errorf("ensemble: computed probability is not finite for %s", feature.Ticker)
 	}
@@ -182,6 +195,24 @@ func (s *EnsembleSignalSource) targetLots(feature domain.FeatureContext) int {
 		return math.MaxInt32
 	}
 	return int(lots)
+}
+
+func (s *EnsembleSignalSource) memberProbability(vector []float64) (float64, error) {
+	switch s.Member {
+	case EnsembleMemberAll:
+		return s.Model.Probability(vector), nil
+	case EnsembleMemberLGB:
+		lgb, _, _ := s.Model.MemberProbabilities(vector)
+		return lgb, nil
+	case EnsembleMemberXGB:
+		_, xgb, _ := s.Model.MemberProbabilities(vector)
+		return xgb, nil
+	case EnsembleMemberLogistic:
+		_, _, logistic := s.Model.MemberProbabilities(vector)
+		return logistic, nil
+	default:
+		return 0, fmt.Errorf("ensemble: unknown member %q", s.Member)
+	}
 }
 
 func (m *EnsembleModel) Probability(vector []float64) float64 {

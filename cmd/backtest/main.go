@@ -75,6 +75,10 @@ func run() error {
 	var targetNotionalStr string
 	var wfDir string
 	var embargoBars int
+	var ensembleMember string
+	var labelMode string
+	var labelHorizonBars int
+	var labelDeadbandPct float64
 
 	flag.StringVar(&configPath, "config", "config.yaml", "path to config YAML")
 	flag.StringVar(&fromStr, "from", "", "backtest start date YYYY-MM-DD (default: one year ago)")
@@ -110,6 +114,10 @@ func run() error {
 	flag.StringVar(&targetNotionalStr, "target-notional", "", "ensemble: target ruble notional per position (when set, TargetLots=max(1, round(notional/price)); override MaxLots)")
 	flag.StringVar(&wfDir, "wf-dir", "", "when set, persist the per-window model and decision log under <wf-dir>/<from>_<till>/ for walk-forward reproducibility")
 	flag.IntVar(&embargoBars, "embargo-bars", 0, "embargo bars recorded in the persisted walk-forward window (no effect on a standalone backtest)")
+	flag.StringVar(&ensembleMember, "ensemble-member", "", "ensemble member to trade: empty (all), lgb, xgb or logistic")
+	flag.StringVar(&labelMode, "label-mode", "absolute", "label mode used for persisted reliability labels: absolute or excess")
+	flag.IntVar(&labelHorizonBars, "label-horizon-bars", 10, "forward-return horizon in bars used for persisted reliability labels")
+	flag.Float64Var(&labelDeadbandPct, "label-deadband-pct", 0.5, "deadband percent used for persisted reliability labels")
 	flag.Parse()
 
 	deposit, err := decimal.NewFromString(depositStr)
@@ -218,6 +226,7 @@ func run() error {
 		CSVSellPct:           csvSellPct,
 		EnsemblePath:         ensemblePath,
 		TargetNotional:       targetNotional,
+		EnsembleMember:       model.EnsembleMember(ensembleMember),
 	})
 	if err != nil {
 		return err
@@ -247,21 +256,25 @@ func run() error {
 
 		_, canonicalOrder := model.ToVector(domain.FeatureContext{})
 		wfConfig = walkforward.Config{
-			WindowStart:     wfStart,
-			WindowEnd:       wfEnd,
-			SignalSource:    signalSourceName,
-			Deposit:         deposit.String(),
-			MaxLots:         maxLots,
-			CommissionRate:  commissionRate.String(),
-			SpreadPct:       spreadPct.String(),
-			SlippagePct:     slippagePct.String(),
-			BorrowPctPerDay: borrowPctPerDay.String(),
-			TargetNotional:  targetNotional.String(),
-			Tickers:         append([]string(nil), tickers...),
-			FeatureOrder:    append([]string(nil), canonicalOrder...),
-			SpreadMinObs:    spreadMinObs,
-			SpreadDBPath:    spreadDBPath,
-			EmbargoBars:     embargoBars,
+			WindowStart:      wfStart,
+			WindowEnd:        wfEnd,
+			SignalSource:     signalSourceName,
+			Deposit:          deposit.String(),
+			MaxLots:          maxLots,
+			CommissionRate:   commissionRate.String(),
+			SpreadPct:        spreadPct.String(),
+			SlippagePct:      slippagePct.String(),
+			BorrowPctPerDay:  borrowPctPerDay.String(),
+			TargetNotional:   targetNotional.String(),
+			Tickers:          append([]string(nil), tickers...),
+			FeatureOrder:     append([]string(nil), canonicalOrder...),
+			SpreadMinObs:     spreadMinObs,
+			SpreadDBPath:     spreadDBPath,
+			EmbargoBars:      embargoBars,
+			EnsembleMember:   ensembleMember,
+			LabelMode:        labelMode,
+			LabelHorizonBars: labelHorizonBars,
+			LabelDeadbandPct: labelDeadbandPct,
 		}
 
 		var probabilityProvider walkforward.ProbabilityProvider
@@ -276,7 +289,7 @@ func run() error {
 			wfConfig.BuyThreshold = ens.BuyThreshold
 			wfConfig.SellThreshold = ens.SellThreshold
 			wfModelFile = ensemblePath
-			probabilityProvider = &model.EnsembleSignalSource{Model: ens}
+			probabilityProvider = &model.EnsembleSignalSource{Model: ens, Member: model.EnsembleMember(ensembleMember)}
 		case signalSourceModel:
 			weights, err := model.LoadWeights(modelPath)
 			if err != nil {
@@ -352,10 +365,37 @@ func run() error {
 		if err := walkforward.SavePeriodReturns(windowDir, returns); err != nil {
 			return fmt.Errorf("persist walk-forward period returns: %w", err)
 		}
+		requests := make([]model.DecisionLabelRequest, 0, len(window.Decisions))
+		for _, decision := range window.Decisions {
+			requests = append(requests, model.DecisionLabelRequest{
+				Ticker:      decision.Ticker,
+				Date:        decision.Date,
+				Probability: decision.Probability,
+			})
+		}
+		labeled, err := model.RealizedReliabilityPairs(ctx, source, requests, labelHorizonBars, labelDeadbandPct, model.LabelMode(labelMode))
+		if err != nil {
+			return fmt.Errorf("persist reliability labels: %w", err)
+		}
+		reliabilityRows := make([]walkforward.ReliabilityRow, 0, len(labeled))
+		for _, row := range labeled {
+			reliabilityRows = append(reliabilityRows, walkforward.ReliabilityRow{
+				Date:        row.Date,
+				Ticker:      row.Ticker,
+				Probability: row.Probability,
+				Label:       row.Label,
+			})
+		}
+		if err := window.SetReliabilityRows(reliabilityRows); err != nil {
+			return fmt.Errorf("persist reliability metadata: %w", err)
+		}
+		if err := walkforward.SaveReliability(windowDir, reliabilityRows); err != nil {
+			return fmt.Errorf("persist walk-forward reliability: %w", err)
+		}
 		if err := walkforward.Save(windowDir, window, wfModelFile); err != nil {
 			return fmt.Errorf("persist walk-forward window: %w", err)
 		}
-		log.Printf("backtest: persisted walk-forward window %s with %d decisions", windowDir, len(window.Decisions))
+		log.Printf("backtest: persisted walk-forward window %s with %d decisions and %d reliability rows", windowDir, len(window.Decisions), len(reliabilityRows))
 	}
 
 	report := result.Markdown()
@@ -398,6 +438,7 @@ type signalSourceOptions struct {
 	CSVSellPct           float64
 	EnsemblePath         string
 	TargetNotional       decimal.Decimal
+	EnsembleMember       model.EnsembleMember
 }
 
 func buildSignalSource(cfg *config.Config, opts signalSourceOptions) (backtest.SignalSource, func() error, error) {
@@ -430,7 +471,7 @@ func buildSignalSource(cfg *config.Config, opts signalSourceOptions) (backtest.S
 		if err != nil {
 			return nil, nil, err
 		}
-		source = &model.EnsembleSignalSource{Model: m, MaxLots: opts.MaxLots, TargetNotional: opts.TargetNotional}
+		source = &model.EnsembleSignalSource{Model: m, MaxLots: opts.MaxLots, TargetNotional: opts.TargetNotional, Member: opts.EnsembleMember}
 	default:
 		return nil, nil, fmt.Errorf("unknown signal source %q: want %q, %q, %q or %q", opts.Mode, signalSourceModel, signalSourceRule, signalSourceCSVProb, signalSourceEnsemble)
 	}
