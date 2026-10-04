@@ -112,11 +112,11 @@
 
 ### Task 2: Go-vs-Python inference parity fixture
 
-- [ ] add `scripts/dump_parity_fixture.py` that loads the source boosters behind `ensemble_model.json` and writes `internal/model/testdata/parity.json` (≈200 feature vectors from the golden fixture + `predict_proba` per member and ensemble)
-- [ ] generate the fixture on the ai-box and commit it
-- [ ] add `TestEnsembleMatchesPythonPredictProba` (max abs error ≤ 1e-6 per member and ensemble)
-- [ ] write test for fixture/feature-order mismatch producing a clear error, not a silent pass
-- [ ] run `make check` — must pass before Task 3
+- [x] add `scripts/dump_parity_fixture.py` that loads the source boosters behind `ensemble_model.json` and writes `internal/model/testdata/parity.json` (≈200 feature vectors from the golden fixture + `predict_proba` per member and ensemble)
+- [x] generate the fixture on the ai-box and commit it
+- [x] add `TestEnsembleMatchesPythonPredictProba` (max abs error ≤ 1e-6 per member and ensemble)
+- [x] write test for fixture/feature-order mismatch producing a clear error, not a silent pass
+- [x] run `make check` — must pass before Task 3
 
 ### Task 3: Purge and embargo in walk-forward and training splits
 

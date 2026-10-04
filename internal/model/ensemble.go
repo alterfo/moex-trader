@@ -185,10 +185,14 @@ func (s *EnsembleSignalSource) targetLots(feature domain.FeatureContext) int {
 }
 
 func (m *EnsembleModel) Probability(vector []float64) float64 {
-	pLGB := probabilityFromFloat64Trees(m.LGBTrees, m.LGBBaseLogit, vector)
-	pXGB := probabilityFromFloat32Trees(m.XGBTrees, m.XGBBaseLogit, vector)
-	pLogReg := m.logisticProbability(vector)
+	pLGB, pXGB, pLogReg := m.MemberProbabilities(vector)
 	return (pLGB + pXGB + pLogReg) / 3.0
+}
+
+func (m *EnsembleModel) MemberProbabilities(vector []float64) (lgb, xgb, logistic float64) {
+	return probabilityFromFloat64Trees(m.LGBTrees, m.LGBBaseLogit, vector),
+		probabilityFromFloat32Trees(m.XGBTrees, m.XGBBaseLogit, vector),
+		m.logisticProbability(vector)
 }
 
 func probabilityFromFloat32Trees(trees []treeNode, baseLogit float64, input []float64) float64 {
