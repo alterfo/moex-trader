@@ -40,6 +40,7 @@ type Config struct {
 	LabelMode          model.LabelMode
 	EmbargoBars        int
 	Dividends          []dividends.Record
+	VolScale           model.VolScale
 	Now                func() time.Time
 }
 
@@ -116,7 +117,7 @@ func Run(ctx context.Context, cfg Config, source backtest.HistoricalSource, stdo
 			ValAccuracy:   labeledAccuracy(valSamples, coef, bias, mean, std),
 		},
 	}
-	signalSource := &model.SignalSource{Weights: weights, MaxLots: cfg.MaxLots}
+	signalSource := &model.SignalSource{Weights: weights, MaxLots: cfg.MaxLots, VolScale: cfg.VolScale}
 	engine, err := backtest.NewEngine(backtest.Config{
 		Tickers:        cfg.Tickers,
 		From:           cfg.Split,

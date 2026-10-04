@@ -264,6 +264,7 @@ func run() error {
 		KillSwitch:       store,
 		Shadow:           shadow,
 		ShadowDigestPath: shadowDigestPath,
+		VolScaleEnabled:  cfg.Risk.VolScale.Enabled,
 	})
 	if err != nil {
 		return fmt.Errorf("create orchestrator: %w", err)
@@ -578,7 +579,16 @@ func newModelSignalSource(cfg *config.Config) (orchestrator.SignalSource, error)
 		if err != nil {
 			return nil, fmt.Errorf("load ensemble model: %w", err)
 		}
-		return &model.EnsembleSignalSource{Model: m, MaxLots: cfg.Risk.MaxLots, TargetNotional: cfg.Risk.TargetNotional}, nil
+		return &model.EnsembleSignalSource{
+			Model:          m,
+			MaxLots:        cfg.Risk.MaxLots,
+			TargetNotional: cfg.Risk.TargetNotional,
+			VolScale: model.VolScale{
+				Enabled: cfg.Risk.VolScale.Enabled,
+				MinMult: cfg.Risk.VolScale.MinMult,
+				MaxMult: cfg.Risk.VolScale.MaxMult,
+			},
+		}, nil
 	}
 	weights, err := model.LoadWeights(cfg.Model.Path)
 	if err != nil {

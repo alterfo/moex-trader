@@ -73,6 +73,9 @@ func run() error {
 	var intervalMin int
 	var featureBPD int
 	var targetNotionalStr string
+	var volScale bool
+	var volScaleMinStr string
+	var volScaleMaxStr string
 	var wfDir string
 	var embargoBars int
 	var ensembleMember string
@@ -112,6 +115,9 @@ func run() error {
 	flag.IntVar(&intervalMin, "interval-min", 0, "candle interval in minutes for intraday bars (24 or 0 = daily; ISS supports 1/10/60)")
 	flag.IntVar(&featureBPD, "feature-bars-per-day", 0, "scale day-named feature windows by this many bars/session (0 = keep raw bar-count windows; -1 = auto/calendar from -interval-min)")
 	flag.StringVar(&targetNotionalStr, "target-notional", "", "ensemble: target ruble notional per position (when set, TargetLots=max(1, round(notional/price)); override MaxLots)")
+	flag.BoolVar(&volScale, "vol-scale", false, "scale target notional by clamp(median realized_volatility / ticker realized_volatility, min, max)")
+	flag.StringVar(&volScaleMinStr, "vol-scale-min", "", "vol-scale minimum multiplier (required when -vol-scale is set)")
+	flag.StringVar(&volScaleMaxStr, "vol-scale-max", "", "vol-scale maximum multiplier (required when -vol-scale is set)")
 	flag.StringVar(&wfDir, "wf-dir", "", "when set, persist the per-window model and decision log under <wf-dir>/<from>_<till>/ for walk-forward reproducibility")
 	flag.IntVar(&embargoBars, "embargo-bars", 0, "embargo bars recorded in the persisted walk-forward window (no effect on a standalone backtest)")
 	flag.StringVar(&ensembleMember, "ensemble-member", "", "ensemble member to trade: empty (all), lgb, xgb or logistic")
@@ -149,6 +155,27 @@ func run() error {
 		targetNotional, err = decimal.NewFromString(targetNotionalStr)
 		if err != nil {
 			return fmt.Errorf("parse -target-notional: %w", err)
+		}
+	}
+	var volScaleCfg model.VolScale
+	if volScale {
+		if strings.TrimSpace(volScaleMinStr) == "" || strings.TrimSpace(volScaleMaxStr) == "" {
+			return fmt.Errorf("-vol-scale-min and -vol-scale-max are required when -vol-scale is set")
+		}
+		volScaleCfg.Enabled = true
+		volScaleCfg.MinMult, err = decimal.NewFromString(volScaleMinStr)
+		if err != nil {
+			return fmt.Errorf("parse -vol-scale-min: %w", err)
+		}
+		volScaleCfg.MaxMult, err = decimal.NewFromString(volScaleMaxStr)
+		if err != nil {
+			return fmt.Errorf("parse -vol-scale-max: %w", err)
+		}
+		if !volScaleCfg.MinMult.IsPositive() {
+			return fmt.Errorf("-vol-scale-min must be positive")
+		}
+		if volScaleCfg.MaxMult.LessThan(volScaleCfg.MinMult) {
+			return fmt.Errorf("-vol-scale-max must not be below -vol-scale-min")
 		}
 	}
 
@@ -227,6 +254,7 @@ func run() error {
 		EnsemblePath:         ensemblePath,
 		TargetNotional:       targetNotional,
 		EnsembleMember:       model.EnsembleMember(ensembleMember),
+		VolScale:             volScaleCfg,
 	})
 	if err != nil {
 		return err
@@ -275,6 +303,11 @@ func run() error {
 			LabelMode:        labelMode,
 			LabelHorizonBars: labelHorizonBars,
 			LabelDeadbandPct: labelDeadbandPct,
+		}
+		if volScaleCfg.Enabled {
+			wfConfig.VolScaleEnabled = true
+			wfConfig.VolScaleMinMult = volScaleCfg.MinMult.String()
+			wfConfig.VolScaleMaxMult = volScaleCfg.MaxMult.String()
 		}
 
 		var probabilityProvider walkforward.ProbabilityProvider
@@ -439,6 +472,7 @@ type signalSourceOptions struct {
 	EnsemblePath         string
 	TargetNotional       decimal.Decimal
 	EnsembleMember       model.EnsembleMember
+	VolScale             model.VolScale
 }
 
 func buildSignalSource(cfg *config.Config, opts signalSourceOptions) (backtest.SignalSource, func() error, error) {
@@ -450,7 +484,7 @@ func buildSignalSource(cfg *config.Config, opts signalSourceOptions) (backtest.S
 		if err != nil {
 			return nil, nil, fmt.Errorf("load model: %w", err)
 		}
-		source = &model.SignalSource{Weights: weights, MaxLots: opts.MaxLots}
+		source = &model.SignalSource{Weights: weights, MaxLots: opts.MaxLots, TargetNotional: opts.TargetNotional, VolScale: opts.VolScale}
 	case signalSourceRule:
 		threshold := backtestDecimal(opts.ReversalThresholdPct)
 		source = &backtest.ReversalRuleSource{Threshold: threshold, MaxLots: opts.MaxLots}
@@ -471,7 +505,7 @@ func buildSignalSource(cfg *config.Config, opts signalSourceOptions) (backtest.S
 		if err != nil {
 			return nil, nil, err
 		}
-		source = &model.EnsembleSignalSource{Model: m, MaxLots: opts.MaxLots, TargetNotional: opts.TargetNotional, Member: opts.EnsembleMember}
+		source = &model.EnsembleSignalSource{Model: m, MaxLots: opts.MaxLots, TargetNotional: opts.TargetNotional, Member: opts.EnsembleMember, VolScale: opts.VolScale}
 	default:
 		return nil, nil, fmt.Errorf("unknown signal source %q: want %q, %q, %q or %q", opts.Mode, signalSourceModel, signalSourceRule, signalSourceCSVProb, signalSourceEnsemble)
 	}

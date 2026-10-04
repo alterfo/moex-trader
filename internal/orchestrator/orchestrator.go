@@ -91,6 +91,7 @@ type Options struct {
 	KillSwitch       KillSwitchState
 	Shadow           *ShadowReconciler
 	ShadowDigestPath string
+	VolScaleEnabled  bool
 }
 
 type Orchestrator struct {
@@ -113,6 +114,8 @@ type Orchestrator struct {
 	shadow           *ShadowReconciler
 	shadowDigestPath string
 	shadowDigest     *ShadowDigest
+	volScaleEnabled  bool
+	currentMedian    decimal.Decimal
 }
 
 func New(opts Options) (*Orchestrator, error) {
@@ -175,6 +178,8 @@ func New(opts Options) (*Orchestrator, error) {
 		shadow:           opts.Shadow,
 		shadowDigestPath: opts.ShadowDigestPath,
 		shadowDigest:     NewShadowDigest(),
+		volScaleEnabled:  opts.VolScaleEnabled,
+		currentMedian:    decimal.Zero,
 	}, nil
 }
 
@@ -205,6 +210,9 @@ func (o *Orchestrator) RunOnce(ctx context.Context) {
 	if err != nil {
 		o.logger.Printf("orchestrator: account snapshot: %v", err)
 		return
+	}
+	if o.volScaleEnabled {
+		o.currentMedian = o.crossSectionalMedian(ctx)
 	}
 	for _, ticker := range o.tickers {
 		if ctx.Err() != nil {
@@ -256,6 +264,7 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string, account
 		}
 		return fmt.Errorf("build features for %s: %w", ticker, err)
 	}
+	feature.CrossSectionalVolatility = o.currentMedian
 	if err := o.record(ctx, ticker, StageIngest, auditJSON(feature)); err != nil {
 		return err
 	}
@@ -365,6 +374,25 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string, account
 	}
 	o.observe(ctx, Decision{Ticker: ticker, Signal: signal, Price: feature.LastPrice, Approved: true, Fill: fill})
 	return nil
+}
+
+func (o *Orchestrator) crossSectionalMedian(ctx context.Context) decimal.Decimal {
+	vols := make([]decimal.Decimal, 0, len(o.tickers))
+	for _, ticker := range o.tickers {
+		if ctx.Err() != nil {
+			return domain.MedianDecimal(vols)
+		}
+		input, err := o.ingestor.Ingest(ctx, ticker)
+		if err != nil {
+			continue
+		}
+		feature, err := o.builder.Build(input)
+		if err != nil || !feature.RealizedVolatility.IsPositive() {
+			continue
+		}
+		vols = append(vols, feature.RealizedVolatility)
+	}
+	return domain.MedianDecimal(vols)
 }
 
 func (o *Orchestrator) observe(ctx context.Context, decision Decision) {

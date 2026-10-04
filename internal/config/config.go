@@ -45,6 +45,7 @@ type Risk struct {
 	MaxLots                  int             `yaml:"max_lots"`
 	TargetNotional           decimal.Decimal `yaml:"target_notional"`
 	MaxNetExposure           decimal.Decimal `yaml:"max_net_exposure"`
+	VolScale                 VolScale        `yaml:"vol_scale"`
 	MaxSlippagePct           decimal.Decimal `yaml:"max_slippage_pct"`
 	RebalanceMinDeviationPct decimal.Decimal `yaml:"rebalance_min_deviation_pct"`
 	NoTradeAfterOpenMinutes  int             `yaml:"no_trade_after_open_minutes"`
@@ -54,6 +55,12 @@ type Risk struct {
 	KillSwitchOnDailyLoss    bool            `yaml:"kill_switch_on_daily_loss"`
 	DriftPSIThreshold        float64         `yaml:"drift_psi_threshold"`
 	DriftPSIWindow           int             `yaml:"drift_psi_window"`
+}
+
+type VolScale struct {
+	Enabled bool            `yaml:"enabled"`
+	MinMult decimal.Decimal `yaml:"min_mult"`
+	MaxMult decimal.Decimal `yaml:"max_mult"`
 }
 
 type Telegram struct {
@@ -260,6 +267,14 @@ func (c *Config) Validate() error {
 	}
 	if c.Risk.MaxNetExposure.IsNegative() {
 		return fmt.Errorf("risk.max_net_exposure must be non-negative")
+	}
+	if c.Risk.VolScale.Enabled {
+		if !c.Risk.VolScale.MinMult.IsPositive() {
+			return fmt.Errorf("risk.vol_scale.min_mult must be positive when vol_scale is enabled")
+		}
+		if c.Risk.VolScale.MaxMult.LessThan(c.Risk.VolScale.MinMult) {
+			return fmt.Errorf("risk.vol_scale.max_mult must not be below min_mult when vol_scale is enabled")
+		}
 	}
 	if c.Risk.MaxSlippagePct.IsNegative() || c.Risk.MaxSlippagePct.GreaterThan(decimal.NewFromInt(1)) {
 		return fmt.Errorf("risk.max_slippage_pct must be in [0,1]")

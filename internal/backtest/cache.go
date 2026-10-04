@@ -20,6 +20,11 @@ type CachedSignalSource struct {
 	cache map[string]domain.TradeSignal
 }
 
+func (s *CachedSignalSource) VolScaleEnabled() bool {
+	aware, ok := s.inner.(VolScaleAware)
+	return ok && aware.VolScaleEnabled()
+}
+
 func NewCachedSignalSource(inner SignalSource, path string) (*CachedSignalSource, error) {
 	s := &CachedSignalSource{inner: inner, path: path, cache: make(map[string]domain.TradeSignal)}
 	if path == "" {

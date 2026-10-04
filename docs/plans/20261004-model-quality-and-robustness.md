@@ -175,11 +175,11 @@
 
 ### Task 10: Experiment D — volatility-scaled position size
 
-- [ ] add `risk.vol_scale` config (`enabled`, `min_mult`, `max_mult`, default disabled) and apply in `EnsembleSignalSource` sizing: `notional × clamp(σ_median / σ_ticker, min, max)` using the existing `realized_volatility` feature and a cross-sectional median over the configured tickers from the same bar; all arithmetic in `decimal.Decimal`
-- [ ] wire the same option into `cmd/backtest`/`cmd/walkforward` flags so live and backtest share one code path
-- [ ] write tests: disabled reproduces the golden backtest bit-for-bit; clamp bounds; zero/missing volatility falls back to multiplier 1
-- [ ] measure with `min 0.5 / max 1.5` (single pre-registered setting, no grid) on the purged walk-forward; record in `docs/metrics.md` "Experiment D" in the same commit
-- [ ] run `make check` — must pass before Task 11
+- [x] add `risk.vol_scale` config (`enabled`, `min_mult`, `max_mult`, default disabled) and apply in `EnsembleSignalSource` sizing: `notional × clamp(σ_median / σ_ticker, min, max)` using the existing `realized_volatility` feature and a cross-sectional median over the configured tickers from the same bar; all arithmetic in `decimal.Decimal`
+- [x] wire the same option into `cmd/backtest`/`cmd/walkforward` flags so live and backtest share one code path
+- [x] write tests: disabled reproduces the golden backtest bit-for-bit; clamp bounds; zero/missing volatility falls back to multiplier 1
+- [x] measure with `min 0.5 / max 1.5` (single pre-registered setting, no grid) on the purged walk-forward; record in `docs/metrics.md` "Experiment D" in the same commit
+- [x] run `make check` — must pass before Task 11
 
 ### Task 11: Experiment E — sector exposure cap
 

@@ -59,6 +59,9 @@ func run() error {
 	var intervalMin int
 	var featureBPD int
 	var newsHistory string
+	var volScale bool
+	var volScaleMinStr string
+	var volScaleMaxStr string
 	var wfDir string
 	var outPath string
 	var tearsheetPath string
@@ -95,6 +98,9 @@ func run() error {
 	flag.IntVar(&intervalMin, "interval-min", 0, "candle interval in minutes for intraday bars (24 or 0 = daily)")
 	flag.IntVar(&featureBPD, "feature-bars-per-day", 0, "scale day-named feature windows by this many bars/session")
 	flag.StringVar(&newsHistory, "news-history", "", "path to a finanalys-format news_history.jsonl")
+	flag.BoolVar(&volScale, "vol-scale", false, "scale target notional by clamp(median realized_volatility / ticker realized_volatility, min, max)")
+	flag.StringVar(&volScaleMinStr, "vol-scale-min", "", "vol-scale minimum multiplier (required when -vol-scale is set)")
+	flag.StringVar(&volScaleMaxStr, "vol-scale-max", "", "vol-scale maximum multiplier (required when -vol-scale is set)")
 	flag.StringVar(&wfDir, "wf-dir", "", "directory to persist each window's model, config and metrics (required)")
 	flag.StringVar(&outPath, "out", "", "path to write the aggregate markdown report (default: stdout)")
 	flag.StringVar(&tearsheetPath, "tearsheet", "", "when set, write an aggregate HTML tearsheet to this path plus a <path>.metrics.json summary")
@@ -123,6 +129,27 @@ func run() error {
 	borrowPctPerDay, err := decimal.NewFromString(borrowPctDayStr)
 	if err != nil {
 		return fmt.Errorf("parse -borrow-pct-day: %w", err)
+	}
+	var volScaleCfg model.VolScale
+	if volScale {
+		if strings.TrimSpace(volScaleMinStr) == "" || strings.TrimSpace(volScaleMaxStr) == "" {
+			return fmt.Errorf("-vol-scale-min and -vol-scale-max are required when -vol-scale is set")
+		}
+		volScaleCfg.Enabled = true
+		volScaleCfg.MinMult, err = decimal.NewFromString(volScaleMinStr)
+		if err != nil {
+			return fmt.Errorf("parse -vol-scale-min: %w", err)
+		}
+		volScaleCfg.MaxMult, err = decimal.NewFromString(volScaleMaxStr)
+		if err != nil {
+			return fmt.Errorf("parse -vol-scale-max: %w", err)
+		}
+		if !volScaleCfg.MinMult.IsPositive() {
+			return fmt.Errorf("-vol-scale-min must be positive")
+		}
+		if volScaleCfg.MaxMult.LessThan(volScaleCfg.MinMult) {
+			return fmt.Errorf("-vol-scale-max must not be below -vol-scale-min")
+		}
 	}
 
 	cfg, err := config.Load(configPath)
@@ -212,6 +239,7 @@ func run() error {
 			pboKey:             pboKey,
 			pboSplits:          pboSplits,
 			embargoBars:        embargoBars,
+			volScale:           volScaleCfg,
 		}, source)
 	}
 
@@ -242,6 +270,7 @@ func run() error {
 			NewsHistory:        newsHistory,
 			LabelMode:          model.LabelMode(labelMode),
 			EmbargoBars:        embargoBars,
+			VolScale:           volScaleCfg,
 			Now:                time.Now,
 		}, source, io.Discard)
 		if err != nil {
@@ -264,6 +293,11 @@ func run() error {
 			SellThreshold:   sellPct,
 			FeatureOrder:    append([]string(nil), weights.FeatureOrder...),
 			EmbargoBars:     embargoBars,
+		}
+		if volScaleCfg.Enabled {
+			wfConfig.VolScaleEnabled = true
+			wfConfig.VolScaleMinMult = volScaleCfg.MinMult.String()
+			wfConfig.VolScaleMaxMult = volScaleCfg.MaxMult.String()
 		}
 		window := walkforward.Window{ID: windowID, Config: wfConfig}
 		returns := walkforward.DailyRealizedPnl(*result)
@@ -390,6 +424,7 @@ type candidatesRunConfig struct {
 	pboKey             string
 	pboSplits          int
 	embargoBars        int
+	volScale           model.VolScale
 }
 
 func runCandidates(ctx context.Context, cfg candidatesRunConfig, source backtest.HistoricalSource) error {
@@ -427,6 +462,7 @@ func runCandidates(ctx context.Context, cfg candidatesRunConfig, source backtest
 				NewsHistory:        cfg.newsHistory,
 				LabelMode:          cfg.labelMode,
 				EmbargoBars:        cfg.embargoBars,
+				VolScale:           cfg.volScale,
 				Now:                time.Now,
 			}, source, io.Discard)
 			if err != nil {

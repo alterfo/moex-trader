@@ -433,6 +433,45 @@ made here — Task 13 evaluates all C variants against the pre-registered gate
 Persisted `wf-dir` runs and `reliability.csv` files are under
 `/home/oleg/moex-trader-task9/wf/c_{ensemble,lgb,xgb,logistic}`.
 
+## Experiment D: volatility-scaled position size (2026-10-04)
+
+Adds `risk.vol_scale` (enabled/min_mult/max_mult, default disabled) and applies
+it inside `EnsembleSignalSource` sizing: the target notional is multiplied by
+`clamp(σ_median / σ_ticker, min_mult, max_mult)` before lots are derived, where
+`σ_ticker` is the existing `realized_volatility` feature and `σ_median` is the
+cross-sectional median of positive `realized_volatility` across the configured
+tickers with data on the same decision bar. A zero or missing `σ_ticker` (or a
+bar with no positive volatilities) falls back to multiplier 1. All arithmetic
+is `decimal.Decimal`; the median is injected per bar by the backtest engine via
+`FeatureContext.CrossSectionalVolatility`, so live and backtest share the same
+sizing path. The option is wired as `-vol-scale -vol-scale-min -vol-scale-max`
+in both `cmd/backtest` and `cmd/walkforward`, and persisted in the per-window
+`walkforward.Config`. The pre-registered setting is min 0.5 / max 1.5, replayed
+over the same Task 5 embargo-10 per-window ensemble artifacts (no retraining —
+vol-scale is a sizing-only change).
+
+| window | control realized | vol-scale realized | control trades | vol-scale trades | control max DD | vol-scale max DD | control kill | vol-scale kill |
+|---|---:|---:|---:|---:|---:|---:|---|---|
+| q1 (2025-03-05 -> 2025-06-05) | +4301.27 | +3930.80 | 66 | 65 | 3.57% | 3.60% | yes | yes |
+| q2 (2025-06-06 -> 2025-09-05) | +9.36 | +270.78 | 215 | 215 | 3.50% | 3.42% | no | no |
+| q3 (2025-09-06 -> 2025-12-03) | +34089.03 | +34211.13 | 193 | 186 | 0.90% | 0.77% | no | no |
+| q4 (2025-12-04 -> 2026-03-04) | -12339.10 | -12406.69 | 187 | 189 | 2.46% | 2.45% | no | no |
+| w2 (2026-03-05 -> 2026-06-06) | +2676.41 | +3425.01 | 141 | 152 | 1.17% | 1.02% | no | no |
+| w1 (2026-06-07 -> 2026-09-16) | +31092.50 | +30378.44 | 283 | 263 | 3.05% | 3.13% | no | no |
+| total | +59829.47 | +59809.47 | 1085 | 1070 | — | — | — | — |
+
+Realized P&L is closed-trade gross minus commission. Verdict: **REJECT**.
+Volatility scaling with min 0.5 / max 1.5 is essentially P&L-neutral: total
+realized +59809.47 RUB vs the purged control +59829.47 RUB (-20.00 RUB,
+-0.03%), so it fails deployment-gate criterion 1 (total realized P&L must
+exceed control). It stays positive in 5 of 6 windows like the control, and the
+per-window max DD / kill-switch profile is nearly identical (q1 still trips the
+kill switch; q1/q2/w1 still print day-close max DD above 3%). The sizing
+change redistributes a few percent of notional across names but does not add
+edge over the flat 15000₽/position control. `experiment_d_volatility_scaled` is
+marked rejected in the registry. Persisted `-wf-dir` runs are under
+`/home/oleg/moex-trader-task10/wf-volscale`.
+
 ## Gap-stress test (Task 8)
 
 Models overnight gaps against the deployed strategy's open portfolio at the

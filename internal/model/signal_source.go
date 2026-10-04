@@ -15,8 +15,14 @@ import (
 var _ orchestrator.SignalSource = (*SignalSource)(nil)
 
 type SignalSource struct {
-	Weights *Weights
-	MaxLots int
+	Weights        *Weights
+	MaxLots        int
+	TargetNotional decimal.Decimal
+	VolScale       VolScale
+}
+
+func (s *SignalSource) VolScaleEnabled() bool {
+	return s != nil && s.VolScale.Enabled
 }
 
 func (s *SignalSource) Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
@@ -37,10 +43,10 @@ func (s *SignalSource) Generate(ctx context.Context, feature domain.FeatureConte
 	switch {
 	case probability >= s.Weights.BuyThreshold:
 		signal.Action = domain.ActionBuy
-		signal.TargetLots = s.MaxLots
+		signal.TargetLots = targetLotsForNotional(s.TargetNotional, feature.LastPrice, feature.LotSize, s.MaxLots, s.VolScale, feature.RealizedVolatility, feature.CrossSectionalVolatility)
 	case probability <= s.Weights.SellThreshold:
 		signal.Action = domain.ActionSell
-		signal.TargetLots = s.MaxLots
+		signal.TargetLots = targetLotsForNotional(s.TargetNotional, feature.LastPrice, feature.LotSize, s.MaxLots, s.VolScale, feature.RealizedVolatility, feature.CrossSectionalVolatility)
 	default:
 		signal.HoldReason = domain.HoldReasonModel
 	}

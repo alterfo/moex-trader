@@ -32,6 +32,10 @@ type SignalSource interface {
 	Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error)
 }
 
+type VolScaleAware interface {
+	VolScaleEnabled() bool
+}
+
 // TargetPositionSource optionally extends SignalSource with absolute target
 // position semantics. The BUY/SELL/HOLD vocabulary cannot express "close to
 // flat" (HOLD means "keep the current position"), so a portfolio rebalancing
@@ -323,6 +327,8 @@ type Engine struct {
 	decisions int
 	holds     map[string]int
 
+	currentDayMedian decimal.Decimal
+
 	mu sync.Mutex
 }
 
@@ -459,6 +465,10 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 	dailyLossBlockedDays := 0
 	var firstKillDay time.Time
 	var prevAccrualDay time.Time
+	volScaleEnabled := false
+	if aware, ok := e.cfg.SignalSource.(VolScaleAware); ok {
+		volScaleEnabled = aware.VolScaleEnabled()
+	}
 	for _, day := range days {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -467,6 +477,10 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 		dayStartEquity := prevEquity
 		active, _ := e.kill.IsKillSwitchActive(ctx)
 		if !active {
+			e.currentDayMedian = decimal.Zero
+			if volScaleEnabled {
+				e.currentDayMedian = e.crossSectionalMedianVol(runs, day)
+			}
 			for _, run := range runs {
 				idx, ok := run.tradeableDays[day]
 				if !ok {
@@ -669,56 +683,12 @@ func (e *Engine) processTickerDay(ctx context.Context, run *tickerBacktest, d in
 		return nil
 	}
 
-	input := features.Input{
-		Ticker: ticker,
-		Price: features.PriceSnapshot{
-			LastPrice: candles[d-1].Close,
-			PrevClose: candles[d-2].Close,
-			AsOf:      decisionDay,
-		},
-		Candles: candles[:d],
-	}
-
-	feature, err := run.builder.Build(input)
+	feature, err := e.buildFeature(run, d)
 	if err != nil {
 		e.cfg.Logger.Printf("backtest: %s on %s: build features: %v", ticker, decisionDay.Format("2006-01-02"), err)
 		return nil
 	}
-
-	if e.cfg.NewsOverrides != nil {
-		dateKey := decisionDay.Format("2006-01-02")
-		if byDate, ok := e.cfg.NewsOverrides[ticker]; ok {
-			if agg, ok := byDate[dateKey]; ok {
-				feature.NewsSentiment = decimal.NewFromFloat(agg.Sentiment)
-				feature.NewsCount = agg.Count
-			}
-		}
-	}
-	if e.cfg.EventOverrides != nil {
-		dateKey := decisionDay.Format("2006-01-02")
-		if byDate, ok := e.cfg.EventOverrides[ticker]; ok {
-			if ev, ok := byDate[dateKey]; ok {
-				feature.EventDividend = ev.Dividend
-				feature.EventBuyback = ev.Buyback
-				feature.EventSanctions = ev.Sanctions
-				feature.EventIPO = ev.IPO
-				feature.EventReport = ev.Report
-				feature.EventDelisting = ev.Delisting
-				feature.EventMNA = ev.MNA
-				feature.EventDefault = ev.Default
-			}
-		}
-	}
-	if e.cfg.TopicSignalOverrides != nil {
-		dateKey := decisionDay.Format("2006-01-02")
-		if byDate, ok := e.cfg.TopicSignalOverrides[ticker]; ok {
-			if topic, ok := byDate[dateKey]; ok {
-				feature.NegotiationsSignal = decimal.NewFromFloat(topic.Negotiations)
-				feature.SanctionsSignal = decimal.NewFromFloat(topic.Sanctions)
-			}
-		}
-	}
-
+	feature.CrossSectionalVolatility = e.currentDayMedian
 	reason := domain.HoldReasonModel
 	signal, err := e.cfg.SignalSource.Generate(ctx, feature)
 	if err != nil {
@@ -774,6 +744,78 @@ func (e *Engine) processTickerDay(ctx context.Context, run *tickerBacktest, d in
 		}
 	}
 	return nil
+}
+
+func (e *Engine) buildFeature(run *tickerBacktest, d int) (domain.FeatureContext, error) {
+	ticker := run.ticker
+	candles := run.candles
+	decisionDay := candles[d].Begin
+
+	input := features.Input{
+		Ticker: ticker,
+		Price: features.PriceSnapshot{
+			LastPrice: candles[d-1].Close,
+			PrevClose: candles[d-2].Close,
+			AsOf:      decisionDay,
+		},
+		Candles: candles[:d],
+	}
+
+	feature, err := run.builder.Build(input)
+	if err != nil {
+		return domain.FeatureContext{}, err
+	}
+
+	if e.cfg.NewsOverrides != nil {
+		dateKey := decisionDay.Format("2006-01-02")
+		if byDate, ok := e.cfg.NewsOverrides[ticker]; ok {
+			if agg, ok := byDate[dateKey]; ok {
+				feature.NewsSentiment = decimal.NewFromFloat(agg.Sentiment)
+				feature.NewsCount = agg.Count
+			}
+		}
+	}
+	if e.cfg.EventOverrides != nil {
+		dateKey := decisionDay.Format("2006-01-02")
+		if byDate, ok := e.cfg.EventOverrides[ticker]; ok {
+			if ev, ok := byDate[dateKey]; ok {
+				feature.EventDividend = ev.Dividend
+				feature.EventBuyback = ev.Buyback
+				feature.EventSanctions = ev.Sanctions
+				feature.EventIPO = ev.IPO
+				feature.EventReport = ev.Report
+				feature.EventDelisting = ev.Delisting
+				feature.EventMNA = ev.MNA
+				feature.EventDefault = ev.Default
+			}
+		}
+	}
+	if e.cfg.TopicSignalOverrides != nil {
+		dateKey := decisionDay.Format("2006-01-02")
+		if byDate, ok := e.cfg.TopicSignalOverrides[ticker]; ok {
+			if topic, ok := byDate[dateKey]; ok {
+				feature.NegotiationsSignal = decimal.NewFromFloat(topic.Negotiations)
+				feature.SanctionsSignal = decimal.NewFromFloat(topic.Sanctions)
+			}
+		}
+	}
+	return feature, nil
+}
+
+func (e *Engine) crossSectionalMedianVol(runs []*tickerBacktest, day time.Time) decimal.Decimal {
+	vols := make([]decimal.Decimal, 0, len(runs))
+	for _, run := range runs {
+		idx, ok := run.tradeableDays[day]
+		if !ok {
+			continue
+		}
+		feature, err := e.buildFeature(run, idx)
+		if err != nil || !feature.RealizedVolatility.IsPositive() {
+			continue
+		}
+		vols = append(vols, feature.RealizedVolatility)
+	}
+	return domain.MedianDecimal(vols)
 }
 
 // applyTargetPosition reconciles the current position to an absolute signed

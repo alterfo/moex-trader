@@ -120,6 +120,11 @@ type EnsembleSignalSource struct {
 	MaxLots        int
 	TargetNotional decimal.Decimal
 	Member         EnsembleMember
+	VolScale       VolScale
+}
+
+func (s *EnsembleSignalSource) VolScaleEnabled() bool {
+	return s != nil && s.VolScale.Enabled
 }
 
 func (s *EnsembleSignalSource) Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
@@ -177,24 +182,7 @@ func (s *EnsembleSignalSource) RawProbability(feature domain.FeatureContext) (fl
 }
 
 func (s *EnsembleSignalSource) targetLots(feature domain.FeatureContext) int {
-	if !s.TargetNotional.IsPositive() {
-		return s.MaxLots
-	}
-	if !feature.LastPrice.IsPositive() {
-		return s.MaxLots
-	}
-	perUnit := feature.LastPrice
-	if feature.LotSize.IsPositive() {
-		perUnit = feature.LastPrice.Mul(feature.LotSize)
-	}
-	lots := s.TargetNotional.Div(perUnit).Round(0).IntPart()
-	if lots < 1 {
-		return 1
-	}
-	if lots > math.MaxInt32 {
-		return math.MaxInt32
-	}
-	return int(lots)
+	return targetLotsForNotional(s.TargetNotional, feature.LastPrice, feature.LotSize, s.MaxLots, s.VolScale, feature.RealizedVolatility, feature.CrossSectionalVolatility)
 }
 
 func (s *EnsembleSignalSource) memberProbability(vector []float64) (float64, error) {

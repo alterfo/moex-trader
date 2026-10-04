@@ -17,6 +17,11 @@ type ConfidenceGateSource struct {
 	MinConfidence decimal.Decimal
 }
 
+func (s *ConfidenceGateSource) VolScaleEnabled() bool {
+	aware, ok := s.Inner.(VolScaleAware)
+	return ok && aware.VolScaleEnabled()
+}
+
 func (s *ConfidenceGateSource) Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
 	signal, err := s.Inner.Generate(ctx, feature)
 	if err != nil {

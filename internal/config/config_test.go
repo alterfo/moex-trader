@@ -1076,3 +1076,38 @@ func TestAlertsNegativeRejected(t *testing.T) {
 		t.Fatal("Parse() error = nil, want validation error for negative probability_collapse_window")
 	}
 }
+
+func TestRiskVolScaleLoadedAndValidated(t *testing.T) {
+	clearEnv(t)
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\nrisk:\n  max_lots: 100000\n  vol_scale:\n    enabled: true\n    min_mult: \"0.5\"\n    max_mult: \"1.5\"\n"))
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if !cfg.Risk.VolScale.Enabled {
+		t.Fatal("expected vol_scale enabled")
+	}
+	if !cfg.Risk.VolScale.MinMult.Equal(decimal.NewFromFloat(0.5)) {
+		t.Fatalf("unexpected min_mult: %s", cfg.Risk.VolScale.MinMult)
+	}
+	if !cfg.Risk.VolScale.MaxMult.Equal(decimal.NewFromFloat(1.5)) {
+		t.Fatalf("unexpected max_mult: %s", cfg.Risk.VolScale.MaxMult)
+	}
+
+	_, err = Parse([]byte("storage:\n  path: ./trader.db\nrisk:\n  vol_scale:\n    enabled: true\n    min_mult: \"0\"\n    max_mult: \"1.5\"\n"))
+	if err == nil || !strings.Contains(err.Error(), "risk.vol_scale.min_mult") {
+		t.Fatalf("expected min_mult error, got: %v", err)
+	}
+
+	_, err = Parse([]byte("storage:\n  path: ./trader.db\nrisk:\n  vol_scale:\n    enabled: true\n    min_mult: \"0.5\"\n    max_mult: \"0.4\"\n"))
+	if err == nil || !strings.Contains(err.Error(), "risk.vol_scale.max_mult") {
+		t.Fatalf("expected max_mult error, got: %v", err)
+	}
+
+	disabled, err := Parse([]byte("storage:\n  path: ./trader.db\nrisk:\n  vol_scale:\n    enabled: false\n    min_mult: \"0\"\n    max_mult: \"0\"\n"))
+	if err != nil {
+		t.Fatalf("disabled vol_scale with zero multipliers must be accepted: %v", err)
+	}
+	if disabled.Risk.VolScale.Enabled {
+		t.Fatal("expected vol_scale disabled by default")
+	}
+}

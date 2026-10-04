@@ -37,6 +37,9 @@ type Config struct {
 	SlippagePct      string    `json:"slippage_pct"`
 	BorrowPctPerDay  string    `json:"borrow_pct_per_day"`
 	TargetNotional   string    `json:"target_notional,omitempty"`
+	VolScaleEnabled  bool      `json:"vol_scale_enabled,omitempty"`
+	VolScaleMinMult  string    `json:"vol_scale_min_mult,omitempty"`
+	VolScaleMaxMult  string    `json:"vol_scale_max_mult,omitempty"`
 	Tickers          []string  `json:"tickers"`
 	BuyThreshold     float64   `json:"buy_threshold"`
 	SellThreshold    float64   `json:"sell_threshold"`
@@ -129,6 +132,11 @@ type Recorder struct {
 	configID    string
 	mu          sync.Mutex
 	decisions   []Decision
+}
+
+func (r *Recorder) VolScaleEnabled() bool {
+	aware, ok := r.inner.(backtest.VolScaleAware)
+	return ok && aware.VolScaleEnabled()
 }
 
 func NewRecorder(inner backtest.SignalSource, probability ProbabilityProvider, configID string) *Recorder {
