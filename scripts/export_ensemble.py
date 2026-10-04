@@ -88,7 +88,7 @@ def main():
         if not EMBARGO_SPLIT:
             raise SystemExit("ENSEMBLE_EMBARGO_BARS requires ENSEMBLE_EMBARGO_SPLIT or ENSEMBLE_TRAIN_TILL")
         cutoff = pd.Timestamp(EMBARGO_SPLIT) - pd.Timedelta(days=EMBARGO_BARS)
-        train = train[train["label_date"] < cutoff]
+        train = train[pd.to_datetime(train["label_date"]) < cutoff]
     X = train[FEATURES].to_numpy(dtype=float)
     y = train["label"].to_numpy(dtype=int)
 

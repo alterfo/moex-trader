@@ -136,10 +136,10 @@
 
 ### Task 5: Honest baseline (measurement)
 
-- [ ] on the ai-box, rerun the deployed recipe (abs-10d, 18 features, 0.60/0.40, 15000, costs 0.0005×3) over the same 6 quarterly windows with `-embargo-bars 10`, persisting `-wf-dir`
-- [ ] record val AUC per window, realized P&L per window, max DD, trades — embargo 0 vs 10 side by side — in `docs/metrics.md` "Purged walk-forward baseline" in the same commit
-- [ ] this run is the **control** for the deployment gate; if purging drops realized P&L below 0, add ⚠️ here and stop before Task 7 to ask the user
-- [ ] run `make check` (metricsdoc lint) — must pass before Task 6
+- [x] on the ai-box, rerun the deployed recipe (abs-10d, 18 features, 0.60/0.40, 15000, costs 0.0005×3) over the same 6 quarterly windows with `-embargo-bars 10`, persisting `-wf-dir`
+- [x] record val AUC per window, realized P&L per window, max DD, trades — embargo 0 vs 10 side by side — in `docs/metrics.md` "Purged walk-forward baseline" in the same commit
+- [x] this run is the **control** for the deployment gate; if purging drops realized P&L below 0, add ⚠️ here and stop before Task 7 to ask the user
+- [x] run `make check` (metricsdoc lint) — must pass before Task 6
 
 ### Task 6: Observability — metrics and alerts
 

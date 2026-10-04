@@ -263,6 +263,54 @@ their numbers exist, so the multiple-testing penalty is honest from the start:
 47 = 41 historical attempts + 6 pre-registered. The Task 7 table above is the
 historical 41-attempt DSR computation and is not recomputed here.
 
+## Purged walk-forward baseline (2026-10-04)
+
+Honest six-window walk-forward of the deployed recipe (absolute-10d label,
+18 price/flow features, buy/sell 0.60/0.40, 15000 RUB target notional, 1M RUB
+deposit, commission/spread/slippage 0.05% each, hold-until-flip, kill switch
+on) on the current 17-ticker config universe (DATA excluded — dropped live on
+2026-09-21 for `short-enabled=false`). Each window retrains a fresh ensemble
+via `scripts/export_ensemble.py` on rows with `date <= train_till` (the day
+before the OOS window), then backtests OOS via `cmd/backtest -signal-source
+ensemble` on the portfolio-level engine. Two training variants per window:
+`-embargo-bars 0` (old behaviour) and `-embargo-bars 10` (purge every training
+row whose `label_date` reaches into the test window). Embargo is implemented
+in calendar days on both the Go and Python paths. The purged (embargo 10) run
+is the deployment-gate control (`purged_walkforward_control`).
+
+Dataset: the 2026-09-18 corrected `data-28f-full.csv` export from the ai-box
+`moex-trader-ns-task5` workspace (434-day EMA/SMMA convergence warmup),
+filtered to the 17 config tickers. `val_auc` is the fixed held-out window
+2026-06-18 -> 2026-09-16 that `scripts/export_ensemble.py` prints; for w1
+(2026-06-07 -> 2026-09-16) that window overlaps the OOS window, so w1's val
+AUC is not a clean out-of-sample measure. Persisted per-window
+`-wf-dir` (window.json + period_returns.csv) on the ai-box under
+`/home/oleg/moex-trader-task5/wf/embargo0_17` and `.../embargo10_17`.
+
+| window | emb0 realized | emb0 trades | emb0 max DD | emb0 kill | emb0 val AUC | emb10 realized | emb10 trades | emb10 max DD | emb10 kill | emb10 val AUC |
+|---|---|---|---|---|---|---|---|---|---|---|
+| q1 (2025-03-05 -> 2025-06-05) | +8373.93 | 251 | 3.08% | no | 0.5941 | +4301.27 | 66 | 3.57% | yes | 0.5947 |
+| q2 (2025-06-06 -> 2025-09-05) | +2935.09 | 216 | 3.51% | no | 0.5654 | +9.36 | 215 | 3.50% | no | 0.5730 |
+| q3 (2025-09-06 -> 2025-12-03) | +36239.52 | 194 | 0.66% | no | 0.5357 | +34089.03 | 193 | 0.90% | no | 0.5301 |
+| q4 (2025-12-04 -> 2026-03-04) | -9612.54 | 185 | 2.27% | no | 0.5246 | -12339.10 | 187 | 2.46% | no | 0.5257 |
+| w2 (2026-03-05 -> 2026-06-06) | -538.58 | 133 | 1.78% | no | 0.4962 | +2676.41 | 141 | 1.17% | no | 0.4872 |
+| w1 (2026-06-07 -> 2026-09-16) | +47635.22 | 292 | 1.33% | no | 0.5313 | +31092.50 | 283 | 3.05% | no | 0.5115 |
+| total | +85032.64 | 1271 | — | — | — | +59829.47 | 1085 | — | — | — |
+
+Realized P&L is closed-trade gross minus commission (MTM never drives the
+verdict). Mean val AUC: embargo 0 = 0.5412, embargo 10 = 0.5370 (delta
+-0.0042, inside the +/-0.005 noise band). Purging costs -25203.16 RUB
+(-29.6%) of realized P&L but the control stays strongly positive, so Task 5
+does not trigger the stop-before-Task-7 warning.
+
+Two engine notes for the deployment gate (Task 13). (1) Several windows show
+max DD above 3% without the persistent kill switch tripping (q1 emb0 3.08%,
+q2 emb0 3.51%, q2 emb10 3.50%): the gate evaluates drawdown on the risk-gate
+equity basis at order time while the reported max DD is the day-close MTM
+curve. (2) `scripts/export_ensemble.py` embargo purge had a string-vs-
+Timestamp comparison bug that crashed the embargo-10 training path; fixed by
+parsing `label_date` with `pd.to_datetime` before the cutoff comparison.
+
 ## Gap-stress test (Task 8)
 
 Models overnight gaps against the deployed strategy's open portfolio at the
