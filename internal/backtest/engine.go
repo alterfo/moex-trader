@@ -727,8 +727,20 @@ func (e *Engine) processTickerDay(ctx context.Context, run *tickerBacktest, d in
 		}
 	}
 
+	desired := signal.TargetLots
+	if signal.Action == domain.ActionSell {
+		desired = -signal.TargetLots
+	}
+	currentLots, err := e.CurrentLots(ctx, ticker)
+	if err != nil {
+		e.cfg.Logger.Printf("backtest: %s on %s: read current position: %v", ticker, decisionDay.Format("2006-01-02"), err)
+		return nil
+	}
+	delta := desired - currentLots
+
 	approved, err := e.gate.Approve(ctx, risk.Request{
-		Signal: signal,
+		Signal:            signal,
+		ExposureDeltaLots: &delta,
 		Market: risk.Market{
 			OrderPrice: execPrice,
 			PrevClose:  candles[d].Close,

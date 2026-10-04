@@ -943,3 +943,57 @@ func TestEngine_FillPriceUsesPerTickerSpread(t *testing.T) {
 		t.Fatalf("fallback BUY fill = %s, want %s", got, want)
 	}
 }
+
+type sectorTrimSignal struct {
+	calls int
+}
+
+func (s *sectorTrimSignal) Generate(_ context.Context, feat domain.FeatureContext) (domain.TradeSignal, error) {
+	if feat.LastPrice.Sign() <= 0 {
+		return domain.TradeSignal{Action: domain.ActionHold}, nil
+	}
+	s.calls++
+	lots := 2
+	if s.calls > 1 {
+		lots = 1
+	}
+	return domain.TradeSignal{
+		Ticker:     feat.Ticker,
+		Action:     domain.ActionBuy,
+		Confidence: decimal.RequireFromString("0.8"),
+		TargetLots: lots,
+		Reasoning:  "test",
+	}, nil
+}
+
+func TestEngine_SectorCapProjectsOrderDeltaForTargetSignals(t *testing.T) {
+	candles := benchCandles(120)
+	engine, err := NewEngine(Config{
+		Tickers:        []string{"TEST"},
+		From:           time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+		Till:           time.Date(2024, 1, 30, 0, 0, 0, 0, time.UTC),
+		Deposit:        decimal.NewFromInt(100000),
+		MaxLots:        10,
+		CommissionRate: decimal.Zero,
+		SpreadPct:      decimal.Zero,
+		SlippagePct:    decimal.Zero,
+		SectorCaps:     map[string]decimal.Decimal{"banks": decimal.NewFromInt(250)},
+		Sectors:        map[string]string{"TEST": "banks"},
+		SignalSource:   &sectorTrimSignal{},
+		Source:         fakeSource{candles: candles},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := engine.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.OpenPositions) != 1 {
+		t.Fatalf("open positions = %d, want 1", len(result.OpenPositions))
+	}
+	if result.OpenPositions[0].Lots != 1 {
+		t.Fatalf("open position lots = %d, want 1 (the trim to 1 lot must not be rejected by the sector cap)", result.OpenPositions[0].Lots)
+	}
+}
