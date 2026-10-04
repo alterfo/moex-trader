@@ -37,6 +37,7 @@ type Config struct {
 	OutPath            string
 	NewsHistory        string
 	LabelMode          model.LabelMode
+	EmbargoBars        int
 	Now                func() time.Time
 }
 
@@ -69,7 +70,10 @@ func Run(ctx context.Context, cfg Config, source backtest.HistoricalSource, stdo
 		log.Printf("trainrun: applied real news_sentiment/news_count to %d/%d samples and topic signals to %d/%d samples from %d records", applied, len(samples), topicApplied, len(samples), len(records))
 	}
 
-	trainSamples, valSamples := SplitTrainVal(samples, cfg.Split)
+	trainSamples, valSamples, err := SplitTrainValWithEmbargo(samples, cfg.Split, cfg.EmbargoBars)
+	if err != nil {
+		return nil, nil, err
+	}
 	if len(trainSamples) == 0 {
 		return nil, nil, errors.New("no training samples before the validation split")
 	}
@@ -149,14 +153,23 @@ func Run(ctx context.Context, cfg Config, source backtest.HistoricalSource, stdo
 }
 
 func SplitTrainVal(samples []model.LabeledSample, split time.Time) (train, val []model.LabeledSample) {
+	train, val, _ = SplitTrainValWithEmbargo(samples, split, 0)
+	return train, val
+}
+
+func SplitTrainValWithEmbargo(samples []model.LabeledSample, split time.Time, embargoBars int) (train, val []model.LabeledSample, err error) {
+	if embargoBars < 0 {
+		return nil, nil, errors.New("embargo-bars must be non-negative")
+	}
+	cutoff := split.AddDate(0, 0, -embargoBars)
 	for _, sample := range samples {
-		if sample.LabelDate.Before(split) {
+		if sample.LabelDate.Before(cutoff) {
 			train = append(train, sample)
 		} else {
 			val = append(val, sample)
 		}
 	}
-	return train, val
+	return train, val, nil
 }
 
 func validateConfig(cfg Config) error {
@@ -180,6 +193,12 @@ func validateConfig(cfg Config) error {
 	}
 	if !cfg.From.Before(cfg.Split) || !cfg.Split.Before(cfg.Till) {
 		return errors.New("split date must be after from and before till")
+	}
+	if cfg.EmbargoBars < 0 {
+		return errors.New("embargo-bars must be non-negative")
+	}
+	if cfg.EmbargoBars > 0 && !cfg.Split.AddDate(0, 0, -cfg.EmbargoBars).After(cfg.From) {
+		return errors.New("embargo-bars must be smaller than the training window")
 	}
 	return nil
 }

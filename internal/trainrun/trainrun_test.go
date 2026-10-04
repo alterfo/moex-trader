@@ -137,6 +137,93 @@ func TestSplitTrainValNoLabelLeakage(t *testing.T) {
 	}
 }
 
+func TestSplitTrainValWithEmbargo_PurgesLabelsNearSplit(t *testing.T) {
+	split := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	samples := []model.LabeledSample{
+		{Label: 1, LabelDate: split.AddDate(0, 0, -12)},
+		{Label: 1, LabelDate: split.AddDate(0, 0, -11)},
+		{Label: 0, LabelDate: split.AddDate(0, 0, -10)},
+		{Label: 0, LabelDate: split.AddDate(0, 0, -9)},
+		{Label: 0, LabelDate: split.AddDate(0, 0, -1)},
+		{Label: 1, LabelDate: split.AddDate(0, 0, 1)},
+	}
+
+	train, val, err := SplitTrainValWithEmbargo(samples, split, 10)
+	if err != nil {
+		t.Fatalf("SplitTrainValWithEmbargo() error = %v", err)
+	}
+	if len(train) != 2 || len(val) != 4 {
+		t.Fatalf("split = %d train / %d val, want 2/4", len(train), len(val))
+	}
+	cutoff := split.AddDate(0, 0, -10)
+	for _, sample := range train {
+		if !sample.LabelDate.Before(cutoff) {
+			t.Fatalf("train sample LabelDate %v is not before cutoff %v: label exit reaches the test window", sample.LabelDate, cutoff)
+		}
+	}
+	for _, sample := range val {
+		if sample.LabelDate.Before(cutoff) {
+			t.Fatalf("val sample LabelDate %v is before cutoff %v: sample misclassified as validation", sample.LabelDate, cutoff)
+		}
+	}
+}
+
+func TestSplitTrainValWithEmbargo_ZeroMatchesOldSplit(t *testing.T) {
+	split := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	samples := []model.LabeledSample{
+		{Label: 1, LabelDate: split.AddDate(0, 0, -3)},
+		{Label: 1, LabelDate: split.AddDate(0, 0, -1)},
+		{Label: 0, LabelDate: split},
+		{Label: 0, LabelDate: split.AddDate(0, 0, 2)},
+	}
+
+	oldTrain, oldVal := SplitTrainVal(samples, split)
+	newTrain, newVal, err := SplitTrainValWithEmbargo(samples, split, 0)
+	if err != nil {
+		t.Fatalf("SplitTrainValWithEmbargo() error = %v", err)
+	}
+	if len(oldTrain) != len(newTrain) || len(oldVal) != len(newVal) {
+		t.Fatalf("embargo 0 split = %d/%d train/val, old split = %d/%d", len(newTrain), len(newVal), len(oldTrain), len(oldVal))
+	}
+	for i := range oldTrain {
+		if oldTrain[i].LabelDate != newTrain[i].LabelDate {
+			t.Fatalf("train sample %d LabelDate = %v, want %v", i, newTrain[i].LabelDate, oldTrain[i].LabelDate)
+		}
+	}
+	for i := range oldVal {
+		if oldVal[i].LabelDate != newVal[i].LabelDate {
+			t.Fatalf("val sample %d LabelDate = %v, want %v", i, newVal[i].LabelDate, oldVal[i].LabelDate)
+		}
+	}
+}
+
+func TestSplitTrainValWithEmbargo_RejectsNegativeEmbargo(t *testing.T) {
+	split := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	if _, _, err := SplitTrainValWithEmbargo(nil, split, -1); err == nil {
+		t.Fatal("SplitTrainValWithEmbargo() error = nil, want negative embargo error")
+	}
+}
+
+func TestValidateConfigRejectsEmbargoLargerThanTrainingWindow(t *testing.T) {
+	cfg := Config{
+		Tickers:     []string{"TEST"},
+		From:        time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		Split:       time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
+		Till:        time.Date(2024, 7, 1, 0, 0, 0, 0, time.UTC),
+		HorizonDays: 5,
+		MaxLots:     1,
+		Deposit:     decimal.NewFromInt(100000),
+		EmbargoBars: 200,
+	}
+	if err := validateConfig(cfg); err == nil {
+		t.Fatal("validateConfig() error = nil, want embargo-larger-than-window error")
+	}
+	cfg.EmbargoBars = 100
+	if err := validateConfig(cfg); err != nil {
+		t.Fatalf("validateConfig() with valid embargo error = %v", err)
+	}
+}
+
 func TestRunRejectsInvalidConfig(t *testing.T) {
 	_, _, err := Run(context.Background(), Config{
 		Tickers:     []string{"TEST"},

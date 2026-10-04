@@ -46,7 +46,7 @@ func run() error {
 	var spreadStr string
 	var slippageStr string
 	var borrowPctDayStr string
-	var trainDays, testDays, stepDays int
+	var trainDays, testDays, stepDays, embargoBars int
 	var anchored bool
 	var horizonDays int
 	var deadbandPct float64
@@ -80,6 +80,7 @@ func run() error {
 	flag.IntVar(&trainDays, "train-days", 365, "training window length in calendar days")
 	flag.IntVar(&testDays, "test-days", 63, "out-of-sample test window length in calendar days")
 	flag.IntVar(&stepDays, "step-days", 63, "how far the split date advances between windows")
+	flag.IntVar(&embargoBars, "embargo-bars", 0, "training samples with a label exit within this many bars before the test split are purged")
 	flag.BoolVar(&anchored, "anchored", false, "use an expanding (anchored) training window instead of a fixed-length rolling one")
 	flag.IntVar(&horizonDays, "horizon-days", 5, "forward-return label horizon in trading days")
 	flag.Float64Var(&deadbandPct, "deadband-pct", 0.5, "exclude labels with absolute forward return below this percent")
@@ -180,14 +181,14 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	specs, err := walkforward.GenerateWindowSpecs(from, till, trainDays, testDays, stepDays, anchored)
+	specs, err := walkforward.GenerateWindowSpecsWithEmbargo(from, till, trainDays, testDays, stepDays, embargoBars, anchored)
 	if err != nil {
 		return err
 	}
 	if len(specs) == 0 {
 		return fmt.Errorf("walk-forward: window %s..%s is too short for train-days=%d test-days=%d", from.Format("2006-01-02"), till.Format("2006-01-02"), trainDays, testDays)
 	}
-	log.Printf("walkforward: %d windows generated (train=%dd test=%dd step=%dd anchored=%v)", len(specs), trainDays, testDays, stepDays, anchored)
+	log.Printf("walkforward: %d windows generated (train=%dd test=%dd step=%dd anchored=%v embargo=%d bars)", len(specs), trainDays, testDays, stepDays, anchored, embargoBars)
 
 	baseTrainCfg := model.TrainConfig{LearningRate: learningRate, L2Lambda: l2Lambda, Epochs: epochs}
 
@@ -210,6 +211,7 @@ func run() error {
 			wfDir:              wfDir,
 			pboKey:             pboKey,
 			pboSplits:          pboSplits,
+			embargoBars:        embargoBars,
 		}, source)
 	}
 
@@ -239,6 +241,7 @@ func run() error {
 			OutPath:            modelOut,
 			NewsHistory:        newsHistory,
 			LabelMode:          model.LabelMode(labelMode),
+			EmbargoBars:        embargoBars,
 			Now:                time.Now,
 		}, source, io.Discard)
 		if err != nil {
@@ -260,6 +263,7 @@ func run() error {
 			BuyThreshold:    buyPct,
 			SellThreshold:   sellPct,
 			FeatureOrder:    append([]string(nil), weights.FeatureOrder...),
+			EmbargoBars:     embargoBars,
 		}
 		window := walkforward.Window{ID: windowID, Config: wfConfig}
 		if err := walkforward.Save(windowDir, window, modelOut); err != nil {
@@ -378,6 +382,7 @@ type candidatesRunConfig struct {
 	wfDir              string
 	pboKey             string
 	pboSplits          int
+	embargoBars        int
 }
 
 func runCandidates(ctx context.Context, cfg candidatesRunConfig, source backtest.HistoricalSource) error {
@@ -414,6 +419,7 @@ func runCandidates(ctx context.Context, cfg candidatesRunConfig, source backtest
 				CommissionRate:     cfg.commissionRate,
 				NewsHistory:        cfg.newsHistory,
 				LabelMode:          cfg.labelMode,
+				EmbargoBars:        cfg.embargoBars,
 				Now:                time.Now,
 			}, source, io.Discard)
 			if err != nil {

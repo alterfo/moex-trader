@@ -42,6 +42,7 @@ type Config struct {
 	FeatureOrder    []string  `json:"feature_order"`
 	SpreadMinObs    int       `json:"spread_min_obs"`
 	SpreadDBPath    string    `json:"spread_db_path,omitempty"`
+	EmbargoBars     int       `json:"embargo_bars,omitempty"`
 }
 
 type Decision struct {

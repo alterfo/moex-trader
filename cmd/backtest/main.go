@@ -74,6 +74,7 @@ func run() error {
 	var featureBPD int
 	var targetNotionalStr string
 	var wfDir string
+	var embargoBars int
 
 	flag.StringVar(&configPath, "config", "config.yaml", "path to config YAML")
 	flag.StringVar(&fromStr, "from", "", "backtest start date YYYY-MM-DD (default: one year ago)")
@@ -108,6 +109,7 @@ func run() error {
 	flag.IntVar(&featureBPD, "feature-bars-per-day", 0, "scale day-named feature windows by this many bars/session (0 = keep raw bar-count windows; -1 = auto/calendar from -interval-min)")
 	flag.StringVar(&targetNotionalStr, "target-notional", "", "ensemble: target ruble notional per position (when set, TargetLots=max(1, round(notional/price)); override MaxLots)")
 	flag.StringVar(&wfDir, "wf-dir", "", "when set, persist the per-window model and decision log under <wf-dir>/<from>_<till>/ for walk-forward reproducibility")
+	flag.IntVar(&embargoBars, "embargo-bars", 0, "embargo bars recorded in the persisted walk-forward window (no effect on a standalone backtest)")
 	flag.Parse()
 
 	deposit, err := decimal.NewFromString(depositStr)
@@ -259,6 +261,7 @@ func run() error {
 			FeatureOrder:    append([]string(nil), canonicalOrder...),
 			SpreadMinObs:    spreadMinObs,
 			SpreadDBPath:    spreadDBPath,
+			EmbargoBars:     embargoBars,
 		}
 
 		var probabilityProvider walkforward.ProbabilityProvider

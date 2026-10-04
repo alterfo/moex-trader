@@ -110,3 +110,52 @@ func TestGenerateWindowSpecs_LastWindowNeverExceedsTill(t *testing.T) {
 		}
 	}
 }
+
+func TestGenerateWindowSpecsWithEmbargo_EmbargoZeroMatchesOldBehaviour(t *testing.T) {
+	from := d("2024-01-01")
+	till := d("2024-07-01")
+	old, err := GenerateWindowSpecs(from, till, 90, 30, 30, false)
+	if err != nil {
+		t.Fatalf("GenerateWindowSpecs() error = %v", err)
+	}
+	got, err := GenerateWindowSpecsWithEmbargo(from, till, 90, 30, 30, 0, false)
+	if err != nil {
+		t.Fatalf("GenerateWindowSpecsWithEmbargo() error = %v", err)
+	}
+	if len(old) != len(got) {
+		t.Fatalf("len = %d, want %d", len(got), len(old))
+	}
+	for i := range old {
+		if old[i] != got[i] {
+			t.Fatalf("window %d = %+v, want %+v", i, got[i], old[i])
+		}
+	}
+}
+
+func TestGenerateWindowSpecsWithEmbargo_SetsEmbargo(t *testing.T) {
+	from := d("2024-01-01")
+	till := d("2024-07-01")
+	specs, err := GenerateWindowSpecsWithEmbargo(from, till, 90, 30, 30, 10, false)
+	if err != nil {
+		t.Fatalf("GenerateWindowSpecsWithEmbargo() error = %v", err)
+	}
+	if len(specs) == 0 {
+		t.Fatal("expected at least one window")
+	}
+	for i, spec := range specs {
+		if spec.EmbargoBars != 10 {
+			t.Fatalf("window %d: EmbargoBars = %d, want 10", i, spec.EmbargoBars)
+		}
+	}
+}
+
+func TestGenerateWindowSpecsWithEmbargo_RejectsInvalidEmbargo(t *testing.T) {
+	from := d("2024-01-01")
+	till := d("2024-07-01")
+	if _, err := GenerateWindowSpecsWithEmbargo(from, till, 90, 30, 30, -1, false); err == nil {
+		t.Fatal("expected error for negative embargo-bars")
+	}
+	if _, err := GenerateWindowSpecsWithEmbargo(from, till, 90, 30, 30, 90, false); err == nil {
+		t.Fatal("expected error when embargo-bars is not smaller than train-days")
+	}
+}

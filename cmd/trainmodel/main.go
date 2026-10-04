@@ -54,6 +54,7 @@ type options struct {
 	newsHistory        string
 	labelMode          string
 	horizonMode        string
+	embargoBars        int
 }
 
 func main() {
@@ -139,6 +140,7 @@ func run(args []string, stdout io.Writer) error {
 		OutPath:        opts.outPath,
 		NewsHistory:    opts.newsHistory,
 		LabelMode:      model.LabelMode(opts.labelMode),
+		EmbargoBars:    opts.embargoBars,
 		Now:            time.Now,
 	}, source, stdout)
 	return err
@@ -178,6 +180,7 @@ func parseOptions(args []string) (options, error) {
 	fs.StringVar(&opts.newsHistory, "news-history", "", "path to a finanalys-format news_history.jsonl to override news_sentiment/news_count with real historical values where available")
 	fs.StringVar(&opts.labelMode, "label-mode", "excess", "label target: excess (vs IMOEX) or absolute forward return")
 	fs.StringVar(&opts.horizonMode, "horizon-mode", "", "forward-window unit: \"\" / bars (fixed bar count) or calendar_days (nearest candle to entry+horizon-days)")
+	fs.IntVar(&opts.embargoBars, "embargo-bars", 0, "training samples with a label exit within this many bars before the validation split are purged")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}
@@ -213,6 +216,12 @@ func resolveWindow(opts options, now time.Time) (from, till, split time.Time, er
 	}
 	if !split.After(from) || !split.Before(till) {
 		return time.Time{}, time.Time{}, time.Time{}, errors.New("split date must be after from and before till")
+	}
+	if opts.embargoBars < 0 {
+		return time.Time{}, time.Time{}, time.Time{}, errors.New("embargo-bars must be non-negative")
+	}
+	if opts.embargoBars > 0 && !split.AddDate(0, 0, -opts.embargoBars).After(from) {
+		return time.Time{}, time.Time{}, time.Time{}, errors.New("embargo-bars must be smaller than the training window")
 	}
 	return from, till, split, nil
 }

@@ -54,6 +54,7 @@ func TestParseOptionsOverrides(t *testing.T) {
 		"-epochs", "250",
 		"-split-date", "2024-07-01",
 		"-val-days", "30",
+		"-embargo-bars", "10",
 		"-max-lots", "3",
 		"-out", "/tmp/model.json",
 	})
@@ -80,6 +81,9 @@ func TestParseOptionsOverrides(t *testing.T) {
 	}
 	if opts.maxLots != 3 || opts.outPath != "/tmp/model.json" {
 		t.Fatalf("maxLots/out = (%d, %q), want (3, /tmp/model.json)", opts.maxLots, opts.outPath)
+	}
+	if opts.embargoBars != 10 {
+		t.Fatalf("embargoBars = %d, want 10", opts.embargoBars)
 	}
 }
 
@@ -138,5 +142,17 @@ func TestResolveWindowDefaults(t *testing.T) {
 	}
 	if !split.Equal(now.AddDate(0, 0, -10)) {
 		t.Fatalf("split = %v, want %v", split, now.AddDate(0, 0, -10))
+	}
+}
+
+func TestResolveWindowRejectsEmbargoLargerThanTrainingWindow(t *testing.T) {
+	opts := options{
+		fromStr:      "2024-01-01",
+		tillStr:      "2024-07-01",
+		splitDateStr: "2024-06-01",
+		embargoBars:  200,
+	}
+	if _, _, _, err := resolveWindow(opts, time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC)); err == nil {
+		t.Fatal("resolveWindow() error = nil, want embargo-larger-than-window error")
 	}
 }

@@ -120,11 +120,11 @@
 
 ### Task 3: Purge and embargo in walk-forward and training splits
 
-- [ ] add `EmbargoBars int` to `walkforward.WindowSpec` generation (`GenerateWindowSpecs`) and purge training samples whose label exit date (`forwardExitIndex`) is on/after the test window start
-- [ ] add `-embargo-bars` to `cmd/walkforward`, `cmd/backtest -wf-dir`, `cmd/trainmodel` holdout split, default 0 (old behaviour)
-- [ ] mirror the purge in `scripts/export_ensemble.py` date split (env/flag, default off) so Go and Python splits agree
-- [ ] write tests: no training sample's exit index reaches the test window; embargo 0 reproduces the old split exactly; embargo larger than the window returns an error
-- [ ] run `make check` — must pass before Task 4
+- [x] add `EmbargoBars int` to `walkforward.WindowSpec` generation (`GenerateWindowSpecs`) and purge training samples whose label exit date (`forwardExitIndex`) is on/after the test window start
+- [x] add `-embargo-bars` to `cmd/walkforward`, `cmd/backtest -wf-dir`, `cmd/trainmodel` holdout split, default 0 (old behaviour)
+- [x] mirror the purge in `scripts/export_ensemble.py` date split (env/flag, default off) so Go and Python splits agree
+- [x] write tests: no training sample's exit index reaches the test window; embargo 0 reproduces the old split exactly; embargo larger than the window returns an error
+- [x] run `make check` — must pass before Task 4
 
 ### Task 4: Period-return matrices and computable PBO
 

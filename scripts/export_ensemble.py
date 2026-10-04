@@ -24,6 +24,8 @@ FEATURES = os.environ.get("ENSEMBLE_FEATURES14","").split(",") if os.environ.get
 ORDER = os.environ.get("ENSEMBLE_FEATURE_ORDER", "")
 ORDER = ORDER.split(",") if ORDER else FEATURES
 TRAIN_TILL = os.environ.get("ENSEMBLE_TRAIN_TILL", "")
+EMBARGO_SPLIT = os.environ.get("ENSEMBLE_EMBARGO_SPLIT", TRAIN_TILL)
+EMBARGO_BARS = int(os.environ.get("ENSEMBLE_EMBARGO_BARS", "0") or "0")
 REGIME_BALANCE = os.environ.get("ENSEMBLE_REGIME_BALANCE", "")
 REGIME_WINDOW = int(os.environ.get("ENSEMBLE_REGIME_WINDOW", "21"))
 REGIME_BUCKETS = int(os.environ.get("ENSEMBLE_REGIME_BUCKETS", "3"))
@@ -82,6 +84,11 @@ def main():
     train = df[df["split"] == "train"]
     if TRAIN_TILL:
         train = train[train["date"] <= TRAIN_TILL]
+    if EMBARGO_BARS:
+        if not EMBARGO_SPLIT:
+            raise SystemExit("ENSEMBLE_EMBARGO_BARS requires ENSEMBLE_EMBARGO_SPLIT or ENSEMBLE_TRAIN_TILL")
+        cutoff = pd.Timestamp(EMBARGO_SPLIT) - pd.Timedelta(days=EMBARGO_BARS)
+        train = train[train["label_date"] < cutoff]
     X = train[FEATURES].to_numpy(dtype=float)
     y = train["label"].to_numpy(dtype=int)
 
