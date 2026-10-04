@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/olegsidorkin/moex-trader/internal/backtest"
 	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/model"
@@ -26,31 +28,33 @@ const (
 )
 
 type Config struct {
-	WindowStart      time.Time `json:"window_start"`
-	WindowEnd        time.Time `json:"window_end"`
-	SignalSource     string    `json:"signal_source"`
-	ModelPath        string    `json:"model_path,omitempty"`
-	Deposit          string    `json:"deposit"`
-	MaxLots          int       `json:"max_lots"`
-	CommissionRate   string    `json:"commission_rate"`
-	SpreadPct        string    `json:"spread_pct"`
-	SlippagePct      string    `json:"slippage_pct"`
-	BorrowPctPerDay  string    `json:"borrow_pct_per_day"`
-	TargetNotional   string    `json:"target_notional,omitempty"`
-	VolScaleEnabled  bool      `json:"vol_scale_enabled,omitempty"`
-	VolScaleMinMult  string    `json:"vol_scale_min_mult,omitempty"`
-	VolScaleMaxMult  string    `json:"vol_scale_max_mult,omitempty"`
-	Tickers          []string  `json:"tickers"`
-	BuyThreshold     float64   `json:"buy_threshold"`
-	SellThreshold    float64   `json:"sell_threshold"`
-	FeatureOrder     []string  `json:"feature_order"`
-	SpreadMinObs     int       `json:"spread_min_obs"`
-	SpreadDBPath     string    `json:"spread_db_path,omitempty"`
-	EmbargoBars      int       `json:"embargo_bars,omitempty"`
-	EnsembleMember   string    `json:"ensemble_member,omitempty"`
-	LabelMode        string    `json:"label_mode,omitempty"`
-	LabelHorizonBars int       `json:"label_horizon_bars,omitempty"`
-	LabelDeadbandPct float64   `json:"label_deadband_pct,omitempty"`
+	WindowStart      time.Time                  `json:"window_start"`
+	WindowEnd        time.Time                  `json:"window_end"`
+	SignalSource     string                     `json:"signal_source"`
+	ModelPath        string                     `json:"model_path,omitempty"`
+	Deposit          string                     `json:"deposit"`
+	MaxLots          int                        `json:"max_lots"`
+	CommissionRate   string                     `json:"commission_rate"`
+	SpreadPct        string                     `json:"spread_pct"`
+	SlippagePct      string                     `json:"slippage_pct"`
+	BorrowPctPerDay  string                     `json:"borrow_pct_per_day"`
+	TargetNotional   string                     `json:"target_notional,omitempty"`
+	VolScaleEnabled  bool                       `json:"vol_scale_enabled,omitempty"`
+	VolScaleMinMult  string                     `json:"vol_scale_min_mult,omitempty"`
+	VolScaleMaxMult  string                     `json:"vol_scale_max_mult,omitempty"`
+	SectorCaps       map[string]decimal.Decimal `json:"sector_caps,omitempty"`
+	Sectors          map[string]string          `json:"sectors,omitempty"`
+	Tickers          []string                   `json:"tickers"`
+	BuyThreshold     float64                    `json:"buy_threshold"`
+	SellThreshold    float64                    `json:"sell_threshold"`
+	FeatureOrder     []string                   `json:"feature_order"`
+	SpreadMinObs     int                        `json:"spread_min_obs"`
+	SpreadDBPath     string                     `json:"spread_db_path,omitempty"`
+	EmbargoBars      int                        `json:"embargo_bars,omitempty"`
+	EnsembleMember   string                     `json:"ensemble_member,omitempty"`
+	LabelMode        string                     `json:"label_mode,omitempty"`
+	LabelHorizonBars int                        `json:"label_horizon_bars,omitempty"`
+	LabelDeadbandPct float64                    `json:"label_deadband_pct,omitempty"`
 }
 
 type Decision struct {

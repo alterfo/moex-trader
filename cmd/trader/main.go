@@ -193,6 +193,8 @@ func run() error {
 	riskConfig := risk.DefaultConfig()
 	riskConfig.MaxLots = cfg.Risk.MaxLots
 	riskConfig.MaxNetExposure = cfg.Risk.MaxNetExposure
+	riskConfig.SectorCaps = cfg.Risk.SectorCaps
+	riskConfig.Sectors = cfg.Risk.Sectors
 	riskConfig.Positions = store
 	if runtime.positionReader != nil {
 		riskConfig.Positions = runtime.positionReader

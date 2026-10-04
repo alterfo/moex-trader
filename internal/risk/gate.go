@@ -105,7 +105,13 @@ type Config struct {
 	// MaxNetExposure caps the book's GROSS position notional (sum of |net|
 	// per ticker), not the signed net. 0 disables the cap. Kept under its
 	// historical name for config compatibility; see exceedsMaxNetExposure.
-	MaxNetExposure        decimal.Decimal
+	MaxNetExposure decimal.Decimal
+	// SectorCaps caps gross position notional per sector (sum of |net|
+	// across tickers assigned to that sector). A sector absent from the map is
+	// uncapped; a present zero cap allows only flatten-to-flat orders in that
+	// sector. Sectors maps an upper-cased ticker to its sector name.
+	SectorCaps            map[string]decimal.Decimal
+	Sectors               map[string]string
 	Canceller             OrderCanceller
 	Positions             PositionReader
 	Store                 KillSwitchStore
@@ -120,6 +126,8 @@ type HardenedGate struct {
 	fatFingerPct          decimal.Decimal
 	maxDrawdownPct        decimal.Decimal
 	maxNetExposure        decimal.Decimal
+	sectorCaps            map[string]decimal.Decimal
+	sectors               map[string]string
 	canceller             OrderCanceller
 	positions             PositionReader
 	store                 KillSwitchStore
@@ -156,12 +164,19 @@ func NewHardenedGate(cfg Config) (*HardenedGate, error) {
 	if cfg.MaxNetExposure.IsNegative() {
 		return nil, fmt.Errorf("risk gate: max net exposure must be non-negative")
 	}
+	for sector, cap := range cfg.SectorCaps {
+		if cap.IsNegative() {
+			return nil, fmt.Errorf("risk gate: sector cap %q must be non-negative", sector)
+		}
+	}
 	return &HardenedGate{
 		maxLots:               cfg.MaxLots,
 		maxDailyLossPct:       cfg.MaxDailyLossPct,
 		fatFingerPct:          cfg.FatFingerPct,
 		maxDrawdownPct:        cfg.MaxDrawdownPct,
 		maxNetExposure:        cfg.MaxNetExposure,
+		sectorCaps:            cloneSectorCaps(cfg.SectorCaps),
+		sectors:               cloneSectors(cfg.Sectors),
 		canceller:             cfg.Canceller,
 		positions:             cfg.Positions,
 		store:                 cfg.Store,
@@ -221,6 +236,9 @@ func (g *HardenedGate) ApproveReason(ctx context.Context, request Request) (Deci
 	}
 	if g.exceedsMaxNetExposure(ctx, request) {
 		return Decision{Reason: "max_net_exposure_exceeded"}, nil
+	}
+	if g.exceedsSectorCap(ctx, request) {
+		return Decision{Reason: "sector_cap"}, nil
 	}
 	if g.canceller != nil && (request.Signal.Action == domain.ActionBuy || request.Signal.Action == domain.ActionSell) && !g.hasAccountData(request.Account) {
 		return Decision{}, fmt.Errorf("risk gate: live trading requires account deposit and equity data")
@@ -330,6 +348,91 @@ func (g *HardenedGate) exceedsMaxNetExposureLegacy(ctx context.Context, delta de
 		return true
 	}
 	return current.Add(delta).Abs().GreaterThan(g.maxNetExposure)
+}
+
+// exceedsSectorCap rejects orders that would push a sector's gross position
+// notional beyond its cap. The projection is per ticker, exactly like
+// exceedsMaxNetExposure: this order changes one name, so only that name's leg
+// is replaced, and the other names in the same sector are summed by |notional|.
+// A ticker without a sector, or a sector without a cap, is never blocked. A
+// cap of zero allows only flatten-to-flat orders in that sector. A configured
+// cap fails closed when per-ticker exposure is unavailable.
+func (g *HardenedGate) exceedsSectorCap(ctx context.Context, request Request) bool {
+	if len(g.sectorCaps) == 0 {
+		return false
+	}
+	if request.Signal.Action != domain.ActionBuy && request.Signal.Action != domain.ActionSell {
+		return false
+	}
+	if request.Signal.TargetLots == 0 || request.Market.OrderPrice.Sign() <= 0 {
+		return false
+	}
+	ticker := normalizeTicker(request.Signal.Ticker)
+	sector, assigned := g.sectors[ticker]
+	if !assigned || sector == "" {
+		return false
+	}
+	cap, capped := g.sectorCaps[sector]
+	if !capped {
+		return false
+	}
+	deltaLots := signedLots(request.Signal.Action, request.Signal.TargetLots)
+	if request.ExposureDeltaLots != nil {
+		deltaLots = *request.ExposureDeltaLots
+	}
+	if deltaLots == 0 {
+		return false
+	}
+	delta := decimal.NewFromInt(int64(deltaLots))
+	lotSize := request.Market.LotSize
+	if lotSize.IsZero() {
+		lotSize = decimal.NewFromInt(1)
+	}
+	delta = delta.Mul(lotSize).Mul(request.Market.OrderPrice)
+
+	reader, ok := g.positions.(ExposureReader)
+	if !ok {
+		return true
+	}
+	book, err := reader.ExposureByTicker(ctx)
+	if err != nil {
+		return true
+	}
+	thisLeg := book[ticker]
+	others := decimal.Zero
+	for name, notional := range book {
+		if name == ticker {
+			continue
+		}
+		if g.sectors[name] != sector {
+			continue
+		}
+		others = others.Add(notional.Abs())
+	}
+	projected := others.Add(thisLeg.Add(delta).Abs())
+	return projected.GreaterThan(cap)
+}
+
+func cloneSectorCaps(in map[string]decimal.Decimal) map[string]decimal.Decimal {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]decimal.Decimal, len(in))
+	for sector, cap := range in {
+		out[sector] = cap
+	}
+	return out
+}
+
+func cloneSectors(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for ticker, sector := range in {
+		out[ticker] = sector
+	}
+	return out
 }
 
 func signedLots(action domain.Action, lots int) int {

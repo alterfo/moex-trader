@@ -55,6 +55,8 @@ func run() error {
 	var spreadMinObs int
 	var borrowPctDayStr string
 	var maxNetExposureStr string
+	var sectorCapsStr string
+	var sectorsStr string
 	var lookbackDays int
 	var maxHoldBars int
 	var cachePath string
@@ -96,6 +98,8 @@ func run() error {
 	flag.StringVar(&slippageStr, "slippage-pct", "0", "additional adverse slippage applied against each fill, as a fraction of price (e.g. 0.0005 = 0.05%)")
 	flag.StringVar(&borrowPctDayStr, "borrow-pct-day", "0", "short-borrow cost per day as a fraction of short-leg notional (e.g. 0.00005 = 0.005%)")
 	flag.StringVar(&maxNetExposureStr, "max-net-exposure", "0", "cap on aggregate signed net position notional in RUB (0 = disabled)")
+	flag.StringVar(&sectorCapsStr, "sector-caps", "", "sector exposure caps as sector=notional pairs, comma-separated (default: config risk.sector_caps)")
+	flag.StringVar(&sectorsStr, "sectors", "", "ticker-to-sector map as ticker=sector pairs, comma-separated (default: config risk.sectors)")
 	flag.IntVar(&lookbackDays, "lookback-days", 30, "max decision points per ticker (0 = unlimited)")
 	flag.IntVar(&maxHoldBars, "max-hold-bars", 0, "force-close a position after this many decision bars (0 = hold until the signal changes)")
 	flag.StringVar(&cachePath, "cache", "", "path to persistent decision cache (e.g. .backtest-cache.json)")
@@ -185,6 +189,20 @@ func run() error {
 	}
 	if modelPath == "" {
 		modelPath = cfg.Model.Path
+	}
+	sectorCaps := cfg.Risk.SectorCaps
+	if strings.TrimSpace(sectorCapsStr) != "" {
+		sectorCaps, err = config.ParseSectorCaps(sectorCapsStr)
+		if err != nil {
+			return fmt.Errorf("parse -sector-caps: %w", err)
+		}
+	}
+	sectors := cfg.Risk.Sectors
+	if strings.TrimSpace(sectorsStr) != "" {
+		sectors, err = config.ParseSectors(sectorsStr)
+		if err != nil {
+			return fmt.Errorf("parse -sectors: %w", err)
+		}
 	}
 
 	var spreadPcts map[string]decimal.Decimal
@@ -303,6 +321,8 @@ func run() error {
 			LabelMode:        labelMode,
 			LabelHorizonBars: labelHorizonBars,
 			LabelDeadbandPct: labelDeadbandPct,
+			SectorCaps:       sectorCaps,
+			Sectors:          sectors,
 		}
 		if volScaleCfg.Enabled {
 			wfConfig.VolScaleEnabled = true
@@ -352,6 +372,8 @@ func run() error {
 		Deposit:               deposit,
 		MaxLots:               maxLots,
 		MaxNetExposure:        maxNetExposure,
+		SectorCaps:            sectorCaps,
+		Sectors:               sectors,
 		CommissionRate:        commissionRate,
 		SpreadPct:             spreadPct,
 		SpreadPcts:            spreadPcts,

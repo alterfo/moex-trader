@@ -30,6 +30,13 @@ risk:
   # target_notional: "15000"        # flat notional per position; overrides max_lots sizing when set
   # max_net_exposure: "60000"       # cap on aggregate signed net position notional in RUB (0 = disabled);
                                    # env override: MOEX_TRADER_RISK_MAX_NET_EXPOSURE
+  # sector_caps:                    # per-sector cap on gross position notional in RUB (sector absent = uncapped)
+  #   banks: "45000"
+  #   oil_gas: "45000"
+  #   metals: "45000"
+  # sectors:                        # ticker -> sector map; defaults to banks SBER/VTBR/T, oil&gas
+  #   SBER: banks                   # LKOH/ROSN/TATN/NVTK/GAZP, metals GMKN/PLZL/CHMF/RUAL; unassigned = uncapped
+  #   VTBR: banks
   # max_slippage_pct: "0.003"       # marketable-limit slippage cap (needs tinkoff.order_type: limit)
   # rebalance_min_deviation_pct: "0.05" # skip rebalances at/below 5% of target notional (anti-churn deadband)
   # no_trade_after_open_minutes: 15 # pause new orders around the 10:00 MSK open

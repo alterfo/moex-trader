@@ -125,6 +125,8 @@ type Config struct {
 	Deposit               decimal.Decimal
 	MaxLots               int
 	MaxNetExposure        decimal.Decimal
+	SectorCaps            map[string]decimal.Decimal
+	Sectors               map[string]string
 	CommissionRate        decimal.Decimal
 	SpreadPct             decimal.Decimal
 	SpreadPcts            map[string]decimal.Decimal
@@ -376,6 +378,8 @@ func NewEngine(cfg Config) (*Engine, error) {
 	riskCfg := risk.DefaultConfig()
 	riskCfg.MaxLots = cfg.MaxLots
 	riskCfg.MaxNetExposure = cfg.MaxNetExposure
+	riskCfg.SectorCaps = cfg.SectorCaps
+	riskCfg.Sectors = cfg.Sectors
 	riskCfg.Positions = engine
 	if cfg.KillSwitch {
 		riskCfg.Store = engine.kill

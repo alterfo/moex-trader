@@ -1111,3 +1111,87 @@ func TestRiskVolScaleLoadedAndValidated(t *testing.T) {
 		t.Fatal("expected vol_scale disabled by default")
 	}
 }
+
+func TestDefaultSectorsLoaded(t *testing.T) {
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\n"))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if len(cfg.Risk.Sectors) == 0 {
+		t.Fatal("expected default sector map to be populated")
+	}
+	for _, ticker := range []string{"SBER", "VTBR", "T"} {
+		if cfg.Risk.Sectors[ticker] != "banks" {
+			t.Fatalf("sector(%s) = %q, want banks", ticker, cfg.Risk.Sectors[ticker])
+		}
+	}
+	for _, ticker := range []string{"LKOH", "ROSN", "TATN", "NVTK", "GAZP"} {
+		if cfg.Risk.Sectors[ticker] != "oil_gas" {
+			t.Fatalf("sector(%s) = %q, want oil_gas", ticker, cfg.Risk.Sectors[ticker])
+		}
+	}
+	for _, ticker := range []string{"GMKN", "PLZL", "CHMF", "RUAL"} {
+		if cfg.Risk.Sectors[ticker] != "metals" {
+			t.Fatalf("sector(%s) = %q, want metals", ticker, cfg.Risk.Sectors[ticker])
+		}
+	}
+	if _, assigned := cfg.Risk.Sectors["YDEX"]; assigned {
+		t.Fatal("YDEX must be unassigned in the default sector map")
+	}
+	if len(cfg.Risk.SectorCaps) != 0 {
+		t.Fatal("sector caps must be off by default")
+	}
+}
+
+func TestRiskSectorCapsLoadedAndValidated(t *testing.T) {
+	clearEnv(t)
+	cfg, err := Parse([]byte("storage:\n  path: ./trader.db\nrisk:\n  sector_caps:\n    banks: \"45000\"\n    oil_gas: \"45000\"\n    metals: \"45000\"\n"))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if !cfg.Risk.SectorCaps["banks"].Equal(decimal.NewFromInt(45000)) {
+		t.Fatalf("sector_caps[banks] = %s, want 45000", cfg.Risk.SectorCaps["banks"])
+	}
+	if !cfg.Risk.SectorCaps["oil_gas"].Equal(decimal.NewFromInt(45000)) {
+		t.Fatalf("sector_caps[oil_gas] = %s, want 45000", cfg.Risk.SectorCaps["oil_gas"])
+	}
+	if !cfg.Risk.SectorCaps["metals"].Equal(decimal.NewFromInt(45000)) {
+		t.Fatalf("sector_caps[metals] = %s, want 45000", cfg.Risk.SectorCaps["metals"])
+	}
+
+	_, err = Parse([]byte("storage:\n  path: ./trader.db\nrisk:\n  sector_caps:\n    banks: \"-1\"\n"))
+	if err == nil || !strings.Contains(err.Error(), "risk.sector_caps.banks") {
+		t.Fatalf("expected negative sector cap error, got: %v", err)
+	}
+}
+
+func TestParseSectorsAndSectorCaps(t *testing.T) {
+	sectors, err := ParseSectors("SBER=banks, VTBR=banks, lkoh=oil_gas")
+	if err != nil {
+		t.Fatalf("ParseSectors() error = %v", err)
+	}
+	if sectors["SBER"] != "banks" || sectors["VTBR"] != "banks" {
+		t.Fatalf("unexpected sectors: %v", sectors)
+	}
+	if sectors["LKOH"] != "oil_gas" {
+		t.Fatalf("lowercase ticker not normalized: %v", sectors)
+	}
+
+	caps, err := ParseSectorCaps("banks=45000, oil_gas=45000.5")
+	if err != nil {
+		t.Fatalf("ParseSectorCaps() error = %v", err)
+	}
+	if !caps["banks"].Equal(decimal.NewFromInt(45000)) || !caps["oil_gas"].Equal(decimal.RequireFromString("45000.5")) {
+		t.Fatalf("unexpected caps: %v", caps)
+	}
+
+	if _, err := ParseSectorCaps("banks=-1"); err == nil {
+		t.Fatal("expected negative cap error")
+	}
+	if _, err := ParseSectors("SBER"); err == nil {
+		t.Fatal("expected malformed sectors error")
+	}
+	if _, err := ParseSectorCaps("banks=abc"); err == nil {
+		t.Fatal("expected malformed cap error")
+	}
+}

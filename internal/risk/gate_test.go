@@ -1140,3 +1140,172 @@ func TestHardenedGateRejectsNegativeMaxNetExposure(t *testing.T) {
 		t.Fatal("NewHardenedGate() error = nil, want error for negative max net exposure")
 	}
 }
+
+func sectorGate(t *testing.T, caps map[string]decimal.Decimal, sectors map[string]string, book map[string]decimal.Decimal) *HardenedGate {
+	t.Helper()
+	cfg := DefaultConfig()
+	cfg.MaxLots = 100000
+	cfg.SectorCaps = caps
+	cfg.Sectors = sectors
+	cfg.Positions = &fakeExposureReader{book: book}
+	gate, err := NewHardenedGate(cfg)
+	if err != nil {
+		t.Fatalf("NewHardenedGate() error = %v", err)
+	}
+	return gate
+}
+
+func TestHardenedGateSectorCapAllowsReducingOrder(t *testing.T) {
+	gate := sectorGate(t,
+		map[string]decimal.Decimal{"banks": decimal.RequireFromString("45000")},
+		map[string]string{"SBER": "banks"},
+		map[string]decimal.Decimal{"SBER": decimal.RequireFromString("-45000")},
+	)
+	approve := func(action domain.Action, lots int) Decision {
+		t.Helper()
+		request := testRequest()
+		request.Signal = domain.TradeSignal{
+			Ticker: "SBER", Action: action, Confidence: decimal.NewFromInt(1),
+			TargetLots: lots, GeneratedAt: time.Now(),
+		}
+		decision, err := gate.ApproveReason(context.Background(), request)
+		if err != nil {
+			t.Fatalf("ApproveReason() error = %v", err)
+		}
+		return decision
+	}
+
+	if decision := approve(domain.ActionBuy, 100); !decision.Approved {
+		t.Fatalf("BUY reducing sector gross from 45000 to 35000 was blocked: reason=%q", decision.Reason)
+	}
+	if decision := approve(domain.ActionSell, 100); decision.Approved || decision.Reason != "sector_cap" {
+		t.Fatalf("SELL growing sector gross from 45000 to 55000 passed a 45000 cap: approved=%v reason=%q", decision.Approved, decision.Reason)
+	}
+}
+
+func TestHardenedGateSectorCapFlattenToFlatPassesAtZero(t *testing.T) {
+	gate := sectorGate(t,
+		map[string]decimal.Decimal{"banks": decimal.Zero},
+		map[string]string{"SBER": "banks"},
+		map[string]decimal.Decimal{"SBER": decimal.RequireFromString("-50000")},
+	)
+	flatten := testRequest()
+	delta := 500
+	flatten.Signal = domain.TradeSignal{
+		Ticker: "SBER", Action: domain.ActionBuy, Confidence: decimal.NewFromInt(1),
+		TargetLots: 500, GeneratedAt: time.Now(),
+	}
+	flatten.ExposureDeltaLots = &delta
+	decision, err := gate.ApproveReason(context.Background(), flatten)
+	if err != nil {
+		t.Fatalf("ApproveReason() error = %v", err)
+	}
+	if !decision.Approved {
+		t.Fatalf("flatten-to-flat passed cap 0: approved=%v reason=%q", decision.Approved, decision.Reason)
+	}
+
+	open := testRequest()
+	delta = 100
+	open.Signal = domain.TradeSignal{
+		Ticker: "SBER", Action: domain.ActionBuy, Confidence: decimal.NewFromInt(1),
+		TargetLots: 100, GeneratedAt: time.Now(),
+	}
+	open.ExposureDeltaLots = &delta
+	decision, err = gate.ApproveReason(context.Background(), open)
+	if err != nil {
+		t.Fatalf("ApproveReason() error = %v", err)
+	}
+	if decision.Approved || decision.Reason != "sector_cap" {
+		t.Fatalf("non-flattening order passed cap 0: approved=%v reason=%q", decision.Approved, decision.Reason)
+	}
+}
+
+func TestHardenedGateSectorCapUnassignedTickerNeverBlocked(t *testing.T) {
+	gate := sectorGate(t,
+		map[string]decimal.Decimal{"banks": decimal.RequireFromString("45000")},
+		map[string]string{"SBER": "banks", "VTBR": "banks"},
+		map[string]decimal.Decimal{"SBER": decimal.RequireFromString("-45000")},
+	)
+	request := testRequest()
+	request.Signal = domain.TradeSignal{
+		Ticker: "YDEX", Action: domain.ActionBuy, Confidence: decimal.NewFromInt(1),
+		TargetLots: 100, GeneratedAt: time.Now(),
+	}
+	decision, err := gate.ApproveReason(context.Background(), request)
+	if err != nil {
+		t.Fatalf("ApproveReason() error = %v", err)
+	}
+	if !decision.Approved || decision.Reason != "" {
+		t.Fatalf("unassigned ticker blocked: approved=%v reason=%q", decision.Approved, decision.Reason)
+	}
+}
+
+func TestHardenedGateSectorCapProjectsOnlySameSectorLeg(t *testing.T) {
+	gate := sectorGate(t,
+		map[string]decimal.Decimal{"banks": decimal.RequireFromString("45000")},
+		map[string]string{"SBER": "banks", "VTBR": "banks"},
+		map[string]decimal.Decimal{
+			"SBER": decimal.RequireFromString("-30000"),
+			"VTBR": decimal.RequireFromString("-30000"),
+			"OZON": decimal.RequireFromString("900000"),
+		},
+	)
+	request := testRequest()
+	request.Signal = domain.TradeSignal{
+		Ticker: "SBER", Action: domain.ActionBuy, Confidence: decimal.NewFromInt(1),
+		TargetLots: 150, GeneratedAt: time.Now(),
+	}
+	request.ExposureDeltaLots = intPtr(150)
+	decision, err := gate.ApproveReason(context.Background(), request)
+	if err != nil {
+		t.Fatalf("ApproveReason() error = %v", err)
+	}
+	if !decision.Approved {
+		t.Fatalf("reducing SBER to -15000 leaves banks gross at 45000 (VTBR 30000 + SBER 15000), want approved: reason=%q", decision.Reason)
+	}
+
+	request.ExposureDeltaLots = intPtr(-100)
+	decision, err = gate.ApproveReason(context.Background(), request)
+	if err != nil {
+		t.Fatalf("ApproveReason() error = %v", err)
+	}
+	if decision.Approved || decision.Reason != "sector_cap" {
+		t.Fatalf("growing SBER to -40000 leaves banks gross at 70000, want sector_cap: approved=%v reason=%q", decision.Approved, decision.Reason)
+	}
+}
+
+func TestHardenedGateSectorCapFailsClosedWithoutExposureReader(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.MaxLots = 100000
+	cfg.SectorCaps = map[string]decimal.Decimal{"banks": decimal.RequireFromString("45000")}
+	cfg.Sectors = map[string]string{"SBER": "banks"}
+	cfg.Positions = &fakeNetExposureReader{}
+	gate, err := NewHardenedGate(cfg)
+	if err != nil {
+		t.Fatalf("NewHardenedGate() error = %v", err)
+	}
+	request := testRequest()
+	request.Signal = domain.TradeSignal{
+		Ticker: "SBER", Action: domain.ActionBuy, Confidence: decimal.NewFromInt(1),
+		TargetLots: 1, GeneratedAt: time.Now(),
+	}
+	decision, err := gate.ApproveReason(context.Background(), request)
+	if err != nil {
+		t.Fatalf("ApproveReason() error = %v", err)
+	}
+	if decision.Approved || decision.Reason != "sector_cap" {
+		t.Fatalf("want fail-closed sector_cap, got approved=%v reason=%q", decision.Approved, decision.Reason)
+	}
+}
+
+func TestHardenedGateRejectsNegativeSectorCap(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.SectorCaps = map[string]decimal.Decimal{"banks": decimal.NewFromFloat(-1)}
+	if _, err := NewHardenedGate(cfg); err == nil {
+		t.Fatal("NewHardenedGate() error = nil, want error for negative sector cap")
+	}
+}
+
+func intPtr(v int) *int {
+	return &v
+}

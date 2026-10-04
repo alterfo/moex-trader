@@ -183,11 +183,11 @@
 
 ### Task 11: Experiment E — sector exposure cap
 
-- [ ] add `risk.sector_caps` (sector → max gross notional) and `risk.sectors` (ticker → sector) to config, check in `HardenedGate.ApproveReason` with per-ticker projection (replace only this ticker's leg, as `max_net_exposure` does), reject reason `sector_cap`
-- [ ] default sector map: banks SBER/VTBR/T; oil&gas LKOH/ROSN/TATN/NVTK/GAZP; metals GMKN/PLZL/CHMF/RUAL; other unassigned (no cap); default caps off
-- [ ] write tests: risk-reducing orders always pass, flatten-to-flat passes at cap 0, unassigned tickers never blocked, reason recorded in audit
-- [ ] measure with one pre-registered cap (45000 per sector = 3 positions) on the purged walk-forward; record in `docs/metrics.md` "Experiment E" in the same commit
-- [ ] run `make check` — must pass before Task 12
+- [x] add `risk.sector_caps` (sector → max gross notional) and `risk.sectors` (ticker → sector) to config, check in `HardenedGate.ApproveReason` with per-ticker projection (replace only this ticker's leg, as `max_net_exposure` does), reject reason `sector_cap`
+- [x] default sector map: banks SBER/VTBR/T; oil&gas LKOH/ROSN/TATN/NVTK/GAZP; metals GMKN/PLZL/CHMF/RUAL; other unassigned (no cap); default caps off
+- [x] write tests: risk-reducing orders always pass, flatten-to-flat passes at cap 0, unassigned tickers never blocked, reason recorded in audit
+- [x] measure with one pre-registered cap (45000 per sector = 3 positions) on the purged walk-forward; record in `docs/metrics.md` "Experiment E" in the same commit
+- [x] run `make check` — must pass before Task 12
 
 ### Task 12: VaR/ES monitoring and blackout dates
 

@@ -42,19 +42,21 @@ type Storage struct {
 }
 
 type Risk struct {
-	MaxLots                  int             `yaml:"max_lots"`
-	TargetNotional           decimal.Decimal `yaml:"target_notional"`
-	MaxNetExposure           decimal.Decimal `yaml:"max_net_exposure"`
-	VolScale                 VolScale        `yaml:"vol_scale"`
-	MaxSlippagePct           decimal.Decimal `yaml:"max_slippage_pct"`
-	RebalanceMinDeviationPct decimal.Decimal `yaml:"rebalance_min_deviation_pct"`
-	NoTradeAfterOpenMinutes  int             `yaml:"no_trade_after_open_minutes"`
-	BlackoutWindows          []string        `yaml:"blackout_windows"`
-	CircuitBreakerMaxLosses  int             `yaml:"circuit_breaker_max_losses"`
-	CircuitBreakerMaxLossPct decimal.Decimal `yaml:"circuit_breaker_max_loss_pct"`
-	KillSwitchOnDailyLoss    bool            `yaml:"kill_switch_on_daily_loss"`
-	DriftPSIThreshold        float64         `yaml:"drift_psi_threshold"`
-	DriftPSIWindow           int             `yaml:"drift_psi_window"`
+	MaxLots                  int                        `yaml:"max_lots"`
+	TargetNotional           decimal.Decimal            `yaml:"target_notional"`
+	MaxNetExposure           decimal.Decimal            `yaml:"max_net_exposure"`
+	SectorCaps               map[string]decimal.Decimal `yaml:"sector_caps"`
+	Sectors                  map[string]string          `yaml:"sectors"`
+	VolScale                 VolScale                   `yaml:"vol_scale"`
+	MaxSlippagePct           decimal.Decimal            `yaml:"max_slippage_pct"`
+	RebalanceMinDeviationPct decimal.Decimal            `yaml:"rebalance_min_deviation_pct"`
+	NoTradeAfterOpenMinutes  int                        `yaml:"no_trade_after_open_minutes"`
+	BlackoutWindows          []string                   `yaml:"blackout_windows"`
+	CircuitBreakerMaxLosses  int                        `yaml:"circuit_breaker_max_losses"`
+	CircuitBreakerMaxLossPct decimal.Decimal            `yaml:"circuit_breaker_max_loss_pct"`
+	KillSwitchOnDailyLoss    bool                       `yaml:"kill_switch_on_daily_loss"`
+	DriftPSIThreshold        float64                    `yaml:"drift_psi_threshold"`
+	DriftPSIWindow           int                        `yaml:"drift_psi_window"`
 }
 
 type VolScale struct {
@@ -157,6 +159,7 @@ func Default() *Config {
 		Risk: Risk{
 			MaxLots:                  defaultRiskMaxLots,
 			RebalanceMinDeviationPct: decimal.New(5, -2),
+			Sectors:                  DefaultSectors(),
 			CircuitBreakerMaxLosses:  3,
 			CircuitBreakerMaxLossPct: decimal.New(5, -2),
 			DriftPSIThreshold:        0.2,
@@ -267,6 +270,11 @@ func (c *Config) Validate() error {
 	}
 	if c.Risk.MaxNetExposure.IsNegative() {
 		return fmt.Errorf("risk.max_net_exposure must be non-negative")
+	}
+	for sector, cap := range c.Risk.SectorCaps {
+		if cap.IsNegative() {
+			return fmt.Errorf("risk.sector_caps.%s must be non-negative", sector)
+		}
 	}
 	if c.Risk.VolScale.Enabled {
 		if !c.Risk.VolScale.MinMult.IsPositive() {

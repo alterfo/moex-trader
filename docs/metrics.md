@@ -472,6 +472,48 @@ edge over the flat 15000₽/position control. `experiment_d_volatility_scaled` i
 marked rejected in the registry. Persisted `-wf-dir` runs are under
 `/home/oleg/moex-trader-task10/wf-volscale`.
 
+## Experiment E: sector exposure cap (2026-10-04)
+
+Adds `risk.sector_caps` (sector -> max gross position notional) and
+`risk.sectors` (ticker -> sector) to config, enforced in
+`HardenedGate.ApproveReason` with the same per-ticker projection as
+`max_net_exposure`: the order replaces only its own ticker's leg, so the
+check is `Σ_{t∈sector, t≠ticker} |notional_t| + |notional_ticker after
+order| ≤ cap`. Risk-reducing orders (trim/flatten) therefore always pass when
+the projected sector gross is inside the cap, a cap of zero allows only
+flatten-to-flat, and a ticker without a sector is never blocked. Default
+sector map: banks SBER/VTBR/T, oil&gas LKOH/ROSN/TATN/NVTK/GAZP, metals
+GMKN/PLZL/CHMF/RUAL, all others unassigned (uncapped); default caps off.
+Pre-registered setting: 45000 RUB per sector (= 3 positions at the 15000 RUB
+target notional), replayed over the same Task 5 embargo-10 per-window ensemble
+artifacts (no retraining — the cap is a risk-gate-only change). Wired as
+`-sector-caps`/`-sectors` in `cmd/backtest` and persisted in the per-window
+`walkforward.Config`.
+
+| window | control realized | sector realized | control trades | sector trades | control max DD | sector max DD | control kill | sector kill |
+|---|---:|---:|---:|---:|---:|---:|---|---|
+| q1 (2025-03-05 -> 2025-06-05) | +4301.27 | -5697.73 | 66 | 79 | 3.57% | 2.76% | yes | no |
+| q2 (2025-06-06 -> 2025-09-05) | +9.36 | +2533.41 | 215 | 46 | 3.50% | 2.65% | no | no |
+| q3 (2025-09-06 -> 2025-12-03) | +34089.03 | +20352.66 | 193 | 89 | 0.90% | 0.90% | no | no |
+| q4 (2025-12-04 -> 2026-03-04) | -12339.10 | -7523.17 | 187 | 49 | 2.46% | 1.74% | no | no |
+| w2 (2026-03-05 -> 2026-06-06) | +2676.41 | +2386.11 | 141 | 60 | 1.17% | 1.11% | no | no |
+| w1 (2026-06-07 -> 2026-09-16) | +31092.50 | +22805.32 | 283 | 107 | 3.05% | 2.49% | no | no |
+| total | +59829.47 | +34856.60 | 1085 | 430 | — | — | — | — |
+
+Realized P&L is closed-trade gross minus commission. Verdict: **REJECT**.
+The 45000-per-sector cap costs realized P&L: +34856.60 RUB vs the purged
+control +59829.47 RUB (-24972.87 RUB, -41.7%), so it fails deployment-gate
+criterion 1 (total realized P&L must exceed control). It wins on risk: every
+window stays under the 3% drawdown floor, the kill switch never trips, and
+only 4 of 6 windows are positive (q1 flips from +4301.27 to -5697.73, the
+only window the control tripped its kill switch on). The cap truncates the
+concentrated sector legs that drove the control's best windows, cutting the
+trade count from 1085 to 430; the reduced gross exposure is safer but the
+income being cut is market beta, matching the `max_net_exposure` finding on
+the unhedged book. `experiment_e_sector_caps` is marked rejected in the
+registry. Persisted `-wf-dir` runs are under
+`/home/oleg/moex-trader-task11/wf-sector`.
+
 ## Gap-stress test (Task 8)
 
 Models overnight gaps against the deployed strategy's open portfolio at the
