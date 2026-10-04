@@ -21,6 +21,10 @@ type Metrics struct {
 	PositionNotional  *prometheus.GaugeVec
 	GrossExposure     prometheus.Gauge
 	LeaseHeld         prometheus.Gauge
+	Var95             prometheus.Gauge
+	Var99             prometheus.Gauge
+	ES95              prometheus.Gauge
+	ES99              prometheus.Gauge
 }
 
 func New() *Metrics {
@@ -68,6 +72,22 @@ func New() *Metrics {
 		Name: "lease_held",
 		Help: "1 when this process holds the trading lease, 0 otherwise.",
 	})
+	var95 := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "var_95",
+		Help: "Historical 1-day 95% value-at-risk of the current book in RUB.",
+	})
+	var99 := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "var_99",
+		Help: "Historical 1-day 99% value-at-risk of the current book in RUB.",
+	})
+	es95 := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "es_95",
+		Help: "Historical 1-day 95% expected shortfall of the current book in RUB.",
+	})
+	es99 := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "es_99",
+		Help: "Historical 1-day 99% expected shortfall of the current book in RUB.",
+	})
 
 	registry.MustRegister(
 		inferenceDuration,
@@ -80,6 +100,10 @@ func New() *Metrics {
 		positionNotional,
 		grossExposure,
 		leaseHeld,
+		var95,
+		var99,
+		es95,
+		es99,
 	)
 
 	return &Metrics{
@@ -94,6 +118,10 @@ func New() *Metrics {
 		PositionNotional:  positionNotional,
 		GrossExposure:     grossExposure,
 		LeaseHeld:         leaseHeld,
+		Var95:             var95,
+		Var99:             var99,
+		ES95:              es95,
+		ES99:              es99,
 	}
 }
 
@@ -143,4 +171,11 @@ func (m *Metrics) SetLeaseHeld(held bool) {
 		return
 	}
 	m.LeaseHeld.Set(0)
+}
+
+func (m *Metrics) SetVaRES(var95, var99, es95, es99 decimal.Decimal) {
+	m.Var95.Set(var95.InexactFloat64())
+	m.Var99.Set(var99.InexactFloat64())
+	m.ES95.Set(es95.InexactFloat64())
+	m.ES99.Set(es99.InexactFloat64())
 }

@@ -191,10 +191,10 @@
 
 ### Task 12: VaR/ES monitoring and blackout dates
 
-- [ ] add historical 1-day VaR and ES (95%, 99%) of the current book from 250-day trailing returns in `internal/risk/var.go` (decimal results), export as gauges and add one line to `internal/dailysummary`; monitoring only, not a gate
-- [ ] fill `risk.blackout_windows` in `config.sandbox.yaml` for the remaining 2026 Bank of Russia key-rate decisions (announcement 13:30 MSK, window 13:15–14:30), dates fetched from cbr.ru with the source URL in the commit message; if the page cannot be verified, leave empty and add ⚠️
-- [ ] write tests for VaR/ES on a known return series, empty book, short history
-- [ ] run `make check` — must pass before Task 13
+- [x] add historical 1-day VaR and ES (95%, 99%) of the current book from 250-day trailing returns in `internal/risk/var.go` (decimal results), export as gauges and add one line to `internal/dailysummary`; monitoring only, not a gate
+- [x] fill `risk.blackout_windows` in `config.sandbox.yaml` for the remaining 2026 Bank of Russia key-rate decisions (announcement 13:30 MSK, window 13:15–14:30), dates fetched from cbr.ru with the source URL in the commit message; if the page cannot be verified, leave empty and add ⚠️
+- [x] write tests for VaR/ES on a known return series, empty book, short history
+- [x] run `make check` — must pass before Task 13
 
 ### Task 13: Deployment decision against the pre-registered gate
 

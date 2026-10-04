@@ -14,6 +14,7 @@ import (
 
 	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
+	"github.com/olegsidorkin/moex-trader/internal/risk"
 )
 
 // Fill is one executed bot fill, decoded from the executor audit events. The
@@ -398,7 +399,7 @@ func pctChange(prev, current decimal.Decimal) decimal.Decimal {
 }
 
 // Message formats the brief evening digest sent to Telegram.
-func Message(day time.Time, bot BotDay, market Market, loc *time.Location) string {
+func Message(day time.Time, bot BotDay, market Market, loc *time.Location, varResults ...risk.VarResult) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "📊 Дневная сводка · %s\n", day.In(loc).Format("02.01.2006"))
 
@@ -421,7 +422,19 @@ func Message(day time.Time, bot BotDay, market Market, loc *time.Location) strin
 
 	fmt.Fprintf(&b, "Бот: сделок %d · день %s ₽ (реализ. %s · MTM %s₽)",
 		bot.Trades, money(bot.PnL()), money(bot.Realized), money(bot.MTMChange()))
+	if len(varResults) > 0 {
+		b.WriteString("\n")
+		b.WriteString(RiskLine(varResults[0]))
+	}
 	return b.String()
+}
+
+func RiskLine(v risk.VarResult) string {
+	if !v.Valid {
+		return "Риск: нет данных"
+	}
+	return fmt.Sprintf("Риск: VaR95 %s ₽ · ES95 %s ₽ · VaR99 %s ₽ · ES99 %s ₽",
+		money(v.VaR95), money(v.ES95), money(v.VaR99), money(v.ES99))
 }
 
 func signedPct(v decimal.Decimal) string {

@@ -20,8 +20,8 @@ func TestNewRegistersPrometheusMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Gather() error = %v", err)
 	}
-	if len(families) != 10 {
-		t.Fatalf("Gather() returned %d metric families, want 10", len(families))
+	if len(families) != 14 {
+		t.Fatalf("Gather() returned %d metric families, want 14", len(families))
 	}
 
 	want := map[string]bool{
@@ -35,6 +35,10 @@ func TestNewRegistersPrometheusMetrics(t *testing.T) {
 		"position_notional":                      false,
 		"gross_exposure":                         false,
 		"lease_held":                             false,
+		"var_95":                                 false,
+		"var_99":                                 false,
+		"es_95":                                  false,
+		"es_99":                                  false,
 	}
 	for _, family := range families {
 		if _, ok := want[family.GetName()]; ok {
@@ -161,6 +165,29 @@ func TestLeaseHeldGauge(t *testing.T) {
 	}
 }
 
+func TestVaRESGauge(t *testing.T) {
+	m := New()
+	m.SetVaRES(
+		decimal.RequireFromString("-123.45"),
+		decimal.RequireFromString("-456.78"),
+		decimal.RequireFromString("-234.56"),
+		decimal.RequireFromString("-567.89"),
+	)
+
+	if got := testutil.ToFloat64(m.Var95); got != -123.45 {
+		t.Fatalf("var_95 = %v, want -123.45", got)
+	}
+	if got := testutil.ToFloat64(m.Var99); got != -456.78 {
+		t.Fatalf("var_99 = %v, want -456.78", got)
+	}
+	if got := testutil.ToFloat64(m.ES95); got != -234.56 {
+		t.Fatalf("es_95 = %v, want -234.56", got)
+	}
+	if got := testutil.ToFloat64(m.ES99); got != -567.89 {
+		t.Fatalf("es_99 = %v, want -567.89", got)
+	}
+}
+
 func TestHandlerExposesMetrics(t *testing.T) {
 	m := New()
 	m.IncSignalsGenerated()
@@ -187,6 +214,10 @@ func TestHandlerExposesMetrics(t *testing.T) {
 		"position_notional",
 		"gross_exposure",
 		"lease_held",
+		"var_95",
+		"var_99",
+		"es_95",
+		"es_99",
 	} {
 		if !strings.Contains(body, metric) {
 			t.Fatalf("metrics response does not contain %q", metric)

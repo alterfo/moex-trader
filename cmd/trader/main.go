@@ -295,13 +295,15 @@ func run() error {
 		}
 		fireOfDay := time.Duration(fire.Hour())*time.Hour + time.Duration(fire.Minute())*time.Minute
 		go runDailySummary(ctx, dailySummaryConfig{
-			store:   store,
-			history: historySource,
-			tickers: cfg.Tickers,
-			alerter: telegramClient,
-			fire:    fireOfDay,
-			now:     time.Now,
-			logger:  log.Default(),
+			store:    store,
+			history:  historySource,
+			tickers:  cfg.Tickers,
+			alerter:  telegramClient,
+			exposure: exposureReader,
+			metrics:  appMetrics,
+			fire:     fireOfDay,
+			now:      time.Now,
+			logger:   log.Default(),
 		})
 		log.Printf("daily summary: enabled, fires at %s MSK after the close (IMOEX + green tickers, bot day P&L)", cfg.Telegram.DailySummaryTime)
 	} else {

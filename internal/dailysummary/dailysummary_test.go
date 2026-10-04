@@ -9,6 +9,8 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	"github.com/olegsidorkin/moex-trader/internal/risk"
+
 	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 )
@@ -341,6 +343,39 @@ func TestMessageNoMarketData(t *testing.T) {
 	}
 	if !strings.Contains(msg, "Бот: сделок 0 · день +0.00 ₽") {
 		t.Fatalf("expected empty bot line:\n%s", msg)
+	}
+}
+
+func TestMessageWithRiskLine(t *testing.T) {
+	bot := BotDay{}
+	market := Market{}
+	msg := Message(
+		time.Date(2026, 9, 18, 19, 5, 0, 0, time.UTC),
+		bot,
+		market,
+		testLoc,
+		risk.VarResult{
+			VaR95: dec(t, "-123.45"),
+			VaR99: dec(t, "-456.78"),
+			ES95:  dec(t, "-234.56"),
+			ES99:  dec(t, "-567.89"),
+			Valid: true,
+		},
+	)
+	for _, want := range []string{
+		"Риск: VaR95 -123.45 ₽",
+		"ES95 -234.56 ₽",
+		"VaR99 -456.78 ₽",
+		"ES99 -567.89 ₽",
+	} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("message missing %q:\n%s", want, msg)
+		}
+	}
+
+	invalid := Message(time.Date(2026, 9, 18, 19, 5, 0, 0, time.UTC), BotDay{}, Market{}, testLoc, risk.VarResult{})
+	if !strings.Contains(invalid, "Риск: нет данных") {
+		t.Fatalf("expected no-data risk line:\n%s", invalid)
 	}
 }
 

@@ -55,7 +55,9 @@ risk:
   no_trade_after_open_minutes: 15
   # "RFC3339-start/RFC3339-end" pairs, e.g. around CBR key-rate announcements.
   # Empty by default — fill in known dates as they're scheduled.
-  blackout_windows: []
+  blackout_windows:
+    - "2026-10-23T13:15:00+03:00/2026-10-23T14:30:00+03:00"
+    - "2026-12-18T13:15:00+03:00/2026-12-18T14:30:00+03:00"
 commission:
   broker: "tinkoff"
   rate: "0.0005"    # T-Bank sandbox charges a flat 0.05% per trade
