@@ -198,11 +198,11 @@
 
 ### Task 13: Deployment decision against the pre-registered gate
 
-- [ ] evaluate each of Experiments A–E against the gate in Technical Details using `cmd/strategyvalidation` (realized split, DSR, PBO over the full registry)
-- [ ] if two or more pass, register and run their combination as one more attempt; the candidate is the single best passing variant or combination
-- [ ] if a candidate passes: produce the artifact/config on the ai-box, run the 90-day preflight with it, replace `ensemble_model.json` and/or `config.sandbox.yaml`, update the golden backtest and parity fixtures, record everything in `docs/metrics.md` "Deployment decision 2026-10" in the same commit
-- [ ] if nothing passes: record the negative result in `docs/metrics.md` and leave the live recipe untouched
-- [ ] run `make check` — must pass before Task 14
+- [x] evaluate each of Experiments A–E against the gate in Technical Details using `cmd/strategyvalidation` (realized split, DSR, PBO over the full registry)
+- [x] if two or more pass, register and run their combination as one more attempt; the candidate is the single best passing variant or combination (not triggered — no variant passed)
+- [x] if a candidate passes: produce the artifact/config on the ai-box, run the 90-day preflight with it, replace `ensemble_model.json` and/or `config.sandbox.yaml`, update the golden backtest and parity fixtures, record everything in `docs/metrics.md` "Deployment decision 2026-10" in the same commit (not triggered — no candidate passed)
+- [x] if nothing passes: record the negative result in `docs/metrics.md` and leave the live recipe untouched
+- [x] run `make check` — must pass before Task 14
 
 ### Task 14: Verify acceptance criteria
 

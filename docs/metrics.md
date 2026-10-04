@@ -514,6 +514,53 @@ the unhedged book. `experiment_e_sector_caps` is marked rejected in the
 registry. Persisted `-wf-dir` runs are under
 `/home/oleg/moex-trader-task11/wf-sector`.
 
+## Deployment decision 2026-10 (Task 13)
+
+Pre-registered gate (fixed 2026-10-04, before any experiment numbers): against
+the Task 5 purged control (`purged_walkforward_control`), on the same 6
+quarterly purged windows (`-embargo-bars 10`), 1M RUB deposit, costs 0.0005
+commission + 0.0005 spread + 0.0005 slippage, kill switch on. A variant is
+deployable only if ALL hold: (1) total realized P&L > control; (2) realized
+P&L >= control in at least 4 of 6 windows; (3) max drawdown <= 3% in every
+window and the kill switch never trips; (4) for label/training changes (A, B,
+C), mean val AUC not below control by more than 0.005; (5) PBO over the full
+registry of this plan's attempts < 0.5; (6) 90-day preflight passes.
+
+PBO is now computable: `cmd/strategyvalidation -returns-dirs` joins the eight
+persisted per-window `period_returns.csv` variants (control, A, B, C-lgb,
+C-xgb, C-logistic, D, E) into a 510-period x 8-candidate matrix and computes
+CSCV PBO with s=16. Result: PBO = 0.1529 (1968 of 12870 combinations
+overfit), so criterion 5 passes for the set as a whole. Registry-level
+deflated Sharpe (47 attempts, 6 observations, abs-10d 18-month series) =
+0.6260 (p 0.3740). Per-variant deflated Sharpe on the six purged windows is
+reported below but is NOT a deployment criterion.
+
+| variant | total realized | windows >= control | worst max DD | kill-tripped | mean val AUC | fails criteria |
+|---|---:|---:|---:|---:|---:|---|
+| control | +59829.47 | — | 3.57% | 1 | 0.5370 | (baseline) |
+| A dividend-adjusted | +30596.25 | 2/6 | 3.89% | 1 | 0.5382 | 1, 2, 3 |
+| B wide-train | +86817.47 | 4/6 | 4.38% | 1 | 0.5185 | 3, 4 |
+| C lgb | +19166.99 | 1/6 | 3.26% | 0 | 0.5245 | 1, 2, 3, 4 |
+| C xgb | +41881.38 | 2/6 | 3.79% | 1 | 0.5037 | 1, 2, 3, 4 |
+| C logistic | +81382.67 | 4/6 | 3.69% | 1 | 0.5653 | 3 |
+| D vol-scale | +59809.47 | 3/6 | 3.60% | 1 | — | 1, 2, 3 |
+| E sector caps | +34856.60 | 2/6 | 2.76% | 0 | — | 1, 2 |
+
+Per-variant deflated Sharpe (six purged windows, 47-trial deflation, not a
+criterion): control 0.1290, A 0.0641, B 0.2306, C-lgb 0.0347, C-xgb 0.0942,
+C-logistic 0.1683, D 0.1323, E 0.0899.
+
+Verdict: NOTHING PASSES. No candidate clears all of criteria 1-4, so criteria
+5 and 6 are moot. The closest candidate is the logistic single member
+(C-logistic): it passes realized P&L (1), windows >= control (2) and val AUC
+(4), but fails criterion 3 — worst day-close max DD 3.69% with the q1 kill
+switch tripping — so it is not deployable on the pre-registered gate. B leads
+on realized P&L but fails the DD/kill and AUC criteria. E is the only variant
+that satisfies criterion 3 (all DD <= 2.76%, kill never trips) but fails
+criteria 1 and 2. The live recipe (`ensemble_model.json` +
+`config.sandbox.yaml`) is left untouched. `experiment_c_probability_calibration`
+is marked rejected in the registry (was pending).
+
 ## Gap-stress test (Task 8)
 
 Models overnight gaps against the deployed strategy's open portfolio at the
