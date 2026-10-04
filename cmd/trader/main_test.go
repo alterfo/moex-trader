@@ -550,6 +550,30 @@ func TestPreflightConfigHashChangesWithInputs(t *testing.T) {
 	}
 }
 
+func TestPreflightConfigHashChangesWithRiskSettings(t *testing.T) {
+	base := preflightConfigHash(preflightConfig())
+
+	volScale := preflightConfig()
+	volScale.Risk.VolScale.Enabled = true
+	volScale.Risk.VolScale.MinMult = decimal.New(5, -1)
+	volScale.Risk.VolScale.MaxMult = decimal.New(15, -1)
+	if preflightConfigHash(volScale) == base {
+		t.Fatal("preflightConfigHash() did not change after enabling vol_scale")
+	}
+
+	sectorCaps := preflightConfig()
+	sectorCaps.Risk.SectorCaps = map[string]decimal.Decimal{"banks": decimal.NewFromInt(45000)}
+	if preflightConfigHash(sectorCaps) == base {
+		t.Fatal("preflightConfigHash() did not change after adding sector caps")
+	}
+
+	sectors := preflightConfig()
+	sectors.Risk.Sectors = map[string]string{"SBER": "banks"}
+	if preflightConfigHash(sectors) == base {
+		t.Fatal("preflightConfigHash() did not change after adding a sector assignment")
+	}
+}
+
 func TestPreflightFailsWhenHistoryUnavailable(t *testing.T) {
 	now := time.Date(2026, 9, 16, 12, 0, 0, 0, time.UTC)
 	history := &fakeHistorySource{err: fmt.Errorf("iss is down")}
@@ -1020,6 +1044,33 @@ func TestLotSizeSignalSourceContinuesOnResolveError(t *testing.T) {
 	}
 	if inner.feature.LotSize.IsPositive() {
 		t.Fatalf("LotSize = %s, want zero on resolve error", inner.feature.LotSize)
+	}
+}
+
+type volScaleAwareSource struct {
+	enabled bool
+}
+
+func (v *volScaleAwareSource) Generate(context.Context, domain.FeatureContext) (domain.TradeSignal, error) {
+	return domain.TradeSignal{}, nil
+}
+
+func (v *volScaleAwareSource) VolScaleEnabled() bool {
+	return v.enabled
+}
+
+func TestLotSizeSignalSourceForwardsVolScaleEnabled(t *testing.T) {
+	enabled := newLotSizeSignalSource(&volScaleAwareSource{enabled: true}, nil, log.Default())
+	if !enabled.VolScaleEnabled() {
+		t.Fatal("VolScaleEnabled() = false, want true forwarded from wrapped source")
+	}
+	disabled := newLotSizeSignalSource(&volScaleAwareSource{enabled: false}, nil, log.Default())
+	if disabled.VolScaleEnabled() {
+		t.Fatal("VolScaleEnabled() = true, want false forwarded from wrapped source")
+	}
+	plain := newLotSizeSignalSource(&featureCapturingSignalSource{}, nil, log.Default())
+	if plain.VolScaleEnabled() {
+		t.Fatal("VolScaleEnabled() = true for non-vol-scale-aware source, want false")
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -349,6 +350,13 @@ func (l *lotSizeSignalSource) Generate(ctx context.Context, feature domain.Featu
 		}
 	}
 	return l.source.Generate(ctx, feature)
+}
+
+func (l *lotSizeSignalSource) VolScaleEnabled() bool {
+	if aware, ok := l.source.(interface{ VolScaleEnabled() bool }); ok {
+		return aware.VolScaleEnabled()
+	}
+	return false
 }
 
 type alertingSignalSource struct {
@@ -1282,6 +1290,8 @@ type preflight struct {
 	borrowPctPerDay decimal.Decimal
 	maxLots         int
 	maxNetExposure  decimal.Decimal
+	sectorCaps      map[string]decimal.Decimal
+	sectors         map[string]string
 	commissionRate  decimal.Decimal
 	tickers         []string
 	source          backtest.SignalSource
@@ -1309,6 +1319,8 @@ func newPreflight(cfg *config.Config, source backtest.SignalSource, history back
 		borrowPctPerDay: borrowcost.StressRatePerDay(),
 		maxLots:         cfg.Risk.MaxLots,
 		maxNetExposure:  cfg.Risk.MaxNetExposure,
+		sectorCaps:      cfg.Risk.SectorCaps,
+		sectors:         cfg.Risk.Sectors,
 		commissionRate:  cfg.Commission.Rate,
 		tickers:         append([]string(nil), cfg.Tickers...),
 		source:          source,
@@ -1328,7 +1340,7 @@ func (p *preflight) withSpreadPcts(table map[string]decimal.Decimal) *preflight 
 
 func preflightConfigHash(cfg *config.Config) string {
 	h := sha256.New()
-	fmt.Fprintf(h, "tickers=%v|model=%s|ensemble=%s|preflight_days=%d|deposit=%s|min_net_pnl=%s|min_closed_trades=%d|spread=%s|slippage=%s|borrow_pct_per_day=%s|max_lots=%d|max_net_exposure=%s|target_notional=%s|commission=%s",
+	fmt.Fprintf(h, "tickers=%v|model=%s|ensemble=%s|preflight_days=%d|deposit=%s|min_net_pnl=%s|min_closed_trades=%d|spread=%s|slippage=%s|borrow_pct_per_day=%s|max_lots=%d|max_net_exposure=%s|target_notional=%s|commission=%s|vol_scale=%t/%s/%s|sector_caps=%s|sectors=%s",
 		cfg.Tickers,
 		cfg.Model.Path,
 		cfg.Model.EnsemblePath,
@@ -1343,8 +1355,39 @@ func preflightConfigHash(cfg *config.Config) string {
 		cfg.Risk.MaxNetExposure.String(),
 		cfg.Risk.TargetNotional.String(),
 		cfg.Commission.Rate.String(),
+		cfg.Risk.VolScale.Enabled,
+		cfg.Risk.VolScale.MinMult.String(),
+		cfg.Risk.VolScale.MaxMult.String(),
+		sortedDecimalMap(cfg.Risk.SectorCaps),
+		sortedStringMap(cfg.Risk.Sectors),
 	)
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+func sortedDecimalMap(values map[string]decimal.Decimal) string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, key+"="+values[key].String())
+	}
+	return strings.Join(parts, ",")
+}
+
+func sortedStringMap(values map[string]string) string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, key+"="+values[key])
+	}
+	return strings.Join(parts, ",")
 }
 
 func (p *preflight) check(ctx context.Context) error {
@@ -1367,6 +1410,8 @@ func (p *preflight) check(ctx context.Context) error {
 		Deposit:         p.deposit,
 		MaxLots:         p.maxLots,
 		MaxNetExposure:  p.maxNetExposure,
+		SectorCaps:      p.sectorCaps,
+		Sectors:         p.sectors,
 		CommissionRate:  p.commissionRate,
 		SpreadPct:       p.spreadPct,
 		SpreadPcts:      p.spreadPcts,
