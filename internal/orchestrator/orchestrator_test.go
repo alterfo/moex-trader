@@ -379,6 +379,18 @@ func (g *fakeGate) requestAt(index int) risk.Request {
 	return g.requests[index]
 }
 
+type fakePositionReader struct {
+	lots map[string]int
+	err  error
+}
+
+func (f *fakePositionReader) CurrentLots(_ context.Context, ticker string) (int, error) {
+	if f.err != nil {
+		return 0, f.err
+	}
+	return f.lots[ticker], nil
+}
+
 type fakeAccountSource struct {
 	account risk.Account
 	err     error
@@ -938,5 +950,52 @@ func TestProcessTickerRejectsMismatchedSignalTicker(t *testing.T) {
 	}
 	if got := countEvents(events, "SBER", StageExecutor); got != 0 {
 		t.Fatalf("executor events = %d, want 0", got)
+	}
+}
+
+func TestProcessTickerPassesExposureDeltaLots(t *testing.T) {
+	store := openTestStore(t)
+	now := func() time.Time { return time.Date(2024, 1, 11, 12, 30, 0, 0, time.UTC) }
+	ingestor := &fakeIngestor{inputs: map[string]features.Input{"SBER": fixtureInput("SBER")}}
+	source := &fakeSource{
+		signal: domain.TradeSignal{
+			Action:      domain.ActionBuy,
+			TargetLots:  5,
+			Reasoning:   "fixture buy",
+			GeneratedAt: now(),
+		},
+		now: now,
+	}
+	exec := &fakeExecutor{store: store, now: now}
+	gate := &fakeGate{approve: true}
+	positions := &fakePositionReader{lots: map[string]int{"SBER": 8}}
+
+	orch, err := New(Options{
+		Tickers:      []string{"SBER"},
+		Ingestor:     ingestor,
+		Source:       source,
+		Gate:         gate,
+		Executor:     exec,
+		Positions:    positions,
+		Audit:        store,
+		PollInterval: time.Second,
+		Now:          now,
+		Account:      risk.Account{Deposit: decimal.RequireFromString("1")},
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	orch.RunOnce(context.Background())
+
+	if gate.callCount() != 1 {
+		t.Fatalf("gate calls = %d, want 1", gate.callCount())
+	}
+	request := gate.requestAt(0)
+	if request.ExposureDeltaLots == nil {
+		t.Fatal("ExposureDeltaLots = nil, want -3 (target 5 minus current 8)")
+	}
+	if *request.ExposureDeltaLots != -3 {
+		t.Fatalf("ExposureDeltaLots = %d, want -3", *request.ExposureDeltaLots)
 	}
 }

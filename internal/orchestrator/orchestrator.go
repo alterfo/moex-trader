@@ -79,6 +79,7 @@ type Options struct {
 	Source           SignalSource
 	Gate             risk.Gate
 	Executor         executor.Executor
+	Positions        risk.PositionReader
 	Audit            AuditWriter
 	PollInterval     time.Duration
 	Logger           *log.Logger
@@ -101,6 +102,7 @@ type Orchestrator struct {
 	source           SignalSource
 	gate             risk.Gate
 	exec             executor.Executor
+	positions        risk.PositionReader
 	audit            AuditWriter
 	pollInterval     time.Duration
 	logger           *log.Logger
@@ -165,6 +167,7 @@ func New(opts Options) (*Orchestrator, error) {
 		source:           opts.Source,
 		gate:             opts.Gate,
 		exec:             opts.Executor,
+		positions:        opts.Positions,
 		audit:            opts.Audit,
 		pollInterval:     pollInterval,
 		logger:           logger,
@@ -317,8 +320,17 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string, account
 		}
 	}
 
+	exposureDelta, err := o.exposureDeltaLots(ctx, signal)
+	if err != nil {
+		if auditErr := o.record(ctx, ticker, StageRisk, auditError("read current position", err)); auditErr != nil {
+			return errors.Join(fmt.Errorf("read current position for %s: %w", ticker, err), auditErr)
+		}
+		return fmt.Errorf("read current position for %s: %w", ticker, err)
+	}
+
 	decision, err := o.gate.ApproveReason(ctx, risk.Request{
-		Signal: signal,
+		Signal:            signal,
+		ExposureDeltaLots: exposureDelta,
 		Market: risk.Market{
 			OrderPrice: feature.LastPrice,
 			Bid:        feature.Bid,
@@ -374,6 +386,22 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string, account
 	}
 	o.observe(ctx, Decision{Ticker: ticker, Signal: signal, Price: feature.LastPrice, Approved: true, Fill: fill})
 	return nil
+}
+
+func (o *Orchestrator) exposureDeltaLots(ctx context.Context, signal domain.TradeSignal) (*int, error) {
+	if o.positions == nil || (signal.Action != domain.ActionBuy && signal.Action != domain.ActionSell) {
+		return nil, nil
+	}
+	current, err := o.positions.CurrentLots(ctx, signal.Ticker)
+	if err != nil {
+		return nil, err
+	}
+	desired := signal.TargetLots
+	if signal.Action == domain.ActionSell {
+		desired = -desired
+	}
+	delta := desired - current
+	return &delta, nil
 }
 
 func (o *Orchestrator) crossSectionalMedian(ctx context.Context) decimal.Decimal {

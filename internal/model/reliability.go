@@ -166,7 +166,12 @@ func RealizedReliabilityPairs(ctx context.Context, source backtest.HistoricalSou
 		if err != nil {
 			return nil, fmt.Errorf("model: reliability history %s: %w", ticker, err)
 		}
+		seen := make(map[string]struct{}, len(group))
 		for _, request := range group {
+			if _, ok := seen[dateKey(request.Date)]; ok {
+				continue
+			}
+			seen[dateKey(request.Date)] = struct{}{}
 			if math.IsNaN(request.Probability) || math.IsInf(request.Probability, 0) || request.Probability < 0 || request.Probability > 1 {
 				continue
 			}

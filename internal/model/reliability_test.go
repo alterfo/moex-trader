@@ -124,4 +124,23 @@ func TestRealizedReliabilityPairsDropsDeadbandAndTruncated(t *testing.T) {
 	}
 }
 
+func TestRealizedReliabilityPairsDeduplicatesSameDay(t *testing.T) {
+	start := reliabilityDay(2025, 1, 1)
+	source := reliabilityFakeSource{candles: map[string][]moex.Candle{"SBER": risingReliabilityCandles(12, start)}}
+	requests := []DecisionLabelRequest{
+		{Ticker: "SBER", Date: start, Probability: 0.8},
+		{Ticker: "SBER", Date: start.Add(10 * time.Hour), Probability: 0.9},
+	}
+	labeled, err := RealizedReliabilityPairs(context.Background(), source, requests, 2, 0.5, LabelModeAbsolute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(labeled) != 1 {
+		t.Fatalf("len(labeled) = %d, want 1 (same-day requests deduplicated)", len(labeled))
+	}
+	if labeled[0].Probability != 0.8 {
+		t.Fatalf("probability = %v, want 0.8 (first request wins)", labeled[0].Probability)
+	}
+}
+
 var _ backtest.HistoricalSource = reliabilityFakeSource{}

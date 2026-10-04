@@ -257,6 +257,7 @@ func run() error {
 		Source:           signalSource,
 		Gate:             gate,
 		Executor:         runtime.exec,
+		Positions:        riskConfig.Positions,
 		Audit:            store,
 		PollInterval:     cfg.PollInterval.Std(),
 		Metrics:          appMetrics,
