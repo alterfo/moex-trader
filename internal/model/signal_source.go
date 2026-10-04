@@ -35,6 +35,7 @@ func (s *SignalSource) Generate(ctx context.Context, feature domain.FeatureConte
 		Ticker:      feature.Ticker,
 		Action:      domain.ActionHold,
 		Confidence:  decimal.NewFromFloat(math.Abs(probability-0.5) * 2),
+		Probability: decimal.NewFromFloat(probability),
 		TargetLots:  0,
 		Reasoning:   reasoning(probability, names, s.Weights.Coef, standardized),
 		GeneratedAt: feature.GeneratedAt,

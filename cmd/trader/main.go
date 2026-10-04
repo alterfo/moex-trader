@@ -223,7 +223,7 @@ func run() error {
 		exposureReader = reader
 	}
 	appMetrics.SetLeaseHeld(true)
-	go runExposureMetrics(ctx, appMetrics, exposureReader, cfg.PollInterval.Std(), time.Now, log.Default())
+	go runExposureMetrics(ctx, appMetrics, exposureReader, cfg.PollInterval.Std(), log.Default())
 
 	metricsMux := http.NewServeMux()
 	metricsMux.Handle("/metrics", appMetrics.Handler())
@@ -262,7 +262,7 @@ func run() error {
 		Metrics:          appMetrics,
 		AccountSource:    runtime.accountSource,
 		Observer:         &fanoutObserver{observers: []orchestrator.DecisionObserver{notifier, &breakerFillObserver{breaker: breaker, logger: log.Default()}, &fillQualityObserver{logger: log.Default()}}},
-		CandleObserver:   &watchCandleObserver{watch: watch, now: time.Now, loc: mskLocation(), logger: log.Default()},
+		CandleObserver:   &watchCandleObserver{watch: watch, now: time.Now, logger: log.Default()},
 		KillSwitch:       store,
 		Shadow:           shadow,
 		ShadowDigestPath: shadowDigestPath,
@@ -681,11 +681,15 @@ func (s *driftSignalSource) Generate(ctx context.Context, feature domain.Feature
 
 type probabilityWatchSource struct {
 	source orchestrator.SignalSource
-	watch  *telegram.Watch
+	watch  probabilityObserver
 	logger *log.Logger
 }
 
-func newProbabilityWatchSource(source orchestrator.SignalSource, watch *telegram.Watch, logger *log.Logger) *probabilityWatchSource {
+type probabilityObserver interface {
+	ObserveProbability(ctx context.Context, probability float64) (bool, error)
+}
+
+func newProbabilityWatchSource(source orchestrator.SignalSource, watch probabilityObserver, logger *log.Logger) *probabilityWatchSource {
 	if logger == nil {
 		logger = log.Default()
 	}
@@ -698,7 +702,7 @@ func (s *probabilityWatchSource) Generate(ctx context.Context, feature domain.Fe
 		return signal, err
 	}
 	if s.watch != nil {
-		if _, alertErr := s.watch.ObserveProbability(ctx, signal.Confidence.InexactFloat64()); alertErr != nil {
+		if _, alertErr := s.watch.ObserveProbability(ctx, signal.Probability.InexactFloat64()); alertErr != nil {
 			s.logger.Printf("trader: probability collapse alert for %s: %v", feature.Ticker, alertErr)
 		}
 	}
@@ -708,7 +712,6 @@ func (s *probabilityWatchSource) Generate(ctx context.Context, feature domain.Fe
 type watchCandleObserver struct {
 	watch  *telegram.Watch
 	now    func() time.Time
-	loc    *time.Location
 	logger *log.Logger
 }
 
@@ -716,7 +719,7 @@ func (o *watchCandleObserver) ObserveCandle(ctx context.Context, ticker string, 
 	if o.watch == nil {
 		return
 	}
-	if _, err := o.watch.ObserveCandleAge(ctx, ticker, age, telegram.TradingSessionActive(o.now(), o.loc)); err != nil {
+	if _, err := o.watch.ObserveCandleAge(ctx, ticker, age, telegram.TradingSessionActive(o.now(), nil)); err != nil {
 		if o.logger != nil {
 			o.logger.Printf("trader: stale candle alert for %s: %v", ticker, err)
 		}
@@ -733,19 +736,9 @@ func watchConfigFrom(cfg *config.Config) telegram.WatchConfig {
 	return conf
 }
 
-func mskLocation() *time.Location {
-	if loc, err := time.LoadLocation("Europe/Moscow"); err == nil {
-		return loc
-	}
-	return time.FixedZone("MSK", 3*3600)
-}
-
-func runExposureMetrics(ctx context.Context, m *metrics.Metrics, reader risk.ExposureReader, interval time.Duration, now func() time.Time, logger *log.Logger) {
+func runExposureMetrics(ctx context.Context, m *metrics.Metrics, reader risk.ExposureReader, interval time.Duration, logger *log.Logger) {
 	if m == nil || reader == nil {
 		return
-	}
-	if now == nil {
-		now = time.Now
 	}
 	if logger == nil {
 		logger = log.Default()

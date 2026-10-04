@@ -152,8 +152,8 @@ func TestSplitTrainValWithEmbargo_PurgesLabelsNearSplit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SplitTrainValWithEmbargo() error = %v", err)
 	}
-	if len(train) != 2 || len(val) != 4 {
-		t.Fatalf("split = %d train / %d val, want 2/4", len(train), len(val))
+	if len(train) != 2 || len(val) != 1 {
+		t.Fatalf("split = %d train / %d val, want 2/1 (embargo zone purged, not promoted to val)", len(train), len(val))
 	}
 	cutoff := split.AddDate(0, 0, -10)
 	for _, sample := range train {
@@ -162,8 +162,8 @@ func TestSplitTrainValWithEmbargo_PurgesLabelsNearSplit(t *testing.T) {
 		}
 	}
 	for _, sample := range val {
-		if sample.LabelDate.Before(cutoff) {
-			t.Fatalf("val sample LabelDate %v is before cutoff %v: sample misclassified as validation", sample.LabelDate, cutoff)
+		if sample.LabelDate.Before(split) {
+			t.Fatalf("val sample LabelDate %v is before split %v: embargo zone must be purged, not kept as validation", sample.LabelDate, split)
 		}
 	}
 }

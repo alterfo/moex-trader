@@ -329,7 +329,7 @@ func TestWriteTickerEligibilityDropsRowsBeforeThreshold(t *testing.T) {
 	}
 	threshold := decimal.NewFromInt(500000)
 	eligible := func(candles []moex.Candle, d int) bool {
-		return model.LiquidOn(candles, d, model.TurnoverWindow, threshold)
+		return model.LiquidOn(candles, d-1, model.TurnoverWindow, threshold)
 	}
 
 	var buf bytes.Buffer
@@ -351,11 +351,11 @@ func TestWriteTickerEligibilityDropsRowsBeforeThreshold(t *testing.T) {
 	if len(rows) == 0 {
 		t.Fatal("expected some eligible rows, got 0")
 	}
-	if len(rows) != 15 {
-		t.Fatalf("got %d rows, want 15 (only decision days 89..103 are liquid)", len(rows))
+	if len(rows) != 14 {
+		t.Fatalf("got %d rows, want 14 (only decision days 90..103 are liquid using past-bar eligibility)", len(rows))
 	}
-	if rows[0][1] != dateKey(candles[89].Begin) {
-		t.Fatalf("first row date = %s, want %s (rows before eligibility must be dropped)", rows[0][1], dateKey(candles[89].Begin))
+	if rows[0][1] != dateKey(candles[90].Begin) {
+		t.Fatalf("first row date = %s, want %s (decision-day turnover must not leak into eligibility)", rows[0][1], dateKey(candles[90].Begin))
 	}
 	for _, row := range rows {
 		date, err := time.Parse("2006-01-02", row[1])
@@ -363,7 +363,7 @@ func TestWriteTickerEligibilityDropsRowsBeforeThreshold(t *testing.T) {
 			t.Fatalf("parse row date: %v", err)
 		}
 		idx := int(date.Sub(start).Hours() / 24)
-		if !model.LiquidOn(candles, idx, model.TurnoverWindow, threshold) {
+		if !model.LiquidOn(candles, idx-1, model.TurnoverWindow, threshold) {
 			t.Fatalf("row at %s (idx %d) is not eligible but was written", row[1], idx)
 		}
 	}

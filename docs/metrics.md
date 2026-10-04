@@ -231,12 +231,12 @@ grid (realized P&L divided by the 1M RUB deposit): +42453.50, +9171.72,
 Harvey-Liu conservative DSR are below the pre-registered go/no-go bar of
 DSR > 0.95.
 
-PBO is implemented as generic CSCV code with tests, but it is NOT computable
+PBO is implemented as generic CSCV code with tests, but it was NOT computable
 from this summary-only registry: no per-strategy period-return matrices were
-archived for the ~40 attempts. No daily return series are fabricated to force
-the computation. The PBO < 0.2 go/no-go check therefore stays open until the
-per-attempt matrices are persisted (Task 13 walk-forward persistence and the
-Task 17 formal metrics table are the natural sources).
+archived for the ~40 attempts. This is superseded by the 2026-10-04
+`cmd/strategyvalidation -returns-dirs` path, which persisted per-window
+`period_returns.csv` and computed CSCV PBO = 0.1529 for the Task 13 registry —
+see "Deployment decision 2026-10 (Task 13)".
 
 ## Period-return matrices and pre-registered attempts (Task 4)
 
@@ -1481,12 +1481,20 @@ Metrics exposed on the trader's `/metrics` endpoint:
 | `signals_generated_total` | counter | — | orchestrator |
 | `risk_rejections_total` | counter | `reason` | risk gate decision |
 | `executor_skips_total` | counter | `reason` | approved decisions the executor skipped |
-| `signal_probability` | histogram | — | model confidence per poll |
+| `signal_probability` | histogram | — | model probability per poll |
 | `candle_age_seconds` | gauge | `ticker` | newest ingested candle age |
 | `feature_psi` | gauge | `feature` | drift monitor warnings |
 | `position_notional` | gauge | `ticker` | signed exposure per ticker (RUB) |
 | `gross_exposure` | gauge | — | sum of absolute per-ticker notionals (RUB) |
 | `lease_held` | gauge | — | 1 while this process holds the trading lease |
+| `var_95` | gauge | — | 1-day 95% VaR of the current book (RUB) |
+| `var_99` | gauge | — | 1-day 99% VaR of the current book (RUB) |
+| `es_95` | gauge | — | 1-day 95% expected shortfall (RUB) |
+| `es_99` | gauge | — | 1-day 99% expected shortfall (RUB) |
+
+The `var_95`/`var_99`/`es_95`/`es_99` gauges are Task 12 monitoring only (not a
+risk gate): historical 1-day book VaR/ES from 250-day trailing returns in
+`internal/risk/var.go`, also reported as one line in the daily Telegram digest.
 
 Telegram alerts (`internal/alert/telegram/watch.go`), each gated by a cooldown:
 

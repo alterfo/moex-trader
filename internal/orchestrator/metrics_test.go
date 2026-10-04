@@ -28,6 +28,7 @@ func TestOrchestratorWiresMetrics(t *testing.T) {
 		signal: domain.TradeSignal{
 			Action:      domain.ActionBuy,
 			Confidence:  decimal.NewFromFloat(0.8),
+			Probability: decimal.NewFromFloat(0.9),
 			TargetLots:  2,
 			Reasoning:   "fixture buy",
 			GeneratedAt: now(),
@@ -68,6 +69,9 @@ func TestOrchestratorWiresMetrics(t *testing.T) {
 	}
 	if got := histogramSampleCount(t, appMetrics.SignalProbability); got != 2 {
 		t.Fatalf("signal_probability sample count = %d, want 2", got)
+	}
+	if got := histogramSampleSum(t, appMetrics.SignalProbability); got != 1.8 {
+		t.Fatalf("signal_probability sample sum = %v, want 1.8 (raw probabilities, not confidence)", got)
 	}
 }
 
@@ -202,4 +206,21 @@ func histogramSampleCount(t *testing.T, histogram prometheus.Histogram) uint64 {
 		t.Fatal("metric is not a histogram")
 	}
 	return pb.GetHistogram().GetSampleCount()
+}
+
+func histogramSampleSum(t *testing.T, histogram prometheus.Histogram) float64 {
+	t.Helper()
+
+	metrics := make(chan prometheus.Metric, 1)
+	histogram.Collect(metrics)
+	metric := <-metrics
+
+	var pb dto.Metric
+	if err := metric.Write(&pb); err != nil {
+		t.Fatalf("Metric.Write() error = %v", err)
+	}
+	if pb.GetHistogram() == nil {
+		t.Fatal("metric is not a histogram")
+	}
+	return pb.GetHistogram().GetSampleSum()
 }

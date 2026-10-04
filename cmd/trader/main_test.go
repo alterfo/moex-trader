@@ -1687,3 +1687,60 @@ func TestLoadNewsPolarityNilConfig(t *testing.T) {
 		t.Fatal("loadNewsPolarity(nil) = non-nil scorer, want nil")
 	}
 }
+
+type recordingProbabilityObserver struct {
+	values []float64
+}
+
+func (o *recordingProbabilityObserver) ObserveProbability(_ context.Context, probability float64) (bool, error) {
+	o.values = append(o.values, probability)
+	return false, nil
+}
+
+type probabilityFakeSource struct {
+	probability decimal.Decimal
+}
+
+func (s probabilityFakeSource) Generate(_ context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
+	return domain.TradeSignal{
+		Ticker:      feature.Ticker,
+		Action:      domain.ActionHold,
+		Confidence:  decimal.RequireFromString("0.9"),
+		Probability: s.probability,
+		Reasoning:   "probability watch fixture",
+		GeneratedAt: time.Now(),
+	}, nil
+}
+
+func TestProbabilityWatchSourceObservesRawProbability(t *testing.T) {
+	observer := &recordingProbabilityObserver{}
+	source := newProbabilityWatchSource(probabilityFakeSource{probability: decimal.RequireFromString("0.5")}, observer, nil)
+
+	if _, err := source.Generate(context.Background(), domain.FeatureContext{Ticker: "SBER"}); err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if len(observer.values) != 1 {
+		t.Fatalf("observed %d probabilities, want 1", len(observer.values))
+	}
+	if observer.values[0] != 0.5 {
+		t.Fatalf("observed probability = %v, want 0.5 (raw probability, not confidence)", observer.values[0])
+	}
+}
+
+func TestWatchConfigFromAppliesAlertSettings(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Alerts.ProbabilityCollapseWindow = 42
+	cfg.Alerts.StaleCandleAge = config.Duration(2 * time.Hour)
+	cfg.Alerts.Cooldown = config.Duration(90 * time.Minute)
+
+	got := watchConfigFrom(cfg)
+	if got.ProbabilityWindow != 42 {
+		t.Fatalf("ProbabilityWindow = %d, want 42", got.ProbabilityWindow)
+	}
+	if got.StaleCandleAge != 2*time.Hour {
+		t.Fatalf("StaleCandleAge = %s, want 2h", got.StaleCandleAge)
+	}
+	if got.Cooldown != 90*time.Minute {
+		t.Fatalf("Cooldown = %s, want 90m", got.Cooldown)
+	}
+}

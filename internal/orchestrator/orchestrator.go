@@ -295,7 +295,7 @@ func (o *Orchestrator) processTicker(ctx context.Context, ticker string, account
 	}
 	if o.metrics != nil {
 		o.metrics.IncSignalsGenerated()
-		o.metrics.ObserveSignalProbability(signal.Confidence)
+		o.metrics.ObserveSignalProbability(signal.Probability)
 	}
 	if strings.TrimSpace(signal.Ticker) != "" && !strings.EqualFold(signal.Ticker, ticker) {
 		mismatchErr := fmt.Errorf("signal ticker %q does not match requested ticker %q", signal.Ticker, ticker)

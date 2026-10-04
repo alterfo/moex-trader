@@ -78,6 +78,7 @@ type TradeSignal struct {
 	Ticker      string          `json:"ticker"`
 	Action      Action          `json:"action"`
 	Confidence  decimal.Decimal `json:"confidence"`
+	Probability decimal.Decimal `json:"probability,omitempty"`
 	TargetLots  int             `json:"target_lots"`
 	Reasoning   string          `json:"reasoning"`
 	GeneratedAt time.Time       `json:"generated_at"`

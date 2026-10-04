@@ -41,8 +41,8 @@ func TrailingVaRES(returns []decimal.Decimal) VarResult {
 		return sample[i].LessThan(sample[j])
 	})
 
-	var95 := quantile(sample, decimal.RequireFromString("0.95"))
-	var99 := quantile(sample, decimal.RequireFromString("0.99"))
+	var95 := quantile(sample, decimal.RequireFromString("0.05"))
+	var99 := quantile(sample, decimal.RequireFromString("0.01"))
 	return VarResult{
 		VaR95: var95,
 		VaR99: var99,

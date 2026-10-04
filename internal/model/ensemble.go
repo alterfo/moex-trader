@@ -137,6 +137,7 @@ func (s *EnsembleSignalSource) Generate(ctx context.Context, feature domain.Feat
 		Ticker:      feature.Ticker,
 		Action:      domain.ActionHold,
 		Confidence:  decimal.NewFromFloat(math.Abs(probability-0.5) * 2),
+		Probability: decimal.NewFromFloat(probability),
 		TargetLots:  0,
 		Reasoning:   fmt.Sprintf("ensemble:p=%.4f", probability),
 		GeneratedAt: feature.GeneratedAt,

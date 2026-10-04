@@ -33,6 +33,7 @@ type Config struct {
 	BuyThreshold       float64
 	SellThreshold      float64
 	MaxLots            int
+	TargetNotional     decimal.Decimal
 	Deposit            decimal.Decimal
 	CommissionRate     decimal.Decimal
 	OutPath            string
@@ -117,7 +118,7 @@ func Run(ctx context.Context, cfg Config, source backtest.HistoricalSource, stdo
 			ValAccuracy:   labeledAccuracy(valSamples, coef, bias, mean, std),
 		},
 	}
-	signalSource := &model.SignalSource{Weights: weights, MaxLots: cfg.MaxLots, VolScale: cfg.VolScale}
+	signalSource := &model.SignalSource{Weights: weights, MaxLots: cfg.MaxLots, TargetNotional: cfg.TargetNotional, VolScale: cfg.VolScale}
 	engine, err := backtest.NewEngine(backtest.Config{
 		Tickers:        cfg.Tickers,
 		From:           cfg.Split,
@@ -168,6 +169,8 @@ func SplitTrainValWithEmbargo(samples []model.LabeledSample, split time.Time, em
 	for _, sample := range samples {
 		if sample.LabelDate.Before(cutoff) {
 			train = append(train, sample)
+		} else if sample.LabelDate.Before(split) {
+			continue
 		} else {
 			val = append(val, sample)
 		}

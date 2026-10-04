@@ -17,10 +17,10 @@ func TestTrailingVaRESKnownSeries(t *testing.T) {
 		t.Fatal("Valid = false, want true")
 	}
 	want := map[string]string{
-		"VaR95": "-0.01",
-		"VaR99": "0.03",
-		"ES95":  "-0.48",
-		"ES99":  "-0.46",
+		"VaR95": "-0.91",
+		"VaR99": "-0.95",
+		"ES95":  "-0.93",
+		"ES99":  "-0.95",
 	}
 	for name, value := range map[string]decimal.Decimal{
 		"VaR95": got.VaR95,
@@ -57,8 +57,8 @@ func TestTrailingVaRESUsesOnlyLast250(t *testing.T) {
 	if !got.Valid {
 		t.Fatal("Valid = false, want true")
 	}
-	if !got.VaR95.Equal(decimal.RequireFromString("-0.01")) {
-		t.Fatalf("VaR95 = %s, want -0.01", got.VaR95)
+	if !got.VaR95.Equal(decimal.RequireFromString("-2.26")) {
+		t.Fatalf("VaR95 = %s, want -2.26", got.VaR95)
 	}
 }
 

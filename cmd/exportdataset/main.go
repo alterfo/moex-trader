@@ -176,7 +176,7 @@ func run(args []string) error {
 			return fmt.Errorf("parse -train-min-turnover: %w", err)
 		}
 		eligible := func(candles []moex.Candle, d int) bool {
-			return model.LiquidOn(candles, d, model.TurnoverWindow, minTurnover)
+			return model.LiquidOn(candles, d-1, model.TurnoverWindow, minTurnover)
 		}
 		for _, ticker := range trainTickers {
 			if containsTicker(tradingTickers, ticker) {
@@ -330,7 +330,7 @@ func parseOptions(args []string) (options, error) {
 	fs.IntVar(&opts.horizonDays, "horizon-days", opts.horizonDays, "forward-return horizon, in trading days on daily bars or in bars when -interval-min is set")
 	fs.StringVar(&opts.horizonMode, "horizon-mode", "", "forward-window unit: \"\" / bars (fixed bar count) or calendar_days (nearest candle to entry+horizon-days)")
 	fs.Float64Var(&opts.deadbandPct, "deadband-pct", opts.deadbandPct, "label deadband percent")
-	fs.StringVar(&opts.labelMode, "label-mode", "excess", "label target: excess (vs IMOEX) or absolute forward return")
+	fs.StringVar(&opts.labelMode, "label-mode", "excess", "label target: excess (vs IMOEX), absolute, or absolute_tr (dividend-adjusted total return; requires -dividends)")
 	fs.Float64Var(&opts.commissionPct, "commission-pct", 0, "one-way commission rate (e.g. 0.0005); widens the dead zone by round-trip cost plus the entry bar's spread proxy (0 = disabled, matches prior behavior)")
 	fs.IntVar(&opts.intervalMin, "interval-min", 0, "candle interval in minutes for intraday bars (24 or 0 = daily; ISS supports 1/10/60)")
 	fs.IntVar(&opts.featureBPD, "feature-bars-per-day", 0, "scale day-named feature windows by this many bars/session (0 = keep raw bar-count windows; -1 = auto/calendar from -interval-min; positive = explicit)")

@@ -22,7 +22,6 @@ const (
 	StatusControl   = "control"
 	StatusReference = "reference"
 	StatusBenchmark = "benchmark"
-	StatusPending   = "pending"
 )
 
 const defaultDeposit = 1_000_000.0

@@ -59,6 +59,7 @@ func run() error {
 	var intervalMin int
 	var featureBPD int
 	var newsHistory string
+	var targetNotionalStr string
 	var volScale bool
 	var volScaleMinStr string
 	var volScaleMaxStr string
@@ -98,6 +99,7 @@ func run() error {
 	flag.IntVar(&intervalMin, "interval-min", 0, "candle interval in minutes for intraday bars (24 or 0 = daily)")
 	flag.IntVar(&featureBPD, "feature-bars-per-day", 0, "scale day-named feature windows by this many bars/session")
 	flag.StringVar(&newsHistory, "news-history", "", "path to a finanalys-format news_history.jsonl")
+	flag.StringVar(&targetNotionalStr, "target-notional", "", "target ruble notional per position (empty = MaxLots sizing); required for -vol-scale to affect sizing")
 	flag.BoolVar(&volScale, "vol-scale", false, "scale target notional by clamp(median realized_volatility / ticker realized_volatility, min, max)")
 	flag.StringVar(&volScaleMinStr, "vol-scale-min", "", "vol-scale minimum multiplier (required when -vol-scale is set)")
 	flag.StringVar(&volScaleMaxStr, "vol-scale-max", "", "vol-scale maximum multiplier (required when -vol-scale is set)")
@@ -149,6 +151,17 @@ func run() error {
 		}
 		if volScaleCfg.MaxMult.LessThan(volScaleCfg.MinMult) {
 			return fmt.Errorf("-vol-scale-max must not be below -vol-scale-min")
+		}
+	}
+
+	var targetNotional decimal.Decimal
+	if strings.TrimSpace(targetNotionalStr) != "" {
+		targetNotional, err = decimal.NewFromString(targetNotionalStr)
+		if err != nil {
+			return fmt.Errorf("parse -target-notional: %w", err)
+		}
+		if !targetNotional.IsPositive() {
+			return errors.New("-target-notional must be positive")
 		}
 	}
 
@@ -264,6 +277,7 @@ func run() error {
 			BuyThreshold:       buyPct,
 			SellThreshold:      sellPct,
 			MaxLots:            maxLots,
+			TargetNotional:     targetNotional,
 			Deposit:            deposit,
 			CommissionRate:     commissionRate,
 			OutPath:            modelOut,

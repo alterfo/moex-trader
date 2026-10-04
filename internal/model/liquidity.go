@@ -1,10 +1,9 @@
 package model
 
 import (
-	"sort"
-
 	"github.com/shopspring/decimal"
 
+	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 )
 
@@ -22,12 +21,7 @@ func medianTrailingTurnover(candles []moex.Candle, idx, window int) decimal.Deci
 	for i := start; i <= idx; i++ {
 		values = append(values, candles[i].Value)
 	}
-	sort.Slice(values, func(i, j int) bool { return values[i].LessThan(values[j]) })
-	if len(values)%2 == 1 {
-		return values[len(values)/2]
-	}
-	mid := len(values) / 2
-	return values[mid-1].Add(values[mid]).Div(decimal.NewFromInt(2))
+	return domain.MedianDecimal(values)
 }
 
 func LiquidOn(candles []moex.Candle, idx int, window int, threshold decimal.Decimal) bool {

@@ -341,7 +341,7 @@ SQLite (`modernc.org/sqlite`, WAL + busy timeout 5000ms), файл из `storage
 - `signals_generated_total` — счётчик сигналов;
 - `risk_rejections_total{reason}` — отклонения риск-гейта по причине;
 - `executor_skips_total{reason}` — пропуски исполнения по причине;
-- `signal_probability` — гистограмма уверенности модели;
+- `signal_probability` — гистограмма вероятности модели;
 - `candle_age_seconds{ticker}` — возраст последней свечи;
 - `feature_psi{feature}` — PSI-дрейф признаков;
 - `position_notional{ticker}`, `gross_exposure` — позиции и суммарная экспозиция;
@@ -386,9 +386,11 @@ YAML + `.env` рядом с конфигом (реальные env-переме�
 | `is_paper_trading` | `MOEX_TRADER_IS_PAPER_TRADING` |
 | `telegram.bot_token` / `chat_id` / `signal_tickers` / `proxy` | `MOEX_TRADER_TELEGRAM_BOT_TOKEN` (секрет) / `_CHAT_ID` / `_SIGNAL_TICKERS` / `_PROXY` |
 
-Экспериментальные ключи 2026-10-04 (только YAML, по умолчанию выключены):
-`risk.vol_scale` (`enabled`/`min_mult`/`max_mult`), `risk.sector_caps`/`risk.sectors`,
-`alerts.*` (`probability_collapse_window`, `stale_candle_age`, `cooldown`).
+Экспериментальные ключи 2026-10-04 (только YAML): `risk.vol_scale`
+(`enabled`/`min_mult`/`max_mult`) и `risk.sector_caps`/`risk.sectors` по умолчанию
+выключены. `alerts.*` (`probability_collapse_window`, `stale_candle_age`, `cooldown`)
+имеет активные дефолты (`20`, `24h`, `1h`) и не срабатывает только без
+Telegram-учётных данных (`telegram.bot_token`/`chat_id`).
 
 `news.classifier_path` задаёт ML-классификатор тональности заголовков для live-скоринга.
 Если путь пуст или файл не загрузился, трейдер пишет warning и откатывается на
@@ -415,6 +417,7 @@ DATASET=/tmp/moex-dataset.csv ENSEMBLE_OUT=ensemble_model.json python3 scripts/e
 go run ./cmd/trainmodel -config config.yaml             # резервная logreg + model.json
 go run ./cmd/calibrate -config config.yaml -out report-calibration.md
 go run ./cmd/leadlag -config config.yaml -out report-leadlag.md
+go run ./cmd/listtqbr -out data/train_tickers.json      # расширенный список TQBR-акций для -train-tickers
 
 # бэктест и отчёты
 go run ./cmd/backtest -signal-source=ensemble -ensemble-path ensemble_model.json -commission-rate 0.0005
@@ -448,8 +451,11 @@ CI (`.github/workflows/ci.yml`) запускает `make check` на push и PR 
 - `cmd/strategyvalidation -reliability <wf-dir>` — Brier/ECE и таблица надёжности.
 - `-label-mode absolute_tr` + `-dividends` (`cmd/exportdataset`, `cmd/trainmodel`) — total-return разметка с дивидендами.
 - `-train-tickers` / `-train-min-turnover` (`cmd/exportdataset`) — расширенный обучающий универсум с point-in-time фильтром ликвидности.
-- `-vol-scale`, `-vol-scale-min`, `-vol-scale-max` (`cmd/backtest`, `cmd/walkforward`) — волатильностное масштабирование позиции (выключено).
-- `-sector-caps`, `-sectors` (`cmd/backtest`, `cmd/walkforward`) — секторные лимиты (конфиг `risk.sector_caps` / `risk.sectors`).
+- `-vol-scale`, `-vol-scale-min`, `-vol-scale-max` (`cmd/backtest`, `cmd/walkforward`) — волатильностное масштабирование позиции (выключено); в `cmd/walkforward` действует только вместе с `-target-notional`.
+- `-target-notional RUB` (`cmd/walkforward`) — целевой номинал на позицию (пусто = размерность `max-lots`).
+- `-sector-caps`, `-sectors` (`cmd/backtest`) — секторные лимиты (конфиг `risk.sector_caps` / `risk.sectors`).
+- `-ensemble-member lgb|xgb|logistic` (`cmd/backtest`) — торговать одним членом ансамбля (пусто = весь ансамбль).
+- `-label-mode`, `-label-horizon-bars`, `-label-deadband-pct` (`cmd/backtest -wf-dir`) — параметры меток, сохраняемых в `reliability.csv`.
 
 ## Отказоустойчивость: основной Mac + резервный ai-box
 

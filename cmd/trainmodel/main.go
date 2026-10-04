@@ -188,7 +188,7 @@ func parseOptions(args []string) (options, error) {
 	fs.IntVar(&opts.maxLots, "max-lots", 0, "max lots for validation (default: config risk.max_lots)")
 	fs.StringVar(&opts.outPath, "out", opts.outPath, "path to write trained model JSON")
 	fs.StringVar(&opts.newsHistory, "news-history", "", "path to a finanalys-format news_history.jsonl to override news_sentiment/news_count with real historical values where available")
-	fs.StringVar(&opts.labelMode, "label-mode", "excess", "label target: excess (vs IMOEX) or absolute forward return")
+	fs.StringVar(&opts.labelMode, "label-mode", "excess", "label target: excess (vs IMOEX), absolute, or absolute_tr (dividend-adjusted total return; requires -dividends)")
 	fs.StringVar(&opts.horizonMode, "horizon-mode", "", "forward-window unit: \"\" / bars (fixed bar count) or calendar_days (nearest candle to entry+horizon-days)")
 	fs.IntVar(&opts.embargoBars, "embargo-bars", 0, "training samples with a label exit within this many bars before the validation split are purged")
 	fs.StringVar(&opts.dividends, "dividends", "data/dividends.jsonl", "path to the dividend calendar JSONL used by -label-mode absolute_tr")
