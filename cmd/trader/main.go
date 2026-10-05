@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -669,11 +670,30 @@ type driftSignalSource struct {
 	metrics *metrics.Metrics
 	watch   *telegram.Watch
 	logger  *log.Logger
+
+	mu   sync.Mutex
+	last map[string][]float64
+}
+
+func (s *driftSignalSource) isRepeat(ticker string, vector []float64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.last == nil {
+		s.last = make(map[string][]float64)
+	}
+	if prev, ok := s.last[ticker]; ok && slices.Equal(prev, vector) {
+		return true
+	}
+	s.last[ticker] = slices.Clone(vector)
+	return false
 }
 
 func (s *driftSignalSource) Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
 	if s.monitor != nil {
 		vector, order := model.ToVector(feature)
+		if s.isRepeat(feature.Ticker, vector) {
+			return s.source.Generate(ctx, feature)
+		}
 		for _, warning := range s.monitor.Observe(vector, order) {
 			if s.metrics != nil {
 				s.metrics.SetFeaturePSI(warning.Feature, warning.PSI)

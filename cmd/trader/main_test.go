@@ -1511,8 +1511,8 @@ func TestDriftSignalSourceObservesAndDelegates(t *testing.T) {
 	monitor := drift.NewMonitor(ref, 0.1, 2, 2, log.New(&buf, "", 0))
 	source := &driftSignalSource{source: fixedSignalSource{action: domain.ActionBuy}, monitor: monitor}
 
-	feature := domain.FeatureContext{Ticker: "SBER", ReturnPct: decimal.NewFromInt(10)}
 	for i := 0; i < 2; i++ {
+		feature := domain.FeatureContext{Ticker: "SBER", ReturnPct: decimal.NewFromInt(int64(10 + i))}
 		signal, err := source.Generate(context.Background(), feature)
 		if err != nil {
 			t.Fatalf("Generate() error = %v", err)
@@ -1793,5 +1793,22 @@ func TestWatchConfigFromAppliesAlertSettings(t *testing.T) {
 	}
 	if got.Cooldown != 90*time.Minute {
 		t.Fatalf("Cooldown = %s, want 90m", got.Cooldown)
+	}
+}
+
+func TestDriftSignalSourceSkipsRepeatedVectors(t *testing.T) {
+	var buf bytes.Buffer
+	ref := map[string]drift.Distribution{"return_pct": drift.NormalDistribution(0, 1, 8)}
+	monitor := drift.NewMonitor(ref, 0.1, 2, 2, log.New(&buf, "", 0))
+	source := &driftSignalSource{source: fixedSignalSource{action: domain.ActionBuy}, monitor: monitor}
+
+	feature := domain.FeatureContext{Ticker: "SBER", ReturnPct: decimal.NewFromInt(10)}
+	for i := 0; i < 5; i++ {
+		if _, err := source.Generate(context.Background(), feature); err != nil {
+			t.Fatalf("Generate() error = %v", err)
+		}
+	}
+	if strings.Contains(buf.String(), "drift:") {
+		t.Fatalf("repeated identical vectors must not fill the drift window, got %q", buf.String())
 	}
 }
