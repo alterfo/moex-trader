@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -672,26 +671,29 @@ type driftSignalSource struct {
 	logger  *log.Logger
 
 	mu   sync.Mutex
-	last map[string][]float64
+	seen map[string]string
 }
 
-func (s *driftSignalSource) isRepeat(ticker string, vector []float64) bool {
+var driftDayZone = time.FixedZone("MSK", 3*60*60)
+
+func (s *driftSignalSource) isRepeat(ticker string, at time.Time) bool {
+	day := at.In(driftDayZone).Format("2006-01-02")
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.last == nil {
-		s.last = make(map[string][]float64)
+	if s.seen == nil {
+		s.seen = make(map[string]string)
 	}
-	if prev, ok := s.last[ticker]; ok && slices.Equal(prev, vector) {
+	if s.seen[ticker] == day {
 		return true
 	}
-	s.last[ticker] = slices.Clone(vector)
+	s.seen[ticker] = day
 	return false
 }
 
 func (s *driftSignalSource) Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
 	if s.monitor != nil {
 		vector, order := model.ToVector(feature)
-		if s.isRepeat(feature.Ticker, vector) {
+		if s.isRepeat(feature.Ticker, feature.GeneratedAt) {
 			return s.source.Generate(ctx, feature)
 		}
 		for _, warning := range s.monitor.Observe(vector, order) {
