@@ -1508,3 +1508,66 @@ Defaults come from `config.alerts` (`probability_collapse_window`,
 `stale_candle_age`, `cooldown`); negative values are rejected. Nothing here
 changes the live recipe: all new config keys default to the values above and
 the alert senders are no-ops unless Telegram credentials are configured.
+
+## Horizon sweep 9–40d and news-set features (2026-10-08)
+
+Question: does a longer label horizon, or news aggregated over a window per
+ticker instead of per headline, lift validation AUC toward 0.7? Verdict: no.
+Nothing deploys; the live recipe (absolute 10d, 18 price/flow columns) is
+unchanged. Research only, no repo code changed: one-off scripts, not committed.
+
+Pipeline: `exportdataset -config config.sandbox.yaml -from 2024-01-01
+-till 2026-10-07 -split 2026-06-18 -horizon-days <h> -deadband-pct 0.5
+-label-mode absolute -news-history data/news_history.jsonl`, run on the ai-box
+(`~/moex-research`, separate from the deploy dir). FX tickers excluded.
+Evaluation: expanding-window purged walk-forward, 9 test folds of 63 days from
+2025-04-01, training rows limited to `label_date < fold start` (embargo equals
+the horizon), 15 price/flow columns, LightGBM + logistic average.
+
+| horizon (days) | mean fold AUC | pooled AUC |
+|---|---|---|
+| 9 | 0.5292 | 0.5038 |
+| 10 | 0.5311 | 0.4974 |
+| 12 | 0.5204 | 0.4875 |
+| 15 | 0.5018 | 0.4799 |
+| 20 | 0.4864 | 0.4646 |
+| 25 | 0.4818 | 0.4695 |
+| 30 | 0.4730 | 0.4734 |
+| 40 | 0.4617 | 0.4678 |
+
+AUC falls monotonically with horizon and is below 0.5 from 15d. Per-fold AUC
+ranges 0.33–0.64, so the result is regime-dependent. Horizon 10d is the best of
+the sweep and is already deployed.
+
+News-set features: rolling 5/10/20-day windows per ticker, lagged one day —
+log article count, surge vs 60-day mean, negative-minus-positive keyword
+balance, 8 TF-IDF/SVD topic means, distinct sources, market-wide news count
+(`mkt10`). The news archive spans only 2026-04-01..2026-09-29 (9596 records),
+so evaluation uses 21-day folds from 2026-06-01 (4–5 folds, 300+ training rows
+minimum). "Within-day" AUC ranks tickers inside each day, removing market
+timing; CI is a bootstrap over days and is too narrow because 10–20 day labels
+overlap.
+
+| horizon | features | pooled AUC | within-day AUC [95% CI] |
+|---|---|---|---|
+| 10 | price | 0.404 | 0.353 [0.306, 0.402] |
+| 10 | news, all | 0.604 | 0.556 [0.504, 0.612] |
+| 10 | news without `mkt10` | 0.541 | 0.547 [0.489, 0.607] |
+| 10 | `mkt10` only | 0.579 | 0.500 |
+| 20 | price | 0.389 | 0.388 [0.339, 0.439] |
+| 20 | news, all | 0.565 | 0.569 [0.517, 0.620] |
+| 20 | news without `mkt10` | 0.525 | 0.570 [0.512, 0.627] |
+| 20 | `mkt10` only | 0.606 | 0.500 |
+
+Reading:
+- The pooled news gain is market timing: the single market-wide count `mkt10`
+  matches the full news model (0.58–0.61).
+- The cross-sectional news signal is 0.55–0.57; at 10d the CI includes 0.5, at
+  20d the lower bound is 0.51–0.52 before correcting for label overlap. Not
+  significant.
+- Price features are anti-predictive across tickers in 2026-06..09 (within-day
+  0.35–0.39, CI excludes 0.5). Flipping them would be fitting a known regime
+  and is not a candidate.
+- AUC above 0.7 was not reached by any variant; the best is about 0.57.
+
+Revisit news-set features only after months of live `cmd/newsfetch` appends.
