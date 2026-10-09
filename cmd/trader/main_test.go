@@ -1812,3 +1812,72 @@ func TestDriftSignalSourceObservesOncePerTickerPerDay(t *testing.T) {
 		t.Fatalf("several observations within one day must not fill the drift window, got %q", buf.String())
 	}
 }
+
+func newIncidentGate(t *testing.T, action domain.Action, alerter signalFailureAlerter) *newsGateSignalSource {
+	t.Helper()
+	newsCfg := config.News{IncidentVetoEnabled: true, IncidentMinSources: 2}
+	return newNewsGateSignalSource(fixedSignalSource{action: action}, newsCfg, alerter, nil)
+}
+
+func TestNewsGateIncidentVetoesBuy(t *testing.T) {
+	gate := newIncidentGate(t, domain.ActionBuy, nil)
+	signal, err := gate.Generate(context.Background(), domain.FeatureContext{Ticker: "YDEX", IncidentCount: 3})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if signal.Action != domain.ActionHold || signal.HoldReason != holdReasonIncident || signal.TargetLots != 0 {
+		t.Fatalf("signal = %+v, want HOLD with incident reason and zero lots", signal)
+	}
+}
+
+func TestNewsGateIncidentBelowMinSourcesPassesThrough(t *testing.T) {
+	gate := newIncidentGate(t, domain.ActionBuy, nil)
+	signal, err := gate.Generate(context.Background(), domain.FeatureContext{Ticker: "YDEX", IncidentCount: 1})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if signal.Action != domain.ActionBuy {
+		t.Fatalf("action = %q, want BUY passthrough below min sources", signal.Action)
+	}
+}
+
+func TestNewsGateIncidentDoesNotBlockSell(t *testing.T) {
+	gate := newIncidentGate(t, domain.ActionSell, nil)
+	signal, err := gate.Generate(context.Background(), domain.FeatureContext{Ticker: "YDEX", IncidentCount: 5})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if signal.Action != domain.ActionSell {
+		t.Fatalf("action = %q, want SELL untouched", signal.Action)
+	}
+}
+
+type countingAlerter struct{ sent int }
+
+func (a *countingAlerter) Send(_ context.Context, _ string) error {
+	a.sent++
+	return nil
+}
+
+func TestNewsGateIncidentAlertCooldown(t *testing.T) {
+	alerter := &countingAlerter{}
+	gate := newIncidentGate(t, domain.ActionHold, alerter)
+	clock := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+	gate.now = func() time.Time { return clock }
+	feature := domain.FeatureContext{Ticker: "YDEX", IncidentCount: 3}
+	for i := 0; i < 3; i++ {
+		if _, err := gate.Generate(context.Background(), feature); err != nil {
+			t.Fatalf("Generate() error = %v", err)
+		}
+	}
+	if alerter.sent != 1 {
+		t.Fatalf("alerts sent = %d, want 1 within cooldown", alerter.sent)
+	}
+	clock = clock.Add(incidentAlertCooldown + time.Minute)
+	if _, err := gate.Generate(context.Background(), feature); err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if alerter.sent != 2 {
+		t.Fatalf("alerts sent = %d, want 2 after cooldown", alerter.sent)
+	}
+}

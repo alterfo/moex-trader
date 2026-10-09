@@ -46,6 +46,7 @@ type FeatureContext struct {
 	RealizedVolatility       decimal.Decimal `json:"realized_volatility"`
 	NewsSentiment            decimal.Decimal `json:"news_sentiment"`
 	NewsCount                int             `json:"news_count"`
+	IncidentCount            int             `json:"incident_count"`
 	OrderBookImbalance       decimal.Decimal `json:"order_book_imbalance"`
 	Mom5d                    decimal.Decimal `json:"mom_5d"`
 	Mom21d                   decimal.Decimal `json:"mom_21d"`

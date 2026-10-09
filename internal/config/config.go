@@ -81,15 +81,17 @@ type Alerts struct {
 }
 
 type News struct {
-	Proxy          string          `yaml:"proxy"`
-	HistoryPath    string          `yaml:"history_path"`
-	RawPath        string          `yaml:"raw_path"`
-	ClassifierPath string          `yaml:"classifier_path"`
-	TGChannels     []string        `yaml:"telegram_channels"`
-	RetroPages     int             `yaml:"retro_pages"`
-	VetoEnabled    bool            `yaml:"veto_enabled"`
-	VetoSentiment  decimal.Decimal `yaml:"veto_sentiment"`
-	VetoMinCount   int             `yaml:"veto_min_count"`
+	Proxy               string          `yaml:"proxy"`
+	HistoryPath         string          `yaml:"history_path"`
+	RawPath             string          `yaml:"raw_path"`
+	ClassifierPath      string          `yaml:"classifier_path"`
+	TGChannels          []string        `yaml:"telegram_channels"`
+	RetroPages          int             `yaml:"retro_pages"`
+	VetoEnabled         bool            `yaml:"veto_enabled"`
+	VetoSentiment       decimal.Decimal `yaml:"veto_sentiment"`
+	VetoMinCount        int             `yaml:"veto_min_count"`
+	IncidentVetoEnabled bool            `yaml:"incident_veto_enabled"`
+	IncidentMinSources  int             `yaml:"incident_min_sources"`
 }
 
 type Commission struct {
@@ -172,10 +174,12 @@ func Default() *Config {
 			Cooldown:                  Duration(defaultAlertCooldown),
 		},
 		News: News{
-			VetoEnabled:    true,
-			VetoSentiment:  decimal.NewFromFloat(0.5),
-			VetoMinCount:   1,
-			ClassifierPath: defaultNewsClassifierPath,
+			VetoEnabled:         true,
+			VetoSentiment:       decimal.NewFromFloat(0.5),
+			VetoMinCount:        1,
+			IncidentVetoEnabled: true,
+			IncidentMinSources:  2,
+			ClassifierPath:      defaultNewsClassifierPath,
 		},
 		Commission: Commission{
 			Broker: defaultCommissionBroker,
@@ -321,6 +325,9 @@ func (c *Config) Validate() error {
 	}
 	if c.News.VetoMinCount < 0 {
 		return fmt.Errorf("news.veto_min_count must be non-negative")
+	}
+	if c.News.IncidentMinSources < 1 {
+		return fmt.Errorf("news.incident_min_sources must be at least 1")
 	}
 	switch c.Broker {
 	case BrokerPaper, BrokerTinkoff, BrokerFinam:

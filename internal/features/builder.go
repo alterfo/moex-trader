@@ -96,6 +96,7 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 		RealizedVolatility: realizedVolatility(volCandles),
 		NewsSentiment:      newsSentiment,
 		NewsCount:          newsCount,
+		IncidentCount:      CountIncidentSources(input.News, generatedAt, IncidentWindow),
 		OrderBookImbalance: clampImbalance(input.OrderBookImbalance),
 		Mom5d:              pf.Mom5d,
 		Mom21d:             pf.Mom21d,

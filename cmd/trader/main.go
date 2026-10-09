@@ -384,7 +384,10 @@ func (a *alertingSignalSource) Generate(ctx context.Context, feature domain.Feat
 }
 
 const (
-	holdReasonNews = "news" // signal gated by a conflicting real-time news item
+	holdReasonNews     = "news" // signal gated by a conflicting real-time news item
+	holdReasonIncident = "incident"
+
+	incidentAlertCooldown = 6 * time.Hour
 )
 
 type newsGateSignalSource struct {
@@ -394,6 +397,12 @@ type newsGateSignalSource struct {
 	enabled     bool
 	sentiment   decimal.Decimal
 	minPositive int
+
+	incidentEnabled    bool
+	incidentMinSources int
+	now                func() time.Time
+	alertMu            sync.Mutex
+	lastIncidentAlert  map[string]time.Time
 }
 
 func newNewsGateSignalSource(source orchestrator.SignalSource, newsCfg config.News, alerter signalFailureAlerter, logger *log.Logger) *newsGateSignalSource {
@@ -407,13 +416,62 @@ func newNewsGateSignalSource(source orchestrator.SignalSource, newsCfg config.Ne
 		enabled:     newsCfg.VetoEnabled,
 		sentiment:   newsCfg.VetoSentiment,
 		minPositive: newsCfg.VetoMinCount,
+
+		incidentEnabled:    newsCfg.IncidentVetoEnabled,
+		incidentMinSources: newsCfg.IncidentMinSources,
+		now:                time.Now,
+		lastIncidentAlert:  make(map[string]time.Time),
 	}
+}
+
+func (g *newsGateSignalSource) incidentAlertDue(ticker string) bool {
+	g.alertMu.Lock()
+	defer g.alertMu.Unlock()
+	now := g.now()
+	if last, ok := g.lastIncidentAlert[ticker]; ok && now.Sub(last) < incidentAlertCooldown {
+		return false
+	}
+	g.lastIncidentAlert[ticker] = now
+	return true
+}
+
+func (g *newsGateSignalSource) gateIncident(ctx context.Context, signal domain.TradeSignal, feature domain.FeatureContext) domain.TradeSignal {
+	minSources := g.incidentMinSources
+	if minSources < 1 {
+		minSources = 1
+	}
+	if !g.incidentEnabled || feature.IncidentCount < minSources {
+		return signal
+	}
+	vetoed := signal.Action == domain.ActionBuy
+	if g.alerter != nil && g.incidentAlertDue(feature.Ticker) {
+		text := fmt.Sprintf("🚨 MOEX trader: инцидент по %s (источников за 48ч: %d)", feature.Ticker, feature.IncidentCount)
+		if vetoed {
+			text += "\nBUY отменён, новые покупки заблокированы на время инцидента"
+		}
+		if alertErr := g.alerter.Send(ctx, text); alertErr != nil {
+			g.logger.Printf("trader: incident alert for %s: %v", feature.Ticker, alertErr)
+		}
+	}
+	if !vetoed {
+		return signal
+	}
+	signal.Action = domain.ActionHold
+	signal.HoldReason = holdReasonIncident
+	signal.Reasoning = "инцидент: атака, пожар или остановка работы"
+	signal.TargetLots = 0
+	g.logger.Printf("trader: incident veto BUY %s (sources %d)", feature.Ticker, feature.IncidentCount)
+	return signal
 }
 
 func (g *newsGateSignalSource) Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
 	signal, err := g.source.Generate(ctx, feature)
 	if err != nil {
 		return signal, err
+	}
+	signal = g.gateIncident(ctx, signal, feature)
+	if signal.Action == domain.ActionHold && signal.HoldReason == holdReasonIncident {
+		return signal, nil
 	}
 	if !g.enabled || feature.NewsCount < g.minPositive || feature.NewsCount == 0 {
 		return signal, nil
