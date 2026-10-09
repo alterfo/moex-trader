@@ -44,10 +44,10 @@ func (s *SignalSource) Generate(ctx context.Context, feature domain.FeatureConte
 	switch {
 	case probability >= s.Weights.BuyThreshold:
 		signal.Action = domain.ActionBuy
-		signal.TargetLots = targetLotsForNotional(s.TargetNotional, feature.LastPrice, feature.LotSize, s.MaxLots, s.VolScale, feature.RealizedVolatility, feature.CrossSectionalVolatility)
+		signal.TargetLots = TargetLotsForNotional(s.TargetNotional, feature.LastPrice, feature.LotSize, s.MaxLots, s.VolScale, feature.RealizedVolatility, feature.CrossSectionalVolatility)
 	case probability <= s.Weights.SellThreshold:
 		signal.Action = domain.ActionSell
-		signal.TargetLots = targetLotsForNotional(s.TargetNotional, feature.LastPrice, feature.LotSize, s.MaxLots, s.VolScale, feature.RealizedVolatility, feature.CrossSectionalVolatility)
+		signal.TargetLots = TargetLotsForNotional(s.TargetNotional, feature.LastPrice, feature.LotSize, s.MaxLots, s.VolScale, feature.RealizedVolatility, feature.CrossSectionalVolatility)
 	default:
 		signal.HoldReason = domain.HoldReasonModel
 	}

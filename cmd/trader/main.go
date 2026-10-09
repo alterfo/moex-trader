@@ -188,6 +188,14 @@ func run() error {
 	}
 	bandSource := orchestrator.NewSignalHysteresisSource(newProbabilityWatchSource(liveModelSource, watch, log.Default()), orchestrator.DefaultSignalHysteresisPolls)
 	gatedSource := newNewsGateSignalSource(bandSource, cfg.News, telegramClient, log.Default())
+	gatedSource.maxLots = cfg.Risk.MaxLots
+	gatedSource.targetNotional = cfg.Risk.TargetNotional
+	gatedSource.volScale = model.VolScale{
+		Enabled: cfg.Risk.VolScale.Enabled,
+		MinMult: cfg.Risk.VolScale.MinMult,
+		MaxMult: cfg.Risk.VolScale.MaxMult,
+	}
+	gatedSource.metrics = appMetrics
 	signalSource := newAlertingSignalSource(gatedSource, telegramClient, log.Default())
 	notifier := newDecisionNotifier(telegramClient, log.Default(), cfg.Telegram.SignalTickers)
 
@@ -427,9 +435,16 @@ type newsGateSignalSource struct {
 
 	incidentEnabled    bool
 	incidentMinSources int
-	now                func() time.Time
-	alertMu            sync.Mutex
-	lastIncidentAlert  map[string]time.Time
+	incidentShort      bool
+
+	maxLots        int
+	targetNotional decimal.Decimal
+	volScale       model.VolScale
+	metrics        *metrics.Metrics
+
+	now               func() time.Time
+	alertMu           sync.Mutex
+	lastIncidentAlert map[string]time.Time
 }
 
 func newNewsGateSignalSource(source orchestrator.SignalSource, newsCfg config.News, alerter signalFailureAlerter, logger *log.Logger) *newsGateSignalSource {
@@ -446,6 +461,7 @@ func newNewsGateSignalSource(source orchestrator.SignalSource, newsCfg config.Ne
 
 		incidentEnabled:    newsCfg.IncidentVetoEnabled,
 		incidentMinSources: newsCfg.IncidentMinSources,
+		incidentShort:      newsCfg.IncidentShortEnabled,
 		now:                time.Now,
 		lastIncidentAlert:  make(map[string]time.Time),
 	}
@@ -470,6 +486,9 @@ func (g *newsGateSignalSource) gateIncident(ctx context.Context, signal domain.T
 	if !g.incidentEnabled || feature.IncidentCount < minSources {
 		return signal
 	}
+	if g.incidentShort && signal.Action != domain.ActionSell {
+		return g.shortOnIncident(ctx, signal, feature)
+	}
 	vetoed := signal.Action == domain.ActionBuy
 	if g.alerter != nil && g.incidentAlertDue(feature.Ticker) {
 		text := fmt.Sprintf("🚨 MOEX trader: инцидент по %s (источников за 48ч: %d)", feature.Ticker, feature.IncidentCount)
@@ -488,6 +507,25 @@ func (g *newsGateSignalSource) gateIncident(ctx context.Context, signal domain.T
 	signal.Reasoning = "инцидент: атака, пожар или остановка работы"
 	signal.TargetLots = 0
 	g.logger.Printf("trader: incident veto BUY %s (sources %d)", feature.Ticker, feature.IncidentCount)
+	return signal
+}
+
+func (g *newsGateSignalSource) shortOnIncident(ctx context.Context, signal domain.TradeSignal, feature domain.FeatureContext) domain.TradeSignal {
+	signal.Action = domain.ActionSell
+	signal.HoldReason = ""
+	signal.TargetLots = model.TargetLotsForNotional(g.targetNotional, feature.LastPrice, feature.LotSize, g.maxLots, g.volScale, feature.RealizedVolatility, feature.CrossSectionalVolatility)
+	signal.Reasoning = fmt.Sprintf("инцидент-шорт: %d источников за 48ч", feature.IncidentCount)
+	if g.alerter != nil && g.incidentAlertDue(feature.Ticker) {
+		text := fmt.Sprintf("🚨 MOEX trader: инцидент по %s (источников за 48ч: %d) — открываю шорт %d лотов по цене %.2f",
+			feature.Ticker, feature.IncidentCount, signal.TargetLots, feature.LastPrice.InexactFloat64())
+		if alertErr := g.alerter.Send(ctx, text); alertErr != nil {
+			g.logger.Printf("trader: incident alert for %s: %v", feature.Ticker, alertErr)
+		}
+	}
+	g.logger.Printf("trader: incident short %s (sources %d, lots %d)", feature.Ticker, feature.IncidentCount, signal.TargetLots)
+	if g.metrics != nil {
+		g.metrics.IncIncidentShorts(feature.Ticker)
+	}
 	return signal
 }
 

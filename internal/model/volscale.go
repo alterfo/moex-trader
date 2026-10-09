@@ -33,7 +33,7 @@ func VolScaleMultiplier(sigma, median, minMult, maxMult decimal.Decimal) decimal
 	return ratio
 }
 
-func targetLotsForNotional(notional, lastPrice, lotSize decimal.Decimal, maxLots int, volScale VolScale, sigma, median decimal.Decimal) int {
+func TargetLotsForNotional(notional, lastPrice, lotSize decimal.Decimal, maxLots int, volScale VolScale, sigma, median decimal.Decimal) int {
 	if !notional.IsPositive() {
 		return maxLots
 	}

@@ -233,7 +233,7 @@ func (m *EnsembleModel) outOfRangeFeature(vector []float64) (string, float64, bo
 }
 
 func (s *EnsembleSignalSource) targetLots(feature domain.FeatureContext) int {
-	return targetLotsForNotional(s.TargetNotional, feature.LastPrice, feature.LotSize, s.MaxLots, s.VolScale, feature.RealizedVolatility, feature.CrossSectionalVolatility)
+	return TargetLotsForNotional(s.TargetNotional, feature.LastPrice, feature.LotSize, s.MaxLots, s.VolScale, feature.RealizedVolatility, feature.CrossSectionalVolatility)
 }
 
 func (s *EnsembleSignalSource) memberProbability(vector []float64) (float64, error) {

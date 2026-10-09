@@ -47,7 +47,7 @@ func TestVolScaleMultiplierDisabled(t *testing.T) {
 func TestTargetLotsVolScaleDisabledMatchesLegacy(t *testing.T) {
 	notional := decimal.NewFromFloat(15000)
 	price := decimal.NewFromFloat(300)
-	got := targetLotsForNotional(notional, price, decimal.NewFromInt(1), 1000, VolScale{}, decimal.NewFromFloat(2), decimal.NewFromFloat(10))
+	got := TargetLotsForNotional(notional, price, decimal.NewFromInt(1), 1000, VolScale{}, decimal.NewFromFloat(2), decimal.NewFromFloat(10))
 	if got != 50 {
 		t.Fatalf("disabled lots = %d, want 50", got)
 	}
@@ -57,7 +57,7 @@ func TestTargetLotsVolScaleAppliesMultiplier(t *testing.T) {
 	scale := VolScale{Enabled: true, MinMult: decimal.NewFromFloat(0.5), MaxMult: decimal.NewFromFloat(1.5)}
 	notional := decimal.NewFromFloat(15000)
 	price := decimal.NewFromFloat(300)
-	got := targetLotsForNotional(notional, price, decimal.NewFromInt(1), 1000, scale, decimal.NewFromFloat(2), decimal.NewFromFloat(10))
+	got := TargetLotsForNotional(notional, price, decimal.NewFromInt(1), 1000, scale, decimal.NewFromFloat(2), decimal.NewFromFloat(10))
 	if got != 75 {
 		t.Fatalf("scaled lots = %d, want 75 (notional 22500 / 300)", got)
 	}
@@ -67,7 +67,7 @@ func TestTargetLotsVolScaleZeroVolatilityFallsBack(t *testing.T) {
 	scale := VolScale{Enabled: true, MinMult: decimal.NewFromFloat(0.5), MaxMult: decimal.NewFromFloat(1.5)}
 	notional := decimal.NewFromFloat(15000)
 	price := decimal.NewFromFloat(300)
-	got := targetLotsForNotional(notional, price, decimal.NewFromInt(1), 1000, scale, decimal.Zero, decimal.NewFromFloat(10))
+	got := TargetLotsForNotional(notional, price, decimal.NewFromInt(1), 1000, scale, decimal.Zero, decimal.NewFromFloat(10))
 	if got != 50 {
 		t.Fatalf("zero-volatility lots = %d, want 50", got)
 	}

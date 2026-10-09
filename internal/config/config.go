@@ -89,17 +89,18 @@ type Alerts struct {
 }
 
 type News struct {
-	Proxy               string          `yaml:"proxy"`
-	HistoryPath         string          `yaml:"history_path"`
-	RawPath             string          `yaml:"raw_path"`
-	ClassifierPath      string          `yaml:"classifier_path"`
-	TGChannels          []string        `yaml:"telegram_channels"`
-	RetroPages          int             `yaml:"retro_pages"`
-	VetoEnabled         bool            `yaml:"veto_enabled"`
-	VetoSentiment       decimal.Decimal `yaml:"veto_sentiment"`
-	VetoMinCount        int             `yaml:"veto_min_count"`
-	IncidentVetoEnabled bool            `yaml:"incident_veto_enabled"`
-	IncidentMinSources  int             `yaml:"incident_min_sources"`
+	Proxy                string          `yaml:"proxy"`
+	HistoryPath          string          `yaml:"history_path"`
+	RawPath              string          `yaml:"raw_path"`
+	ClassifierPath       string          `yaml:"classifier_path"`
+	TGChannels           []string        `yaml:"telegram_channels"`
+	RetroPages           int             `yaml:"retro_pages"`
+	VetoEnabled          bool            `yaml:"veto_enabled"`
+	VetoSentiment        decimal.Decimal `yaml:"veto_sentiment"`
+	VetoMinCount         int             `yaml:"veto_min_count"`
+	IncidentVetoEnabled  bool            `yaml:"incident_veto_enabled"`
+	IncidentMinSources   int             `yaml:"incident_min_sources"`
+	IncidentShortEnabled bool            `yaml:"incident_short_enabled"`
 }
 
 type Commission struct {

@@ -1491,6 +1491,7 @@ Metrics exposed on the trader's `/metrics` endpoint:
 | `var_99` | gauge | — | 1-day 99% VaR of the current book (RUB) |
 | `es_95` | gauge | — | 1-day 95% expected shortfall (RUB) |
 | `es_99` | gauge | — | 1-day 99% expected shortfall (RUB) |
+| `incident_shorts_total` | counter | `ticker` | SELL decisions emitted by the news gate during an incident (not every one becomes a fill) |
 
 The `var_95`/`var_99`/`es_95`/`es_99` gauges are Task 12 monitoring only (not a
 risk gate): historical 1-day book VaR/ES from 250-day trailing returns in

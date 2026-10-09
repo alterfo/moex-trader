@@ -25,6 +25,7 @@ type Metrics struct {
 	Var99             prometheus.Gauge
 	ES95              prometheus.Gauge
 	ES99              prometheus.Gauge
+	IncidentShorts    *prometheus.CounterVec
 }
 
 func New() *Metrics {
@@ -88,6 +89,10 @@ func New() *Metrics {
 		Name: "es_99",
 		Help: "Historical 1-day 99% expected shortfall of the current book in RUB.",
 	})
+	incidentShorts := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "incident_shorts_total",
+		Help: "SELL decisions emitted by the news gate during an incident (drone/fire/stoppage), by ticker.",
+	}, []string{"ticker"})
 
 	registry.MustRegister(
 		inferenceDuration,
@@ -104,6 +109,7 @@ func New() *Metrics {
 		var99,
 		es95,
 		es99,
+		incidentShorts,
 	)
 
 	return &Metrics{
@@ -122,6 +128,7 @@ func New() *Metrics {
 		Var99:             var99,
 		ES95:              es95,
 		ES99:              es99,
+		IncidentShorts:    incidentShorts,
 	}
 }
 
@@ -171,6 +178,10 @@ func (m *Metrics) SetLeaseHeld(held bool) {
 		return
 	}
 	m.LeaseHeld.Set(0)
+}
+
+func (m *Metrics) IncIncidentShorts(ticker string) {
+	m.IncidentShorts.WithLabelValues(ticker).Inc()
 }
 
 func (m *Metrics) SetVaRES(var95, var99, es95, es99 decimal.Decimal) {

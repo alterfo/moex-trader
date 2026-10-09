@@ -1852,6 +1852,96 @@ func TestNewsGateIncidentDoesNotBlockSell(t *testing.T) {
 	}
 }
 
+func newIncidentShortGate(t *testing.T, action domain.Action, alerter signalFailureAlerter) *newsGateSignalSource {
+	t.Helper()
+	newsCfg := config.News{IncidentVetoEnabled: true, IncidentMinSources: 2, IncidentShortEnabled: true}
+	gate := newNewsGateSignalSource(fixedSignalSource{action: action}, newsCfg, alerter, nil)
+	gate.maxLots = 1000
+	gate.targetNotional = decimal.NewFromInt(15000)
+	return gate
+}
+
+func TestNewsGateIncidentShortOpensOnBuy(t *testing.T) {
+	gate := newIncidentShortGate(t, domain.ActionBuy, nil)
+	signal, err := gate.Generate(context.Background(), domain.FeatureContext{
+		Ticker:        "YDEX",
+		IncidentCount: 3,
+		LastPrice:     decimal.NewFromInt(300),
+		LotSize:       decimal.NewFromInt(1),
+	})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if signal.Action != domain.ActionSell {
+		t.Fatalf("action = %q, want SELL on incident short", signal.Action)
+	}
+	if signal.HoldReason != "" {
+		t.Fatalf("hold reason = %q, want empty", signal.HoldReason)
+	}
+	if signal.TargetLots != 50 {
+		t.Fatalf("target lots = %d, want 50 (15000/300)", signal.TargetLots)
+	}
+}
+
+func TestNewsGateIncidentShortOpensOnHold(t *testing.T) {
+	gate := newIncidentShortGate(t, domain.ActionHold, nil)
+	signal, err := gate.Generate(context.Background(), domain.FeatureContext{
+		Ticker:        "YDEX",
+		IncidentCount: 2,
+		LastPrice:     decimal.NewFromInt(300),
+		LotSize:       decimal.NewFromInt(1),
+	})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if signal.Action != domain.ActionSell || signal.TargetLots != 50 {
+		t.Fatalf("signal = %+v, want SELL 50 lots", signal)
+	}
+}
+
+func TestNewsGateIncidentShortKeepsExistingSell(t *testing.T) {
+	gate := newIncidentShortGate(t, domain.ActionSell, nil)
+	signal, err := gate.Generate(context.Background(), domain.FeatureContext{
+		Ticker:        "YDEX",
+		IncidentCount: 5,
+		LastPrice:     decimal.NewFromInt(300),
+		LotSize:       decimal.NewFromInt(1),
+	})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if signal.Action != domain.ActionSell || signal.TargetLots != 1 {
+		t.Fatalf("signal = %+v, want existing SELL with 1 lot untouched", signal)
+	}
+}
+
+func TestNewsGateIncidentShortBelowMinSourcesPassesThrough(t *testing.T) {
+	gate := newIncidentShortGate(t, domain.ActionBuy, nil)
+	signal, err := gate.Generate(context.Background(), domain.FeatureContext{
+		Ticker:        "YDEX",
+		IncidentCount: 1,
+		LastPrice:     decimal.NewFromInt(300),
+		LotSize:       decimal.NewFromInt(1),
+	})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if signal.Action != domain.ActionBuy {
+		t.Fatalf("action = %q, want BUY passthrough below min sources", signal.Action)
+	}
+}
+
+func TestNewsGateIncidentShortDisabledFallsBackToVeto(t *testing.T) {
+	gate := newIncidentGate(t, domain.ActionBuy, nil)
+	signal, err := gate.Generate(context.Background(), domain.FeatureContext{Ticker: "YDEX", IncidentCount: 3})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if signal.Action != domain.ActionHold || signal.HoldReason != holdReasonIncident {
+		t.Fatalf("signal = %+v, want HOLD incident veto when short disabled", signal)
+	}
+}
+
 type countingAlerter struct{ sent int }
 
 func (a *countingAlerter) Send(_ context.Context, _ string) error {

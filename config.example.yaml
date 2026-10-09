@@ -119,6 +119,7 @@ news:
   veto_min_count: 1
   incident_veto_enabled: true
   incident_min_sources: 2
+  incident_short_enabled: false
   # Proxy for t.me/s; falls back to telegram.proxy when empty.
   proxy: ""
   history_path: ""

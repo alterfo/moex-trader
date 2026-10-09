@@ -94,3 +94,11 @@ telegram:
   # positions. Skipped automatically on non-trading days.
   daily_summary_enabled: true
   daily_summary_time: "19:05"
+news:
+  veto_enabled: true
+  veto_sentiment: "0.5"
+  veto_min_count: 1
+  incident_veto_enabled: true
+  incident_min_sources: 2
+  incident_short_enabled: true
+  classifier_path: "news_classifier.json"
