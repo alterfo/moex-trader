@@ -1,5 +1,7 @@
 # Project rules
 
+**Source of truth and direction: `docs/VISION.md` (project "Approximate").** Read it first; the hard invariants below still take precedence over any plan.
+
 ## Multi-session ownership (agreed 2026-09-16)
 
 Two agent sessions share this repo. Zone boundaries:
