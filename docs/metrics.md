@@ -1571,3 +1571,40 @@ Reading:
 - AUC above 0.7 was not reached by any variant; the best is about 0.57.
 
 Revisit news-set features only after months of live `cmd/newsfetch` appends.
+
+## Event causal study: sanctions / negotiations / incident (2026-10-09)
+
+Protocol (fixed before the first run): `docs/plans/20261009-event-causal-study.md`. Tool: `cmd/eventstudy`
+(`go build ./cmd/eventstudy && ./eventstudy -ar-mode beta|excess`). Panel: 17 `config.sandbox.yaml` tickers x
+140 trading days (2026-04-01..2026-10-09), 10213 archive records, abnormal return vs IMOEX (market-model beta
+fitted on 2025-10-01..2026-03-31; `excess` mode as robustness), 2000 date-bootstrap and 1000 placebo draws, seed 42.
+No P&L is involved: nothing here is realized or MTM, all numbers are market-adjusted returns around news days.
+
+| topic | events / dates | stacked DiD CAR[0,+1] [95% CI] | AIPW ATT CAR[0,+1] (t) | placebo p | Holm p | MDE | verdict |
+|---|---|---|---|---|---|---|---|
+| sanctions | 71 / 45 | -0.0018 [-0.0094, +0.0045] | +0.0011 (0.35) | 0.675 | 0.675 | 0.0100 | not supported |
+| negotiations | 58 / 37 | -0.0051 [-0.0124, +0.0015] | -0.0002 (-0.05) | 0.337 | 0.673 | 0.0098 | not supported |
+| incident | 12 / 9 | -0.0230 [-0.0662, +0.0074] | -0.0238 (-1.42) | 0.026 | 0.078 | 0.0518 | underpowered |
+
+Reading:
+- **sanctions and negotiations: no detectable causal effect.** Both estimators straddle 0 on CAR[0,+1] and
+  CAR[+1,+5] (e.g. negotiations drift CAR[+1,+5] -0.0084 [-0.0163, -0.0001] is the raw event-study only; the
+  DiD [-0.0219, +0.0031] and AIPW -0.0023 (t -0.58) both include 0). With 58-71 events the minimum detectable
+  effect is about 1.0% over two days, so effects below that are not excluded. Consistent with the 2026-09-18
+  AUC rejection of `negotiations_signal`/`sanctions_signal`; this does not reopen them.
+- **incident: direction matches the live BUY veto, evidence insufficient.** Raw CAR[0,+1] is -2.6% [-6.7%, -0.2%]
+  and the unadjusted placebo p is 0.026, but stacked DiD and AIPW (t -1.42) include 0, Holm p is 0.078, and
+  N=12 on 9 dates fails the protocol power floor (MDE 5.2%). The veto stays as defence-in-depth; this study
+  neither confirms nor refutes its P&L value. Revisit when live `incident` triggers reach >= 30 events.
+- **Pre-trend is clean** for all three (CAR[-5,-1] CIs include 0), so no leakage artefact explains the nulls.
+- **TWFE vs stacked DiD agree in sign and size for sanctions/negotiations** (k=0 coefficients -0.0013 and -0.0021,
+  SE ~0.002-0.003, all |t| < 1), so staggered-timing bias is not what drives the null here. The `mna` TWFE row
+  (1 event) is degenerate and must be ignored.
+- Exploratory (not gated): dividend and report topics also show no effect; `dividend` market-level IMOEX
+  2-day difference -0.0101 [-0.0181, -0.0022] on 16 top-decile days is a single unadjusted contrast across 7
+  topics and is not evidence of tradable drift (consistent with the 2026-09-25 dividend-capture rejection).
+- `excess` mode reproduces every verdict (sanctions DiD -0.0004, negotiations -0.0060, incident -0.0235;
+  Holm p 0.933 / 0.517 / 0.090).
+- Limits: 6 months, one regime; ticker attribution of generic news biases effects toward 0 (VKCO is 41% of
+  records); timestamps can lag the first reaction, so [0,+1] is partly pre-news. IV was not run (no valid
+  instrument). Doubly robust SEs ignore nuisance-model estimation error.
