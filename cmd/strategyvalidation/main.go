@@ -21,9 +21,15 @@ func main() {
 	var matricesPath string
 	var returnsDirs string
 	var reliabilityDir string
+	var consistencyDir string
+	var minPassK float64
+	var passHorizon int
 	flag.StringVar(&matricesPath, "matrices", "", "path to a JSON {key: period-return-matrix} archive (e.g. produced by cmd/walkforward -candidates) to merge into the registry")
 	flag.StringVar(&returnsDirs, "returns-dirs", "", "comma-separated wf-dirs, each containing per-window period_returns.csv files; joins variants by date and computes PBO")
 	flag.StringVar(&reliabilityDir, "reliability", "", "wf-dir whose per-window reliability.csv files are aggregated into Brier/ECE/reliability-table report")
+	flag.StringVar(&consistencyDir, "consistency", "", "wf-dir whose per-window period_returns.csv files are summed into realized P&L per window and reported as window-consistency (Pass^k)")
+	flag.IntVar(&passHorizon, "pass-horizon", 4, "k for Pass^k: probability that the next k windows are all positive")
+	flag.Float64Var(&minPassK, "min-pass-k", 0, "when > 0, exit 1 if smoothed Pass^k is below this value")
 	flag.Parse()
 
 	registry := strategyvalidation.DefaultRegistry()
@@ -51,6 +57,17 @@ func main() {
 			os.Exit(1)
 		}
 		printReliabilityReport(pairs)
+		return
+	}
+	if consistencyDir != "" {
+		windows, err := loadWindowRealized(consistencyDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "load -consistency %q: %v\n", consistencyDir, err)
+			os.Exit(1)
+		}
+		if !printConsistencyReport(windows, passHorizon, minPassK) {
+			os.Exit(1)
+		}
 		return
 	}
 	summary := registry.Summary()
@@ -230,4 +247,70 @@ func loadMatricesInto(registry *strategyvalidation.Registry, path string) error 
 	}
 	maps.Copy(registry.Matrices, archive)
 	return nil
+}
+
+type windowRealized struct {
+	ID  string
+	Sum float64
+}
+
+func loadWindowRealized(dir string) ([]windowRealized, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var out []windowRealized
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		windowDir := filepath.Join(dir, entry.Name())
+		if _, err := os.Stat(filepath.Join(windowDir, walkforward.PeriodReturnsFileName)); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return nil, err
+		}
+		returns, err := walkforward.LoadPeriodReturns(windowDir)
+		if err != nil {
+			return nil, err
+		}
+		var sum float64
+		for _, r := range returns {
+			value, _ := r.RealizedNet.Float64()
+			sum += value
+		}
+		out = append(out, windowRealized{ID: entry.Name(), Sum: sum})
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("no %s files found under %q", walkforward.PeriodReturnsFileName, dir)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
+}
+
+func printConsistencyReport(windows []windowRealized, horizon int, minPassK float64) bool {
+	values := make([]float64, len(windows))
+	for i, w := range windows {
+		values[i] = w.Sum
+	}
+	result, err := strategyvalidation.ComputeWindowConsistency(values, []int{1, horizon})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "consistency: %v\n", err)
+		return false
+	}
+	fmt.Println("Window consistency (realized net P&L per walk-forward window)")
+	for _, w := range windows {
+		fmt.Printf("- %s: %.2f\n", w.ID, w.Sum)
+	}
+	fmt.Printf("positive windows: %d/%d (all positive: %t)\n", result.Positive, result.Windows, result.AllPositive)
+	fmt.Printf("worst: %.2f, median: %.2f, best: %.2f\n", result.Worst, result.Median, result.Best)
+	fmt.Printf("smoothed positive share (Laplace): %.4f\n", result.SmoothedShare)
+	fmt.Printf("Pass^1: %.4f\n", result.PassAtK[1])
+	fmt.Printf("Pass^%d: %.4f\n", horizon, result.PassAtK[horizon])
+	if minPassK > 0 && result.PassAtK[horizon] < minPassK {
+		fmt.Printf("GATE FAIL: Pass^%d %.4f < %.4f\n", horizon, result.PassAtK[horizon], minPassK)
+		return false
+	}
+	return true
 }

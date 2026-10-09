@@ -48,3 +48,37 @@ func TestLoadReliabilityPairsRejectsMalformedWindow(t *testing.T) {
 		t.Fatal("loadReliabilityPairs() error = nil, want error for malformed window")
 	}
 }
+
+func writePeriodReturnsWindow(t *testing.T, parent, windowID, csv string) {
+	t.Helper()
+	dir := filepath.Join(parent, windowID)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "period_returns.csv"), []byte(csv), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLoadWindowRealizedSumsPerWindow(t *testing.T) {
+	base := t.TempDir()
+	writePeriodReturnsWindow(t, base, "2025-04-01_2025-06-30", "date,realized_net\n2025-04-01,100\n2025-04-02,-40\n")
+	writePeriodReturnsWindow(t, base, "2025-07-01_2025-09-30", "date,realized_net\n2025-07-01,-10\n")
+	got, err := loadWindowRealized(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Sum != 60 || got[1].Sum != -10 {
+		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestPrintConsistencyReportGate(t *testing.T) {
+	windows := []windowRealized{{"a", 10}, {"b", -5}, {"c", 7}}
+	if !printConsistencyReport(windows, 4, 0) {
+		t.Fatal("gate off must pass")
+	}
+	if printConsistencyReport(windows, 4, 0.9) {
+		t.Fatal("Pass^4 below 0.9 must fail the gate")
+	}
+}

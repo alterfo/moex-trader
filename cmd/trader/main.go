@@ -157,9 +157,29 @@ func run() error {
 		return err
 	}
 	liveModelSource := modelSource
+	challengerBase, err := newChallengerModelSource(cfg)
+	if err != nil {
+		return err
+	}
+	if challengerBase != nil {
+		if resolver, ok := runtime.accountSource.(lotSizeResolver); ok {
+			challengerBase = newLotSizeSignalSource(challengerBase, resolver, log.Default())
+		}
+		shadowed, err := newChallengerSignalSource(liveModelSource, challengerBase, challengerLogPath(cfg), time.Now, log.Default())
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if err := shadowed.Close(); err != nil {
+				log.Printf("close challenger log: %v", err)
+			}
+		}()
+		liveModelSource = shadowed
+		log.Printf("trader: challenger shadow enabled (%s -> %s); it never places orders", cfg.Model.ChallengerEnsemblePath, challengerLogPath(cfg))
+	}
 	if driftMonitor != nil {
 		liveModelSource = &driftSignalSource{
-			source:  modelSource,
+			source:  liveModelSource,
 			monitor: driftMonitor,
 			metrics: appMetrics,
 			watch:   watch,

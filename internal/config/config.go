@@ -35,6 +35,9 @@ type Config struct {
 type Model struct {
 	Path         string `yaml:"path"`
 	EnsemblePath string `yaml:"ensemble_path"`
+
+	ChallengerEnsemblePath string `yaml:"challenger_ensemble_path"`
+	ChallengerLogPath      string `yaml:"challenger_log_path"`
 }
 
 type Storage struct {

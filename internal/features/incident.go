@@ -55,11 +55,19 @@ func CountIncidentSources(articles []news.MatchedArticle, asOf time.Time, window
 		if !DetectIncident(a.Title) {
 			continue
 		}
-		name := strings.ToLower(strings.TrimSpace(a.SourceName))
-		if strings.HasPrefix(name, "google news") {
-			name = "google news"
-		}
-		sources[name] = struct{}{}
+		sources[incidentSourceFamily(a.SourceName)] = struct{}{}
 	}
 	return len(sources)
+}
+
+var incidentSourceFamilies = []string{"google news", "ведомости", "цб рф"}
+
+func incidentSourceFamily(sourceName string) string {
+	name := strings.ToLower(strings.TrimSpace(sourceName))
+	for _, family := range incidentSourceFamilies {
+		if strings.HasPrefix(name, family) {
+			return family
+		}
+	}
+	return name
 }

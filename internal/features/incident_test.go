@@ -51,3 +51,18 @@ func TestCountIncidentSourcesDistinctAndWindow(t *testing.T) {
 		t.Fatalf("CountIncidentSources = %d, want 2 (Finam + Google News)", got)
 	}
 }
+
+func TestCountIncidentSourcesCollapsesPublisherFamilies(t *testing.T) {
+	now := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+	mk := func(source string) news.MatchedArticle {
+		return news.MatchedArticle{Title: "Пожар на НПЗ", SourceName: source, PublishedAt: now.Add(-time.Hour), TrustWeight: decimal.NewFromInt(1)}
+	}
+	same := []news.MatchedArticle{mk("Ведомости"), mk("Ведомости.Финансы"), mk("Ведомости.Бизнес"), mk("ЦБ РФ: Новости"), mk("ЦБ РФ: Пресс-релизы")}
+	if got := CountIncidentSources(same, now, IncidentWindow); got != 2 {
+		t.Fatalf("one publisher family must count once: got %d, want 2 (Ведомости + ЦБ РФ)", got)
+	}
+	mixed := append(same, mk("MarketTwits (TG)"), mk("Банкста (TG)"))
+	if got := CountIncidentSources(mixed, now, IncidentWindow); got != 4 {
+		t.Fatalf("independent channels must stay distinct: got %d, want 4", got)
+	}
+}
