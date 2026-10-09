@@ -1608,3 +1608,30 @@ Reading:
 - Limits: 6 months, one regime; ticker attribution of generic news biases effects toward 0 (VKCO is 41% of
   records); timestamps can lag the first reaction, so [0,+1] is partly pre-news. IV was not run (no valid
   instrument). Doubly robust SEs ignore nuisance-model estimation error.
+
+## Macro and dividend-yield features (2026-10-10)
+
+Question: does adding trailing dividend yield and daily macro series (IMOEX, CNY/RUB, Brent, key rate) lift
+walk-forward AUC? Protocol pre-registered in `docs/plans/20261010-macro-fundamental-features.md` section 8
+before the first run. Verdict: no. Nothing deploys; the live recipe (absolute 10d, price/flow columns) is
+unchanged and the success criterion was not met by any arm, so the P&L backtest step was not run.
+
+Pipeline: `exportdataset -config config.sandbox.yaml -from 2024-01-01 -till 2026-10-09 -split 2026-06-18
+-horizon-days 10 -deadband-pct 0.5 -label-mode absolute -macro-dir data/macro` (commit 4a49b9d), run on the
+ai-box; 12540 labelled rows, 44.4% positive, FX tickers excluded, no news history. Evaluation: `evalh.py wf()`,
+expanding-window purged walk-forward, 9 test folds of 63 days from 2025-04-01, LightGBM + logistic average.
+
+| arm | columns | mean fold AUC | pooled AUC | folds > 0.5 |
+|---|---|---|---|---|
+| A base | 15 price/flow | 0.5320 | 0.4976 | 6/9 |
+| B +div | A + `div_yield_ttm_pct` | 0.5270 | 0.4963 | 6/9 |
+| C +macro | A + 9 macro | 0.4912 | 0.4175 | 3/9 |
+| D +both | A + B + C | 0.4853 | 0.4178 | 4/9 |
+
+- Arm A reproduces the 2026-10-08 horizon-sweep baseline (0.5311 / 0.4974) to within 0.002, so the harness is unchanged.
+- Dividend yield is neutral to slightly negative (-0.005 mean fold, -0.001 pooled). Macro columns are clearly
+  harmful (-0.041 mean fold, -0.080 pooled): they are identical for every ticker on a given day, so the trees
+  can only use them to memorise the date/regime, which does not transfer to the next fold.
+- Criterion (>= +0.010 pooled AUC over A and a majority of folds > 0.5): met by no arm.
+- Limits: one regime, 9 folds, 17 tickers; macro could still help as a regime filter in the risk gate rather
+  than as a model input; fundamentals other than dividend yield were not tested (no point-in-time source).

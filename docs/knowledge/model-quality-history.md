@@ -48,3 +48,8 @@ The 2026-10-04 plan (`docs/plans/20261004-model-quality-and-robustness.md`) fixe
 - Fix: `EnsembleSignalSource` zeroes `news_count`/`news_sentiment` (`untrainedFeatures` in `internal/model/ensemble.go`) in the one path shared by live, preflight and backtest, and `Generate` returns HOLD with `HoldReasonOutOfRange` when any feature's logistic z-score exceeds `maxFeatureZ` (12). Remove a feature from `untrainedFeatures` only after retraining on a dataset that contains it (`-news-history`).
 - Regression tests: `internal/model/ensemble_parity_guard_test.go`.
 - Even with news zeroed the ensemble stays sell-leaning (878 SELL / 0 BUY of 1500 recent vectors), so the remaining bias is in the model itself, not the serving path.
+
+## Macro and dividend-yield model inputs REJECTED (2026-10-10)
+
+- Trailing dividend yield, IMOEX/CNY-RUB/Brent returns and key rate as model features: no AUC lift (dividend yield -0.005 mean fold AUC; macro columns -0.041 mean fold, -0.080 pooled). Macro is ticker-invariant per day, so trees memorise the date. Numbers: `docs/metrics.md` "Macro and dividend-yield features". The plumbing stays (`internal/macro`, `features.NewMarketEnricher`, `model.macro_dir`) but nothing uses it live; if macro is revisited, use it as a risk-gate regime filter (backtest it first), not as a model input.
+- USD/RUB (`USD000UTSTOM`) has a 20-month hole on ISS (2024-06..2026-02); CNY/RUB is the continuous FX series.
