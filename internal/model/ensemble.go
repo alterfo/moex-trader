@@ -133,6 +133,17 @@ func (s *EnsembleSignalSource) Generate(ctx context.Context, feature domain.Feat
 		return domain.TradeSignal{}, err
 	}
 
+	if name, z, ok := s.Model.outOfRangeFeature(maskedVector(feature)); ok {
+		return domain.TradeSignal{
+			Ticker:      feature.Ticker,
+			Action:      domain.ActionHold,
+			Probability: decimal.NewFromFloat(probability),
+			Reasoning:   fmt.Sprintf("ensemble:out_of_range feature=%s z=%.1f", name, z),
+			HoldReason:  domain.HoldReasonOutOfRange,
+			GeneratedAt: feature.GeneratedAt,
+		}, nil
+	}
+
 	signal := domain.TradeSignal{
 		Ticker:      feature.Ticker,
 		Action:      domain.ActionHold,
@@ -165,6 +176,7 @@ func (s *EnsembleSignalSource) RawProbability(feature domain.FeatureContext) (fl
 		return 0, fmt.Errorf("ensemble: feature ticker must not be empty")
 	}
 	vector, names := ToVector(feature)
+	maskUntrainedFeatures(vector, names)
 	if err := checkFeatureOrder(s.Model.FeatureOrder, names); err != nil {
 		return 0, err
 	}
@@ -180,6 +192,44 @@ func (s *EnsembleSignalSource) RawProbability(feature domain.FeatureContext) (fl
 		return 0, fmt.Errorf("ensemble: computed probability is not finite for %s", feature.Ticker)
 	}
 	return probability, nil
+}
+
+const maxFeatureZ = 12
+
+var untrainedFeatures = map[string]struct{}{
+	"news_count":     {},
+	"news_sentiment": {},
+}
+
+func maskUntrainedFeatures(vector []float64, names []string) {
+	for i, name := range names {
+		if _, ok := untrainedFeatures[name]; ok {
+			vector[i] = 0
+		}
+	}
+}
+
+func maskedVector(feature domain.FeatureContext) []float64 {
+	vector, names := ToVector(feature)
+	maskUntrainedFeatures(vector, names)
+	return vector
+}
+
+func (m *EnsembleModel) outOfRangeFeature(vector []float64) (string, float64, bool) {
+	if len(vector) != len(m.Logistic.Mean) || len(vector) != len(m.Logistic.Std) || len(vector) != len(m.FeatureOrder) {
+		return "", 0, false
+	}
+	for i, value := range vector {
+		std := m.Logistic.Std[i]
+		if std <= 0 {
+			continue
+		}
+		z := (value - m.Logistic.Mean[i]) / std
+		if math.Abs(z) > maxFeatureZ {
+			return m.FeatureOrder[i], z, true
+		}
+	}
+	return "", 0, false
 }
 
 func (s *EnsembleSignalSource) targetLots(feature domain.FeatureContext) int {

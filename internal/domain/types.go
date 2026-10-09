@@ -29,10 +29,11 @@ func (a Action) IsValid() bool {
 // HOLD produced by the model must not be conflated with a HOLD produced by a
 // signal source error, otherwise the metrics lie.
 const (
-	HoldReasonModel      = "model"      // the model itself chose HOLD
-	HoldReasonTimeout    = "timeout"    // the signal source call timed out
-	HoldReasonError      = "error"      // signal source errored for another reason
-	HoldReasonConfidence = "confidence" // signal filtered out below min-confidence gate
+	HoldReasonModel      = "model"        // the model itself chose HOLD
+	HoldReasonTimeout    = "timeout"      // the signal source call timed out
+	HoldReasonError      = "error"        // signal source errored for another reason
+	HoldReasonConfidence = "confidence"   // signal filtered out below min-confidence gate
+	HoldReasonOutOfRange = "out_of_range" // a feature lies far outside the training distribution
 )
 
 type FeatureContext struct {

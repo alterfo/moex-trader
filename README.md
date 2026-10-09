@@ -10,6 +10,21 @@ T-Банка. Каждый шаг пишется в SQLite как аудит-с�
 Реальные деньги намеренно отключены: `cmd/trader` отказывается работать с
 не-песочным счётом.
 
+## Документация
+
+| Файл | О чём |
+|---|---|
+| `AGENTS.md` | правила проекта: зоны ответственности сессий, жёсткие инварианты, индекс знаний |
+| `docs/metrics.md` | единственный источник всех цифр бэктестов и анализа (формат проверяет `internal/metricsdoc`) |
+| `docs/knowledge/*.md` | история решений и отвергнутых идей: признаки и инференс, новости и события, качество модели, источники дохода, валидация и эксплуатация |
+| `docs/GO_LIVE_CHECKLIST.md` | чек-лист перед включением реальных денег |
+| `docs/plans/` | планы ralphex (`completed/` — выполненные) |
+
+Champion/challenger: `model.challenger_ensemble_path` включает теневой скоринг каждого
+вектора вторым ансамблем (лог `artifacts/challenger/decisions.jsonl`); challenger
+никогда не доходит до исполнителя, а вердикт `cmd/challengercompare` — только
+свидетельство, но не основание для замены модели.
+
 ## Содержание
 
 1. [Архитектура](#архитектура)
@@ -71,6 +86,13 @@ config.yaml ──> backtest.Engine (та же SignalSource, тот же рис�
 | `cmd/leadlag` | диагностика lead-lag между тикерами (кросс-корреляция + Granger, `-robustness`) |
 | `cmd/backtest` | исторический прогон: `-signal-source=model\|ensemble\|rule\|csvprob` |
 | `cmd/verifier` | markdown-отчёт по аудиту: сигналы vs сделки, P&L за вычетом комиссий |
+| `cmd/walkforward` | purged walk-forward (`-embargo-bars`), персистит модели и решения по окнам |
+| `cmd/strategyvalidation` | реестр попыток, deflated Sharpe, PBO, надёжность, `-consistency` (Pass^k по окнам) |
+| `cmd/challengercompare` | сравнение challenger-ансамбля с чемпионом по логу теневых решений (bootstrap CI) |
+| `cmd/watchdog`, `cmd/witness` | отказоустойчивость: сторож на каждом узле и lease-арбитр на VPS |
+| `cmd/newsfetch`, `cmd/newsimport`, `cmd/newsscore`, `cmd/trainnewsmodel` | архив новостей, импорт, скоринг (lexicon/regex/model) и обучение новостного классификатора |
+| `cmd/eventstudy`, `cmd/dividendscalendar`, `cmd/dividendstudy`, `cmd/alphahedge`, `cmd/xsecrank` | исследовательские CLI: event study новостей, дивидендный дрейф, alpha-хедж, cross-sectional ранжирование |
+| `cmd/pnlexporter`, `cmd/tinvestprobe` | Prometheus-экспорт P&L из SQLite; проба фьючерсных ордеров в песочнице |
 | `internal/model` | ансамбль, логистическая регрессия, фичи, датасет, калибровка, lead-lag |
 | `internal/features` | `Builder` — `FeatureContext` из свечей/котировок/новостей/стакана |
 | `internal/backtest` | движок реплея, `ISSSource` (дневные свечи с пейджингом), кэш решений |
@@ -81,6 +103,10 @@ config.yaml ──> backtest.Engine (та же SignalSource, тот же рис�
 | `internal/orchestrator` | цикл `RunOnce`, ingest |
 | `internal/storage` | SQLite (WAL): `audit_events`, `trade_signals`, `kill_switch`, миграции |
 | `internal/domain` | `FeatureContext`, `TradeSignal`, `AuditEvent` |
+| `internal/failover` | выбор лидера, lease-клиент, fencing трейдера |
+| `internal/drift`, `internal/risk/tickerbreaker.go` | PSI-дрейф признаков, circuit breaker по тикеру |
+| `internal/walkforward`, `internal/strategyvalidation`, `internal/oosfreeze`, `internal/metricsdoc` | валидация стратегии, заморозка OOS, линтер `docs/metrics.md` |
+| `internal/features/incident.go`, `internal/ingestion/news` | детектор инцидентов (блок BUY, алерт) и новостной ingest |
 | `internal/metrics` | Prometheus: `signals_generated_total`, `risk_rejections_total`, тайминг инференса |
 | `internal/alert/telegram` | алерты: ошибка сигнала, kill switch, сделки с результатом |
 | `internal/verifier` | сборка P&L-отчёта из аудит-событий |
