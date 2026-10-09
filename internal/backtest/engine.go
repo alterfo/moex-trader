@@ -141,6 +141,7 @@ type Config struct {
 	SignalSource          SignalSource
 	Source                HistoricalSource
 	FeatureConfig         features.PriceFeatureConfig
+	Enricher              features.Enricher
 	Logger                *log.Logger
 	NewsOverrides         map[string]map[string]NewsAggregate
 	EventOverrides        map[string]map[string]features.EventFlags
@@ -569,6 +570,7 @@ func (e *Engine) prepareTicker(ctx context.Context, ticker string) (*tickerBackt
 	}
 
 	builder := features.NewBuilderWithConfig(time.Now, e.cfg.FeatureConfig)
+	builder.SetEnricher(e.cfg.Enricher)
 
 	tradeable := make([]int, 0, 64)
 	for d := warmup; d < len(candles); d++ {

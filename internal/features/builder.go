@@ -29,10 +29,17 @@ type Input struct {
 	OrderBookImbalance decimal.Decimal
 }
 
+type Enricher func(ticker string, decisionDay time.Time, feature *domain.FeatureContext) error
+
 type Builder struct {
 	now          func() time.Time
 	conf         PriceFeatureConfig
 	newsPolarity func(string) decimal.Decimal
+	enricher     Enricher
+}
+
+func (b *Builder) SetEnricher(enricher Enricher) {
+	b.enricher = enricher
 }
 
 func NewBuilder(now func() time.Time) *Builder {
@@ -85,7 +92,7 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 		volCandles = volCandles[len(volCandles)-lookback:]
 	}
 
-	return domain.FeatureContext{
+	feature := domain.FeatureContext{
 		Ticker:             ticker,
 		GeneratedAt:        generatedAt,
 		LastPrice:          input.Price.LastPrice,
@@ -121,7 +128,13 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 		EventDefault:       events.Default,
 		NegotiationsSignal: negotiationsSignal,
 		SanctionsSignal:    sanctionsSignal,
-	}, nil
+	}
+	if b.enricher != nil {
+		if err := b.enricher(ticker, generatedAt, &feature); err != nil {
+			return empty, fmt.Errorf("enrich %s: %w", ticker, err)
+		}
+	}
+	return feature, nil
 }
 
 func EnrichWithAlgoPack(feature domain.FeatureContext, imbalance decimal.Decimal) domain.FeatureContext {

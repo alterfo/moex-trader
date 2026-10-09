@@ -43,7 +43,7 @@ func main() {
 }
 
 func run() error {
-	var configPath string
+	var configPath, macroDir, dividendsPath string
 	var fromStr, tillStr string
 	var tickersStr string
 	var depositStr string
@@ -86,6 +86,8 @@ func run() error {
 	var labelDeadbandPct float64
 
 	flag.StringVar(&configPath, "config", "config.yaml", "path to config YAML")
+	flag.StringVar(&macroDir, "macro-dir", "", "directory with macro series (cmd/macrofetch); needed by ensembles trained with macro/dividend-yield features")
+	flag.StringVar(&dividendsPath, "dividends-calendar", "data/dividends.jsonl", "dividend calendar JSONL for the dividend-yield feature (used with -macro-dir)")
 	flag.StringVar(&fromStr, "from", "", "backtest start date YYYY-MM-DD (default: one year ago)")
 	flag.StringVar(&tillStr, "till", "", "backtest end date YYYY-MM-DD (default: today)")
 	flag.StringVar(&tickersStr, "tickers", "", "comma-separated tickers (overrides config)")
@@ -365,7 +367,13 @@ func run() error {
 		signalSource = recorder
 	}
 
+	marketEnricher, err := features.LoadMarketEnricher(macroDir, dividendsPath)
+	if err != nil {
+		return fmt.Errorf("load market enricher: %w", err)
+	}
+
 	engine, err := backtest.NewEngine(backtest.Config{
+		Enricher:              marketEnricher,
 		Tickers:               tickers,
 		From:                  from,
 		Till:                  till,

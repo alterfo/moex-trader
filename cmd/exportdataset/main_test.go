@@ -77,7 +77,7 @@ func TestWriteTickerKeysLabelsPerBarWithinADay(t *testing.T) {
 
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)
-	header := datasetHeader()
+	header := datasetHeader(false)
 
 	const warmup = 10
 	from := start
@@ -120,7 +120,7 @@ func TestWriteTickerRowMatchesHeader(t *testing.T) {
 	from := start.AddDate(0, 0, minLabelCandles)
 	till := start.AddDate(0, 0, minLabelCandles+4)
 	split := start.AddDate(0, 0, minLabelCandles+2)
-	header := datasetHeader()
+	header := datasetHeader(false)
 
 	news := model.AggregateDailySentiment([]model.HistoricalNewsRecord{
 		{Ticker: "TEST", PublishedAt: from, Sentiment: 0.75, TrustWeight: 1},
@@ -174,7 +174,7 @@ func TestWriteTickerWritesTopicSignalColumns(t *testing.T) {
 
 	from := start.AddDate(0, 0, minLabelCandles)
 	till := start.AddDate(0, 0, minLabelCandles+1)
-	header := datasetHeader()
+	header := datasetHeader(false)
 	topics := model.AggregateDailyTopicSignals([]model.HistoricalNewsRecord{
 		{Ticker: "TEST", PublishedAt: from, TrustWeight: 1, Title: "Мирный план по переговорам согласован", Sentiment: 0.625},
 		{Ticker: "TEST", PublishedAt: from, TrustWeight: 1, Title: "Новые санкции ограничили торговлю", Sentiment: -0.375},
@@ -234,7 +234,7 @@ func TestLoadDividendCalendarEmptyFileErrors(t *testing.T) {
 }
 
 func TestDatasetHeaderMirrorsFeatureOrder(t *testing.T) {
-	header := datasetHeader()
+	header := datasetHeader(false)
 	if len(header) < 7 {
 		t.Fatalf("header too short: %v", header)
 	}
@@ -289,7 +289,7 @@ func TestWriteTickerTrainOnlyDropsValAndUnlabeledRows(t *testing.T) {
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)
 	err := writeTicker(context.Background(), writer, source, features.NewBuilder(time.Now),
-		"TEST", start, till, from, split, defaultHorizonDays, minLabelCandles, labels, nil, nil, nil, datasetHeader(), true, nil)
+		"TEST", start, till, from, split, defaultHorizonDays, minLabelCandles, labels, nil, nil, nil, datasetHeader(false), true, nil)
 	if err != nil {
 		t.Fatalf("writeTicker: %v", err)
 	}
@@ -335,7 +335,7 @@ func TestWriteTickerEligibilityDropsRowsBeforeThreshold(t *testing.T) {
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)
 	err := writeTicker(context.Background(), writer, source, features.NewBuilder(time.Now),
-		"TEST", start, till, from, split, defaultHorizonDays, minLabelCandles, labels, nil, nil, nil, datasetHeader(), true, eligible)
+		"TEST", start, till, from, split, defaultHorizonDays, minLabelCandles, labels, nil, nil, nil, datasetHeader(false), true, eligible)
 	if err != nil {
 		t.Fatalf("writeTicker: %v", err)
 	}

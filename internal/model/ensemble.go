@@ -133,7 +133,7 @@ func (s *EnsembleSignalSource) Generate(ctx context.Context, feature domain.Feat
 		return domain.TradeSignal{}, err
 	}
 
-	if name, z, ok := s.Model.outOfRangeFeature(maskedVector(feature)); ok {
+	if name, z, ok := s.Model.outOfRangeFeature(s.maskedVector(feature)); ok {
 		return domain.TradeSignal{
 			Ticker:      feature.Ticker,
 			Action:      domain.ActionHold,
@@ -175,14 +175,11 @@ func (s *EnsembleSignalSource) RawProbability(feature domain.FeatureContext) (fl
 	if strings.TrimSpace(feature.Ticker) == "" {
 		return 0, fmt.Errorf("ensemble: feature ticker must not be empty")
 	}
-	vector, names := ToVector(feature)
-	maskUntrainedFeatures(vector, names)
-	if err := checkFeatureOrder(s.Model.FeatureOrder, names); err != nil {
-		return 0, err
+	vector, err := ToVectorFor(feature, s.Model.FeatureOrder)
+	if err != nil {
+		return 0, fmt.Errorf("ensemble: %w", err)
 	}
-	if len(vector) != len(names) {
-		return 0, fmt.Errorf("ensemble: feature vector length %d does not match order %d", len(vector), len(names))
-	}
+	maskUntrainedFeatures(vector, s.Model.FeatureOrder)
 
 	probability, err := s.memberProbability(vector)
 	if err != nil {
@@ -209,9 +206,12 @@ func maskUntrainedFeatures(vector []float64, names []string) {
 	}
 }
 
-func maskedVector(feature domain.FeatureContext) []float64 {
-	vector, names := ToVector(feature)
-	maskUntrainedFeatures(vector, names)
+func (s *EnsembleSignalSource) maskedVector(feature domain.FeatureContext) []float64 {
+	vector, err := ToVectorFor(feature, s.Model.FeatureOrder)
+	if err != nil {
+		return nil
+	}
+	maskUntrainedFeatures(vector, s.Model.FeatureOrder)
 	return vector
 }
 

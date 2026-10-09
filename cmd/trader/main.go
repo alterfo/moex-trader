@@ -192,7 +192,11 @@ func run() error {
 	notifier := newDecisionNotifier(telegramClient, log.Default(), cfg.Telegram.SignalTickers)
 
 	historySource := backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
-	preflight := newPreflight(cfg, modelSource, historySource, time.Now)
+	marketEnricher, err := loadMarketEnricher(ctx, cfg, log.Default())
+	if err != nil {
+		return err
+	}
+	preflight := newPreflight(cfg, modelSource, historySource, time.Now).withEnricher(marketEnricher)
 	var spreadTable spread.Table
 	events, err := store.ListAllAuditEvents(ctx)
 	if err != nil {
@@ -265,6 +269,7 @@ func run() error {
 	}()
 
 	featureBuilder := features.NewBuilder(time.Now)
+	featureBuilder.SetEnricher(marketEnricher)
 	if polarity := loadNewsPolarity(cfg, log.Default()); polarity != nil {
 		featureBuilder.SetNewsPolarity(polarity)
 	}
@@ -1393,6 +1398,7 @@ type preflight struct {
 	maxLots         int
 	maxNetExposure  decimal.Decimal
 	maxNetShort     decimal.Decimal
+	enricher        features.Enricher
 	maxNetLong      decimal.Decimal
 	sectorCaps      map[string]decimal.Decimal
 	sectors         map[string]string
@@ -1436,6 +1442,11 @@ func newPreflight(cfg *config.Config, source backtest.SignalSource, history back
 	}
 }
 
+func (p *preflight) withEnricher(enricher features.Enricher) *preflight {
+	p.enricher = enricher
+	return p
+}
+
 func (p *preflight) withSpreadPcts(table map[string]decimal.Decimal) *preflight {
 	if p == nil {
 		return p
@@ -1446,7 +1457,7 @@ func (p *preflight) withSpreadPcts(table map[string]decimal.Decimal) *preflight 
 
 func preflightConfigHash(cfg *config.Config) string {
 	h := sha256.New()
-	fmt.Fprintf(h, "tickers=%v|model=%s|ensemble=%s|preflight_days=%d|deposit=%s|min_net_pnl=%s|min_closed_trades=%d|spread=%s|slippage=%s|borrow_pct_per_day=%s|max_lots=%d|max_net_exposure=%s|max_net_short=%s|max_net_long=%s|target_notional=%s|commission=%s|vol_scale=%t/%s/%s|sector_caps=%s|sectors=%s",
+	fmt.Fprintf(h, "tickers=%v|model=%s|ensemble=%s|preflight_days=%d|deposit=%s|min_net_pnl=%s|min_closed_trades=%d|spread=%s|slippage=%s|borrow_pct_per_day=%s|max_lots=%d|max_net_exposure=%s|max_net_short=%s|max_net_long=%s|macro_dir=%s|target_notional=%s|commission=%s|vol_scale=%t/%s/%s|sector_caps=%s|sectors=%s",
 		cfg.Tickers,
 		cfg.Model.Path,
 		cfg.Model.EnsemblePath,
@@ -1461,6 +1472,7 @@ func preflightConfigHash(cfg *config.Config) string {
 		cfg.Risk.MaxNetExposure.String(),
 		cfg.Risk.MaxNetShort.String(),
 		cfg.Risk.MaxNetLong.String(),
+		cfg.Model.MacroDir,
 		cfg.Risk.TargetNotional.String(),
 		cfg.Commission.Rate.String(),
 		cfg.Risk.VolScale.Enabled,
@@ -1519,6 +1531,7 @@ func (p *preflight) check(ctx context.Context) error {
 		MaxLots:         p.maxLots,
 		MaxNetExposure:  p.maxNetExposure,
 		MaxNetShort:     p.maxNetShort,
+		Enricher:        p.enricher,
 		MaxNetLong:      p.maxNetLong,
 		SectorCaps:      p.sectorCaps,
 		Sectors:         p.sectors,

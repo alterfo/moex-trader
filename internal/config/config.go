@@ -36,6 +36,9 @@ type Model struct {
 	Path         string `yaml:"path"`
 	EnsemblePath string `yaml:"ensemble_path"`
 
+	MacroDir      string `yaml:"macro_dir"`
+	DividendsPath string `yaml:"dividends_path"`
+
 	ChallengerEnsemblePath string `yaml:"challenger_ensemble_path"`
 	ChallengerLogPath      string `yaml:"challenger_log_path"`
 }

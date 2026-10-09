@@ -88,3 +88,21 @@ func TestEnsembleDoesNotHoldInRange(t *testing.T) {
 		t.Fatalf("in-range feature held as out_of_range: %s", signal.Reasoning)
 	}
 }
+
+func TestToVectorForReadsExtraFeaturesAndRejectsMissing(t *testing.T) {
+	feature := liveLikeFeature()
+	feature.Extra = map[string]float64{"div_yield_ttm_pct": 7.5}
+
+	order := []string{"rsi_14", "div_yield_ttm_pct"}
+	vector, err := ToVectorFor(feature, order)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if vector[0] != 50 || vector[1] != 7.5 {
+		t.Fatalf("vector = %v, want [50 7.5]", vector)
+	}
+
+	if _, err := ToVectorFor(liveLikeFeature(), order); err == nil {
+		t.Fatal("a missing extended feature must be an error, not a silent zero")
+	}
+}

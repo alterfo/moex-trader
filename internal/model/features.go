@@ -1,6 +1,10 @@
 package model
 
-import "github.com/olegsidorkin/moex-trader/internal/domain"
+import (
+	"fmt"
+
+	"github.com/olegsidorkin/moex-trader/internal/domain"
+)
 
 var defaultFeatureOrder = []string{
 	"return_pct",
@@ -65,4 +69,24 @@ func ToVector(f domain.FeatureContext) ([]float64, []string) {
 		f.SanctionsSignal.InexactFloat64(),
 	}
 	return values, append([]string(nil), defaultFeatureOrder...)
+}
+
+func ToVectorFor(f domain.FeatureContext, order []string) ([]float64, error) {
+	base, baseNames := ToVector(f)
+	known := make(map[string]float64, len(base)+len(f.Extra))
+	for i, name := range baseNames {
+		known[name] = base[i]
+	}
+	for name, value := range f.Extra {
+		known[name] = value
+	}
+	out := make([]float64, len(order))
+	for i, name := range order {
+		value, ok := known[name]
+		if !ok {
+			return nil, fmt.Errorf("feature %q is not available for %s", name, f.Ticker)
+		}
+		out[i] = value
+	}
+	return out, nil
 }

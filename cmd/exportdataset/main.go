@@ -48,6 +48,7 @@ type options struct {
 	outPath          string
 	newsHistory      string
 	dividends        string
+	macroDir         string
 	trainTickers     string
 	trainMinTurnover string
 }
@@ -156,7 +157,11 @@ func run(args []string) error {
 	writer := csv.NewWriter(out)
 	defer writer.Flush()
 
-	header := datasetHeader()
+	enricher, err := features.LoadMarketEnricher(opts.macroDir, opts.dividends)
+	if err != nil {
+		return fmt.Errorf("load market enricher: %w", err)
+	}
+	header := datasetHeader(enricher != nil)
 	if err := writer.Write(header); err != nil {
 		return fmt.Errorf("write header: %w", err)
 	}
@@ -166,6 +171,7 @@ func run(args []string) error {
 			return ctx.Err()
 		}
 		builder := features.NewBuilderWithConfig(time.Now, featureCfg)
+		builder.SetEnricher(enricher)
 		if err := writeTicker(ctx, writer, source, builder, ticker, fetchFrom, till, from, split, opts.horizonDays, featureCfg.WarmupCandles(), labelByKey, newsHistory, topicHistory, eventHistory, header, false, nil); err != nil {
 			return err
 		}
@@ -186,6 +192,7 @@ func run(args []string) error {
 				return ctx.Err()
 			}
 			builder := features.NewBuilderWithConfig(time.Now, featureCfg)
+			builder.SetEnricher(enricher)
 			if err := writeTicker(ctx, writer, source, builder, ticker, fetchFrom, till, from, split, opts.horizonDays, featureCfg.WarmupCandles(), labelByKey, newsHistory, topicHistory, eventHistory, header, true, eligible); err != nil {
 				return err
 			}
@@ -261,6 +268,7 @@ func writeTicker(ctx context.Context, writer *csv.Writer, source backtest.Histor
 			}
 		}
 		vec, _ := model.ToVector(feature)
+		extraNames := header[5+len(vec):]
 		key := ticker + "|" + barKey(decisionDay)
 		row := make([]string, len(header))
 		row[0] = ticker
@@ -281,6 +289,9 @@ func writeTicker(ctx context.Context, writer *csv.Writer, source backtest.Histor
 		}
 		for i, value := range vec {
 			row[5+i] = formatFloat(value)
+		}
+		for i, name := range extraNames {
+			row[5+len(vec)+i] = formatFloat(feature.Extra[name])
 		}
 		if err := writer.Write(row); err != nil {
 			return fmt.Errorf("write row %s %s: %w", ticker, dateKey(decisionDay), err)
@@ -336,6 +347,7 @@ func parseOptions(args []string) (options, error) {
 	fs.IntVar(&opts.featureBPD, "feature-bars-per-day", 0, "scale day-named feature windows by this many bars/session (0 = keep raw bar-count windows; -1 = auto/calendar from -interval-min; positive = explicit)")
 	fs.StringVar(&opts.outPath, "out", "dataset.csv", "output CSV path")
 	fs.StringVar(&opts.newsHistory, "news-history", "", "path to a finanalys-format news_history.jsonl to override news_sentiment/news_count with real historical values where available")
+	fs.StringVar(&opts.macroDir, "macro-dir", "", "directory with macro series (cmd/macrofetch); adds dividend yield and macro columns")
 	fs.StringVar(&opts.dividends, "dividends", "data/dividends.jsonl", "path to the dividend calendar JSONL used by -label-mode absolute_tr")
 	fs.StringVar(&opts.trainTickers, "train-tickers", "", "comma-separated extra training tickers (default: same as trading tickers); FX tickers rejected")
 	fs.StringVar(&opts.trainMinTurnover, "train-min-turnover", opts.trainMinTurnover, "minimum median 20-day turnover (RUB) for a -train-tickers name to contribute a training row")
@@ -468,8 +480,12 @@ func validateTrainTickers(tickers []string) error {
 	return nil
 }
 
-func datasetHeader() []string {
+func datasetHeader(withExtra bool) []string {
 	_, names := model.ToVector(domain.FeatureContext{})
 	header := []string{"ticker", "date", "label", "label_date", "split"}
-	return append(header, names...)
+	header = append(header, names...)
+	if withExtra {
+		header = append(header, features.ExtraFeatureNames()...)
+	}
+	return header
 }
