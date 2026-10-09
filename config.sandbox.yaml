@@ -42,6 +42,8 @@ risk:
   # with headroom for a price drop.
   max_lots: 1000
   target_notional: "15000"
+  max_net_short: "90000"
+  max_net_long: "90000"
   # Marketable-limit slippage cap (requires tinkoff.order_type: limit below):
   # BUY caps at last_price*(1+pct), SELL floors at last_price*(1-pct). The
   # order either fills within the band or not at all — never chases the book.

@@ -30,6 +30,8 @@ risk:
   # target_notional: "15000"        # flat notional per position; overrides max_lots sizing when set
   # max_net_exposure: "60000"       # cap on aggregate signed net position notional in RUB (0 = disabled);
                                    # env override: MOEX_TRADER_RISK_MAX_NET_EXPOSURE
+  # max_net_short: "90000"         # cap on signed net short notional in RUB (0 = disabled); orders that reduce the net short always pass
+  # max_net_long: "90000"           # same for the net long side
   # sector_caps:                    # per-sector cap on gross position notional in RUB (sector absent = uncapped)
   #   banks: "45000"
   #   oil_gas: "45000"

@@ -106,6 +106,8 @@ type Config struct {
 	// per ticker), not the signed net. 0 disables the cap. Kept under its
 	// historical name for config compatibility; see exceedsMaxNetExposure.
 	MaxNetExposure decimal.Decimal
+	MaxNetShort    decimal.Decimal
+	MaxNetLong     decimal.Decimal
 	// SectorCaps caps gross position notional per sector (sum of |net|
 	// across tickers assigned to that sector). A sector absent from the map is
 	// uncapped; a present zero cap allows only flatten-to-flat orders in that
@@ -126,6 +128,8 @@ type HardenedGate struct {
 	fatFingerPct          decimal.Decimal
 	maxDrawdownPct        decimal.Decimal
 	maxNetExposure        decimal.Decimal
+	maxNetShort           decimal.Decimal
+	maxNetLong            decimal.Decimal
 	sectorCaps            map[string]decimal.Decimal
 	sectors               map[string]string
 	canceller             OrderCanceller
@@ -164,6 +168,9 @@ func NewHardenedGate(cfg Config) (*HardenedGate, error) {
 	if cfg.MaxNetExposure.IsNegative() {
 		return nil, fmt.Errorf("risk gate: max net exposure must be non-negative")
 	}
+	if cfg.MaxNetShort.IsNegative() || cfg.MaxNetLong.IsNegative() {
+		return nil, fmt.Errorf("risk gate: max net short/long must be non-negative")
+	}
 	for sector, cap := range cfg.SectorCaps {
 		if cap.IsNegative() {
 			return nil, fmt.Errorf("risk gate: sector cap %q must be non-negative", sector)
@@ -175,6 +182,8 @@ func NewHardenedGate(cfg Config) (*HardenedGate, error) {
 		fatFingerPct:          cfg.FatFingerPct,
 		maxDrawdownPct:        cfg.MaxDrawdownPct,
 		maxNetExposure:        cfg.MaxNetExposure,
+		maxNetShort:           cfg.MaxNetShort,
+		maxNetLong:            cfg.MaxNetLong,
 		sectorCaps:            cloneSectorCaps(cfg.SectorCaps),
 		sectors:               cloneSectors(cfg.Sectors),
 		canceller:             cfg.Canceller,
@@ -236,6 +245,9 @@ func (g *HardenedGate) ApproveReason(ctx context.Context, request Request) (Deci
 	}
 	if g.exceedsMaxNetExposure(ctx, request) {
 		return Decision{Reason: "max_net_exposure_exceeded"}, nil
+	}
+	if g.exceedsNetDirection(ctx, request) {
+		return Decision{Reason: "net_direction_exceeded"}, nil
 	}
 	if g.exceedsSectorCap(ctx, request) {
 		return Decision{Reason: "sector_cap"}, nil
@@ -338,6 +350,59 @@ func (g *HardenedGate) exceedsMaxNetExposure(ctx context.Context, request Reques
 // expose an aggregate. Without per-ticker legs it cannot tell an exit from an
 // entry, so it adds the order to the signed book and takes the absolute value —
 // the original behaviour, conservative on reductions.
+func (g *HardenedGate) exceedsNetDirection(ctx context.Context, request Request) bool {
+	if g.maxNetShort.Sign() <= 0 && g.maxNetLong.Sign() <= 0 {
+		return false
+	}
+	if request.Signal.Action != domain.ActionBuy && request.Signal.Action != domain.ActionSell {
+		return false
+	}
+	if request.Signal.TargetLots == 0 || request.Market.OrderPrice.Sign() <= 0 {
+		return false
+	}
+	deltaLots := signedLots(request.Signal.Action, request.Signal.TargetLots)
+	if request.ExposureDeltaLots != nil {
+		deltaLots = *request.ExposureDeltaLots
+	}
+	if deltaLots == 0 {
+		return false
+	}
+	lotSize := request.Market.LotSize
+	if lotSize.IsZero() {
+		lotSize = decimal.NewFromInt(1)
+	}
+	delta := decimal.NewFromInt(int64(deltaLots)).Mul(lotSize).Mul(request.Market.OrderPrice)
+
+	var net decimal.Decimal
+	switch reader := g.positions.(type) {
+	case ExposureReader:
+		book, err := reader.ExposureByTicker(ctx)
+		if err != nil {
+			return true
+		}
+		for _, notional := range book {
+			net = net.Add(notional)
+		}
+	case NetExposureReader:
+		current, err := reader.NetExposure(ctx)
+		if err != nil {
+			return true
+		}
+		net = current
+	default:
+		return true
+	}
+
+	after := net.Add(delta)
+	if delta.Sign() < 0 && g.maxNetShort.Sign() > 0 && after.Neg().GreaterThan(g.maxNetShort) {
+		return true
+	}
+	if delta.Sign() > 0 && g.maxNetLong.Sign() > 0 && after.GreaterThan(g.maxNetLong) {
+		return true
+	}
+	return false
+}
+
 func (g *HardenedGate) exceedsMaxNetExposureLegacy(ctx context.Context, delta decimal.Decimal) bool {
 	reader, ok := g.positions.(NetExposureReader)
 	if !ok {

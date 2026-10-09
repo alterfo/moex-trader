@@ -48,6 +48,8 @@ type Risk struct {
 	MaxLots                  int                        `yaml:"max_lots"`
 	TargetNotional           decimal.Decimal            `yaml:"target_notional"`
 	MaxNetExposure           decimal.Decimal            `yaml:"max_net_exposure"`
+	MaxNetShort              decimal.Decimal            `yaml:"max_net_short"`
+	MaxNetLong               decimal.Decimal            `yaml:"max_net_long"`
 	SectorCaps               map[string]decimal.Decimal `yaml:"sector_caps"`
 	Sectors                  map[string]string          `yaml:"sectors"`
 	VolScale                 VolScale                   `yaml:"vol_scale"`
@@ -277,6 +279,12 @@ func (c *Config) Validate() error {
 	}
 	if c.Risk.MaxNetExposure.IsNegative() {
 		return fmt.Errorf("risk.max_net_exposure must be non-negative")
+	}
+	if c.Risk.MaxNetShort.IsNegative() {
+		return fmt.Errorf("risk.max_net_short must be non-negative")
+	}
+	if c.Risk.MaxNetLong.IsNegative() {
+		return fmt.Errorf("risk.max_net_long must be non-negative")
 	}
 	for sector, cap := range c.Risk.SectorCaps {
 		if cap.IsNegative() {

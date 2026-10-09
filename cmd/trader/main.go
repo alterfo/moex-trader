@@ -214,6 +214,8 @@ func run() error {
 	riskConfig := risk.DefaultConfig()
 	riskConfig.MaxLots = cfg.Risk.MaxLots
 	riskConfig.MaxNetExposure = cfg.Risk.MaxNetExposure
+	riskConfig.MaxNetShort = cfg.Risk.MaxNetShort
+	riskConfig.MaxNetLong = cfg.Risk.MaxNetLong
 	riskConfig.SectorCaps = cfg.Risk.SectorCaps
 	riskConfig.Sectors = cfg.Risk.Sectors
 	riskConfig.Positions = store
@@ -1390,6 +1392,8 @@ type preflight struct {
 	borrowPctPerDay decimal.Decimal
 	maxLots         int
 	maxNetExposure  decimal.Decimal
+	maxNetShort     decimal.Decimal
+	maxNetLong      decimal.Decimal
 	sectorCaps      map[string]decimal.Decimal
 	sectors         map[string]string
 	commissionRate  decimal.Decimal
@@ -1419,6 +1423,8 @@ func newPreflight(cfg *config.Config, source backtest.SignalSource, history back
 		borrowPctPerDay: borrowcost.StressRatePerDay(),
 		maxLots:         cfg.Risk.MaxLots,
 		maxNetExposure:  cfg.Risk.MaxNetExposure,
+		maxNetShort:     cfg.Risk.MaxNetShort,
+		maxNetLong:      cfg.Risk.MaxNetLong,
 		sectorCaps:      cfg.Risk.SectorCaps,
 		sectors:         cfg.Risk.Sectors,
 		commissionRate:  cfg.Commission.Rate,
@@ -1440,7 +1446,7 @@ func (p *preflight) withSpreadPcts(table map[string]decimal.Decimal) *preflight 
 
 func preflightConfigHash(cfg *config.Config) string {
 	h := sha256.New()
-	fmt.Fprintf(h, "tickers=%v|model=%s|ensemble=%s|preflight_days=%d|deposit=%s|min_net_pnl=%s|min_closed_trades=%d|spread=%s|slippage=%s|borrow_pct_per_day=%s|max_lots=%d|max_net_exposure=%s|target_notional=%s|commission=%s|vol_scale=%t/%s/%s|sector_caps=%s|sectors=%s",
+	fmt.Fprintf(h, "tickers=%v|model=%s|ensemble=%s|preflight_days=%d|deposit=%s|min_net_pnl=%s|min_closed_trades=%d|spread=%s|slippage=%s|borrow_pct_per_day=%s|max_lots=%d|max_net_exposure=%s|max_net_short=%s|max_net_long=%s|target_notional=%s|commission=%s|vol_scale=%t/%s/%s|sector_caps=%s|sectors=%s",
 		cfg.Tickers,
 		cfg.Model.Path,
 		cfg.Model.EnsemblePath,
@@ -1453,6 +1459,8 @@ func preflightConfigHash(cfg *config.Config) string {
 		borrowcost.StressRatePerDay().String(),
 		cfg.Risk.MaxLots,
 		cfg.Risk.MaxNetExposure.String(),
+		cfg.Risk.MaxNetShort.String(),
+		cfg.Risk.MaxNetLong.String(),
 		cfg.Risk.TargetNotional.String(),
 		cfg.Commission.Rate.String(),
 		cfg.Risk.VolScale.Enabled,
@@ -1510,6 +1518,8 @@ func (p *preflight) check(ctx context.Context) error {
 		Deposit:         p.deposit,
 		MaxLots:         p.maxLots,
 		MaxNetExposure:  p.maxNetExposure,
+		MaxNetShort:     p.maxNetShort,
+		MaxNetLong:      p.maxNetLong,
 		SectorCaps:      p.sectorCaps,
 		Sectors:         p.sectors,
 		CommissionRate:  p.commissionRate,

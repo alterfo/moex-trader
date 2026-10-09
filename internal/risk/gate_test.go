@@ -1309,3 +1309,100 @@ func TestHardenedGateRejectsNegativeSectorCap(t *testing.T) {
 func intPtr(v int) *int {
 	return &v
 }
+
+func TestHardenedGateNetDirectionCap(t *testing.T) {
+	newGate := func(t *testing.T, short, long string, book map[string]decimal.Decimal) *HardenedGate {
+		t.Helper()
+		cfg := DefaultConfig()
+		cfg.MaxLots = 100
+		if short != "" {
+			cfg.MaxNetShort = decimal.RequireFromString(short)
+		}
+		if long != "" {
+			cfg.MaxNetLong = decimal.RequireFromString(long)
+		}
+		cfg.Positions = &fakeExposureReader{book: book}
+		gate, err := NewHardenedGate(cfg)
+		if err != nil {
+			t.Fatalf("NewHardenedGate() error = %v", err)
+		}
+		return gate
+	}
+	decide := func(t *testing.T, gate *HardenedGate, action domain.Action, lots int) Decision {
+		t.Helper()
+		request := testRequest()
+		request.Signal.Action = action
+		request.Signal.TargetLots = lots
+		decision, err := gate.ApproveReason(context.Background(), request)
+		if err != nil {
+			t.Fatalf("ApproveReason() error = %v", err)
+		}
+		return decision
+	}
+
+	shortBook := map[string]decimal.Decimal{
+		"SBER": decimal.RequireFromString("-3000"),
+		"VTBR": decimal.RequireFromString("-2500"),
+	}
+	gate := newGate(t, "6000", "", shortBook)
+
+	if d := decide(t, gate, domain.ActionSell, 10); d.Approved || d.Reason != "net_direction_exceeded" {
+		t.Fatalf("SELL pushing net short past the cap: approved=%v reason=%q", d.Approved, d.Reason)
+	}
+	if d := decide(t, gate, domain.ActionSell, 4); !d.Approved {
+		t.Fatalf("SELL inside the cap rejected: %q", d.Reason)
+	}
+	if d := decide(t, gate, domain.ActionBuy, 10); !d.Approved {
+		t.Fatalf("BUY reducing a net short must pass: %q", d.Reason)
+	}
+
+	overShort := map[string]decimal.Decimal{"SBER": decimal.RequireFromString("-9000")}
+	gate = newGate(t, "6000", "", overShort)
+	if d := decide(t, gate, domain.ActionSell, 1); d.Approved {
+		t.Fatalf("SELL while already past the net short cap must be rejected")
+	}
+	if d := decide(t, gate, domain.ActionBuy, 1); !d.Approved {
+		t.Fatalf("BUY while past the net short cap must pass: %q", d.Reason)
+	}
+
+	longBook := map[string]decimal.Decimal{"SBER": decimal.RequireFromString("5500")}
+	gate = newGate(t, "", "6000", longBook)
+	if d := decide(t, gate, domain.ActionBuy, 10); d.Approved || d.Reason != "net_direction_exceeded" {
+		t.Fatalf("BUY pushing net long past the cap: approved=%v reason=%q", d.Approved, d.Reason)
+	}
+	if d := decide(t, gate, domain.ActionSell, 10); !d.Approved {
+		t.Fatalf("SELL reducing a net long must pass: %q", d.Reason)
+	}
+
+	gate = newGate(t, "", "", shortBook)
+	if d := decide(t, gate, domain.ActionSell, 50); !d.Approved {
+		t.Fatalf("disabled caps must not reject: %q", d.Reason)
+	}
+}
+
+func TestHardenedGateNetDirectionFailsClosedWithoutReader(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.MaxLots = 100
+	cfg.MaxNetShort = decimal.RequireFromString("6000")
+	gate, err := NewHardenedGate(cfg)
+	if err != nil {
+		t.Fatalf("NewHardenedGate() error = %v", err)
+	}
+	request := testRequest()
+	request.Signal.Action = domain.ActionSell
+	decision, err := gate.ApproveReason(context.Background(), request)
+	if err != nil {
+		t.Fatalf("ApproveReason() error = %v", err)
+	}
+	if decision.Approved {
+		t.Fatalf("cap without an exposure reader must fail closed")
+	}
+}
+
+func TestHardenedGateRejectsNegativeNetDirectionCaps(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.MaxNetShort = decimal.NewFromInt(-1)
+	if _, err := NewHardenedGate(cfg); err == nil {
+		t.Fatalf("negative max net short must be rejected")
+	}
+}
