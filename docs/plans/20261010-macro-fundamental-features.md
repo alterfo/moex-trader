@@ -1,6 +1,6 @@
 # Plan: macro and fundamental features in the model, position/PnL awareness in the risk gate
 
-Status: PROPOSED 2026-10-10 (not started). Decided with the user: fundamentals and macro become model features; account positions and PnL go to the risk gate only, never into the model.
+Status: IN PROGRESS 2026-10-10 (Part C and the feature plumbing are built; the evaluation below is pre-registered before its first run). Decided with the user: fundamentals and macro become model features; account positions and PnL go to the risk gate only, never into the model.
 
 ## 1. Why this split
 
@@ -46,3 +46,18 @@ Already present: gross exposure cap (`risk.max_net_exposure`, `sector_caps`), da
 
 - Zone: Part A/B touch `internal/features/**` and `internal/model/**` (ensemble/model zone); Part C touches `internal/risk/**`. The news analyzer is being built in another session: do not start code until `git status` is clean and the user confirms that session is not editing the same files (AGENTS.md rule 7).
 - Pre-register the feature list and the success criterion (walk-forward OOS AUC and realized P&L vs current ensemble, with the date-bootstrap CI) before the first training run.
+
+## 7. Implementation notes (2026-10-10)
+
+- Part C shipped as `risk.max_net_short` / `risk.max_net_long` (`net_direction_exceeded`), set to 90000 in `config.sandbox.yaml`.
+- Features: `internal/macro` (ISS + cbr.ru fetch, CSV store in `data/macro`, point-in-time `At(day)` using only closes strictly before the decision day), `features.NewMarketEnricher` (adds `FeatureContext.Extra`), model vectors by name via `model.ToVectorFor(feature, model.FeatureOrder)`. A model whose `feature_order` needs a feature that is missing fails the decision loudly instead of reading zero.
+- USD/RUB was replaced by CNY/RUB: `USD000UTSTOM` has a 20-month hole on ISS (2024-06..2026-02), which would corrupt 5d/21d returns. Brent is a front-month chained index from `BR*` futures (roll gaps removed). Fundamentals other than dividend yield are NOT built: no point-in-time source was found.
+- Feature names: `div_yield_ttm_pct`, `imoex_ret_5d`, `imoex_ret_21d`, `imoex_dist_ma50_pct`, `cnyrub_ret_5d`, `cnyrub_ret_21d`, `brent_ret_5d`, `brent_ret_21d`, `key_rate_pct`, `key_rate_chg_90d`.
+
+## 8. Pre-registered evaluation (fixed before the first run)
+
+- Data: `exportdataset -from 2024-01-01 -till 2026-10-09 -split 2026-06-18 -horizon-days 10 -deadband-pct 0.5 -label-mode absolute -macro-dir data/macro`, no news history, FX tickers excluded, run on the ai-box (`~/moex-research`).
+- Protocol: the existing `evalh.py` `wf()` (expanding-window purged walk-forward, 63-day test folds from 2025-04-01, `label_date < fold start`, LightGBM + logistic average).
+- Arms (all on the same rows): A = 15 price/flow columns (the baseline of `docs/knowledge/model-quality-history.md`), B = A + `div_yield_ttm_pct`, C = A + 9 macro columns, D = A + B + C.
+- Primary metric: pooled AUC; secondary: mean fold AUC and number of folds with AUC > 0.5.
+- Success criterion to consider a swap candidate: an arm beats A by at least +0.010 pooled AUC AND has a majority of folds > 0.5, AND realized P&L through `cmd/backtest -signal-source=ensemble -macro-dir data/macro` on the same windows does not fall below the deployed ensemble. Anything weaker is reported as no effect. Passing this is evidence only: deployment needs the user's explicit sign-off.
