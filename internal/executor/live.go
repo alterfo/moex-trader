@@ -65,6 +65,8 @@ type LiveConfig struct {
 	MaxSlippagePct decimal.Decimal
 }
 
+const maxCachedOrders = 1024
+
 type LiveExecutor struct {
 	orders         OrderPoster
 	accountID      string
@@ -79,6 +81,7 @@ type LiveExecutor struct {
 	sent    map[string]Fill
 	pending map[string]chan struct{}
 	results map[string]orderResult
+	cached  []string
 }
 
 func NewLiveExecutor(orders OrderPoster, cfg LiveConfig) (*LiveExecutor, error) {
@@ -212,6 +215,13 @@ func (l *LiveExecutor) ExecuteWithOrderID(ctx context.Context, signal domain.Tra
 	l.results[orderID] = orderResult{fill: fill, err: err}
 	if err == nil {
 		l.sent[orderID] = fill
+	}
+	l.cached = append(l.cached, orderID)
+	if len(l.cached) > maxCachedOrders {
+		evict := l.cached[0]
+		l.cached = l.cached[1:]
+		delete(l.sent, evict)
+		delete(l.results, evict)
 	}
 	close(done)
 	delete(l.pending, orderID)

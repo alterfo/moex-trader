@@ -967,3 +967,31 @@ func TestLiveExecutorMarketOrderHasNoExpectedPrice(t *testing.T) {
 		t.Fatalf("fill.ExpectedPrice = %s, want 0 for a MARKET order", fill.ExpectedPrice)
 	}
 }
+
+func TestLiveExecutorOrderCacheIsBounded(t *testing.T) {
+	now := time.Date(2026, 10, 11, 10, 0, 0, 0, time.UTC)
+	total := maxCachedOrders + 50
+	responses := make([]*pb.PostOrderResponse, total)
+	for i := range responses {
+		responses[i] = &pb.PostOrderResponse{
+			OrderId:               "broker-order",
+			ExecutionReportStatus: pb.OrderExecutionReportStatus_EXECUTION_REPORT_STATUS_FILL,
+			LotsRequested:         1,
+			LotsExecuted:          1,
+		}
+	}
+	exec := newLiveExecutorForTest(t, &fakeOrderPoster{responses: responses}, now)
+	price := decimal.NewFromFloat(270.5)
+
+	for i := 0; i < total; i++ {
+		if _, err := exec.ExecuteWithOrderID(context.Background(), newBuySignal(now), price, uuid.NewString()); err != nil {
+			t.Fatalf("ExecuteWithOrderID() #%d error = %v", i, err)
+		}
+	}
+
+	exec.mu.Lock()
+	defer exec.mu.Unlock()
+	if len(exec.sent) > maxCachedOrders || len(exec.results) > maxCachedOrders {
+		t.Fatalf("cache sizes sent=%d results=%d, want <= %d", len(exec.sent), len(exec.results), maxCachedOrders)
+	}
+}
