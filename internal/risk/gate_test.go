@@ -1406,3 +1406,50 @@ func TestHardenedGateRejectsNegativeNetDirectionCaps(t *testing.T) {
 		t.Fatalf("negative max net short must be rejected")
 	}
 }
+
+func TestHardenedGateDailyLossStillAllowsReducingTheLosingPosition(t *testing.T) {
+	account := Account{
+		Deposit:        decimal.RequireFromString("1000"),
+		DayStartEquity: decimal.RequireFromString("1000"),
+		CurrentEquity:  decimal.RequireFromString("990"),
+	}
+	tests := []struct {
+		name        string
+		current     int
+		action      domain.Action
+		target      int
+		flat        bool
+		wantApprove bool
+	}{
+		{name: "buy back part of a short", current: -10, action: domain.ActionBuy, target: 0, flat: true, wantApprove: true},
+		{name: "close a long", current: 10, action: domain.ActionSell, target: 0, flat: true, wantApprove: true},
+		{name: "long to short is a flip", current: 10, action: domain.ActionSell, target: 3, wantApprove: false},
+		{name: "shrink short to smaller short", current: -10, action: domain.ActionSell, target: 4, wantApprove: true},
+		{name: "grow the short", current: -10, action: domain.ActionSell, target: 12, wantApprove: false},
+		{name: "open from flat", current: 0, action: domain.ActionSell, target: 1, wantApprove: false},
+		{name: "flip short to long", current: -10, action: domain.ActionBuy, target: 5, wantApprove: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.Positions = &fakePositionReader{lots: tt.current}
+			cfg.MaxLots = 20
+			gate, err := NewHardenedGate(cfg)
+			if err != nil {
+				t.Fatalf("NewHardenedGate() error = %v", err)
+			}
+			request := testRequest()
+			request.Account = account
+			request.Signal.Action = tt.action
+			request.Signal.TargetLots = tt.target
+			request.Signal.Flat = tt.flat
+			decision, err := gate.ApproveReason(context.Background(), request)
+			if err != nil {
+				t.Fatalf("ApproveReason() error = %v", err)
+			}
+			if decision.Approved != tt.wantApprove {
+				t.Fatalf("Approved = %v (reason %q), want %v", decision.Approved, decision.Reason, tt.wantApprove)
+			}
+		})
+	}
+}

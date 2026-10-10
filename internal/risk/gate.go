@@ -261,6 +261,9 @@ func (g *HardenedGate) ApproveReason(ctx context.Context, request Request) (Deci
 		}
 	}
 	if g.exceedsDailyLoss(request.Account) {
+		if !g.killSwitchOnDailyLoss && reducesPosition(request.Signal, currentLots) {
+			return Decision{Approved: true}, nil
+		}
 		if g.killSwitchOnDailyLoss {
 			if err := g.triggerKillSwitch(ctx, "daily loss limit exceeded"); err != nil {
 				return Decision{}, fmt.Errorf("risk gate: trigger kill switch: %w", err)
@@ -644,4 +647,24 @@ func (g *HardenedGate) IsKillSwitchActive() bool {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 	return g.killSwitch
+}
+
+func reducesPosition(signal domain.TradeSignal, currentLots int) bool {
+	if currentLots == 0 {
+		return false
+	}
+	if signal.Action != domain.ActionBuy && signal.Action != domain.ActionSell {
+		return false
+	}
+	desired := 0
+	if !signal.Flat {
+		desired = signedLots(signal.Action, signal.TargetLots)
+	}
+	if desired == 0 {
+		return true
+	}
+	if (desired > 0) != (currentLots > 0) {
+		return false
+	}
+	return absInt(desired) < absInt(currentLots)
 }
