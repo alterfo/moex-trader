@@ -1277,6 +1277,14 @@ func newBrokerRuntime(ctx context.Context, cfg *config.Config, store *storage.St
 			_ = sandbox.Close()
 			return nil, err
 		}
+		report, err := executor.RecoverPendingOrders(ctx, store, sandbox)
+		if err != nil {
+			_ = sandbox.Close()
+			return nil, fmt.Errorf("recover pending orders: %w", err)
+		}
+		if report.Pending > 0 {
+			log.Printf("order recovery: %d pending intents, %d open orders cancelled, %d closed", report.Pending, report.Cancelled, report.Closed)
+		}
 		guardedExecutor, err := newMarketHoursExecutor(liveExecutor, sandbox, now, log.Default())
 		if err != nil {
 			_ = sandbox.Close()

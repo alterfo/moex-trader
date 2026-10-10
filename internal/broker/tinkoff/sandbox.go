@@ -377,3 +377,19 @@ func (s *Sandbox) Close() error {
 	}
 	return s.client.Close()
 }
+
+func (s *Sandbox) OpenOrders(ctx context.Context) ([]*pb.OrderState, error) {
+	accountID := s.AccountID()
+	if accountID == "" {
+		return nil, errors.New("sandbox: account is not initialized")
+	}
+	return s.client.GetSandboxOrders(ctx, accountID)
+}
+
+func (s *Sandbox) CancelOrder(ctx context.Context, brokerOrderID string) error {
+	accountID := s.AccountID()
+	if accountID == "" {
+		return errors.New("sandbox: account is not initialized")
+	}
+	return s.client.CancelSandboxOrder(ctx, accountID, brokerOrderID)
+}
