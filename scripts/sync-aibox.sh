@@ -4,7 +4,7 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
 
-AIBOX_HEALTHZ="${AIBOX_HEALTHZ:-http://<aibox-lan-ip>:9091/healthz}"
+AIBOX_HEALTHZ="${AIBOX_HEALTHZ:-http://192.168.88.193:9091/healthz}"
 MARKER="$REPO_DIR/.deploy/aibox-synced-commit"
 LOG="$HOME/Library/Logs/moex-trader-aibox-sync.log"
 TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-<telegram-chat-id>}"
@@ -33,7 +33,7 @@ if [ "$head_sha" = "$last_sha" ]; then
   exit 0
 fi
 
-if health="$(curl -fsS -m 5 "$AIBOX_HEALTHZ" 2>/dev/null)"; then
+if health="$(curl -fsS --noproxy '*' -m 5 "$AIBOX_HEALTHZ" 2>/dev/null)"; then
   running="$(echo "$health" | jq -r '.trader.running // false' 2>/dev/null || echo "false")"
   if [ "$running" = "true" ]; then
     log "skip: ai-box trader.running=true (holds the lease), not restarting its watchdog"
