@@ -122,6 +122,13 @@ func run() error {
 		log.Printf("algopack enrichment disabled: MOEX_TRADER_ALGOPACK_TOKEN is not set")
 	}
 	ingestor := orchestrator.NewMOEXIngestor(moexClient, fetcher, matcher, news.AllSources(cfg.Tickers), algopackFetcher)
+	if cfg.News.SpoolPath != "" {
+		spool, err := news.NewSpool(cfg.News.SpoolPath)
+		if err != nil {
+			return err
+		}
+		ingestor.WithNewsSpool(spool)
+	}
 
 	telegramHTTPClient, err := newTelegramHTTPClient(cfg.Telegram.Proxy)
 	if err != nil {

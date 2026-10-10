@@ -102,6 +102,7 @@ type News struct {
 	IncidentMinSources   int             `yaml:"incident_min_sources"`
 	IncidentShortEnabled bool            `yaml:"incident_short_enabled"`
 	IndustryMatching     bool            `yaml:"industry_matching"`
+	SpoolPath            string          `yaml:"spool_path"`
 	ExitEnabled          bool            `yaml:"exit_enabled"`
 	ExitTakeProfitPct    decimal.Decimal `yaml:"exit_take_profit_pct"`
 	ExitTrailPct         decimal.Decimal `yaml:"exit_trail_pct"`

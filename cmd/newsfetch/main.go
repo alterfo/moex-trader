@@ -1,10 +1,7 @@
 package main
 
 import (
-	"bufio"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -29,15 +26,7 @@ type options struct {
 	retroFrom  string
 	maxPages   int
 	tickers    string
-}
-
-type record struct {
-	Ticker      string  `json:"ticker"`
-	ArticleID   string  `json:"article_id"`
-	Title       string  `json:"title"`
-	Source      string  `json:"source"`
-	TrustWeight float64 `json:"trust_weight"`
-	PublishedTS int64   `json:"published_ts"`
+	mergeSpool string
 }
 
 func main() {
@@ -61,6 +50,14 @@ func run(args []string) error {
 	}
 	if opts.outPath == "" {
 		opts.outPath = "news_history.jsonl"
+	}
+
+	if opts.mergeSpool != "" {
+		merged, skipped, err := news.MergeSpool(opts.mergeSpool, opts.outPath)
+		if err != nil {
+			return fmt.Errorf("merge spool: %w", err)
+		}
+		log.Printf("newsfetch: merged %d spool records into %s (%d duplicates)", merged, opts.outPath, skipped)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -117,13 +114,13 @@ func run(args []string) error {
 			if !wanted(m.Ticker, opts.tickers) {
 				continue
 			}
-			id := articleID(m.Link, m.Title)
+			id := news.ArticleID(m.Link, m.Title)
 			key := m.Ticker + "|" + id
 			if seen[key] {
 				continue
 			}
 			seen[key] = true
-			rec := record{
+			rec := news.ArchiveRecord{
 				Ticker:      m.Ticker,
 				ArticleID:   id,
 				Title:       m.Title,
@@ -183,6 +180,7 @@ func parseOptions(args []string) (options, error) {
 	fs.IntVar(&opts.sinceDays, "since-days", opts.sinceDays, "collect news from last N days")
 	fs.StringVar(&opts.retroFrom, "retro-from", "", "backfill telegram history back to YYYY-MM-DD")
 	fs.IntVar(&opts.maxPages, "max-pages", opts.maxPages, "max telegram pages per channel (retro backfill)")
+	fs.StringVar(&opts.mergeSpool, "merge-spool", "", "merge this spool JSONL into the archive (and empty it) before fetching")
 	fs.StringVar(&opts.tickers, "tickers", "", "comma-separated tickers to keep (default: all)")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
@@ -208,29 +206,14 @@ func newHTTPClient(proxy string) *http.Client {
 	}
 }
 
-func articleID(link, title string) string {
-	sum := sha256.Sum256([]byte(link + "|" + title))
-	return hex.EncodeToString(sum[:])[:16]
-}
-
 func loadArticleIDs(path string) (map[string]bool, error) {
-	seen := make(map[string]bool)
-	f, err := os.Open(path)
+	records, err := news.ReadRecords(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return seen, nil
-		}
 		return nil, err
 	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	for scanner.Scan() {
-		var rec record
-		if err := json.Unmarshal(scanner.Bytes(), &rec); err != nil {
-			continue
-		}
-		seen[rec.Ticker+"|"+rec.ArticleID] = true
+	seen := make(map[string]bool, len(records))
+	for _, rec := range records {
+		seen[news.RecordKey(rec)] = true
 	}
-	return seen, scanner.Err()
+	return seen, nil
 }

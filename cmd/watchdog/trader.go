@@ -32,9 +32,9 @@ func startTraderProcess(cfg TraderConfig, extraEnv map[string]string, logger *lo
 		cmd.Dir = cfg.WorkingDir
 	}
 	proc := &traderProcess{cmd: cmd, started: time.Now(), exited: make(chan struct{})}
-	writer := newMarkerWriter(os.Stdout, cfg.StartupMarker, func() { proc.active.Store(true) })
-	cmd.Stdout = writer
-	cmd.Stderr = os.Stderr
+	markActive := func() { proc.active.Store(true) }
+	cmd.Stdout = newMarkerWriter(os.Stdout, cfg.StartupMarker, markActive)
+	cmd.Stderr = newMarkerWriter(os.Stderr, cfg.StartupMarker, markActive)
 	cmd.Env = mergeEnv(os.Environ(), extraEnv)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {

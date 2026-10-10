@@ -30,6 +30,7 @@ type MOEXIngestor struct {
 	mu              sync.Mutex
 	newsCache       []news.Article
 	newsCacheFilled bool
+	spool           *news.Spool
 
 	cycleMu      sync.Mutex
 	cycleResults map[string]chan algopack.Result
@@ -201,6 +202,7 @@ func (i *MOEXIngestor) cycleArticles(ctx context.Context) []news.Article {
 		return i.newsCache
 	}
 	i.newsCache = i.fetchArticles(ctx)
+	i.spoolArticles(i.newsCache)
 	i.newsCacheFilled = true
 	return i.newsCache
 }
@@ -291,4 +293,20 @@ func candleAge(candles []moex.Candle, now time.Time) time.Duration {
 		return 0
 	}
 	return now.Sub(end)
+}
+
+func (i *MOEXIngestor) WithNewsSpool(spool *news.Spool) *MOEXIngestor {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.spool = spool
+	return i
+}
+
+func (i *MOEXIngestor) spoolArticles(articles []news.Article) {
+	if i.spool == nil || len(articles) == 0 {
+		return
+	}
+	if _, err := i.spool.Add(i.matcher.Match(articles)); err != nil {
+		i.logger.Printf("ingest: news spool: %v", err)
+	}
 }
