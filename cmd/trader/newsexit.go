@@ -194,6 +194,7 @@ type newsExitDecision struct {
 	Signal domain.TradeSignal
 	Reason string
 	Gain   decimal.Decimal
+	First  bool
 }
 
 func (m *newsExitManager) evaluate(ctx context.Context, ticker string, last decimal.Decimal) (*newsExitDecision, error) {
@@ -253,7 +254,8 @@ func (m *newsExitManager) evaluate(ctx context.Context, ticker string, last deci
 	if reason == "" {
 		return nil, m.saveLocked()
 	}
-	if trade.ExitReason == "" {
+	first := trade.ExitReason == ""
+	if first {
 		trade.ExitReason = reason
 		if m.cfg.Cooldown > 0 {
 			m.state.Cooldowns[ticker] = now.Add(m.cfg.Cooldown)
@@ -261,6 +263,7 @@ func (m *newsExitManager) evaluate(ctx context.Context, ticker string, last deci
 		if err := m.saveLocked(); err != nil {
 			return nil, err
 		}
+		m.recordExitLocked(trade, gain, now)
 	}
 
 	action := domain.ActionBuy
@@ -270,6 +273,7 @@ func (m *newsExitManager) evaluate(ctx context.Context, ticker string, last deci
 	return &newsExitDecision{
 		Reason: reason,
 		Gain:   gain,
+		First:  first,
 		Signal: domain.TradeSignal{
 			Ticker:      ticker,
 			Action:      action,
@@ -279,4 +283,30 @@ func (m *newsExitManager) evaluate(ctx context.Context, ticker string, last deci
 			GeneratedAt: now,
 		},
 	}, nil
+}
+
+func (m *newsExitManager) recordExitLocked(trade *newsTrade, gain decimal.Decimal, now time.Time) {
+	if m.store == nil {
+		return
+	}
+	payload, err := json.Marshal(map[string]any{
+		"ticker":      trade.Ticker,
+		"short":       trade.Short,
+		"reason":      trade.ExitReason,
+		"entry_price": trade.EntryPrice.String(),
+		"entry_at":    trade.EntryAt,
+		"peak_gain":   trade.PeakGain.String(),
+		"gain":        gain.String(),
+		"held_sec":    int64(now.Sub(trade.EntryAt).Seconds()),
+	})
+	if err != nil {
+		return
+	}
+	_ = m.store.UpsertAuditEvent(context.Background(), domain.AuditEvent{
+		ID:        fmt.Sprintf("news-exit-%s-%d", trade.Ticker, trade.EntryAt.UnixNano()),
+		Ticker:    trade.Ticker,
+		Stage:     "news_exit",
+		Payload:   string(payload),
+		CreatedAt: now,
+	})
 }

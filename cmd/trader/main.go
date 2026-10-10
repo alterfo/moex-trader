@@ -554,6 +554,9 @@ func (g *newsGateSignalSource) newsExit(ctx context.Context, feature domain.Feat
 	if decision == nil {
 		return nil
 	}
+	if decision.First && g.metrics != nil {
+		g.metrics.IncNewsExit(feature.Ticker, decision.Reason)
+	}
 	g.logger.Printf("trader: news exit %s (%s, result %s)", feature.Ticker, decision.Reason, decision.Gain.StringFixed(4))
 	if g.alerter != nil && g.incidentAlertDue("exit:"+feature.Ticker) {
 		text := fmt.Sprintf("💰 MOEX trader: закрываю новостную позицию %s — %s, результат %s%%",

@@ -7,7 +7,7 @@ Status: PLANNED (created 2026-10-10). Direction: `docs/VISION.md`. Context: `doc
 - Defaults 1.5% take-profit arm / 0.7% trail / 2.5% stop / 24h max hold / 48h cooldown are scaled from incident CAR[0,+1] ~ -2.3% on N=12, not fitted.
 - Trigger: >= 30 live incident shorts in `news_trade_state` history and `incident_shorts_total`. Until then do not touch the numbers.
 - Protocol (fix before looking): grid take-profit {1,1.5,2}%, trail {0.5,0.7,1}%, max hold {12,24,48}h; metric = mean net-of-commission return per trade with date-bootstrap CI; choose the parameter set by the lower CI bound, not the mean; report the full grid in `docs/metrics.md` in the same commit.
-- Add a `news_exit_total{ticker,reason}` counter and an audit event per exit so the data for this step accumulates.
+- DONE: `news_exit_total{ticker,reason}` counter and a `news_exit` audit event per trade (entry, peak, result, hold time) accumulate the data for this step.
 
 ## 2. Replay backtest of incident short + exit
 

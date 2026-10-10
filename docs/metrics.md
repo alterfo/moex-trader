@@ -1492,6 +1492,7 @@ Metrics exposed on the trader's `/metrics` endpoint:
 | `es_95` | gauge | — | 1-day 95% expected shortfall (RUB) |
 | `es_99` | gauge | — | 1-day 99% expected shortfall (RUB) |
 | `incident_shorts_total` | counter | `ticker` | SELL decisions emitted by the news gate during an incident (not every one becomes a fill) |
+| `news_exit_total` | counter | `ticker`, `reason` | First exit decision for a news-opened position (`stop_loss`, `take_profit`, `time_exit`); each also writes an `audit_events` row, stage `news_exit`, with entry/peak/result for the parameter fit in `docs/plans/20261010-news-exit-tuning-and-buy-side.md` |
 
 The `var_95`/`var_99`/`es_95`/`es_99` gauges are Task 12 monitoring only (not a
 risk gate): historical 1-day book VaR/ES from 250-day trailing returns in
