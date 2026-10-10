@@ -197,7 +197,7 @@ func run() error {
 	}
 	gatedSource.metrics = appMetrics
 	if cfg.News.ExitEnabled {
-		exits, exitErr := newNewsExitManager(newsExitConfigFrom(cfg.News), store, time.Now)
+		exits, exitErr := newNewsExitManager(newsExitConfigFrom(cfg.News), store, time.Now, store)
 		if exitErr != nil {
 			return exitErr
 		}

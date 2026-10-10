@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,7 +15,18 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/config"
 	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/risk"
+	"github.com/olegsidorkin/moex-trader/internal/storage"
 )
+
+const (
+	newsTradeStateEventID = "news-trade-state"
+	newsTradeStateStage   = "news_trade_state"
+)
+
+type newsStateStore interface {
+	GetAuditEvent(ctx context.Context, id string) (domain.AuditEvent, error)
+	UpsertAuditEvent(ctx context.Context, event domain.AuditEvent) error
+}
 
 const newsTradePendingGrace = 15 * time.Minute
 
@@ -56,12 +68,13 @@ type newsExitManager struct {
 	cfg       newsExitConfig
 	positions risk.PositionReader
 	now       func() time.Time
+	store     newsStateStore
 
 	mu    sync.Mutex
 	state newsTradeState
 }
 
-func newNewsExitManager(cfg newsExitConfig, positions risk.PositionReader, now func() time.Time) (*newsExitManager, error) {
+func newNewsExitManager(cfg newsExitConfig, positions risk.PositionReader, now func() time.Time, store newsStateStore) (*newsExitManager, error) {
 	if now == nil {
 		now = time.Now
 	}
@@ -69,17 +82,31 @@ func newNewsExitManager(cfg newsExitConfig, positions risk.PositionReader, now f
 		cfg:       cfg,
 		positions: positions,
 		now:       now,
+		store:     store,
 		state:     newsTradeState{Trades: map[string]*newsTrade{}, Cooldowns: map[string]time.Time{}},
 	}
-	if cfg.StatePath == "" {
+	var data []byte
+	switch {
+	case store != nil:
+		event, err := store.GetAuditEvent(context.Background(), newsTradeStateEventID)
+		if errors.Is(err, storage.ErrAuditEventNotFound) {
+			return m, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("news exit: read state: %w", err)
+		}
+		data = []byte(event.Payload)
+	case cfg.StatePath != "":
+		var err error
+		data, err = os.ReadFile(cfg.StatePath)
+		if os.IsNotExist(err) {
+			return m, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("news exit: read state %s: %w", cfg.StatePath, err)
+		}
+	default:
 		return m, nil
-	}
-	data, err := os.ReadFile(cfg.StatePath)
-	if os.IsNotExist(err) {
-		return m, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("news exit: read state %s: %w", cfg.StatePath, err)
 	}
 	var loaded newsTradeState
 	if err := json.Unmarshal(data, &loaded); err != nil {
@@ -95,12 +122,20 @@ func newNewsExitManager(cfg newsExitConfig, positions risk.PositionReader, now f
 }
 
 func (m *newsExitManager) saveLocked() error {
-	if m.cfg.StatePath == "" {
-		return nil
-	}
 	data, err := json.MarshalIndent(m.state, "", "  ")
 	if err != nil {
 		return err
+	}
+	if m.store != nil {
+		return m.store.UpsertAuditEvent(context.Background(), domain.AuditEvent{
+			ID:        newsTradeStateEventID,
+			Stage:     newsTradeStateStage,
+			Payload:   string(data),
+			CreatedAt: m.now(),
+		})
+	}
+	if m.cfg.StatePath == "" {
+		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(m.cfg.StatePath), 0o755); err != nil {
 		return err

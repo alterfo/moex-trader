@@ -9,6 +9,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/olegsidorkin/moex-trader/internal/domain"
+	"github.com/olegsidorkin/moex-trader/internal/storage"
 )
 
 type fakePositions struct{ lots map[string]int }
@@ -36,7 +37,7 @@ func newExitFixture(t *testing.T, modelAction domain.Action) *exitFixture {
 		MaxHold:    24 * time.Hour,
 		Cooldown:   48 * time.Hour,
 		StatePath:  filepath.Join(t.TempDir(), "news_trades.json"),
-	}, pos, func() time.Time { return clock })
+	}, pos, func() time.Time { return clock }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,11 +158,36 @@ func TestNewsExitDropsUnfilledEntry(t *testing.T) {
 func TestNewsExitStatePersists(t *testing.T) {
 	f := newExitFixture(t, domain.ActionHold)
 	openShort(t, f)
-	reloaded, err := newNewsExitManager(f.exit.cfg, f.pos, func() time.Time { return *f.now })
+	reloaded, err := newNewsExitManager(f.exit.cfg, f.pos, func() time.Time { return *f.now }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reloaded.tracked("YDEX") {
 		t.Fatal("tracked trade must survive restart")
+	}
+}
+
+func TestNewsExitStatePersistsInStore(t *testing.T) {
+	store, err := storage.Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	clock := time.Date(2026, 10, 12, 10, 0, 0, 0, time.UTC)
+	pos := &fakePositions{lots: map[string]int{}}
+	cfg := newsExitConfig{TakeProfit: decimal.RequireFromString("0.015"), Trail: decimal.RequireFromString("0.007"), StopLoss: decimal.RequireFromString("0.025"), MaxHold: time.Hour}
+	first, err := newNewsExitManager(cfg, pos, func() time.Time { return clock }, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := first.noteShortEntry(context.Background(), "YDEX", decimal.NewFromInt(300)); err != nil {
+		t.Fatal(err)
+	}
+	second, err := newNewsExitManager(cfg, pos, func() time.Time { return clock }, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !second.tracked("YDEX") {
+		t.Fatal("state stored in the DB must be visible to a manager on another node")
 	}
 }
