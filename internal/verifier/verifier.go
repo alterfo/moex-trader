@@ -252,7 +252,7 @@ func applyFill(positions map[string]*position, results []tradeResult, fill fillR
 	oldLots := pos.lots
 	pos.lots -= closed
 	if pos.lots > 0 {
-		pos.commission = pos.commission.Mul(decimal.NewFromInt(int64(pos.lots)).Div(decimal.NewFromInt(int64(oldLots))))
+		pos.commission = commissionShare(pos.commission, pos.lots, oldLots)
 	} else {
 		delete(positions, fill.Ticker)
 	}
@@ -263,7 +263,7 @@ func applyFill(positions map[string]*position, results []tradeResult, fill fillR
 			direction:  fill.Action,
 			lots:       remainder,
 			avgPrice:   fill.Price,
-			commission: fill.Commission.Mul(decimal.NewFromInt(int64(remainder)).Div(decimal.NewFromInt(int64(fill.Lots)))),
+			commission: commissionShare(fill.Commission, remainder, fill.Lots),
 			openedAt:   fill.ExecutedAt,
 		}
 	}
@@ -272,8 +272,8 @@ func applyFill(positions map[string]*position, results []tradeResult, fill fillR
 }
 
 func closedCommission(pos *position, fill fillRecord, closed int) decimal.Decimal {
-	entryCommission := pos.commission.Mul(decimal.NewFromInt(int64(closed)).Div(decimal.NewFromInt(int64(pos.lots))))
-	exitCommission := fill.Commission.Mul(decimal.NewFromInt(int64(closed)).Div(decimal.NewFromInt(int64(fill.Lots))))
+	entryCommission := commissionShare(pos.commission, closed, pos.lots)
+	exitCommission := commissionShare(fill.Commission, closed, fill.Lots)
 	return entryCommission.Add(exitCommission)
 }
 
@@ -334,4 +334,13 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+const commissionScale = 8
+
+func commissionShare(total decimal.Decimal, part, whole int) decimal.Decimal {
+	if whole <= 0 {
+		return decimal.Zero
+	}
+	return total.Mul(decimal.NewFromInt(int64(part))).Div(decimal.NewFromInt(int64(whole))).Round(commissionScale)
 }

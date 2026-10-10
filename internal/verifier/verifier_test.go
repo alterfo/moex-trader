@@ -447,3 +447,21 @@ func TestRunNilReaderFails(t *testing.T) {
 		t.Fatal("Run() error = nil, want nil reader error")
 	}
 }
+
+func TestCommissionShareStaysBounded(t *testing.T) {
+	total := decimal.RequireFromString("0.0502052000816547878")
+	share := commissionShare(total, 1, 3)
+	if share.Exponent() < -commissionScale {
+		t.Fatalf("commissionShare() = %s, want at most %d decimal places", share, commissionScale)
+	}
+	acc := total
+	for i := 0; i < 50; i++ {
+		acc = commissionShare(acc, 2, 3)
+	}
+	if acc.Exponent() < -commissionScale {
+		t.Fatalf("repeated commissionShare() = %s, want at most %d decimal places", acc, commissionScale)
+	}
+	if !commissionShare(total, 1, 0).IsZero() {
+		t.Fatal("commissionShare() with zero whole must be zero")
+	}
+}
