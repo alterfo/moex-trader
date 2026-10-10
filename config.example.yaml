@@ -120,6 +120,7 @@ news:
   incident_veto_enabled: true
   incident_min_sources: 2
   incident_short_enabled: false
+  industry_matching: false
   exit_enabled: false
   # exit_take_profit_pct: "0.015"
   # exit_trail_pct: "0.007"

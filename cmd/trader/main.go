@@ -112,6 +112,9 @@ func run() error {
 	}
 	fetcher := news.NewFetcher(newNewsHTTPClient(newsProxy))
 	matcher := news.NewMatcher(news.DefaultAliases())
+	if cfg.News.IndustryMatching {
+		matcher = matcher.WithIndustryRules(news.DefaultIndustryRules())
+	}
 	var algopackFetcher algopack.Fetcher
 	if strings.TrimSpace(cfg.AlgoPackToken) != "" {
 		algopackFetcher = algopack.NewHTTPFetcher(cfg.AlgoPackBaseURL, cfg.AlgoPackToken, nil)

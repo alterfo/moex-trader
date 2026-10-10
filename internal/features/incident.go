@@ -52,6 +52,9 @@ func CountIncidentSources(articles []news.MatchedArticle, asOf time.Time, window
 				continue
 			}
 		}
+		if a.Indirect {
+			continue
+		}
 		if !DetectIncident(a.Title) {
 			continue
 		}

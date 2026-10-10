@@ -361,3 +361,42 @@ func TestDefaultAliasesCoverEveryTicker(t *testing.T) {
 		}
 	}
 }
+
+func TestMatcherDoesNotMatchShortAliasInsideWord(t *testing.T) {
+	matcher := NewMatcher(DefaultAliases())
+	articles := []Article{
+		{Title: "Трамп заявил о договоренности с Путиным по поставкам дизеля в США", Source: Source{Name: "Ведомости", TrustWeight: decimal.NewFromInt(1)}},
+		{Title: "ВК объявил о запуске нового сервиса", Source: Source{Name: "РБК", TrustWeight: decimal.NewFromInt(1)}},
+	}
+	got := matcher.Match(articles)
+	if len(got) != 1 || got[0].Ticker != "VKCO" || got[0].Title != articles[1].Title {
+		t.Fatalf("Match() = %+v, want only the second article matched to VKCO", got)
+	}
+}
+
+func TestMatcherIndustryRulesTagDieselNewsAsIndirectOilTickers(t *testing.T) {
+	matcher := NewMatcher(DefaultAliases()).WithIndustryRules(DefaultIndustryRules())
+	article := Article{
+		Title:  "Минфин США разрешил поставки российского дизеля на мировые рынки. Роснефть выросла",
+		Source: Source{Name: "Ведомости", TrustWeight: decimal.NewFromInt(1)},
+	}
+	byTicker := map[string]MatchedArticle{}
+	for _, m := range matcher.Match([]Article{article}) {
+		byTicker[m.Ticker] = m
+	}
+	if m, ok := byTicker["ROSN"]; !ok || m.Indirect {
+		t.Fatalf("ROSN match = %+v ok=%v, want direct match", m, ok)
+	}
+	for _, ticker := range []string{"LKOH", "TATN", "SIBN", "SNGSP"} {
+		m, ok := byTicker[ticker]
+		if !ok || !m.Indirect || !m.TrustWeight.Equal(decimal.NewFromFloat(0.5)) {
+			t.Fatalf("%s match = %+v ok=%v, want indirect with half trust", ticker, m, ok)
+		}
+	}
+	if _, ok := byTicker["SBER"]; ok {
+		t.Fatal("SBER must not match a diesel headline")
+	}
+	if got := NewMatcher(DefaultAliases()).Match([]Article{article}); len(got) != 1 {
+		t.Fatalf("without industry rules got %d matches, want 1", len(got))
+	}
+}

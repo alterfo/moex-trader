@@ -66,3 +66,14 @@ func TestCountIncidentSourcesCollapsesPublisherFamilies(t *testing.T) {
 		t.Fatalf("independent channels must stay distinct: got %d, want 4", got)
 	}
 }
+
+func TestCountIncidentSourcesIgnoresIndirectMatches(t *testing.T) {
+	now := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
+	articles := []news.MatchedArticle{
+		{Title: "США сняли санкции с российского дизеля", SourceName: "РБК", TrustWeight: decimal.NewFromInt(1), PublishedAt: now, Indirect: true},
+		{Title: "США сняли санкции с российского дизеля", SourceName: "Интерфакс", TrustWeight: decimal.NewFromInt(1), PublishedAt: now, Indirect: true},
+	}
+	if got := CountIncidentSources(articles, now, 48*time.Hour); got != 0 {
+		t.Fatalf("CountIncidentSources() = %d, want 0 for industry-derived matches", got)
+	}
+}

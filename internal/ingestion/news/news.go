@@ -198,10 +198,12 @@ type MatchedArticle struct {
 	PublishedAt time.Time
 	SourceName  string
 	TrustWeight decimal.Decimal
+	Indirect    bool
 }
 
 type Matcher struct {
-	aliases map[string][]string
+	aliases       map[string][]string
+	industryRules []IndustryRule
 }
 
 func NewMatcher(aliases map[string][]string) *Matcher {
@@ -219,13 +221,18 @@ func NewMatcher(aliases map[string][]string) *Matcher {
 	return &Matcher{aliases: normalized}
 }
 
+func (m *Matcher) WithIndustryRules(rules []IndustryRule) *Matcher {
+	m.industryRules = rules
+	return m
+}
+
 func (m *Matcher) Match(articles []Article) []MatchedArticle {
 	matches := make([]MatchedArticle, 0)
 	for _, article := range articles {
 		haystack := strings.ToLower(article.Title + " " + article.Description)
 		for ticker, aliasList := range m.aliases {
 			for _, alias := range aliasList {
-				if strings.Contains(haystack, strings.ToLower(alias)) {
+				if containsAlias(haystack, strings.ToLower(alias)) {
 					matches = append(matches, MatchedArticle{
 						Ticker:      ticker,
 						Title:       article.Title,
@@ -239,6 +246,7 @@ func (m *Matcher) Match(articles []Article) []MatchedArticle {
 				}
 			}
 		}
+		matches = append(matches, m.matchIndustry(article, haystack, matches)...)
 	}
 	return matches
 }
