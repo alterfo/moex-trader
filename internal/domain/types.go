@@ -86,6 +86,7 @@ type TradeSignal struct {
 	Reasoning   string          `json:"reasoning"`
 	GeneratedAt time.Time       `json:"generated_at"`
 	HoldReason  string          `json:"hold_reason,omitempty"`
+	Flat        bool            `json:"flat,omitempty"`
 }
 
 func (s TradeSignal) Validate() error {
@@ -101,7 +102,7 @@ func (s TradeSignal) Validate() error {
 	if s.Confidence.GreaterThan(decimal.NewFromInt(1)) {
 		return fmt.Errorf("confidence must be in [0,1]")
 	}
-	if (s.Action == ActionBuy || s.Action == ActionSell) && s.TargetLots <= 0 {
+	if (s.Action == ActionBuy || s.Action == ActionSell) && s.TargetLots <= 0 && !s.Flat {
 		return fmt.Errorf("target lots must be positive for BUY/SELL")
 	}
 	return nil

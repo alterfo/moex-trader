@@ -252,3 +252,28 @@ func TestTargetPositionExecutor_RebalanceDeadbandSkipsSingleLotOnSmallTargets(t 
 		t.Fatalf("expected SELL 4, got %v lots=%d", s.Action, s.TargetLots)
 	}
 }
+
+func TestTargetPositionExecutor_FlatClosesShortWithoutFlipping(t *testing.T) {
+	now := time.Date(2024, 2, 11, 10, 30, 0, 0, time.UTC)
+	positions := &fakePositionReader{}
+	positions.set("YDEX", -40)
+	inner := &recordingExecutor{fill: Fill{Lots: 40}}
+	exec := NewTargetPositionExecutor(inner, positions, func() time.Time { return now })
+
+	_, err := exec.Execute(context.Background(), domain.TradeSignal{Ticker: "YDEX", Action: domain.ActionBuy, Flat: true}, decimal.NewFromInt(300))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inner.signals) != 1 || inner.signals[0].Action != domain.ActionBuy || inner.signals[0].TargetLots != 40 {
+		t.Fatalf("inner signals = %+v, want a single BUY of 40 lots (flat, not flip to long)", inner.signals)
+	}
+
+	positions.set("YDEX", 0)
+	inner.signals = nil
+	if _, err := exec.Execute(context.Background(), domain.TradeSignal{Ticker: "YDEX", Action: domain.ActionBuy, Flat: true}, decimal.NewFromInt(300)); err != nil {
+		t.Fatal(err)
+	}
+	if len(inner.signals) != 0 {
+		t.Fatalf("already flat must be a no-op, got %+v", inner.signals)
+	}
+}

@@ -56,6 +56,9 @@ func (t *TargetPositionExecutor) Execute(ctx context.Context, signal domain.Trad
 	if signal.Action == domain.ActionSell {
 		desired = -signal.TargetLots
 	}
+	if signal.Flat {
+		desired = 0
+	}
 	delta := desired - current
 	if delta == 0 {
 		return t.noopFill(signal, price), nil

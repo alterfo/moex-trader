@@ -101,6 +101,13 @@ type News struct {
 	IncidentVetoEnabled  bool            `yaml:"incident_veto_enabled"`
 	IncidentMinSources   int             `yaml:"incident_min_sources"`
 	IncidentShortEnabled bool            `yaml:"incident_short_enabled"`
+	ExitEnabled          bool            `yaml:"exit_enabled"`
+	ExitTakeProfitPct    decimal.Decimal `yaml:"exit_take_profit_pct"`
+	ExitTrailPct         decimal.Decimal `yaml:"exit_trail_pct"`
+	ExitStopLossPct      decimal.Decimal `yaml:"exit_stop_loss_pct"`
+	ExitMaxHold          Duration        `yaml:"exit_max_hold"`
+	ExitCooldown         Duration        `yaml:"exit_cooldown"`
+	ExitStatePath        string          `yaml:"exit_state_path"`
 }
 
 type Commission struct {
@@ -188,6 +195,12 @@ func Default() *Config {
 			VetoMinCount:        1,
 			IncidentVetoEnabled: true,
 			IncidentMinSources:  2,
+			ExitTakeProfitPct:   decimal.RequireFromString("0.015"),
+			ExitTrailPct:        decimal.RequireFromString("0.007"),
+			ExitStopLossPct:     decimal.RequireFromString("0.025"),
+			ExitMaxHold:         Duration(24 * time.Hour),
+			ExitCooldown:        Duration(48 * time.Hour),
+			ExitStatePath:       "artifacts/news_trades.json",
 			ClassifierPath:      defaultNewsClassifierPath,
 		},
 		Commission: Commission{
@@ -343,6 +356,17 @@ func (c *Config) Validate() error {
 	}
 	if c.News.IncidentMinSources < 1 {
 		return fmt.Errorf("news.incident_min_sources must be at least 1")
+	}
+	if c.News.ExitEnabled {
+		if !c.News.ExitTakeProfitPct.IsPositive() || !c.News.ExitTrailPct.IsPositive() || !c.News.ExitStopLossPct.IsPositive() {
+			return fmt.Errorf("news.exit_take_profit_pct, exit_trail_pct and exit_stop_loss_pct must be positive")
+		}
+		if c.News.ExitMaxHold.Std() <= 0 {
+			return fmt.Errorf("news.exit_max_hold must be positive")
+		}
+		if c.News.ExitCooldown.Std() < 0 {
+			return fmt.Errorf("news.exit_cooldown must be non-negative")
+		}
 	}
 	switch c.Broker {
 	case BrokerPaper, BrokerTinkoff, BrokerFinam:

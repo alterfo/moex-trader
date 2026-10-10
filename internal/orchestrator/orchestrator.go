@@ -400,6 +400,9 @@ func (o *Orchestrator) exposureDeltaLots(ctx context.Context, signal domain.Trad
 	if signal.Action == domain.ActionSell {
 		desired = -desired
 	}
+	if signal.Flat {
+		desired = 0
+	}
 	delta := desired - current
 	return &delta, nil
 }

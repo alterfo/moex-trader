@@ -196,6 +196,13 @@ func run() error {
 		MaxMult: cfg.Risk.VolScale.MaxMult,
 	}
 	gatedSource.metrics = appMetrics
+	if cfg.News.ExitEnabled {
+		exits, exitErr := newNewsExitManager(newsExitConfigFrom(cfg.News), store, time.Now)
+		if exitErr != nil {
+			return exitErr
+		}
+		gatedSource.exits = exits
+	}
 	signalSource := newAlertingSignalSource(gatedSource, telegramClient, log.Default())
 	notifier := newDecisionNotifier(telegramClient, log.Default(), cfg.Telegram.SignalTickers)
 
@@ -436,6 +443,7 @@ type newsGateSignalSource struct {
 	incidentEnabled    bool
 	incidentMinSources int
 	incidentShort      bool
+	exits              *newsExitManager
 
 	maxLots        int
 	targetNotional decimal.Decimal
@@ -486,7 +494,7 @@ func (g *newsGateSignalSource) gateIncident(ctx context.Context, signal domain.T
 	if !g.incidentEnabled || feature.IncidentCount < minSources {
 		return signal
 	}
-	if g.incidentShort && signal.Action != domain.ActionSell {
+	if g.incidentShort && signal.Action != domain.ActionSell && (g.exits == nil || !g.exits.shortSuppressed(feature.Ticker)) {
 		return g.shortOnIncident(ctx, signal, feature)
 	}
 	vetoed := signal.Action == domain.ActionBuy
@@ -523,16 +531,47 @@ func (g *newsGateSignalSource) shortOnIncident(ctx context.Context, signal domai
 		}
 	}
 	g.logger.Printf("trader: incident short %s (sources %d, lots %d)", feature.Ticker, feature.IncidentCount, signal.TargetLots)
+	if g.exits != nil {
+		if err := g.exits.noteShortEntry(ctx, feature.Ticker, feature.LastPrice); err != nil {
+			g.logger.Printf("trader: news exit tracking for %s: %v", feature.Ticker, err)
+		}
+	}
 	if g.metrics != nil {
 		g.metrics.IncIncidentShorts(feature.Ticker)
 	}
 	return signal
 }
 
+func (g *newsGateSignalSource) newsExit(ctx context.Context, feature domain.FeatureContext) *domain.TradeSignal {
+	if g.exits == nil || !g.exits.tracked(feature.Ticker) {
+		return nil
+	}
+	decision, err := g.exits.evaluate(ctx, feature.Ticker, feature.LastPrice)
+	if err != nil {
+		g.logger.Printf("trader: news exit evaluate %s: %v", feature.Ticker, err)
+		return nil
+	}
+	if decision == nil {
+		return nil
+	}
+	g.logger.Printf("trader: news exit %s (%s, result %s)", feature.Ticker, decision.Reason, decision.Gain.StringFixed(4))
+	if g.alerter != nil && g.incidentAlertDue("exit:"+feature.Ticker) {
+		text := fmt.Sprintf("💰 MOEX trader: закрываю новостную позицию %s — %s, результат %s%%",
+			feature.Ticker, decision.Reason, decision.Gain.Mul(decimal.NewFromInt(100)).StringFixed(2))
+		if alertErr := g.alerter.Send(ctx, text); alertErr != nil {
+			g.logger.Printf("trader: news exit alert for %s: %v", feature.Ticker, alertErr)
+		}
+	}
+	return &decision.Signal
+}
+
 func (g *newsGateSignalSource) Generate(ctx context.Context, feature domain.FeatureContext) (domain.TradeSignal, error) {
 	signal, err := g.source.Generate(ctx, feature)
 	if err != nil {
 		return signal, err
+	}
+	if exit := g.newsExit(ctx, feature); exit != nil {
+		return *exit, nil
 	}
 	signal = g.gateIncident(ctx, signal, feature)
 	if signal.Action == domain.ActionHold && signal.HoldReason == holdReasonIncident {

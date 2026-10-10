@@ -120,6 +120,13 @@ news:
   incident_veto_enabled: true
   incident_min_sources: 2
   incident_short_enabled: false
+  exit_enabled: false
+  # exit_take_profit_pct: "0.015"
+  # exit_trail_pct: "0.007"
+  # exit_stop_loss_pct: "0.025"
+  # exit_max_hold: 24h
+  # exit_cooldown: 48h
+  # exit_state_path: artifacts/news_trades.json
   # Proxy for t.me/s; falls back to telegram.proxy when empty.
   proxy: ""
   history_path: ""
