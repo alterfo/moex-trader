@@ -24,6 +24,7 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/drift"
 	"github.com/olegsidorkin/moex-trader/internal/executor"
 	"github.com/olegsidorkin/moex-trader/internal/features"
+	"github.com/olegsidorkin/moex-trader/internal/incidentcheck"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/tinkoff"
 	"github.com/olegsidorkin/moex-trader/internal/model"
@@ -2076,5 +2077,86 @@ func TestNewsGateIncidentShortSkipsDeniedIncident(t *testing.T) {
 	})
 	if signal.Action == domain.ActionSell {
 		t.Fatalf("action = SELL, want no short when the company reports normal operation")
+	}
+}
+
+type fakeIncidentChecker struct {
+	result incidentcheck.Result
+	err    error
+	calls  int
+	titles []string
+}
+
+func (f *fakeIncidentChecker) Check(_ context.Context, _ string, titles []string) (incidentcheck.Result, error) {
+	f.calls++
+	f.titles = titles
+	return f.result, f.err
+}
+
+func incidentFeature(now time.Time) domain.FeatureContext {
+	first := now.Add(-30 * time.Minute)
+	return domain.FeatureContext{
+		Ticker:           "SBER",
+		IncidentCount:    2,
+		IncidentFirstAt:  first,
+		IncidentLatestAt: first,
+		IncidentTitles:   []string{"Сбербанк сообщил об атаке на дата-центр"},
+		LastPrice:        decimal.NewFromInt(300),
+		LotSize:          decimal.NewFromInt(1),
+	}
+}
+
+func TestNewsGateIncidentShortNeedsDamageVerdict(t *testing.T) {
+	now := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name     string
+		result   incidentcheck.Result
+		wantSell bool
+	}{
+		{"damage", incidentcheck.Result{Verdict: incidentcheck.Damage}, true},
+		{"no damage", incidentcheck.Result{Verdict: incidentcheck.NoDamage, Reason: "дроны не долетели"}, false},
+		{"unclear", incidentcheck.Result{Verdict: incidentcheck.Unclear}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			gate := newIncidentShortGate(t, domain.ActionHold, nil)
+			gate.now = func() time.Time { return now }
+			checker := &fakeIncidentChecker{result: c.result}
+			gate.checker = checker
+			signal, _ := gate.Generate(context.Background(), incidentFeature(now))
+			if got := signal.Action == domain.ActionSell; got != c.wantSell {
+				t.Fatalf("short = %v, want %v", got, c.wantSell)
+			}
+			if checker.calls != 1 || len(checker.titles) != 1 {
+				t.Fatalf("checker calls = %d titles = %v, want 1 call with the headline", checker.calls, checker.titles)
+			}
+			signal, _ = gate.Generate(context.Background(), incidentFeature(now))
+			if checker.calls != 1 {
+				t.Fatalf("verdict must be cached per episode, got %d calls", checker.calls)
+			}
+			if c.wantSell && signal.Action == domain.ActionSell {
+				t.Fatal("no repeat short for the same episode")
+			}
+		})
+	}
+}
+
+func TestNewsGateIncidentShortRetriesAfterCheckerFailure(t *testing.T) {
+	now := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	gate := newIncidentShortGate(t, domain.ActionHold, nil)
+	gate.now = func() time.Time { return now }
+	checker := &fakeIncidentChecker{err: errors.New("ai-box unreachable")}
+	gate.checker = checker
+	if s, _ := gate.Generate(context.Background(), incidentFeature(now)); s.Action == domain.ActionSell {
+		t.Fatal("no short while the checker is down")
+	}
+	if s, _ := gate.Generate(context.Background(), incidentFeature(now)); s.Action == domain.ActionSell || checker.calls != 1 {
+		t.Fatalf("retry must wait for backoff, calls = %d", checker.calls)
+	}
+	now = now.Add(11 * time.Minute)
+	checker.err = nil
+	checker.result = incidentcheck.Result{Verdict: incidentcheck.Damage}
+	if s, _ := gate.Generate(context.Background(), incidentFeature(now)); s.Action != domain.ActionSell {
+		t.Fatalf("after recovery the first report must still short, got %q", s.Action)
 	}
 }

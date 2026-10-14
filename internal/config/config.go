@@ -102,6 +102,9 @@ type News struct {
 	IncidentMinSources   int             `yaml:"incident_min_sources"`
 	IncidentShortEnabled bool            `yaml:"incident_short_enabled"`
 	LookbackMovePct      decimal.Decimal `yaml:"lookback_move_pct"`
+	IncidentCheckURL     string          `yaml:"incident_check_url"`
+	IncidentCheckModel   string          `yaml:"incident_check_model"`
+	IncidentCheckTimeout Duration        `yaml:"incident_check_timeout"`
 	IndustryMatching     bool            `yaml:"industry_matching"`
 	SpoolPath            string          `yaml:"spool_path"`
 	ExitEnabled          bool            `yaml:"exit_enabled"`

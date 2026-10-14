@@ -31,6 +31,7 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/executor"
 	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/filltracking"
+	"github.com/olegsidorkin/moex-trader/internal/incidentcheck"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/algopack"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/news"
@@ -453,6 +454,9 @@ type newsGateSignalSource struct {
 	incidentEnabled    bool
 	incidentMinSources int
 	incidentShort      bool
+	checker            incidentcheck.Checker
+	checkTimeout       time.Duration
+	checkRetryAt       map[string]time.Time
 	lookbackMovePct    decimal.Decimal
 	exits              *newsExitManager
 
@@ -472,6 +476,10 @@ func newNewsGateSignalSource(source orchestrator.SignalSource, newsCfg config.Ne
 	if logger == nil {
 		logger = log.Default()
 	}
+	var checker incidentcheck.Checker
+	if newsCfg.IncidentCheckURL != "" {
+		checker = incidentcheck.NewOllama(newsCfg.IncidentCheckURL, newsCfg.IncidentCheckModel, newsCfg.IncidentCheckTimeout.Std())
+	}
 	return &newsGateSignalSource{
 		source:      source,
 		alerter:     alerter,
@@ -484,8 +492,11 @@ func newNewsGateSignalSource(source orchestrator.SignalSource, newsCfg config.Ne
 		incidentMinSources: newsCfg.IncidentMinSources,
 		incidentShort:      newsCfg.IncidentShortEnabled,
 		lookbackMovePct:    newsCfg.LookbackMovePct,
+		checker:            checker,
+		checkTimeout:       newsCfg.IncidentCheckTimeout.Std(),
 		now:                time.Now,
 		lastIncidentAlert:  make(map[string]time.Time),
+		checkRetryAt:       make(map[string]time.Time),
 	}
 }
 
@@ -512,17 +523,20 @@ func (g *newsGateSignalSource) movePriced(action domain.Action, feature domain.F
 	return priced
 }
 
-func (g *newsGateSignalSource) claimIncidentEpisode(feature domain.FeatureContext) bool {
-	tracker := g.exits
-	if tracker == nil {
-		g.alertMu.Lock()
-		if g.episodes == nil {
-			g.episodes, _ = newNewsExitManager(newsExitConfig{}, nil, g.now, nil)
-		}
-		tracker = g.episodes
-		g.alertMu.Unlock()
+func (g *newsGateSignalSource) episodeTracker() *newsExitManager {
+	if g.exits != nil {
+		return g.exits
 	}
-	return tracker.claimIncident(feature.Ticker, feature.IncidentFirstAt, feature.IncidentLatestAt, features.IncidentMaxAge)
+	g.alertMu.Lock()
+	defer g.alertMu.Unlock()
+	if g.episodes == nil {
+		g.episodes, _ = newNewsExitManager(newsExitConfig{}, nil, g.now, nil)
+	}
+	return g.episodes
+}
+
+func (g *newsGateSignalSource) claimIncidentEpisode(feature domain.FeatureContext) (bool, time.Time) {
+	return g.episodeTracker().claimIncident(feature.Ticker, feature.IncidentFirstAt, feature.IncidentLatestAt, features.IncidentMaxAge)
 }
 
 func (g *newsGateSignalSource) gateIncident(ctx context.Context, signal domain.TradeSignal, feature domain.FeatureContext) domain.TradeSignal {
@@ -533,10 +547,15 @@ func (g *newsGateSignalSource) gateIncident(ctx context.Context, signal domain.T
 	if !g.incidentEnabled || feature.IncidentCount < minSources {
 		return signal
 	}
-	firstReport := g.claimIncidentEpisode(feature)
+	firstReport, prevSeen := g.claimIncidentEpisode(feature)
 	priced := firstReport && (feature.IncidentDenied || g.movePriced(domain.ActionSell, feature))
 	if g.incidentShort && firstReport && !priced && signal.Action != domain.ActionSell && (g.exits == nil || !g.exits.shortSuppressed(feature.Ticker)) {
-		return g.shortOnIncident(ctx, signal, feature)
+		switch g.confirmDamage(ctx, feature) {
+		case damageConfirmed:
+			return g.shortOnIncident(ctx, signal, feature)
+		case damageRetry:
+			g.episodeTracker().restoreIncident(feature.Ticker, prevSeen)
+		}
 	}
 	vetoed := signal.Action == domain.ActionBuy
 	if g.alerter != nil && g.incidentAlertDue(feature.Ticker) {

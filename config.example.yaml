@@ -121,6 +121,9 @@ news:
   incident_min_sources: 2
   incident_short_enabled: false
   lookback_move_pct: "3"
+  incident_check_url: ""
+  incident_check_model: "qwen3.8:latest"
+  incident_check_timeout: 60s
   industry_matching: false
   spool_path: ""
   exit_enabled: false

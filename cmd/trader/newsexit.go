@@ -315,17 +315,29 @@ func (m *newsExitManager) recordExitLocked(trade *newsTrade, gain decimal.Decima
 	})
 }
 
-func (m *newsExitManager) claimIncident(ticker string, first, latest time.Time, maxAge time.Duration) bool {
+func (m *newsExitManager) claimIncident(ticker string, first, latest time.Time, maxAge time.Duration) (bool, time.Time) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	seen := m.state.Incidents[ticker]
+	prev := seen
 	fresh := first.IsZero() || m.now().Sub(first) <= maxAge
 	isNew := seen.IsZero() || first.IsZero() || first.After(seen)
 	if latest.After(seen) {
 		m.state.Incidents[ticker] = latest
 		_ = m.saveLocked()
 	}
-	return isNew && fresh
+	return isNew && fresh, prev
+}
+
+func (m *newsExitManager) restoreIncident(ticker string, prev time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if prev.IsZero() {
+		delete(m.state.Incidents, ticker)
+	} else {
+		m.state.Incidents[ticker] = prev
+	}
+	_ = m.saveLocked()
 }
 
 func (m *newsExitManager) forceExit(ticker, reason string) {

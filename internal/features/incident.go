@@ -56,6 +56,7 @@ func DetectIncident(text string) bool {
 
 type IncidentSummary struct {
 	Sources int
+	Titles  []string
 	Denied  bool
 	First   time.Time
 	Latest  time.Time
@@ -68,6 +69,12 @@ func CountIncidentSources(articles []news.MatchedArticle, asOf time.Time, window
 func SummarizeIncidents(articles []news.MatchedArticle, asOf time.Time, window time.Duration) IncidentSummary {
 	var summary IncidentSummary
 	var times []time.Time
+	type titled struct {
+		at    time.Time
+		title string
+	}
+	var titles []titled
+	seenTitles := make(map[string]struct{})
 	sources := make(map[string]struct{})
 	for _, a := range articles {
 		if a.TrustWeight.Sign() <= 0 {
@@ -82,10 +89,19 @@ func SummarizeIncidents(articles []news.MatchedArticle, asOf time.Time, window t
 		if a.Indirect {
 			continue
 		}
-		if DetectIncidentDenial(a.Title) {
+		denial := DetectIncidentDenial(a.Title)
+		if denial {
 			summary.Denied = true
 		}
-		if !DetectIncident(a.Title) {
+		incident := DetectIncident(a.Title)
+		if denial || incident {
+			key := strings.ToLower(strings.TrimSpace(a.Title))
+			if _, dup := seenTitles[key]; !dup {
+				seenTitles[key] = struct{}{}
+				titles = append(titles, titled{at: a.PublishedAt, title: strings.TrimSpace(a.Title)})
+			}
+		}
+		if !incident {
 			continue
 		}
 		sources[incidentSourceFamily(a.SourceName)] = struct{}{}
@@ -103,6 +119,12 @@ func SummarizeIncidents(articles []news.MatchedArticle, asOf time.Time, window t
 			}
 		}
 		summary.Latest = times[len(times)-1]
+	}
+	sort.SliceStable(titles, func(i, j int) bool { return titles[i].at.Before(titles[j].at) })
+	for _, t := range titles {
+		if t.at.IsZero() || !t.at.Before(summary.First) {
+			summary.Titles = append(summary.Titles, t.title)
+		}
 	}
 	return summary
 }
