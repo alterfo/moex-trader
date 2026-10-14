@@ -453,6 +453,7 @@ type newsGateSignalSource struct {
 	incidentEnabled    bool
 	incidentMinSources int
 	incidentShort      bool
+	lookbackMovePct    decimal.Decimal
 	exits              *newsExitManager
 
 	episodes *newsExitManager
@@ -482,6 +483,7 @@ func newNewsGateSignalSource(source orchestrator.SignalSource, newsCfg config.Ne
 		incidentEnabled:    newsCfg.IncidentVetoEnabled,
 		incidentMinSources: newsCfg.IncidentMinSources,
 		incidentShort:      newsCfg.IncidentShortEnabled,
+		lookbackMovePct:    newsCfg.LookbackMovePct,
 		now:                time.Now,
 		lastIncidentAlert:  make(map[string]time.Time),
 	}
@@ -496,6 +498,18 @@ func (g *newsGateSignalSource) incidentAlertDue(ticker string) bool {
 	}
 	g.lastIncidentAlert[ticker] = now
 	return true
+}
+
+func (g *newsGateSignalSource) movePriced(action domain.Action, feature domain.FeatureContext) bool {
+	if !g.lookbackMovePct.IsPositive() {
+		return false
+	}
+	priced := (action == domain.ActionBuy && feature.Mom5d.GreaterThanOrEqual(g.lookbackMovePct)) ||
+		(action == domain.ActionSell && feature.Mom5d.Neg().GreaterThanOrEqual(g.lookbackMovePct))
+	if priced {
+		g.logger.Printf("trader: news %s %s skipped, price already moved %s%% over 5d (limit %s%%)", action, feature.Ticker, feature.Mom5d.StringFixed(2), g.lookbackMovePct.String())
+	}
+	return priced
 }
 
 func (g *newsGateSignalSource) claimIncidentEpisode(feature domain.FeatureContext) bool {
@@ -520,7 +534,8 @@ func (g *newsGateSignalSource) gateIncident(ctx context.Context, signal domain.T
 		return signal
 	}
 	firstReport := g.claimIncidentEpisode(feature)
-	if g.incidentShort && firstReport && signal.Action != domain.ActionSell && (g.exits == nil || !g.exits.shortSuppressed(feature.Ticker)) {
+	priced := firstReport && g.movePriced(domain.ActionSell, feature)
+	if g.incidentShort && firstReport && !priced && signal.Action != domain.ActionSell && (g.exits == nil || !g.exits.shortSuppressed(feature.Ticker)) {
 		return g.shortOnIncident(ctx, signal, feature)
 	}
 	vetoed := signal.Action == domain.ActionBuy

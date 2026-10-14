@@ -101,6 +101,7 @@ news:
   incident_veto_enabled: true
   incident_min_sources: 2
   incident_short_enabled: true
+  lookback_move_pct: "3"
   spool_path: "data/news_spool.jsonl"
   exit_enabled: true
   classifier_path: "news_classifier.json"

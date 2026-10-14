@@ -101,6 +101,7 @@ type News struct {
 	IncidentVetoEnabled  bool            `yaml:"incident_veto_enabled"`
 	IncidentMinSources   int             `yaml:"incident_min_sources"`
 	IncidentShortEnabled bool            `yaml:"incident_short_enabled"`
+	LookbackMovePct      decimal.Decimal `yaml:"lookback_move_pct"`
 	IndustryMatching     bool            `yaml:"industry_matching"`
 	SpoolPath            string          `yaml:"spool_path"`
 	ExitEnabled          bool            `yaml:"exit_enabled"`
@@ -197,6 +198,7 @@ func Default() *Config {
 			VetoMinCount:        1,
 			IncidentVetoEnabled: true,
 			IncidentMinSources:  2,
+			LookbackMovePct:     decimal.NewFromInt(3),
 			ExitTakeProfitPct:   decimal.RequireFromString("0.015"),
 			ExitTrailPct:        decimal.RequireFromString("0.007"),
 			ExitStopLossPct:     decimal.RequireFromString("0.025"),
@@ -358,6 +360,9 @@ func (c *Config) Validate() error {
 	}
 	if c.News.IncidentMinSources < 1 {
 		return fmt.Errorf("news.incident_min_sources must be at least 1")
+	}
+	if c.News.LookbackMovePct.IsNegative() {
+		return fmt.Errorf("news.lookback_move_pct must be non-negative")
 	}
 	if c.News.ExitEnabled {
 		if !c.News.ExitTakeProfitPct.IsPositive() || !c.News.ExitTrailPct.IsPositive() || !c.News.ExitStopLossPct.IsPositive() {

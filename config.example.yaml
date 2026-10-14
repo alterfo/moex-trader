@@ -120,6 +120,7 @@ news:
   incident_veto_enabled: true
   incident_min_sources: 2
   incident_short_enabled: false
+  lookback_move_pct: "3"
   industry_matching: false
   spool_path: ""
   exit_enabled: false

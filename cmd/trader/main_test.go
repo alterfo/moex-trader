@@ -2025,3 +2025,42 @@ func TestNewsGateIncidentShortSkipsStaleIncident(t *testing.T) {
 		t.Fatalf("stale incident after restart: action = SELL, want none")
 	}
 }
+
+func TestNewsGateIncidentShortSkipsAfterSharpFall(t *testing.T) {
+	cases := []struct {
+		name     string
+		mom5d    int64
+		wantSell bool
+	}{
+		{"already fell 4%", -4, false},
+		{"fell 2%", -2, true},
+		{"rallied 6% before the incident", 6, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			gate := newIncidentShortGate(t, domain.ActionHold, nil)
+			gate.lookbackMovePct = decimal.NewFromInt(3)
+			signal, _ := gate.Generate(context.Background(), domain.FeatureContext{
+				Ticker:        "YDEX",
+				IncidentCount: 2,
+				Mom5d:         decimal.NewFromInt(c.mom5d),
+				LastPrice:     decimal.NewFromInt(300),
+				LotSize:       decimal.NewFromInt(1),
+			})
+			if got := signal.Action == domain.ActionSell; got != c.wantSell {
+				t.Fatalf("action = %q, short = %v, want %v", signal.Action, got, c.wantSell)
+			}
+		})
+	}
+}
+
+func TestNewsGateMovePricedBuyAfterRally(t *testing.T) {
+	gate := newIncidentShortGate(t, domain.ActionHold, nil)
+	gate.lookbackMovePct = decimal.NewFromInt(3)
+	if !gate.movePriced(domain.ActionBuy, domain.FeatureContext{Ticker: "ROSN", Mom5d: decimal.NewFromInt(5)}) {
+		t.Fatal("buy after +5% rally must be priced in")
+	}
+	if gate.movePriced(domain.ActionBuy, domain.FeatureContext{Ticker: "ROSN", Mom5d: decimal.NewFromInt(-5)}) {
+		t.Fatal("buy after a fall must not be blocked by the rally rule")
+	}
+}
