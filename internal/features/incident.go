@@ -2,13 +2,18 @@ package features
 
 import (
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/news"
 )
 
-const IncidentWindow = 48 * time.Hour
+const (
+	IncidentWindow     = 48 * time.Hour
+	IncidentEpisodeGap = 12 * time.Hour
+	IncidentMaxAge     = 6 * time.Hour
+)
 
 const incidentStart = `(?:^|[^а-яёa-z])`
 
@@ -40,7 +45,19 @@ func DetectIncident(text string) bool {
 	return false
 }
 
+type IncidentSummary struct {
+	Sources int
+	First   time.Time
+	Latest  time.Time
+}
+
 func CountIncidentSources(articles []news.MatchedArticle, asOf time.Time, window time.Duration) int {
+	return SummarizeIncidents(articles, asOf, window).Sources
+}
+
+func SummarizeIncidents(articles []news.MatchedArticle, asOf time.Time, window time.Duration) IncidentSummary {
+	var summary IncidentSummary
+	var times []time.Time
 	sources := make(map[string]struct{})
 	for _, a := range articles {
 		if a.TrustWeight.Sign() <= 0 {
@@ -59,8 +76,22 @@ func CountIncidentSources(articles []news.MatchedArticle, asOf time.Time, window
 			continue
 		}
 		sources[incidentSourceFamily(a.SourceName)] = struct{}{}
+		if !a.PublishedAt.IsZero() {
+			times = append(times, a.PublishedAt)
+		}
 	}
-	return len(sources)
+	summary.Sources = len(sources)
+	if len(times) > 0 {
+		sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
+		summary.First = times[0]
+		for i := 1; i < len(times); i++ {
+			if times[i].Sub(times[i-1]) >= IncidentEpisodeGap {
+				summary.First = times[i]
+			}
+		}
+		summary.Latest = times[len(times)-1]
+	}
+	return summary
 }
 
 var incidentSourceFamilies = []string{"google news", "ведомости", "цб рф"}

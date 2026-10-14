@@ -77,3 +77,25 @@ func TestCountIncidentSourcesIgnoresIndirectMatches(t *testing.T) {
 		t.Fatalf("CountIncidentSources() = %d, want 0 for industry-derived matches", got)
 	}
 }
+
+func TestSummarizeIncidentsStartsAtLatestEpisode(t *testing.T) {
+	now := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	mk := func(source string, age time.Duration) news.MatchedArticle {
+		return news.MatchedArticle{Title: "Пожар в ЦОДе «Яндекса»", SourceName: source, PublishedAt: now.Add(-age), TrustWeight: decimal.NewFromInt(1)}
+	}
+	summary := SummarizeIncidents([]news.MatchedArticle{
+		mk("A", 40*time.Hour),
+		mk("B", 39*time.Hour),
+		mk("C", 2*time.Hour),
+		mk("D", time.Hour),
+	}, now, IncidentWindow)
+	if want := now.Add(-2 * time.Hour); !summary.First.Equal(want) {
+		t.Fatalf("First = %v, want %v", summary.First, want)
+	}
+	if want := now.Add(-time.Hour); !summary.Latest.Equal(want) {
+		t.Fatalf("Latest = %v, want %v", summary.Latest, want)
+	}
+	if summary.Sources != 4 {
+		t.Fatalf("Sources = %d, want 4", summary.Sources)
+	}
+}

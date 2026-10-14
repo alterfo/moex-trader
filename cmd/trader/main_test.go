@@ -1971,3 +1971,57 @@ func TestNewsGateIncidentAlertCooldown(t *testing.T) {
 		t.Fatalf("alerts sent = %d, want 2 after cooldown", alerter.sent)
 	}
 }
+
+func TestNewsGateIncidentShortOnlyOnFirstReport(t *testing.T) {
+	now := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	gate := newIncidentShortGate(t, domain.ActionHold, nil)
+	gate.now = func() time.Time { return now }
+	feature := func(first, latest time.Time) domain.FeatureContext {
+		return domain.FeatureContext{
+			Ticker:           "YDEX",
+			IncidentCount:    2,
+			IncidentFirstAt:  first,
+			IncidentLatestAt: latest,
+			LastPrice:        decimal.NewFromInt(300),
+			LotSize:          decimal.NewFromInt(1),
+		}
+	}
+	first := now.Add(-time.Hour)
+	signal, _ := gate.Generate(context.Background(), feature(first, first.Add(20*time.Minute)))
+	if signal.Action != domain.ActionSell {
+		t.Fatalf("first report: action = %q, want SELL", signal.Action)
+	}
+	signal, _ = gate.Generate(context.Background(), feature(first, first.Add(20*time.Minute)))
+	if signal.Action == domain.ActionSell {
+		t.Fatalf("same report next cycle: action = SELL, want no repeat short")
+	}
+	now = now.Add(3 * time.Hour)
+	signal, _ = gate.Generate(context.Background(), feature(first, now.Add(-10*time.Minute)))
+	if signal.Action == domain.ActionSell {
+		t.Fatalf("follow-up coverage of same incident: action = SELL, want no repeat short")
+	}
+	fresh := now.Add(-30 * time.Minute)
+	gate.episodes.state.Incidents["YDEX"] = first
+	signal, _ = gate.Generate(context.Background(), feature(fresh, fresh))
+	if signal.Action != domain.ActionSell {
+		t.Fatalf("new incident: action = %q, want SELL", signal.Action)
+	}
+}
+
+func TestNewsGateIncidentShortSkipsStaleIncident(t *testing.T) {
+	now := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	gate := newIncidentShortGate(t, domain.ActionHold, nil)
+	gate.now = func() time.Time { return now }
+	old := now.Add(-30 * time.Hour)
+	signal, _ := gate.Generate(context.Background(), domain.FeatureContext{
+		Ticker:           "YDEX",
+		IncidentCount:    2,
+		IncidentFirstAt:  old,
+		IncidentLatestAt: old,
+		LastPrice:        decimal.NewFromInt(300),
+		LotSize:          decimal.NewFromInt(1),
+	})
+	if signal.Action == domain.ActionSell {
+		t.Fatalf("stale incident after restart: action = SELL, want none")
+	}
+}

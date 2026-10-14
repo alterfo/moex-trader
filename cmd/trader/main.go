@@ -455,6 +455,8 @@ type newsGateSignalSource struct {
 	incidentShort      bool
 	exits              *newsExitManager
 
+	episodes *newsExitManager
+
 	maxLots        int
 	targetNotional decimal.Decimal
 	volScale       model.VolScale
@@ -496,6 +498,19 @@ func (g *newsGateSignalSource) incidentAlertDue(ticker string) bool {
 	return true
 }
 
+func (g *newsGateSignalSource) claimIncidentEpisode(feature domain.FeatureContext) bool {
+	tracker := g.exits
+	if tracker == nil {
+		g.alertMu.Lock()
+		if g.episodes == nil {
+			g.episodes, _ = newNewsExitManager(newsExitConfig{}, nil, g.now, nil)
+		}
+		tracker = g.episodes
+		g.alertMu.Unlock()
+	}
+	return tracker.claimIncident(feature.Ticker, feature.IncidentFirstAt, feature.IncidentLatestAt, features.IncidentMaxAge)
+}
+
 func (g *newsGateSignalSource) gateIncident(ctx context.Context, signal domain.TradeSignal, feature domain.FeatureContext) domain.TradeSignal {
 	minSources := g.incidentMinSources
 	if minSources < 1 {
@@ -504,7 +519,8 @@ func (g *newsGateSignalSource) gateIncident(ctx context.Context, signal domain.T
 	if !g.incidentEnabled || feature.IncidentCount < minSources {
 		return signal
 	}
-	if g.incidentShort && signal.Action != domain.ActionSell && (g.exits == nil || !g.exits.shortSuppressed(feature.Ticker)) {
+	firstReport := g.claimIncidentEpisode(feature)
+	if g.incidentShort && firstReport && signal.Action != domain.ActionSell && (g.exits == nil || !g.exits.shortSuppressed(feature.Ticker)) {
 		return g.shortOnIncident(ctx, signal, feature)
 	}
 	vetoed := signal.Action == domain.ActionBuy

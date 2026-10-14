@@ -62,6 +62,7 @@ type newsTrade struct {
 type newsTradeState struct {
 	Trades    map[string]*newsTrade `json:"trades"`
 	Cooldowns map[string]time.Time  `json:"cooldowns"`
+	Incidents map[string]time.Time  `json:"incidents,omitempty"`
 }
 
 type newsExitManager struct {
@@ -83,7 +84,7 @@ func newNewsExitManager(cfg newsExitConfig, positions risk.PositionReader, now f
 		positions: positions,
 		now:       now,
 		store:     store,
-		state:     newsTradeState{Trades: map[string]*newsTrade{}, Cooldowns: map[string]time.Time{}},
+		state:     newsTradeState{Trades: map[string]*newsTrade{}, Cooldowns: map[string]time.Time{}, Incidents: map[string]time.Time{}},
 	}
 	var data []byte
 	switch {
@@ -117,6 +118,9 @@ func newNewsExitManager(cfg newsExitConfig, positions risk.PositionReader, now f
 	}
 	if loaded.Cooldowns != nil {
 		m.state.Cooldowns = loaded.Cooldowns
+	}
+	if loaded.Incidents != nil {
+		m.state.Incidents = loaded.Incidents
 	}
 	return m, nil
 }
@@ -309,4 +313,17 @@ func (m *newsExitManager) recordExitLocked(trade *newsTrade, gain decimal.Decima
 		Payload:   string(payload),
 		CreatedAt: now,
 	})
+}
+
+func (m *newsExitManager) claimIncident(ticker string, first, latest time.Time, maxAge time.Duration) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	seen := m.state.Incidents[ticker]
+	fresh := first.IsZero() || m.now().Sub(first) <= maxAge
+	isNew := seen.IsZero() || first.IsZero() || first.After(seen)
+	if latest.After(seen) {
+		m.state.Incidents[ticker] = latest
+		_ = m.saveLocked()
+	}
+	return isNew && fresh
 }

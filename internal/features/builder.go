@@ -92,6 +92,8 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 		volCandles = volCandles[len(volCandles)-lookback:]
 	}
 
+	incident := SummarizeIncidents(input.News, generatedAt, IncidentWindow)
+
 	feature := domain.FeatureContext{
 		Ticker:             ticker,
 		GeneratedAt:        generatedAt,
@@ -103,7 +105,9 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 		RealizedVolatility: realizedVolatility(volCandles),
 		NewsSentiment:      newsSentiment,
 		NewsCount:          newsCount,
-		IncidentCount:      CountIncidentSources(input.News, generatedAt, IncidentWindow),
+		IncidentCount:      incident.Sources,
+		IncidentFirstAt:    incident.First,
+		IncidentLatestAt:   incident.Latest,
 		OrderBookImbalance: clampImbalance(input.OrderBookImbalance),
 		Mom5d:              pf.Mom5d,
 		Mom21d:             pf.Mom21d,
