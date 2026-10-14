@@ -2064,3 +2064,17 @@ func TestNewsGateMovePricedBuyAfterRally(t *testing.T) {
 		t.Fatal("buy after a fall must not be blocked by the rally rule")
 	}
 }
+
+func TestNewsGateIncidentShortSkipsDeniedIncident(t *testing.T) {
+	gate := newIncidentShortGate(t, domain.ActionHold, nil)
+	signal, _ := gate.Generate(context.Background(), domain.FeatureContext{
+		Ticker:         "SBER",
+		IncidentCount:  4,
+		IncidentDenied: true,
+		LastPrice:      decimal.NewFromInt(300),
+		LotSize:        decimal.NewFromInt(1),
+	})
+	if signal.Action == domain.ActionSell {
+		t.Fatalf("action = SELL, want no short when the company reports normal operation")
+	}
+}

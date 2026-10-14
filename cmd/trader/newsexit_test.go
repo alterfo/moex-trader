@@ -218,3 +218,24 @@ func TestNewsExitStatePersistsInStore(t *testing.T) {
 		t.Fatal("state stored in the DB must be visible to a manager on another node")
 	}
 }
+
+func TestNewsExitClosesShortWhenIncidentDenied(t *testing.T) {
+	f := newExitFixture(t, domain.ActionHold)
+	if s := f.gen(t, 2, 300); s.Action != domain.ActionSell {
+		t.Fatalf("entry action = %q, want SELL", s.Action)
+	}
+	f.pos.lots["YDEX"] = -50
+	signal, err := f.gate.Generate(context.Background(), domain.FeatureContext{
+		Ticker:         "YDEX",
+		IncidentCount:  2,
+		IncidentDenied: true,
+		LastPrice:      decimal.NewFromInt(300),
+		LotSize:        decimal.NewFromInt(1),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if signal.Action != domain.ActionBuy || !signal.Flat {
+		t.Fatalf("signal = %+v, want flat BUY closing the short after denial", signal)
+	}
+}

@@ -327,3 +327,17 @@ func (m *newsExitManager) claimIncident(ticker string, first, latest time.Time, 
 	}
 	return isNew && fresh
 }
+
+func (m *newsExitManager) forceExit(ticker, reason string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	trade, ok := m.state.Trades[ticker]
+	if !ok || trade.ExitReason != "" {
+		return
+	}
+	trade.ExitReason = reason
+	if m.cfg.Cooldown > 0 {
+		m.state.Cooldowns[ticker] = m.now().Add(m.cfg.Cooldown)
+	}
+	_ = m.saveLocked()
+}

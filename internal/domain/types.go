@@ -50,6 +50,7 @@ type FeatureContext struct {
 	IncidentCount            int                `json:"incident_count"`
 	IncidentFirstAt          time.Time          `json:"incident_first_at"`
 	IncidentLatestAt         time.Time          `json:"incident_latest_at"`
+	IncidentDenied           bool               `json:"incident_denied"`
 	OrderBookImbalance       decimal.Decimal    `json:"order_book_imbalance"`
 	Mom5d                    decimal.Decimal    `json:"mom_5d"`
 	Mom21d                   decimal.Decimal    `json:"mom_21d"`

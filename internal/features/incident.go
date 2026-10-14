@@ -26,7 +26,16 @@ var (
 	incFacility = regexp.MustCompile(incidentStart + `(?:завод|дата-?центр|цод|нпз|терминал|склад|хаб|предприят|подстанц|электростанц|станци|месторожд|порт[а-яё]*(?:$|[^а-яё])|комбинат|фабрик|логистическ)`)
 	incImpact   = regexp.MustCompile(incidentStart + `(?:акци|упал|останови|приостанови|перебо|сбо[йяе]|повреж|пожар|недоступн)`)
 	incExclude  = regexp.MustCompile(incidentStart + `(?:страхов|полис|застрахов)`)
+	incDenial   = regexp.MustCompile(incidentStart + `(?:штатн|не долетел|не пострадал|не повреж|не затронут|не нанес|не нанёс|без ущерб|без поврежд|без жертв|ущерба нет|сбит[оыа]|сбиты|отражен|отбит|перехвачен)`)
 )
+
+func DetectIncidentDenial(text string) bool {
+	low := strings.ToLower(text)
+	if !incDenial.MatchString(low) {
+		return false
+	}
+	return incStrike.MatchString(low) || incDrone.MatchString(low) || incFire.MatchString(low)
+}
 
 func DetectIncident(text string) bool {
 	low := strings.ToLower(text)
@@ -47,6 +56,7 @@ func DetectIncident(text string) bool {
 
 type IncidentSummary struct {
 	Sources int
+	Denied  bool
 	First   time.Time
 	Latest  time.Time
 }
@@ -71,6 +81,9 @@ func SummarizeIncidents(articles []news.MatchedArticle, asOf time.Time, window t
 		}
 		if a.Indirect {
 			continue
+		}
+		if DetectIncidentDenial(a.Title) {
+			summary.Denied = true
 		}
 		if !DetectIncident(a.Title) {
 			continue

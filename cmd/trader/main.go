@@ -534,7 +534,7 @@ func (g *newsGateSignalSource) gateIncident(ctx context.Context, signal domain.T
 		return signal
 	}
 	firstReport := g.claimIncidentEpisode(feature)
-	priced := firstReport && g.movePriced(domain.ActionSell, feature)
+	priced := firstReport && (feature.IncidentDenied || g.movePriced(domain.ActionSell, feature))
 	if g.incidentShort && firstReport && !priced && signal.Action != domain.ActionSell && (g.exits == nil || !g.exits.shortSuppressed(feature.Ticker)) {
 		return g.shortOnIncident(ctx, signal, feature)
 	}
@@ -586,6 +586,9 @@ func (g *newsGateSignalSource) shortOnIncident(ctx context.Context, signal domai
 func (g *newsGateSignalSource) newsExit(ctx context.Context, feature domain.FeatureContext) *domain.TradeSignal {
 	if g.exits == nil || !g.exits.tracked(feature.Ticker) {
 		return nil
+	}
+	if feature.IncidentDenied {
+		g.exits.forceExit(feature.Ticker, "denied")
 	}
 	decision, err := g.exits.evaluate(ctx, feature.Ticker, feature.LastPrice)
 	if err != nil {

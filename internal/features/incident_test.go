@@ -99,3 +99,22 @@ func TestSummarizeIncidentsStartsAtLatestEpisode(t *testing.T) {
 		t.Fatalf("Sources = %d, want 4", summary.Sources)
 	}
 }
+
+func TestDetectIncidentDenial(t *testing.T) {
+	cases := []struct {
+		title string
+		want  bool
+	}{
+		{"Сбербанк сообщил о штатной работе всех систем после атаки", true},
+		{"Дроны не долетели до дата-центра Сбера, БПЛА сбиты", true},
+		{"Ущерба нет: атака БПЛА на ЦОД отражена", true},
+		{"Сбербанк подтвердил факт атаки на дата-центр", false},
+		{"Акции Сбера подешевели на фоне атаки БПЛА на дата-центр", false},
+		{"Банк работает в штатном режиме", false},
+	}
+	for _, c := range cases {
+		if got := DetectIncidentDenial(c.title); got != c.want {
+			t.Errorf("DetectIncidentDenial(%q) = %v, want %v", c.title, got, c.want)
+		}
+	}
+}

@@ -108,6 +108,7 @@ func (b *Builder) Build(input Input) (domain.FeatureContext, error) {
 		IncidentCount:      incident.Sources,
 		IncidentFirstAt:    incident.First,
 		IncidentLatestAt:   incident.Latest,
+		IncidentDenied:     incident.Denied,
 		OrderBookImbalance: clampImbalance(input.OrderBookImbalance),
 		Mom5d:              pf.Mom5d,
 		Mom21d:             pf.Mom21d,
