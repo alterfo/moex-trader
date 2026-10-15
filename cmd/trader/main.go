@@ -458,6 +458,7 @@ type newsGateSignalSource struct {
 	checkTimeout       time.Duration
 	checkRetryAt       map[string]time.Time
 	lookbackMovePct    decimal.Decimal
+	lookbackVolMult    decimal.Decimal
 	exits              *newsExitManager
 
 	episodes *newsExitManager
@@ -492,6 +493,7 @@ func newNewsGateSignalSource(source orchestrator.SignalSource, newsCfg config.Ne
 		incidentMinSources: newsCfg.IncidentMinSources,
 		incidentShort:      newsCfg.IncidentShortEnabled,
 		lookbackMovePct:    newsCfg.LookbackMovePct,
+		lookbackVolMult:    newsCfg.LookbackVolMult,
 		checker:            checker,
 		checkTimeout:       newsCfg.IncidentCheckTimeout.Std(),
 		now:                time.Now,
@@ -511,14 +513,28 @@ func (g *newsGateSignalSource) incidentAlertDue(ticker string) bool {
 	return true
 }
 
+const fiveDaySqrt = 2.23606797749979
+
+func (g *newsGateSignalSource) lookbackLimit(feature domain.FeatureContext) decimal.Decimal {
+	limit := g.lookbackMovePct
+	if g.lookbackVolMult.IsPositive() && feature.RealizedVolatility.IsPositive() {
+		scaled := feature.RealizedVolatility.Mul(g.lookbackVolMult).Mul(decimal.NewFromFloat(fiveDaySqrt))
+		if scaled.GreaterThan(limit) {
+			limit = scaled
+		}
+	}
+	return limit
+}
+
 func (g *newsGateSignalSource) movePriced(action domain.Action, feature domain.FeatureContext) bool {
-	if !g.lookbackMovePct.IsPositive() {
+	limit := g.lookbackLimit(feature)
+	if !limit.IsPositive() {
 		return false
 	}
-	priced := (action == domain.ActionBuy && feature.Mom5d.GreaterThanOrEqual(g.lookbackMovePct)) ||
-		(action == domain.ActionSell && feature.Mom5d.Neg().GreaterThanOrEqual(g.lookbackMovePct))
+	priced := (action == domain.ActionBuy && feature.Mom5d.GreaterThanOrEqual(limit)) ||
+		(action == domain.ActionSell && feature.Mom5d.Neg().GreaterThanOrEqual(limit))
 	if priced {
-		g.logger.Printf("trader: news %s %s skipped, price already moved %s%% over 5d (limit %s%%)", action, feature.Ticker, feature.Mom5d.StringFixed(2), g.lookbackMovePct.String())
+		g.logger.Printf("trader: news %s %s skipped, price already moved %s%% over 5d (limit %s%%)", action, feature.Ticker, feature.Mom5d.StringFixed(2), limit.StringFixed(2))
 	}
 	return priced
 }

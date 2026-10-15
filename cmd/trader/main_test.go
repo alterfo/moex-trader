@@ -2160,3 +2160,21 @@ func TestNewsGateIncidentShortRetriesAfterCheckerFailure(t *testing.T) {
 		t.Fatalf("after recovery the first report must still short, got %q", s.Action)
 	}
 }
+
+func TestNewsGateLookbackScalesWithVolatility(t *testing.T) {
+	gate := newIncidentShortGate(t, domain.ActionHold, nil)
+	gate.lookbackMovePct = decimal.NewFromInt(3)
+	gate.lookbackVolMult = decimal.NewFromInt(1)
+	calm := domain.FeatureContext{Ticker: "SBER", Mom5d: decimal.NewFromInt(-4), RealizedVolatility: decimal.NewFromFloat(0.8)}
+	wild := domain.FeatureContext{Ticker: "YDEX", Mom5d: decimal.NewFromInt(-4), RealizedVolatility: decimal.NewFromInt(3)}
+	if !gate.movePriced(domain.ActionSell, calm) {
+		t.Fatal("-4% on a calm ticker must count as already priced")
+	}
+	if gate.movePriced(domain.ActionSell, wild) {
+		t.Fatal("-4% on a volatile ticker is within normal 5d noise and must not be priced")
+	}
+	gate.lookbackVolMult = decimal.Zero
+	if !gate.movePriced(domain.ActionSell, wild) {
+		t.Fatal("with the multiplier off the fixed limit applies")
+	}
+}

@@ -102,6 +102,7 @@ type News struct {
 	IncidentMinSources   int             `yaml:"incident_min_sources"`
 	IncidentShortEnabled bool            `yaml:"incident_short_enabled"`
 	LookbackMovePct      decimal.Decimal `yaml:"lookback_move_pct"`
+	LookbackVolMult      decimal.Decimal `yaml:"lookback_vol_mult"`
 	IncidentCheckURL     string          `yaml:"incident_check_url"`
 	IncidentCheckModel   string          `yaml:"incident_check_model"`
 	IncidentCheckTimeout Duration        `yaml:"incident_check_timeout"`
@@ -366,6 +367,9 @@ func (c *Config) Validate() error {
 	}
 	if c.News.LookbackMovePct.IsNegative() {
 		return fmt.Errorf("news.lookback_move_pct must be non-negative")
+	}
+	if c.News.LookbackVolMult.IsNegative() {
+		return fmt.Errorf("news.lookback_vol_mult must be non-negative")
 	}
 	if c.News.ExitEnabled {
 		if !c.News.ExitTakeProfitPct.IsPositive() || !c.News.ExitTrailPct.IsPositive() || !c.News.ExitStopLossPct.IsPositive() {
