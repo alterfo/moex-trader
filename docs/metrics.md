@@ -1716,3 +1716,14 @@ exactly (12213 events, extreme 1h diff +0.173).
 - Not tested: order book and order history. `MOEX_TRADER_ALGOPACK_TOKEN` is not set, public ISS has only a current
   snapshot, the broker book is a live stream without history. Needs an AlgoPack subscription (`obstats`, `orderstats`)
   or our own snapshot collector.
+
+## H22: news burst as a risk regime for model decisions (2026-10-17)
+
+Pre-registered in `docs/plans/20261015-hypotheses-from-llm-review.md` (commit d42ef3e) before the run. Tool: `newssent/cmd/newsburst` (not under git). Decisions: BUY and SELL from the six `wf-volscale` walk-forward windows since 2026-04-01 (the first month with dense `data/news_history.jsonl` coverage), 1492 decisions, all with price data and a 10-trading-day forward. Burst: at least 3 articles on the ticker in the 24 hours ending 10:00 MSK of the decision date. Outcome 1: signed return close-to-close over 10 trading days. Outcome 2: worst signed daily close within those 10 days (a lower bound of the adverse excursion, no intraday High/Low). Bootstrap by ISO week, 2000 draws, Bonferroni for two primary tests (CI 97.5%).
+
+| test | burst n (dates) | burst mean | rest n | rest mean | difference | CI 97.5% |
+|---|---|---:|---:|---:|---:|---|
+| outcome 1, signed 10d return | 304 (113) | +0.34% | 1188 | +0.75% | -0.41% | [-2.20%, +1.33%] |
+| outcome 2, worst close in 10d | 304 (113) | -4.15% | 1188 | -3.78% | -0.37% | [-1.71%, +0.92%] |
+
+Both intervals contain zero, so the pre-registered criterion is not met (the sample requirement of 200 decisions and 40 dates is met). Descriptive splits (CI 95%, not part of the criterion): thresholds 1, 2 and 5 articles give outcome-1 differences -0.62%, -0.30%, -0.08% and outcome-2 differences -0.46%, -0.29%, -0.20%, every interval contains zero; BUY only (191 burst decisions) -0.05% and -0.71%; SELL only (113 burst decisions) -1.23% and +0.05%, intervals contain zero. The point estimates lean toward a worse outcome after a burst but are far inside the noise; no news-based filter is justified by this data. Window: 5.5 months, one market regime; news carry no sentiment sign, only a count.
