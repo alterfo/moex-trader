@@ -1637,3 +1637,82 @@ expanding-window purged walk-forward, 9 test folds of 63 days from 2025-04-01, L
 - Criterion (>= +0.010 pooled AUC over A and a majority of folds > 0.5): met by no arm.
 - Limits: one regime, 9 folds, 17 tickers; macro could still help as a regime filter in the risk gate rather
   than as a model input; fundamentals other than dividend yield were not tested (no point-in-time source).
+
+## Level-crossing event study: stops and take-profits (H20, 2026-10-15)
+
+Question: does the price behave differently after crossing a level where stop-loss and take-profit orders plausibly
+cluster (recent extremes, round numbers) than after crossing an ordinary level at the same distance? Criteria, levels
+and placebo were fixed in `docs/plans/20261015-hypotheses-from-llm-review.md` (H20) before the run. Verdict: not
+tradable as a signal; the one statistically positive primary test is far below the cost hurdle and is produced by the
+placebo, not by the real level.
+
+Code: `newssent/cmd/levelstudy` (the `newssent` repo has no git, so the code is not versioned; the result is also in
+`newssent/data/experiments.jsonl`, kind `level_study_H20`). Data: 10-minute ISS bars for the 16 `BasketTickers`,
+2024-11-15..2026-10-11, main session only, forward window inside the same day, gaps through a level excluded,
+levels from closes (the cache has Open and Close only). 12213 events: 5784 real, 6429 placebo (extreme 1368 / 1989,
+round 4416 / 4440 at the 1h horizon).
+
+Outcome: signed abnormal return against the basket (beta over the full sample) divided by the hour-of-day robust sigma;
+positive = continuation, negative = reversal. Difference = real level minus placebo level, 97.5% day-bootstrap CI
+(2 primary tests), 2000 draws.
+
+| level | placebo | horizon | real signed z | placebo signed z | diff (CI97.5) | real mean bps |
+|---|---|---|---:|---:|---|---:|
+| 20-day extreme | 4th extreme | 10m | +0.164 | -0.026 | +0.190 [-0.014, +0.410] | +1.8 |
+| 20-day extreme | 4th extreme | **1h (primary)** | +0.048 | -0.125 | **+0.173 [+0.034, +0.317]** | +1.3 |
+| 20-day extreme | 4th extreme | 4h | +0.024 | -0.010 | +0.034 [-0.103, +0.163] | +1.2 |
+| round number | half-step grid | 10m | -0.019 | +0.109 | -0.127 [-0.281, +0.008] | -0.4 |
+| round number | half-step grid | **1h (primary)** | -0.063 | -0.054 | **-0.009 [-0.105, +0.080]** | -1.4 |
+| round number | half-step grid | 4h | -0.047 | -0.040 | -0.008 [-0.086, +0.068] | -1.8 |
+
+- Primary (extreme, 1h): the CI excludes zero, both halves of the period have the same sign (first +0.179 [-0.024,
+  +0.390], second +0.167 [-0.037, +0.357]), 1368 real events on 424 dates, so the statistical criterion is met.
+- Economic criterion (mean signed return above 30 bp round trip): not met. The real extreme earns +1.3 bp at 1h; the
+  difference comes from the placebo level reversing (-2.8 bp), which is ordinary range behaviour, not a stop run.
+- Primary (round number, 1h): no effect (-0.009, CI spans zero), 4416 real events on 586 dates.
+- Share of crossings that return through the level within 30 minutes: extreme 0.471 real vs 0.473 placebo (CI95 of the
+  difference [-0.038, +0.034]); round 0.490 vs 0.473 ([-0.003, +0.039]). No stop-run signature.
+- By direction, extremes broken downward at 1h: diff +0.187 [+0.004, +0.388]; upward +0.165 [-0.020, +0.344]. Descriptive
+  only (not primary tests).
+- Limits: no order book or order history, only a price trace; liquid basket only (mid caps could show more, but the
+  spread removes it); closes instead of High/Low; round step is 1-10% of price, finer rounding was not tested; gap
+  crossings excluded; the 200-day moving average level was not tested (history too short).
+- Use: do not build an entry signal from this. No evidence that placing our own stops or entries next to round numbers
+  or 20-day extremes costs anything on this basket, so the planned protective filter is not justified by this data.
+
+### H20 extension: fine rounding, 200-day average, illiquid names, news reversal (2026-10-15)
+
+Family of six primary tests fixed in the plan before the run, 99.2% day-bootstrap CI (Bonferroni over six), same event,
+outcome and placebo definitions as above, signed z at 1h, difference = real minus placebo. Result: no test rejects the
+null and none reaches the economic hurdle (30 bp, 100 bp for illiquid names). Code `newssent/cmd/levelstudy`
+(`-universe`, `-sets`, `-maxgap`) and `newssent/cmd/newsreversal`, result also in `newssent/data/experiments.jsonl`
+(kind `level_study_H20_extension`). The first run of `levelstudy` after the refactor reproduces the earlier numbers
+exactly (12213 events, extreme 1h diff +0.173).
+
+| universe | level (real vs placebo) | n real / placebo | diff (CI99.2) | real mean bp | dates real |
+|---|---|---|---|---:|---:|
+| basket 16 | fine round (0.1-1% step) vs half-step grid | 36277 / 36235 | -0.005 [-0.023, +0.012] | -0.5 | 595 |
+| basket 16 | SMA200 vs SMA173 | 326 / 336 | +0.062 [-0.260, +0.379] | -2.6 | 231 |
+| illiquid 38 | 20-day extreme vs 4th extreme | 2129 / 3451 | +0.101 [-0.080, +0.297] | -13.1 | 504 |
+| illiquid 38 | round 1-10% step vs half-step grid | 10184 / 10215 | -0.027 [-0.099, +0.046] | -17.2 | 591 |
+| illiquid 38 | fine round vs half-step grid | 72434 / 71283 | +0.011 [-0.005, +0.026] | -13.0 | 595 |
+| news, 1203 events | extreme crossed in the first hour vs not, 1h->4h continuation | 93 crossed / 1110 | +0.100 [-0.816, +1.010] | +0.8 | 84 |
+
+- Descriptive: SMA50 vs SMA37 at 1h: -0.183 [-0.441, +0.039], n 555 / 732. SMA200 halves have opposite signs (first
+  +0.177, second -0.055); the sample is small (231 dates), the test is underpowered, but any effect inside its CI is at
+  most a few bp, far below the cost hurdle.
+- Illiquid universe: 38 of 115 eligible shares outside the basket (>= 300 trading days), top tercile by share of zero-return
+  10-minute bars (0.198..0.350); crossings require consecutive bars within 20 minutes. After a crossing both arms
+  reverse by about -13 to -17 bp at 1h (signed z -0.27..-0.33). It is the same for real and placebo levels, so it is not
+  level specific; it is far below 100 bp and is most likely last-trade price noise (bid-ask bounce) in illiquid names,
+  which a spread would eat. The share of crossings that return through the level within 30 minutes is 0.510 vs 0.521
+  at fine round numbers (diff -0.011, CI95 [-0.014, -0.008]), and 0.493 vs 0.520 at extremes (diff -0.028, CI95
+  [-0.053, -0.003]): statistically visible, practically negligible.
+- News reversal: first news of a ticker within 24h, 2025-01-01 onward, `|z1h| >= 2`: 5378 kept, 1223 significant, 1203
+  usable. The criterion needed >= 100 crossed events; there are 93, so the test is not conclusive (CI is wide). Without
+  conditioning, continuation after the first hour is -0.053 z (-1.8 bp, n 1203): essentially zero, no systematic
+  reversal at the 1h->4h scale. Secondary: crossing a round number 1h->4h +0.097 [-0.371, +0.560] (410 crossed); extreme
+  crossed, 1h->24h +0.189 [-0.476, +0.858].
+- Not tested: order book and order history. `MOEX_TRADER_ALGOPACK_TOKEN` is not set, public ISS has only a current
+  snapshot, the broker book is a live stream without history. Needs an AlgoPack subscription (`obstats`, `orderstats`)
+  or our own snapshot collector.
