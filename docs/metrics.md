@@ -67,7 +67,7 @@ must be re-derived before they can be cited as evidence.
 
 ## Dividend capture event-study (2) — REJECTED 2026-09-25
 
-Pre-registered protocol: `docs/plans/20260925-event-driven-dividend-drift.md`;
+Pre-registered protocol: `docs/plans/completed/20260925-event-driven-dividend-drift.md`;
 tool `cmd/dividendstudy`; calendar `data/dividends.jsonl` (123 events 2021-2027
 via T-Invest `GetDividends`, 65 in study window 2024-01-01..2026-12-19).
 Position 30000 RUB notional, lot-quantized (GAZP/GMKN/MTSS/RUAL=10, rest 1),
@@ -516,7 +516,7 @@ registry. Persisted `-wf-dir` runs are under
 
 ## Experiment F: excess-to-IMOEX labels (2026-10-18)
 
-Pre-registered protocol: `docs/plans/20261018-excess-label-walkforward.md` (committed before the run). Question: does the excess-label ensemble pass the Task 13 deployment gate against a fresh same-run absolute control, and does the 2026-10-03 single-window val-AUC advantage (+0.040) transfer to the purged 6-window walk-forward? Protocol: the Task 5 recipe unchanged (6 quarterly windows, `-embargo-bars 10`, 17 tickers, 1M deposit, 15000₽/position, commission/spread/slippage 0.05% each, hold-until-flip, kill switch on, thresholds 0.60/0.40, 18 price/flow features), `-label-mode excess` (F) vs `-label-mode absolute` (F-control), both exported/retrained/backtested on HEAD on the ai-box (`~/moex-trader-task12`), same news archive as Task 5.
+Pre-registered protocol: `docs/plans/completed/20261018-excess-label-walkforward.md` (committed before the run). Question: does the excess-label ensemble pass the Task 13 deployment gate against a fresh same-run absolute control, and does the 2026-10-03 single-window val-AUC advantage (+0.040) transfer to the purged 6-window walk-forward? Protocol: the Task 5 recipe unchanged (6 quarterly windows, `-embargo-bars 10`, 17 tickers, 1M deposit, 15000₽/position, commission/spread/slippage 0.05% each, hold-until-flip, kill switch on, thresholds 0.60/0.40, 18 price/flow features), `-label-mode excess` (F) vs `-label-mode absolute` (F-control), both exported/retrained/backtested on HEAD on the ai-box (`~/moex-trader-task12`), same news archive as Task 5.
 
 Reproducibility verification (pre-registered): the fresh absolute export reproduces the Task 5 dataset byte-for-byte — all 27 non-key fields identical for every common (ticker, date) row (SBER spot check, 0 diffs); the only difference is one extra tail row per ticker (2026-09-17), inside the pre-registered ±10-row tolerance.
 
@@ -545,7 +545,7 @@ Realized P&L is closed-trade gross minus commission. Gate against the fresh same
 
 ## Sell-bias diagnostic: event features, out-of-range guard, staleness (2026-10-18)
 
-Pre-registered in `docs/plans/20261018-sell-bias-diagnostic.md` before the runs. Data: `trader-sandbox.db` audit events (`ingest` payloads carry the full feature vector, `llm` payloads carry action/probability/hold_reason), 2026-09-16..10-18; ~38.3k decisions since the 2026-10-10 news-masking fix.
+Pre-registered in `docs/plans/completed/20261018-sell-bias-diagnostic.md` before the runs. Data: `trader-sandbox.db` audit events (`ingest` payloads carry the full feature vector, `llm` payloads carry action/probability/hold_reason), 2026-09-16..10-18; ~38.3k decisions since the 2026-10-10 news-masking fix.
 
 D1 (descriptive). Live decisions by day: 09-23..10-09 ran ~4200-4800 SELL/day with near-zero HOLD (the news-feature train/serve skew documented 2026-10-10). From 10-10: ~3600-4200 HOLD/day and ~460-1200 SELL/day, 0 BUY. Post-fix hold_reason split: `out_of_range` ~50-60% of decisions, `model` ~30%, SELL ~14%. Post-fix probability bins: <0.40: ~31% (of which <0.35: ~10%), [0.40,0.60]: ~69%, >=0.60: 0.11% (42 decisions).
 
@@ -561,7 +561,7 @@ Conclusion: the residual post-fix sell-lean decomposes into (a) the out-of-range
 
 ## Manual retrain candidate (2026-10-18) — REJECTED, no swap
 
-Pre-registered in `docs/plans/20261018-manual-retrain.md` (owner-approved manual retrain). Candidate: same recipe as the deployed ensemble (absolute-10d, 18 features incl. news, 28-name order, 0.60/0.40), trained on a fresh export (`-from 2024-01-01 -till 2026-10-18`, 18 tickers incl. DATA, current 14619-record news archive) with `ENSEMBLE_TRAIN_TILL=2026-10-17`, embargo 10. Both models replayed through the HEAD engine (guard fix included), 17 tickers, 1M deposit, 15000₽/position, costs 0.0005×3, kill switch on.
+Pre-registered in `docs/plans/completed/20261018-manual-retrain.md` (owner-approved manual retrain). Candidate: same recipe as the deployed ensemble (absolute-10d, 18 features incl. news, 28-name order, 0.60/0.40), trained on a fresh export (`-from 2024-01-01 -till 2026-10-18`, 18 tickers incl. DATA, current 14619-record news archive) with `ENSEMBLE_TRAIN_TILL=2026-10-17`, embargo 10. Both models replayed through the HEAD engine (guard fix included), 17 tickers, 1M deposit, 15000₽/position, costs 0.0005×3, kill switch on.
 
 | window | deployed realized | candidate realized | deployed trades | candidate trades | deployed max DD | candidate max DD |
 |---|---|---|---:|---:|---:|---:|
@@ -572,7 +572,7 @@ Gate: candidate realized P&L >= deployed on hold30 (FAIL: -3281.95 vs +583.21) a
 
 ## Preflight-concentration analysis (2026-10-18)
 
-Pre-registered in `docs/plans/20261018-preflight-concentration.md` (owner chose "stop and investigate" after the gate refused the live config). `cmd/backtest` gained `-max-net-short`/`-max-net-long` so the gate replay is reproducible; gate-shaped replays (90d rolling, 17 tickers, 1M deposit, costs 0.0005×3 + per-ticker spreads from `trader-sandbox.db`, borrow 0.00005/day, caps 90000/90000, kill switch on, deployed `ensemble_model.json`, no news — exactly like the live gate) give realized gross +9843.33 (till 10-14) → +3637.89 (till 10-16) → **-1990.32** (till 10-18), matching the gate's own decline (+7156 → +602 → -4859 net of borrow; the CLI lacks lot quantization, hence the level offset). ISS has no bars for 10-17/10-18, so the decline is the left boundary of the rolling window, not new bars.
+Pre-registered in `docs/plans/completed/20261018-preflight-concentration.md` (owner chose "stop and investigate" after the gate refused the live config). `cmd/backtest` gained `-max-net-short`/`-max-net-long` so the gate replay is reproducible; gate-shaped replays (90d rolling, 17 tickers, 1M deposit, costs 0.0005×3 + per-ticker spreads from `trader-sandbox.db`, borrow 0.00005/day, caps 90000/90000, kill switch on, deployed `ensemble_model.json`, no news — exactly like the live gate) give realized gross +9843.33 (till 10-14) → +3637.89 (till 10-16) → **-1990.32** (till 10-18), matching the gate's own decline (+7156 → +602 → -4859 net of borrow; the CLI lacks lot quantization, hence the level offset). ISS has no bars for 10-17/10-18, so the decline is the left boundary of the rolling window, not new bars.
 
 Closed trades of the till-10-18 gate replay, by close month (realized net, RUB):
 
@@ -943,7 +943,7 @@ backfill archive itself was not retained).
 
 ## Alpha-without-beta hedge test (0) — 2026-09-25
 
-Pre-registered protocol: `docs/plans/20260925-alpha-without-beta-test.md`
+Pre-registered protocol: `docs/plans/completed/20260925-alpha-without-beta-test.md`
 (committed `d39da47` BEFORE the run; read-before-numbers gate passed by the
 peer session). Executor: `cmd/alphahedge`. Decision test = does the deployed
 ensemble's daily alpha survive **execution-level** beta-neutralization via a
@@ -1649,7 +1649,7 @@ Revisit news-set features only after months of live `cmd/newsfetch` appends.
 
 ## Event causal study: sanctions / negotiations / incident (2026-10-09)
 
-Protocol (fixed before the first run): `docs/plans/20261009-event-causal-study.md`. Tool: `cmd/eventstudy`
+Protocol (fixed before the first run): `docs/plans/completed/20261009-event-causal-study.md`. Tool: `cmd/eventstudy`
 (`go build ./cmd/eventstudy && ./eventstudy -ar-mode beta|excess`). Panel: 17 `config.sandbox.yaml` tickers x
 140 trading days (2026-04-01..2026-10-09), 10213 archive records, abnormal return vs IMOEX (market-model beta
 fitted on 2025-10-01..2026-03-31; `excess` mode as robustness), 2000 date-bootstrap and 1000 placebo draws, seed 42.
@@ -1687,7 +1687,7 @@ Reading:
 ## Macro and dividend-yield features (2026-10-10)
 
 Question: does adding trailing dividend yield and daily macro series (IMOEX, CNY/RUB, Brent, key rate) lift
-walk-forward AUC? Protocol pre-registered in `docs/plans/20261010-macro-fundamental-features.md` section 8
+walk-forward AUC? Protocol pre-registered in `docs/plans/completed/20261010-macro-fundamental-features.md` section 8
 before the first run. Verdict: no. Nothing deploys; the live recipe (absolute 10d, price/flow columns) is
 unchanged and the success criterion was not met by any arm, so the P&L backtest step was not run.
 

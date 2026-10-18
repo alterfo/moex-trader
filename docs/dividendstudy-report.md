@@ -1,6 +1,6 @@
 # Dividend-capture event-study (2) — REJECTED 2026-09-25
 
-Pre-registration: `docs/plans/20260925-event-driven-dividend-drift.md`.
+Pre-registration: `docs/plans/completed/20260925-event-driven-dividend-drift.md`.
 Tool: `cmd/dividendstudy`; data: `data/dividends.jsonl` (123 events 2021-2027
 from T-Invest `GetDividends`, 65 in study window 2024-01-01..2026-12-19).
 

@@ -5,7 +5,7 @@
 The deployed abs-10d ensemble (18 features, buy/sell thresholds 0.60/0.40, 15000₽ per
 position, hold-until-flip, 18 tickers, T-Bank sandbox) has never been validated by a
 proper live-equivalent gate or formal statistics. This plan implements the two-session
-opencode consensus (adopted from `docs/plans/20260917-strategy-validation-action-plan.md`,
+opencode consensus (adopted from `docs/plans/completed/20260917-strategy-validation-action-plan.md`,
 which is not modified by this plan) for deciding, by pre-registered criteria, whether the
 system has a provable edge before any real-money decision is considered.
 
