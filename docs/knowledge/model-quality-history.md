@@ -71,3 +71,16 @@ Plan and pre-registered criteria: `docs/plans/20261018-seven-hypotheses.md`; all
 - LLM direction (step 1/H2): interim only, see metrics; unfinished until Ollama is free.
 - Live feed bug (step 9, 2026-10-18): until 2026-10-09 the running trader fed unmasked `news_count`/`news_sentiment` (training value 0) into the ensemble, which pushed live p to 0.15-0.22 and SELL on 81-95% of decisions; the offline masked replay gave 17%. Logged p equals the model on the unmasked ingest vector on every day 09-20..10-09 and the masked one from 10-10. The ai-box binary (2026-10-06) predates the fix. Check build parity of every node whenever a feature-handling fix lands; `cmd/featureparity` reproduces the check from the audit DB.
 
+
+## Part B hypotheses (2026-10-19): what was measured after the seven
+
+Plan `docs/plans/20261018-seven-hypotheses.md` part B, numbers in `docs/metrics.md` ("steps 11-13", "steps 14-16"). Read before proposing these again.
+
+- The deployed recipe scores pooled AUC 0.4905 (range 0.479-0.498) on 15 purged walk-forward configurations over 2025-04..2026-10, i.e. no better than chance for this period.
+- Per-date rank features (+0.0256 AUC, 15/15) pass the AUC stage but lose money in the csvprob replay (sum -18959 against base +4342, drawdown 2.55%): REJECTED. Rank correlation with forward return rises from -0.019 to +0.024, but 0.60/0.40 thresholds do not turn it into P&L.
+- Labels in volatility units (+/-0.5 sigma20*sqrt(10)) pass both registered stages (AUC +0.0114, 15/15; replay sum +11611 against +4342, drawdown 1.99% against 1.82%) at an absolute AUC of 0.502. The only candidate; it needs its own pre-registered integration test (more seeds, not one replay seed) before any retrain or swap.
+- Meta-labeling filter: REJECTED (+0.038 pp per trade against +0.10 required, positive in 6/15).
+- FORTS open interest (ISS futoi): free tier is delayed 14 days; registered arm +0.0076 (11/15) fails, 14-day lag arm -0.0289. REJECTED for the free tier.
+- TimesFM 2.5 zero-shot: AUC 0.522 with a bootstrap interval [0.487, 0.553]; as a feature +0.0022: REJECTED.
+- Fundamentals: no verified dated history; not tested. Record a daily snapshot if this is to be revisited.
+- The harness (`scripts/hypo_wf.py`) calculates ranks over all rows of a date before the deadband filter; ranking after the filter leaks the future return magnitude.
