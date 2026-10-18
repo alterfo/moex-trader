@@ -2284,3 +2284,20 @@ Registered criteria:
 Verdict: the vol-unit label result of step 12 is NOT confirmed (two of four criteria fail); no candidate-training pre-registration is opened.
 
 Descriptive, not part of the criterion (seed 42): k = 0.25 / 0.5 / 0.75 give six-window sums of +768 / +11611 / +33464, drawdowns 2.24% / 1.99% / 1.69% and hold-out -595 / -3058 / -5308 against base +4340, 1.82%, -664; non-monotonic across k and the largest hold-out loss at the largest k, so no k is selected from this. The seed-to-seed range of the base six-window sum is -13842..+17461, larger than any base-sigma difference above, which is the main reason a single-seed replay (step 12) cannot rank these arms.
+
+## Seven hypotheses, step 1 (FINAL): zero-shot direction of qwen3.8 on Russian headlines (H2, H3; 2026-10-19)
+
+Pre-registration unchanged (`docs/plans/20261018-seven-hypotheses.md`, step 1). Samples: A (clean) 1200 articles over 157 dates, 2026-04-01..09-30; B (pre-cutoff) 1114 articles over 399 dates, 2023-01-01..2024-06-30; 0 unparsable answers in both. Model digest `3f181bb5737e`, temperature 0, no thinking. Label: sign of excess return over IMOEX, entry at the next open after publication.
+
+| Sample | h | AUC | 95% CI (date-block bootstrap) | AUC without neutral (n) | Spearman with prior 5-day return | AUC within prior-return terciles |
+|---|---|---|---|---|---|---|
+| A | 1 | 0.5111 | [0.4793, 0.5407] | 0.5325 (520) | 0.263 | 0.5009 |
+| A | 5 | 0.5272 | [0.4941, 0.5597] | 0.5598 (520) | 0.263 | 0.5198 |
+| A | 10 | 0.5260 | [0.4921, 0.5605] | 0.5519 (520) | 0.263 | 0.5156 |
+| B | 1 | 0.5290 | [0.4987, 0.5599] | 0.5525 (398) | 0.123 | 0.5283 |
+| B | 5 | 0.5465 | [0.5170, 0.5765] | 0.5996 (398) | 0.123 | 0.5427 |
+| B | 10 | 0.5524 | [0.5232, 0.5821] | 0.6060 (398) | 0.123 | 0.5469 |
+
+- H2 verdict (registered threshold AUC >= 0.55 with CI lower bound > 0.5): h = 1 0.511 and h = 10 0.526 on sample A, both fail; "zero-shot direction of the LLM on Russian headlines is not better than random" is recorded, H6 and H9 are closed without a run.
+- H3 (lookahead): B minus A at h = 10 is +0.0264, CI [-0.0175, +0.0695]; the registered leakage rule (difference >= +0.030 with the lower bound above zero) is not met, so no lookahead is detected. Sample B alone is above 0.5 at h = 5 and 10 (CI lower bounds 0.517 and 0.523), which is not part of the registered rule; the old archive is not cleared for calibration use on the strength of this.
+- The score correlates with the previous 5-day return on sample A (rho 0.263, below the 0.3 limit): part of the above-0.5 signal is trailing momentum, the tercile-aligned AUC on A is 0.50-0.52.
