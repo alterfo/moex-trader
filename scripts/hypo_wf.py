@@ -252,10 +252,20 @@ if __name__ == "__main__" and (len(sys.argv) < 2 or sys.argv[1] != "probs"):
     main()
 
 
-WINDOWS = [("q1", "2025-03-05", "2025-06-05"), ("q2", "2025-06-06", "2025-09-05"), ("q3", "2025-09-06", "2025-12-03"), ("q4", "2025-12-04", "2026-03-04"), ("w2", "2026-03-05", "2026-06-06"), ("w1", "2026-06-07", "2026-09-16")]
+WINDOWS = [("q1", "2025-03-05", "2025-06-05"), ("q2", "2025-06-06", "2025-09-05"), ("q3", "2025-09-06", "2025-12-03"), ("q4", "2025-12-04", "2026-03-04"), ("w2", "2026-03-05", "2026-06-06"), ("w1", "2026-06-07", "2026-09-16"), ("h", "2026-09-17", "2026-10-17")]
 
 
-def window_probs(data_path, prices_path, out_path, variants, seed=42):
+def parse_arm(spec):
+    name, seed = spec.split("@")
+    if name == "base":
+        return name, None, int(seed)
+    if name == "rank":
+        return name, None, int(seed)
+    k = {"sigma": 0.5, "sigma25": 0.25, "sigma75": 0.75}[name]
+    return name, k, int(seed)
+
+
+def window_probs(data_path, prices_path, out_path, specs):
     full, new = load(data_path, prices_path)
     full = full.dropna(subset=PRICE + new + ["imoex_mom5"]).reset_index(drop=True)
     rows = []
@@ -264,16 +274,18 @@ def window_probs(data_path, prices_path, out_path, variants, seed=42):
         tr = full[(full["label_date"] < s) & (full["date"] >= TRAIN_START) & full["keep"]]
         te = full[(full["date"] >= s) & (full["date"] <= e)]
         out = te[["ticker", "date"]].copy()
-        for v in variants:
-            if v == "base":
-                out["p_base"] = models(tr[PRICE].to_numpy(float), tr["orig"].to_numpy(), te[PRICE].to_numpy(float), seed)
-            elif v == "rank":
+        for spec in specs:
+            arm, k, seed = parse_arm(spec)
+            col = "p_" + arm + "_s" + str(seed)
+            if arm == "base":
+                out[col] = models(tr[PRICE].to_numpy(float), tr["orig"].to_numpy(), te[PRICE].to_numpy(float), seed)
+            elif arm == "rank":
                 f = PRICE + new
-                out["p_rank"] = models(tr[f].to_numpy(float), tr["orig"].to_numpy(), te[f].to_numpy(float), seed)
-            elif v == "sigma":
-                thr = 0.5 * tr["sigma20"] * np.sqrt(HORIZON) * 100
+                out[col] = models(tr[f].to_numpy(float), tr["orig"].to_numpy(), te[f].to_numpy(float), seed)
+            else:
+                thr = k * tr["sigma20"] * np.sqrt(HORIZON) * 100
                 trs = tr[(tr["fwd"].abs() >= thr) & tr["sigma20"].notna()]
-                out["p_sigma"] = models(trs[PRICE].to_numpy(float), (trs["fwd"] > 0).astype(int).to_numpy(), te[PRICE].to_numpy(float), seed)
+                out[col] = models(trs[PRICE].to_numpy(float), (trs["fwd"] > 0).astype(int).to_numpy(), te[PRICE].to_numpy(float), seed)
         out["window"] = name
         rows.append(out)
     pd.concat(rows).to_csv(out_path, index=False)
