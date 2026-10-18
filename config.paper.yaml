@@ -1,0 +1,120 @@
+# Paper shadow run of the deployed ensemble (2026-10-18, owner approved).
+# Same ensemble_model.json, same news gates, no orders and no Telegram. The
+# preflight gate is disabled HERE ONLY: the sandbox config keeps it enabled and
+# refuses to start; this file exists to collect forward evidence while it does.
+# Own database, news spool, news-exit state and incident audit log so nothing is
+# shared with the sandbox trader.
+tickers:
+  # SBMM is excluded: its api_trade_available_flag is false, so T-Invest API cannot trade it.
+  - YDEX
+  - OZON
+  - SBER
+  - LKOH
+  - GAZP
+  - GMKN
+  - ROSN
+  - NVTK
+  - TATN
+  - MTSS
+  - MGNT
+  - PLZL
+  - CHMF
+  - T
+  - VTBR
+  - RUAL
+  - POSI
+  # GLDRUB_TOM/SLVRUB_TOM/CNYRUB_TOM removed: the model's IMOEX-relative
+  # excess-return label is meaningless for FX instruments — walk-forward
+  # showed every model that traded them lost money (see AGENTS.md H1
+  # findings, 2026-09-16).
+model:
+  path: "model.json"
+  # ensemble_model.json retrained 2026-09-17 on the absolute-10d recipe with
+  # real news_sentiment/news_count (6-month Telegram backfill, 18-feature
+  # schema, buy/sell 0.60/0.40). Holdout (2026-06-19..09-17, 1M deposit,
+  # spread+slippage 0.05%+0.05%) vs identical no-news control, realized P&L:
+  # +56379р/253 trades vs +40102р/205 trades, DD 1.60% vs 1.09%. 90-day
+  # no-news preflight check (matches live startup gate) +25699р. See AGENTS.md.
+  ensemble_path: "ensemble_model.json"
+moex_iss_base_url: "https://iss.moex.com/iss"
+algopack_base_url: "https://apim.moex.com/iss/datashop"
+storage:
+  path: "./trader-paper.db"
+risk:
+  # Sized off the walk-forward-validated recipe: flat 15000₽ notional per
+  # position, target-position execution. max_lots is a risk-gate ceiling,
+  # not the sizing itself (real TargetLots come from target_notional/price);
+  # 1000 covers the priciest observed case (~300 lots on VTBR at ~50₽/share)
+  # with headroom for a price drop.
+  max_lots: 1000
+  target_notional: "15000"
+  max_net_short: "90000"
+  max_net_long: "90000"
+  # Marketable-limit slippage cap (requires tinkoff.order_type: limit below):
+  # BUY caps at last_price*(1+pct), SELL floors at last_price*(1-pct). The
+  # order either fills within the band or not at all — never chases the book.
+  max_slippage_pct: "0.003"
+  # Rebalance deadband: skip target-position adjustments when the deviation from
+  # target is at or below this fraction of target notional. Dampens the 5-minute
+  # poll rebalancing a position every time price moves one lot.
+  rebalance_min_deviation_pct: "0.05"
+  # Skip new orders for this many minutes after the 10:00 MSK main-session
+  # open, where spreads are at their widest (opening auction settling).
+  no_trade_after_open_minutes: 15
+  # "RFC3339-start/RFC3339-end" pairs, e.g. around CBR key-rate announcements.
+  # Empty by default — fill in known dates as they're scheduled.
+  blackout_windows:
+    - "2026-10-23T13:15:00+03:00/2026-10-23T14:30:00+03:00"
+    - "2026-12-18T13:15:00+03:00/2026-12-18T14:30:00+03:00"
+commission:
+  broker: "tinkoff"
+  rate: "0.0005"    # T-Bank sandbox charges a flat 0.05% per trade
+finam:
+  base_url: "https://api.finam.ru"
+tinkoff:
+  endpoint: "sandbox-invest-public-api.tbank.ru:443"
+  sandbox: true
+  account_id: ""
+  pay_in: "1000000"
+  order_type: "limit"
+preflight:
+  enabled: false
+  days: 90
+  deposit: "1000000"
+  min_net_pnl: "1"
+  min_closed_trades: 1
+  # Backtest fill costs applied against the trader. Match the deployed
+  # validation convention: 0.05% half-spread + 0.05% adverse slippage per fill.
+  spread_pct: "0.0005"
+  slippage_pct: "0.0005"
+broker: "paper"
+is_paper_trading: true
+poll_interval: 5m
+telegram:
+  chat_id: ""
+  signal_tickers: []
+  proxy: "socks5://127.0.0.1:3333"
+  # Every evening after the close, send a brief digest: bot's day P&L (realized
+  # + MTM of open positions), fills count, IMOEX daily move and the share of
+  # tickers that closed green — context for deciding about manual long
+  # positions. Skipped automatically on non-trading days.
+  daily_summary_enabled: false
+  daily_summary_time: "19:05"
+news:
+  veto_enabled: true
+  veto_sentiment: "0.5"
+  veto_min_count: 1
+  incident_veto_enabled: true
+  incident_min_sources: 2
+  incident_short_enabled: true
+  lookback_move_pct: "3"
+  lookback_vol_mult: "0"
+  incident_check_url: "http://192.168.88.193:11434"
+  incident_check_model: "qwen3.8:latest"
+  incident_check_timeout: 60s
+  incident_check_audit_path: "artifacts/incident_checks_paper.jsonl"
+  incident_check_model_digest: "3f181bb5737e4530f86cbdd7efb321d38d76c8101d9bef534d2d4daa7f1e95aa"
+  spool_path: "data/news_spool_paper.jsonl"
+  exit_state_path: "artifacts/news_trades_paper.json"
+  exit_enabled: true
+  classifier_path: "news_classifier.json"

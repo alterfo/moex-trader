@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.oleg.moex-trader.paper</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/olegsidorkin/dev/fin/moex-trader/bin/trader-paper</string>
+        <string>-config</string>
+        <string>config.paper.yaml</string>
+        <string>-metrics-addr</string>
+        <string>:9092</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/olegsidorkin/dev/fin/moex-trader</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/olegsidorkin/Library/Logs/moex-trader-paper.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/olegsidorkin/Library/Logs/moex-trader-paper.err.log</string>
+</dict>
+</plist>

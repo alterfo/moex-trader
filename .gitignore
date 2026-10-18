@@ -30,3 +30,5 @@ data/news_quarantine.jsonl
 data/news_raw_tg*.jsonl
 news_history.jsonl
 artifacts/incident_checks.jsonl
+artifacts/*_paper.*
+data/news_spool_paper.jsonl
