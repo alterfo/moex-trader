@@ -2332,3 +2332,37 @@ Overnight (previous close to open) mean +0.082% per day, NW t 10.0; intraday (op
 ### Step 21: risk-free hurdle
 
 Key rate (`data/macro/keyrate.csv`): 14% on 2026-10-09; between 14% and 21% since 2025-04. Compounded daily at the key rate, 1,000,000 RUB earns 95,947 RUB over 2025-04-01..2025-09-16, 180,378 RUB over 2025-09-17..2026-10-18, 293,632 RUB over 2025-04-01..2026-10-18 and 12,347 RUB over the last month 2026-09-17..10-18. The LQDT money-market fund returned +4.59% over 2026-06-22..2026-10-18 (118 days, about 14% annualised; ISS history for the current series starts 2026-06-22). The realized sums in parts B and C (single windows of a few thousand to tens of thousands RUB on 1M) are an order of magnitude below this carry; the deployed strategy's live sandbox equity change was -25,395 RUB over 2026-09-17..2026-10-18 against +12,347 RUB at the key rate over the same month.
+
+## Part C corrections and final results, steps 18b / 20 / 23 (2026-10-19, supersedes the price-return and survivor-universe numbers of the "steps 18-21" section above)
+
+Three corrections were made to the analysis after the first run, each found by inspection before any decision was taken on the results: (1) dividends added to returns (step 18b, pre-registered in 671a696): T-Invest calendar for 2152 events (the ISS dividends endpoint is not available); (2) an availability look-ahead removed: names without an exit price (suspended or delisted) were dropped from the period by future information, they now carry the last close (effect on the survivor panel was below 0.01 pp); (3) the universe changed from today's 133 most liquid TQBR names (survivorship and look-back liquidity bias) to a point-in-time universe built from the daily TQBR snapshots of all 719 securities that traded on the board 2014-2026, including delisted ones (`cmd/tqbrsnap`, 881385 rows), with eligibility = 252 bars of history and 60-day median traded value >= 30 million RUB on the date (57.6 names per period on average). Known gaps: T-Invest cannot resolve 401 of 587 old tickers, so dividends are missing for most delisted names; dividend amounts above 35% of the previous close are dropped as unit mismatches (VTBR is quoted pre-consolidation in ISS and post-consolidation in the calendar). Prices are not corrected for corporate actions other than one-day moves below -45% or above +80%.
+
+### Step 18 on the point-in-time universe, total return (monthly = 21 bars, 128 periods 2016-2026; ML from 2019)
+
+| Variant | Net mean per period | NW t (net) | Net Sharpe | Years positive | Post 2022-06 mean (52 periods) | Max drawdown | Verdict |
+|---|---|---|---|---|---|---|---|
+| V1 composite long-short | +0.01% | 0.01 | 0.00 | 7/11 | +1.23% | -72% | FAIL |
+| V2 composite long minus universe | +0.40% | 1.54 | 0.47 | 6/11 | +0.89% | -22% | FAIL |
+| V3 LightGBM long-short | +0.68% | 1.27 | 0.42 | 6/8 | +1.20% | -39% | FAIL |
+| V4 LightGBM long minus universe | +0.58% | 1.94 | 0.64 | 6/8 | +0.82% | -17% | FAIL (t only) |
+| V1 at 10-bar rebalancing | +0.12% | 0.48 | 0.15 | 7/11 | +0.40% | -52% | descriptive |
+| V2 at 10-bar rebalancing | +0.14% | 0.99 | 0.32 | 6/11 | +0.25% | -38% | descriptive |
+
+None passes the registered rule (t >= 2.5 plus Sharpe, years, post-2022). For comparison the same variants on the survivor-only 133-name panel with total return gave V3 t 2.29 and V4 t 2.25 (V1 1.78, V2 1.69); the point-in-time universe lowers every t-statistic.
+
+Descriptive attribution (long-short quintile, net, full sample, point-in-time): mom_12_1 +1.24% per period (t 2.17), high52 +1.77% (t 2.99), low_vol -0.32% (t -0.55), low_max -0.85% (t -1.88), rev_1m -2.69% (t -5.18, zero positive years of 11): one-month returns continue rather than reverse on MOEX, so the registered composite, which treats rev_1m as a reversal signal with positive weight, was working against the strongest signal in the data. In the survivor panel the sign of rev_1m was the same (t -3.83).
+
+### Step 23 (sequential test), point-in-time universe
+
+Rule fixed in 81b2112: composite C2 = mean of z(mom_12_1), z(1-month momentum = -rev_1m), z(high52); signs and the drop of low_vol and low_max chosen on 2016-2021 data of the survivor panel; test period 2022-06-01..2026-10-18.
+
+| Arm | Test net mean per period (n = 52) | NW t | Sharpe | Net sum by year | Verdict on registered rule |
+|---|---|---|---|---|---|
+| C2 long-short | +1.17% | 1.42 | 0.56 | 2022 (Jun-) -27.7%, 2023 +0.2%, 2024 +47.4%, 2025 +15.2%, 2026 +26.0% | FAIL (t >= 2.0 not met; Sharpe and 3-of-4-years met) |
+| C2 long minus universe | +0.83% | 1.94 | 0.77 | 2022 -4.8%, 2023 +1.7%, 2024 +25.3%, 2025 +15.7%, 2026 +5.0% | descriptive |
+
+- On the survivor panel the same rule gave test t 3.67 (+2.74% per period, 43 periods starting after the halt); that result was a product of the universe (periods of H2 2022 had too few eligible names there) and the correct reading is the point-in-time row above.
+- Reference period 2016-2021 on the point-in-time universe (74 periods, the period in which the signs were chosen, not an out-of-sample figure): C2 long-short +2.49% per period, t 3.10, Sharpe 1.31, 6 of 6 years positive.
+- Net-of-cost figures use 0.15% per side and 0.005% per day borrow on the short leg; no capacity, short-availability or margin constraints are modelled, and the long-short leg needs about 12 shorts of mid-cap names.
+
+### Step 20 (point-in-time, total return): overnight +0.102% per day (NW t 12.1), intraday -0.058% (t -2.36); by year overnight stays positive in every year; still below the 0.30% needed, not tradable at these costs.

@@ -16,24 +16,60 @@ FIRST_TEST = pd.Timestamp("2019-01-01")
 
 def load(path):
     px = pd.read_csv(path, parse_dates=["date"])
-    px = px[px["close"] > 0]
-    cal = px[px.ticker == "IMOEX"]["date"].sort_values().unique()
-    px = px[px["date"].isin(cal)]
+    if "value" in px.columns:
+        px = px[px["close"].notna() & (px["close"] > 0) & px["open"].notna() & (px["open"] > 0)]
+        counts = px.groupby("date")["ticker"].count()
+        cal = counts[counts >= 30].index
+        px = px[px["date"].isin(cal)].copy()
+        px["volume"] = px["value"] / px["close"]
+    else:
+        px = px[px["close"] > 0]
+        cal = px[px.ticker == "IMOEX"]["date"].sort_values().unique()
+        px = px[px["date"].isin(cal)]
     op = px.pivot(index="date", columns="ticker", values="open").sort_index()
     cl = px.pivot(index="date", columns="ticker", values="close").sort_index()
     vo = px.pivot(index="date", columns="ticker", values="volume").sort_index()
     return op, cl, vo
 
 
-def adjust(op, cl):
+def dividends_matrix(path, idx, columns):
+    div = pd.DataFrame(0.0, index=idx, columns=columns)
+    if not path:
+        return div
+    with open(path) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            r = json.loads(line)
+            t = r["ticker"]
+            if t not in div.columns:
+                continue
+            try:
+                net = float(r["dividend_net"])
+            except (TypeError, ValueError):
+                continue
+            d = pd.Timestamp(r["last_buy_date"][:10])
+            pos = idx.searchsorted(d, side="right")
+            if pos < len(idx):
+                div.iloc[pos, div.columns.get_loc(t)] += net
+    return div
+
+
+def adjust(op, cl, div=None):
     prev = cl.shift(1)
-    ret = cl / prev - 1
-    bad = (ret < -0.45) | (ret > 0.8)
-    ret_clean = ret.mask(bad, 0.0)
-    adj_cl = (1 + ret_clean.fillna(0.0)).cumprod().where(cl.notna())
-    gap = (op / prev).where(~bad, 1.0)
-    adj_op = (adj_cl.shift(1) * gap)
-    return adj_op, adj_cl, ret_clean.where(cl.notna() & prev.notna())
+    if div is None:
+        div = pd.DataFrame(0.0, index=cl.index, columns=cl.columns)
+    ret_price = cl / prev - 1
+    bad = (ret_price < -0.45) | (ret_price > 0.8)
+    div = div.where(div <= 0.35 * prev, 0.0)
+    gap = ((op + div) / prev).where(~bad, 1.0)
+    intra = (cl / op).where(~bad, 1.0)
+    factor = (gap * intra).fillna(1.0)
+    adj_cl = factor.cumprod().where(cl.notna())
+    adj_op = adj_cl.shift(1) * gap
+    ret = (adj_cl / adj_cl.shift(1) - 1).where(cl.notna() & prev.notna())
+    return adj_op, adj_cl, ret
 
 
 def signals(adj_cl, cl, vo, ret):
@@ -92,13 +128,14 @@ def periods(idx, step):
 
 def portfolio(score, elig, adj_op, adj_cl, cl, idx, positions, mode, step=REBAL):
     rows = []
+    adj_cl_ff = adj_cl.ffill()
     prev_long, prev_short = set(), set()
     for p in positions:
         d = idx[p]
         if d < pd.Timestamp("2016-01-01"):
             continue
         sc = score.iloc[p]
-        ok = elig.iloc[p] & sc.notna() & adj_op.iloc[p + 1].notna() & adj_cl.iloc[p + step].notna()
+        ok = elig.iloc[p] & sc.notna()
         names = sc[ok].index
         if len(names) < 30:
             continue
@@ -106,8 +143,9 @@ def portfolio(score, elig, adj_op, adj_cl, cl, idx, positions, mode, step=REBAL)
         k = max(1, len(names) // 5)
         top = list(ranked.index[-k:])
         bot = list(ranked.index[:k])
-        fwd = (adj_cl.iloc[p + step] / adj_op.iloc[p + 1] - 1)
-        fwd = fwd.reindex(names)
+        entry = adj_op.iloc[p + 1].fillna(adj_cl.iloc[p])
+        fwd = (adj_cl_ff.iloc[p + step] / entry - 1)
+        fwd = fwd.reindex(names).fillna(0.0)
         r_top = float(fwd[top].mean())
         r_bot = float(fwd[bot].mean())
         r_all = float(fwd.mean())
@@ -156,10 +194,10 @@ def ml_scores(feats, target, idx, positions, step=REBAL):
     return out
 
 
-def run_factors(path, outpath):
+def run_factors(path, outpath, divpath=None):
     op, cl, vo = load(path)
     idx = cl.index
-    adj_op, adj_cl, ret = adjust(op, cl)
+    adj_op, adj_cl, ret = adjust(op, cl, dividends_matrix(divpath, idx, cl.columns))
     s, elig = signals(adj_cl, cl, vo, ret)
     elig = elig.reindex(columns=[c for c in cl.columns if c != "IMOEX"]).fillna(False)
     cols = elig.columns
@@ -188,15 +226,25 @@ def run_factors(path, outpath):
     for name, mode in (("V1_10", "ls"), ("V2_10", "lo")):
         pf = portfolio(composite, elig, adj_op[cols], adj_cl[cols], cl[cols], idx, positions10, mode, step=10)
         res[name] = dict(summary=summarize(pf["net"], pf.index, 252 / 10, 3), gross=summarize(pf["gross"], pf.index, 252 / 10, 3), turnover_long=float(pf["tn_long"].mean()))
+    attrib = {}
+    for k, v in z.items():
+        for mode in ("ls", "lo"):
+            pf = portfolio(v, elig, adj_op[cols], adj_cl[cols], cl[cols], idx, positions, mode)
+            attrib[k + "_" + mode] = summarize(pf["net"], pf.index, 252 / REBAL, 3)
+    res["attribution"] = attrib
     json.dump(res, open(outpath + ".json", "w"), indent=1, default=float)
+    for k, v in attrib.items():
+        print("attrib", k, json.dumps({a: v.get(a) for a in ("mean", "t_nw", "sharpe", "pos_years", "years", "post_mean")}, default=float))
     for k, v in res.items():
+        if k == "attribution":
+            continue
         print(k, json.dumps(v["summary"], default=float))
         print("  gross", json.dumps(v["gross"], default=float), "tn_long", round(v["turnover_long"], 3))
 
 
-def run_overnight(path, outpath):
+def run_overnight(path, outpath, divpath=None):
     op, cl, vo = load(path)
-    adj_op, adj_cl, ret = adjust(op, cl)
+    adj_op, adj_cl, ret = adjust(op, cl, dividends_matrix(divpath, cl.index, cl.columns))
     prev = adj_cl.shift(1)
     over = adj_op / prev - 1
     intra = adj_cl / adj_op - 1
@@ -286,6 +334,33 @@ def run_pairs(path, outpath):
         print(c, json.dumps({k: v.get(k) for k in ("n", "mean", "t_nw", "sharpe", "total")}, default=float))
 
 
+def run_sequential(path, outpath, divpath=None):
+    op, cl, vo = load(path)
+    idx = cl.index
+    adj_op, adj_cl, ret = adjust(op, cl, dividends_matrix(divpath, idx, cl.columns))
+    s, elig = signals(adj_cl, cl, vo, ret)
+    cols = [c for c in cl.columns if c != "IMOEX"]
+    elig = elig.reindex(columns=cols).fillna(False)
+    z = {k: zscore_rows(v[cols].where(elig)) for k, v in s.items()}
+    c2 = (z["mom_12_1"] - z["rev_1m"] + z["high52"]) / 3
+    positions = periods(idx, REBAL)
+    out = {}
+    for name, mode in (("C2_ls", "ls"), ("C2_lo", "lo")):
+        pf = portfolio(c2, elig, adj_op[cols], adj_cl[cols], cl[cols], idx, positions, mode)
+        pf.to_csv(outpath + "." + name + ".csv")
+        test = pf[pf.index >= POST]
+        ref = pf[pf.index < HALT_FROM]
+        out[name] = dict(test=summarize(test["net"], test.index, 252 / REBAL, 3), test_gross=summarize(test["gross"], test.index, 252 / REBAL, 3),
+                         ref=summarize(ref["net"], ref.index, 252 / REBAL, 3), turnover_long=float(test["tn_long"].mean()),
+                         years={int(y): float(g["net"].sum()) for y, g in test.groupby(test.index.year)})
+        print(name, json.dumps(out[name], default=float))
+    json.dump(out, open(outpath + ".json", "w"), indent=1, default=float)
+
+
 if __name__ == "__main__":
     mode, path, out = sys.argv[1], sys.argv[2], sys.argv[3]
-    {"factors": run_factors, "overnight": run_overnight, "pairs": run_pairs}[mode](path, out)
+    divpath = sys.argv[4] if len(sys.argv) > 4 else None
+    if mode == "pairs":
+        run_pairs(path, out)
+    else:
+        {"factors": run_factors, "overnight": run_overnight, "sequential": run_sequential}[mode](path, out, divpath)
