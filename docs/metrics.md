@@ -2170,3 +2170,19 @@ Registered reproduction check (csvprob none within 10% of the ensemble replay on
 Verdict on the registered criterion (R2: realized >= 0.80 of control, worst-window DD <= 0.90 of control, >= 10 risk-off dates and >= 5 suppressed BUY): NOT evaluable. Condition 3 fails (1 suppressed BUY across the three valid windows), and with one removed decision the realized sum (-4733.5) and the worst DD (1.86%) are identical to the control. The 2024 models also lose money in every window (sum of realized of the ensemble replay -6081 over four windows), so there is little long exposure to protect. The step 6 lead for R2 is therefore neither confirmed nor refuted by independent data; it stays a single-window-set observation. The combined ten-window figure (descriptive): six step-6 windows control +59539 and R2 +76184, three valid new windows control -4733.5 and R2 -4733.5.
 
 Consequence: no `internal/risk` pre-registration for an IMOEX regime gate. Reopening needs windows with a long-biased, active book (the 2025-2026 windows are the only ones that had one), i.e. new data after 2026-10 or a longer deep-history recipe that actually trades.
+
+## Live sandbox P&L, 2026-09-17..2026-10-18 (cmd/livepnl, audit copy, fills through 2026-10-14)
+
+Source: `executor` audit events of the sandbox database replayed with `internal/pnl`, marked to ISS closes of the day before each boundary. 148 fills in total; the trader placed none between 2026-09-24 and 2026-10-06 and none after 2026-10-14.
+
+| Period | Binary | Realized, RUB | Equity change incl. unrealized, RUB | Net / gross exposure at end, RUB | IMOEX |
+|---|---|---|---|---|---|
+| 09-17 .. 10-09 | no feature mask (bug) | -149 | -14073 | -226922 / 227104 | +6.97% |
+| 10-10 .. 10-18 | mask f8f64a1 | -1771 | -11464 | -244191 / 244384 | +1.87% |
+| total | | -1920 | -25395 | | +8.9% |
+
+- The book was entered as an almost purely short book (17 positions, net exposure equal to gross) during the unmasked period, when 81-95% of decisions were SELL, and it stayed short after the fix because the fixed model mostly returned HOLD (4 BUY fills in total, all covering shorts).
+- Beta check: -227k net short against +6.97% IMOEX is about -15.8k; the observed -14.1k is the same order, so the unmasked-period loss is market beta of a book the bug built, not stock selection.
+- The masked period lost more than its beta (-244k against +1.87% is about -4.6k, observed -11.5k); three covered shorts, one of them -1650 realized on 10-14, account for the realized part. Not decomposed further.
+- Realized P&L alone (-1920) hides this: the loss sits in 17 open positions that were never closed.
+- Caveat: unrealized uses the last close at or before the boundary, no borrow cost, dividends or financing; the audit copy was taken 2026-10-19 and the Mac trader was in `error` after 38 restarts at that time, so there are no fills after 10-14 to analyse.
