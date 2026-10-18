@@ -85,7 +85,8 @@ func run(args []string) error {
 		return fmt.Errorf("first rebalance index %d is below the %d-day window", start, window)
 	}
 
-	rungs := []string{"R0_equal", "R1_invvol", "R2_minvar", "R3_ica_garch", "R4_ica_garchsk", "R4_rho5", "R4_mu0"}
+	rungs := []string{"R0_equal", "R1_invvol", "R2_minvar", "R3_ica_garch", "R4_ica_garchsk", "R4_rho5", "R4_mu0", "R3_mu0_posthoc"}
+	failures := map[string]int{}
 	daily := map[string][]float64{}
 	turnover := map[string]float64{}
 	rebalances := 0
@@ -112,8 +113,21 @@ func run(args []string) error {
 		r3.Higher = false
 		if w, err := icaport.ICAWeights(win, r3); err == nil {
 			weights["R3_ica_garch"] = w
+		} else {
+			failures["R3_ica_garch"]++
 		}
-		if obj, err := icaport.BuildICAObjective(win, base); err == nil {
+		r3m := r3
+		r3m.UseMean = false
+		if w, err := icaport.ICAWeights(win, r3m); err == nil {
+			weights["R3_mu0_posthoc"] = w
+		} else {
+			failures["R3_mu0_posthoc"]++
+		}
+		if obj, err := icaport.BuildICAObjective(win, base); err != nil {
+			failures["R4_ica_garchsk"]++
+			failures["R4_rho5"]++
+			failures["R4_mu0"]++
+		} else {
 			starts := icaport.DefaultStarts(len(eligible), seed, 3, icaport.InverseVolWeights(win, 63))
 			weights["R4_ica_garchsk"] = icaport.MinimizeSimplex(obj, starts, 1500)
 			r5 := obj
@@ -175,6 +189,7 @@ func run(args []string) error {
 		}
 		rebalances++
 	}
+	fmt.Printf("rebalances=%d, fits that failed and kept the previous weights: %v\n", rebalances, failures)
 	return report(rungs, daily, turnover, rebalances, *outDir)
 }
 
@@ -189,7 +204,7 @@ func report(rungs []string, daily map[string][]float64, turnover map[string]floa
 	}
 	cvar := func(x []float64) float64 { return icaport.CVaR(x, 0.95) }
 	maxdd := func(x []float64) float64 { return icaport.Evaluate(x).MaxDD }
-	pairs := [][2]string{{"R1_invvol", "R0_equal"}, {"R2_minvar", "R0_equal"}, {"R3_ica_garch", "R0_equal"}, {"R4_ica_garchsk", "R0_equal"}, {"R4_ica_garchsk", "R3_ica_garch"}, {"R4_ica_garchsk", "R2_minvar"}, {"R4_rho5", "R0_equal"}, {"R4_mu0", "R0_equal"}}
+	pairs := [][2]string{{"R1_invvol", "R0_equal"}, {"R2_minvar", "R0_equal"}, {"R3_ica_garch", "R0_equal"}, {"R4_ica_garchsk", "R0_equal"}, {"R4_ica_garchsk", "R3_ica_garch"}, {"R4_ica_garchsk", "R2_minvar"}, {"R4_rho5", "R0_equal"}, {"R4_mu0", "R0_equal"}, {"R3_mu0_posthoc", "R0_equal"}, {"R3_mu0_posthoc", "R2_minvar"}}
 	fmt.Println()
 	fmt.Printf("%-34s %24s %24s %12s\n", "pair (strategy / control)", "CVaR95 ratio [CI95]", "maxDD ratio [CI95]", "ann.ret diff")
 	for _, pr := range pairs {

@@ -1871,3 +1871,40 @@ Pre-registered in `docs/plans/20261018-data-depth-and-open-problems.md` (commit 
 - Criteria 2 and 3 (`cmd/explaincheck`, deployed `ensemble_model.json`, `h10.csv` rows from 2025-04-01, 17 tickers, 10195 rows, seed 42, 20 random draws per row): replacing the 3 top drivers moves the probability by 0.0822 on average against 0.0236 for 3 random trained features, ratio 3.48 (needed 1.5); in the decision zone (p <= 0.40 or p >= 0.60, 3964 rows) the sign of the top driver matches the side of 0.5 in 95.9% of rows (needed 70%). Met.
 - Compatibility: `tailprecision.probabilityFromReasoning` stops at the first space, so ` drivers=...` after `p=` does not change parsing (regression case added); the Telegram decision text strips only the `ensemble:` prefix, so the drivers reach alerts and the audit log without a separate code path.
 - Scope of the claim: this measures how the model's own output depends on its inputs, not whether the features cause returns. Dataset rows overlap the deployed model's training period, which is irrelevant for a faithfulness check but means no outcome claim is made.
+
+## H23 stage 0: VAR-ICA-MGARCHSK portfolio formation, signal-free (2026-10-18)
+
+Pre-registered in `docs/plans/20261018-data-depth-and-open-problems.md` (commits 4010c4c, b7b27ad) before the run. Method after Mikhaylov, Yousif, Sotskov, Khomyakova, Finance: Theory and Practice 2026, 30(4), 19-37 (read in full). Tool: `cmd/icaportfolio` on `internal/icaport` (9 unit tests: Jacobi eigendecomposition, inverse, FastICA source recovery, recursion fit, portfolio moments vs sample moments, CARA gradient vs finite differences, simplex optimizer, metrics, determinism). Universe: config equities with at least 740 of 750 days (16 tickers; YDEX and DATA skipped for short history), ISS daily closes (price return, dividends not included, identical for every rung), 750-day estimation window, rebalance every 21 trading days, 99 rebalances 2019-01-02..2026-10-07, long-only, 0.05% cost on turnover including the initial purchase, weights drift between rebalances. Deviations from the paper, fixed beforehand: least-squares fit of the moment recursions (the paper does not state its estimator), cumulant form of portfolio moments (`k4 = sum a^4 kappa4 + 3 sigma^4`), deterministic multi-start projected gradient instead of the genetic algorithm, moment forecast averaged over the 21-day holding period. 0 of 99 fits failed. Statistics: stationary block bootstrap (block 20, 2000 repeats, seed 42), paired daily returns.
+
+| rung | ann. return | ann. vol | CVaR95 (daily) | max drawdown | Sharpe | turnover per rebalance |
+|---|---:|---:|---:|---:|---:|---:|
+| R0 equal weight (control) | 0.65% | 24.99% | 3.785% | 53.81% | 0.15 | 0.070 |
+| R1 inverse volatility 63d | 0.55% | 24.19% | 3.675% | 53.24% | 0.15 | 0.125 |
+| R2 minimum variance, sample covariance | -2.68% | 23.58% | 3.529% | 63.28% | 0.00 | 0.116 |
+| R3 VAR-ICA-GARCH, variance only | 0.30% | 26.17% | 3.834% | 59.35% | 0.14 | 1.010 |
+| R4 full VAR-ICA-MGARCHSK, rho 1 | -5.76% | 26.84% | 3.952% | 74.28% | -0.09 | 0.851 |
+| R4 with rho 5 (descriptive) | -1.31% | 28.19% | 4.276% | 65.82% | 0.10 | 1.398 |
+| R4 with mu 0 (descriptive) | -8.46% | 23.66% | 3.672% | 77.21% | -0.25 | 0.239 |
+| R3 with mu 0 (post-hoc, not pre-registered) | -3.92% | 22.57% | 3.530% | 66.00% | -0.06 | 0.252 |
+
+| pair (strategy / control) | CVaR95 ratio [CI95] | max drawdown ratio [CI95] | annual return difference |
+|---|---|---|---:|
+| R1 / R0 | 0.971 [0.961, 0.979] | 0.989 [0.940, 1.040] | -0.11pp |
+| R2 / R0 | 0.932 [0.884, 0.984] | 1.176 [0.818, 1.374] | -3.34pp |
+| R3 / R0 | 1.013 [0.955, 1.076] | 1.103 [0.744, 1.402] | -0.35pp |
+| R4 / R0 | 1.044 [0.976, 1.121] | 1.380 [0.852, 1.739] | -6.41pp |
+| R4 / R3 | 1.031 [0.983, 1.089] | 1.251 [0.919, 1.556] | -6.06pp |
+| R4 / R2 | 1.120 [1.064, 1.180] | 1.174 [0.884, 1.520] | -3.07pp |
+| R4 (rho 5) / R0 | 1.130 [1.060, 1.227] | 1.223 [0.789, 1.723] | -1.96pp |
+| R4 (mu 0) / R0 | 0.970 [0.909, 1.039] | 1.435 [0.927, 1.736] | -9.12pp |
+| R3 (mu 0, post-hoc) / R0 | 0.933 [0.884, 0.988] | 1.226 [0.834, 1.423] | -4.57pp |
+| R3 (mu 0, post-hoc) / R2 | 1.000 [0.979, 1.023] | 1.043 [0.933, 1.163] | -1.23pp |
+
+Verdict against the pre-registered criterion (R3 or R4 versus equal weight: CVaR95 at least 15% lower with the upper CI bound below 1.0, maximum drawdown at least 15% lower, annual return not more than 1pp below; R4 must also beat R3 on CVaR by 5% and beat R2): NOT met by R3 or by R4 on any of the three conditions. R3 CVaR ratio 1.013, R4 1.044; drawdown ratios 1.10 and 1.38 (worse); returns -0.35pp and -6.41pp. R4 does not beat R3 (CVaR 1.031) or R2 (1.120). H23 is rejected for this universe; the signal-free stage failing means no replay on the `wf-volscale` artifacts is run and nothing is wired into the trader.
+
+Observations (descriptive):
+- The paper's weights are unstable here as in its own figures 7-8: turnover per rebalance is about 100% for R3 and 85% for R4, against 7% for equal weight, and the cost is already included. With the VAR mean forecast switched off, turnover drops to 25% (R3) and 24% (R4); the noisy VAR(1) mean term in a CARA objective with percent-unit returns and rho 1 dominates the weights.
+- Without the mean term the ICA-GARCH variance forecast is statistically indistinguishable from the plain sample-covariance minimum-variance portfolio (R3 mu0 versus R2: CVaR ratio 1.000, CI [0.979, 1.023]), so the independent-component volatility model adds nothing over the sample covariance on 16 names with 750 observations.
+- Adding skewness and kurtosis makes the tail risk worse (R4 versus R3, CVaR 1.031, drawdown 1.25); the estimated conditional third and fourth moments are too noisy to optimise against at this sample size, which matches the instability visible in the paper's own figures 5-6.
+- The only rungs with a CVaR CI entirely below 1 are R1 (0.971), R2 (0.932) and the post-hoc R3 without mean (0.933); all of them pay with a higher drawdown and lower return than equal weight over the period, so none passes the pre-registered criterion either.
+- Limits: price returns without dividends (the same for every rung), a single path that includes 2020 and 2022 (the 2022 exchange halt is in the data for every rung), 16 names and one estimation window length; max drawdown of equal weight is 53.8%, so differences of 10-20% in drawdown ratio are inside the bootstrap intervals.
