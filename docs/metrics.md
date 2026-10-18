@@ -2186,3 +2186,19 @@ Source: `executor` audit events of the sandbox database replayed with `internal/
 - The masked period lost more than its beta (-244k against +1.87% is about -4.6k, observed -11.5k); three covered shorts, one of them -1650 realized on 10-14, account for the realized part. Not decomposed further.
 - Realized P&L alone (-1920) hides this: the loss sits in 17 open positions that were never closed.
 - Caveat: unrealized uses the last close at or before the boundary, no borrow cost, dividends or financing; the audit copy was taken 2026-10-19 and the Mac trader was in `error` after 38 restarts at that time, so there are no fills after 10-14 to analyse.
+
+## Nightly candidate gate aligned with the preflight (2026-10-19)
+
+The nightly harness replayed the candidate and the deployed model without the risk layer the trader's preflight applies, so its realized P&L was not the quantity the live gate checks. Deployed `ensemble_model.json`, 17 tickers, 2026-07-20..2026-10-18, deposit 1M, 15000 RUB per position, costs 0.0005 x3, kill switch on (`cmd/backtest`, same window the preflight rejected on 2026-10-18 with -4694.87):
+
+| Variant | Flags beyond the old harness | Realized, RUB | Realized net of borrow, RUB | Net with open, RUB | Closed | Max DD |
+|---|---|---|---|---|---|---|
+| A (old harness, with `-news-history`) | none | +10857 | not computed | -5930 | 137 | 1.72% |
+| B | `-max-net-short 90000 -max-net-long 90000 -borrow-pct-day 0.00005` | -2057 | -2704 | -4843 | 116 | 1.06% |
+| C | B without `-news-history` | -2069 | -2716 | -4855 | 117 | 1.06% |
+| preflight (live log) | spread table from the audit DB, macro enricher | n/a | -4695 | -903 | 99 | 1.12% |
+
+- The net exposure caps (config `risk.max_net_short/max_net_long` 90000) and the stress borrow rate account for the whole gap between the harness (+10857) and the preflight sign; with them the replay is already negative, as the preflight is.
+- `-news-history` changes the result by 12 RUB: the live path masks `news_count`/`news_sentiment`, so the harness news input is inert for the model. The remaining 2000 RUB gap to the preflight is not decomposed; candidates are the per-ticker spread table derived from the trader audit DB (`-spread-db`, not available on the ai-box) and the market enricher.
+- `scripts/daily-retrain-box.sh` now passes the caps (read from `config.sandbox.yaml`) and the borrow rate, and `cmd/retrainreport` compares and thresholds the realized P&L net of borrow when the report has it. Regression tests: `TestParseMetricsPrefersRealizedNetOfBorrow`, `TestDailyScriptReplayMatchesPreflightRisk` (script rate equals `borrowcost.StressRatePerDay`).
+- Earlier nightly verdicts (2026-10-16, 2026-10-17) were produced without the caps; the 10-16 gate failure (candidate -1660 vs deployed +614 on hold30) is not recomputed here. The next nightly run (data to 2026-10-19) is the first on the aligned harness.
