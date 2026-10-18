@@ -27,8 +27,13 @@ type options struct {
 	configPath  string
 	outPath     string
 	parquets    []string
+	jsonls      []string
 	trustWeight float64
 	tickers     string
+	namesPath   string
+	blocklist   string
+	aliasesOut  string
+	auditOut    string
 }
 
 type kasymRow struct {
@@ -70,8 +75,11 @@ func run(args []string) error {
 	if opts.outPath == "" {
 		opts.outPath = "news_history.jsonl"
 	}
-	if len(opts.parquets) == 0 {
-		return fmt.Errorf("at least one -parquet path is required")
+	if len(opts.parquets) == 0 && len(opts.jsonls) == 0 {
+		return fmt.Errorf("at least one -parquet or -jsonl path is required")
+	}
+	if opts.namesPath == "" && len(opts.jsonls) > 0 {
+		return fmt.Errorf("-jsonl needs -names (universe mode)")
 	}
 
 	aliases := news.DefaultAliases()
@@ -89,6 +97,35 @@ func run(args []string) error {
 	}
 
 	var totalNew int
+	if opts.namesPath != "" {
+		run, err := newUniverseRun(opts, out, seen)
+		if err != nil {
+			return err
+		}
+		log.Printf("newsimport: universe of %d tickers, %d aliases", len(run.uni.Tickers()), run.uni.AliasCount())
+		for _, path := range opts.parquets {
+			n, err := run.importParquetUniverse(path)
+			if err != nil {
+				return err
+			}
+			log.Printf("newsimport: %s: %d new records", path, n)
+		}
+		for _, path := range opts.jsonls {
+			n, err := run.importJSONL(path)
+			if err != nil {
+				return err
+			}
+			log.Printf("newsimport: %s: %d new records", path, n)
+		}
+		covered := len(run.perTicker)
+		log.Printf("newsimport: %d new records, %d tickers covered, %d duplicates skipped; title-only recall of tag tickers %d/%d", run.written, covered, run.skipped, run.recalled, run.tagged)
+		if opts.auditOut != "" {
+			if err := run.writeAudit(opts.auditOut); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	for _, path := range opts.parquets {
 		n, err := importParquet(path, out, seen, aliasToTickers, opts)
 		if err != nil {
@@ -276,6 +313,7 @@ func loadArticleIDs(path string) (map[string]bool, error) {
 			continue
 		}
 		seen[rec.Ticker+"|"+rec.ArticleID] = true
+		seen[titleKey(rec.Ticker, rec.Title)] = true
 	}
 	return seen, scanner.Err()
 }
@@ -288,6 +326,14 @@ func parseOptions(args []string) (options, error) {
 	fs.StringVar(&opts.outPath, "out", "", "archive JSONL path (default: config news.raw_path or news_history.jsonl)")
 	fs.Float64Var(&opts.trustWeight, "trust-weight", opts.trustWeight, "trust weight to assign kasymkhan articles")
 	fs.StringVar(&opts.tickers, "tickers", "", "comma-separated tickers to keep (default: all)")
+	fs.StringVar(&opts.namesPath, "names", "", "ticker names JSON from listtqbr -names-out; enables universe matching over every listed ticker")
+	fs.StringVar(&opts.blocklist, "alias-blocklist", "", "JSON array of aliases to ignore (universe mode)")
+	fs.StringVar(&opts.aliasesOut, "aliases-out", "", "write aliases learned from dataset tags to this JSON path (universe mode)")
+	fs.StringVar(&opts.auditOut, "audit", "", "write per-alias precision against dataset ticker tags to this TSV path (universe mode)")
+	fs.Func("jsonl", "finanalys-format news JSONL path to re-match against the universe (repeatable)", func(value string) error {
+		opts.jsonls = append(opts.jsonls, value)
+		return nil
+	})
 	fs.Func("parquet", "kasymkhan parquet path (repeatable)", func(value string) error {
 		opts.parquets = append(opts.parquets, value)
 		return nil

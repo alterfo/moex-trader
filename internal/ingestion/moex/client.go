@@ -40,6 +40,14 @@ type ListedSecurity struct {
 	SecType string
 }
 
+type SecurityName struct {
+	SecID     string
+	SecType   string
+	ShortName string
+	SecName   string
+	LatName   string
+}
+
 type Candle struct {
 	Open   decimal.Decimal
 	Close  decimal.Decimal
@@ -125,6 +133,47 @@ func (c *Client) ListSecurities(ctx context.Context, engine, market, board strin
 			sectype = stringify(row, sectypeIdx)
 		}
 		out = append(out, ListedSecurity{SecID: secid, SecType: sectype})
+	}
+	return out, nil
+}
+
+func (c *Client) ListSecurityNames(ctx context.Context, engine, market, board string) ([]SecurityName, error) {
+	path := fmt.Sprintf("/engines/%s/markets/%s/boards/%s/securities.json",
+		url.PathEscape(engine), url.PathEscape(market), url.PathEscape(board))
+	query := url.Values{}
+	query.Set("iss.meta", "off")
+	query.Set("securities.columns", "SECID,SECTYPE,SHORTNAME,SECNAME,LATNAME")
+	resp, err := c.getJSON(ctx, path+"?"+query.Encode())
+	if err != nil {
+		return nil, err
+	}
+	secidIdx := resp.Securities.columnIndex("SECID")
+	if secidIdx < 0 {
+		return nil, fmt.Errorf("moex security names for %s/%s/%s: missing SECID column", engine, market, board)
+	}
+	field := func(row []any, column string) string {
+		idx := resp.Securities.columnIndex(column)
+		if idx < 0 || idx >= len(row) {
+			return ""
+		}
+		return stringify(row, idx)
+	}
+	out := make([]SecurityName, 0, len(resp.Securities.Data))
+	for _, row := range resp.Securities.Data {
+		if secidIdx >= len(row) {
+			continue
+		}
+		secid := stringify(row, secidIdx)
+		if secid == "" {
+			continue
+		}
+		out = append(out, SecurityName{
+			SecID:     secid,
+			SecType:   field(row, "SECTYPE"),
+			ShortName: field(row, "SHORTNAME"),
+			SecName:   field(row, "SECNAME"),
+			LatName:   field(row, "LATNAME"),
+		})
 	}
 	return out, nil
 }

@@ -13,6 +13,19 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 )
 
+type tickerNameEntry struct {
+	Ticker    string `json:"ticker"`
+	ShortName string `json:"short_name"`
+	SecName   string `json:"sec_name"`
+	LatName   string `json:"lat_name"`
+}
+
+type tickerNameList struct {
+	FetchedAt time.Time         `json:"fetched_at"`
+	Source    string            `json:"source"`
+	Tickers   []tickerNameEntry `json:"tickers"`
+}
+
 type trainTickerList struct {
 	FetchedAt time.Time `json:"fetched_at"`
 	Source    string    `json:"source"`
@@ -35,6 +48,8 @@ func run(args []string) error {
 	fs := flag.NewFlagSet("listtqbr", flag.ContinueOnError)
 	fs.StringVar(&baseURL, "base-url", baseURL, "MOEX ISS base URL")
 	fs.StringVar(&outPath, "out", outPath, "output JSON path")
+	namesOut := ""
+	fs.StringVar(&namesOut, "names-out", namesOut, "also write ticker names (short/full/latin) to this JSON path")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -58,7 +73,40 @@ func run(args []string) error {
 		return err
 	}
 	log.Printf("listtqbr: wrote %d tickers to %s", len(list.Tickers), outPath)
+	if namesOut == "" {
+		return nil
+	}
+	names, err := client.ListSecurityNames(ctx, "stock", "shares", "TQBR")
+	if err != nil {
+		return fmt.Errorf("list TQBR security names: %w", err)
+	}
+	entries := nameEntries(names)
+	raw, err := json.MarshalIndent(tickerNameList{FetchedAt: time.Now().UTC(), Source: list.Source, Tickers: entries}, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal ticker names: %w", err)
+	}
+	if err := os.WriteFile(namesOut, append(raw, '\n'), 0o644); err != nil {
+		return fmt.Errorf("write ticker names: %w", err)
+	}
+	log.Printf("listtqbr: wrote %d ticker names to %s", len(entries), namesOut)
 	return nil
+}
+
+func nameEntries(names []moex.SecurityName) []tickerNameEntry {
+	seen := make(map[string]struct{}, len(names))
+	var out []tickerNameEntry
+	for _, n := range names {
+		if n.SecType != "1" && n.SecType != "2" {
+			continue
+		}
+		if _, ok := seen[n.SecID]; ok {
+			continue
+		}
+		seen[n.SecID] = struct{}{}
+		out = append(out, tickerNameEntry{Ticker: n.SecID, ShortName: n.ShortName, SecName: n.SecName, LatName: n.LatName})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Ticker < out[j].Ticker })
+	return out
 }
 
 func shareTickers(securities []moex.ListedSecurity) []string {

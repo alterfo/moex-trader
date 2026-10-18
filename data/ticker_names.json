@@ -1,0 +1,1566 @@
+{
+  "fetched_at": "2026-10-18T01:33:32.11398Z",
+  "source": "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.json",
+  "tickers": [
+    {
+      "ticker": "ABIO",
+      "short_name": "iАРТГЕН ао",
+      "sec_name": "ПАО \"Артген\"",
+      "lat_name": "ARTGEN ao"
+    },
+    {
+      "ticker": "ABRD",
+      "short_name": "АбрауДюрсо",
+      "sec_name": "Абрау-Дюрсо ПАО ао",
+      "lat_name": "Abrau-Durso ao"
+    },
+    {
+      "ticker": "AFKS",
+      "short_name": "Система ао",
+      "sec_name": "АФК \"Система\" ПАО ао",
+      "lat_name": "AFK Sistema"
+    },
+    {
+      "ticker": "AFLT",
+      "short_name": "Аэрофлот",
+      "sec_name": "Аэрофлот-росс.авиалин(ПАО)ао",
+      "lat_name": "Aeroflot"
+    },
+    {
+      "ticker": "AKRN",
+      "short_name": "Акрон",
+      "sec_name": "Акрон ПАО ао",
+      "lat_name": "Acron"
+    },
+    {
+      "ticker": "ALRS",
+      "short_name": "АЛРОСА ао",
+      "sec_name": "АЛРОСА ПАО ао",
+      "lat_name": "ALROSA ao"
+    },
+    {
+      "ticker": "AMEZ",
+      "short_name": "АшинскийМЗ",
+      "sec_name": "Ашинский метзавод ПАО ао",
+      "lat_name": "Ashinckiy metzavod PAO"
+    },
+    {
+      "ticker": "APRI",
+      "short_name": "АПРИ",
+      "sec_name": "АПРИ",
+      "lat_name": "APRI"
+    },
+    {
+      "ticker": "APTK",
+      "short_name": "Аптеки36и6",
+      "sec_name": "ПАО \"Аптечная сеть 36,6\" ао",
+      "lat_name": "Apteki 36,6"
+    },
+    {
+      "ticker": "AQUA",
+      "short_name": "ИНАРКТИКА",
+      "sec_name": "ПАО ИНАРКТИКА",
+      "lat_name": "INARCTIKA"
+    },
+    {
+      "ticker": "ARSA",
+      "short_name": "Арсагера",
+      "sec_name": "УК Арсагера ПАО-ао",
+      "lat_name": "UK Arsagera"
+    },
+    {
+      "ticker": "ASSB",
+      "short_name": "АстрЭнСб",
+      "sec_name": "\"Астраханская ЭСК\" ПАО",
+      "lat_name": "Astrakhan Energo Sbyt"
+    },
+    {
+      "ticker": "ASTR",
+      "short_name": "iАстра ао",
+      "sec_name": "Группа Астра ао",
+      "lat_name": "Astra Group"
+    },
+    {
+      "ticker": "AVAN",
+      "short_name": "Авангрд-ао",
+      "sec_name": "АКБ \"АВАНГАРД\" ПАО ао",
+      "lat_name": "AKB \"AVANGARD\""
+    },
+    {
+      "ticker": "BANE",
+      "short_name": "Башнефт ао",
+      "sec_name": "Башнефть АНК ао",
+      "lat_name": "Bashneft ANK ao"
+    },
+    {
+      "ticker": "BANEP",
+      "short_name": "Башнефт ап",
+      "sec_name": "Башнефть АНК ап",
+      "lat_name": "Bashneft ANK ap"
+    },
+    {
+      "ticker": "BAZA",
+      "short_name": "iБАЗИС",
+      "sec_name": "ГК БАЗИС",
+      "lat_name": "GC BASIS"
+    },
+    {
+      "ticker": "BELU",
+      "short_name": "НоваБев ао",
+      "sec_name": "НоваБев Групп ПАО ао",
+      "lat_name": "NovaBev Group ao"
+    },
+    {
+      "ticker": "BISVP",
+      "short_name": "БашИнСв ап",
+      "sec_name": "Башинформсвязь(ПАО) ап",
+      "lat_name": "BashInformSvyaz ap"
+    },
+    {
+      "ticker": "BLNG",
+      "short_name": "Белон ао",
+      "sec_name": "Белон ОАО ао",
+      "lat_name": "Belon ao"
+    },
+    {
+      "ticker": "BRZL",
+      "short_name": "БурЗолото",
+      "sec_name": "Бурятзолото ПАО ао",
+      "lat_name": "Buryatzoloto ao"
+    },
+    {
+      "ticker": "BSPB",
+      "short_name": "БСП ао",
+      "sec_name": "ПАО \"Банк \"Санкт-Петербург\" ао",
+      "lat_name": "BSP"
+    },
+    {
+      "ticker": "BSPBP",
+      "short_name": "БСП ап",
+      "sec_name": "Банк Санкт-Петербург ап",
+      "lat_name": "BSP ap"
+    },
+    {
+      "ticker": "BTBR",
+      "short_name": "iВ2В-РТС",
+      "sec_name": "В2В-РТС",
+      "lat_name": "B2B-RTS"
+    },
+    {
+      "ticker": "CARM",
+      "short_name": "СТГ",
+      "sec_name": "СТГ ао",
+      "lat_name": "STG"
+    },
+    {
+      "ticker": "CBOM",
+      "short_name": "МКБ ао",
+      "sec_name": "\"МКБ\" ПАО ао",
+      "lat_name": "MKB ao"
+    },
+    {
+      "ticker": "CHGZ",
+      "short_name": "РН-ЗапСиб",
+      "sec_name": "РН-Западная Сибирь ПАО ао",
+      "lat_name": "RN-Western Siberia ao"
+    },
+    {
+      "ticker": "CHKZ",
+      "short_name": "ЧКПЗ ао",
+      "sec_name": "\"ЧКПЗ\" ПАО ао",
+      "lat_name": "CKPZ"
+    },
+    {
+      "ticker": "CHMF",
+      "short_name": "СевСт-ао",
+      "sec_name": "Северсталь (ПАО)ао",
+      "lat_name": "Severstal - ao"
+    },
+    {
+      "ticker": "CHMK",
+      "short_name": "ЧМК ао",
+      "sec_name": "\"ЧМК\" ПАО ао",
+      "lat_name": "CMK"
+    },
+    {
+      "ticker": "CNRU",
+      "short_name": "iЦиан",
+      "sec_name": "МКПАО \"Циан\"",
+      "lat_name": "IPJSC Cian"
+    },
+    {
+      "ticker": "CNTL",
+      "short_name": "Телеграф",
+      "sec_name": "\"Центральный Телеграф\" ПАО ао",
+      "lat_name": "Centrlnyi Telegraf"
+    },
+    {
+      "ticker": "CNTLP",
+      "short_name": "Телеграф-п",
+      "sec_name": "\"Центральный Телеграф\" ПАО ап",
+      "lat_name": "Centrlnyi Telegraf ap"
+    },
+    {
+      "ticker": "DATA",
+      "short_name": "iАренадата",
+      "sec_name": "Группа Аренадата",
+      "lat_name": "Arenadata Group"
+    },
+    {
+      "ticker": "DELI",
+      "short_name": "iКаршеринг",
+      "sec_name": "Каршеринг Руссия ао",
+      "lat_name": "Carsharing Russia"
+    },
+    {
+      "ticker": "DIAS",
+      "short_name": "iДиасофт",
+      "sec_name": "Диасофт ао",
+      "lat_name": "Diasoft"
+    },
+    {
+      "ticker": "DIOD",
+      "short_name": "ЗаводДИОД",
+      "sec_name": "Завод ДИОД ПАО ао",
+      "lat_name": "Zavod DIOD ao"
+    },
+    {
+      "ticker": "DOMRF",
+      "short_name": "ДОМ.РФ",
+      "sec_name": "ПАО ДОМ.РФ",
+      "lat_name": "PJSC DOM.RF"
+    },
+    {
+      "ticker": "DVEC",
+      "short_name": "ДЭК ао",
+      "sec_name": "\"ДЭК\" ПАО ао",
+      "lat_name": "DEC"
+    },
+    {
+      "ticker": "DZRD",
+      "short_name": "ДонскЗР",
+      "sec_name": "Донской завод радиодеталей ао",
+      "lat_name": "DZRD ao"
+    },
+    {
+      "ticker": "DZRDP",
+      "short_name": "ДонскЗР п",
+      "sec_name": "Донской завод радиодеталей ап",
+      "lat_name": "DZRD pref."
+    },
+    {
+      "ticker": "EELT",
+      "short_name": "ЕвроЭлтех",
+      "sec_name": "\"ЕвропЭлектротехника\" ПАО ао",
+      "lat_name": "European Eltech"
+    },
+    {
+      "ticker": "ELFV",
+      "short_name": "ЭЛ5Энер ао",
+      "sec_name": "\"ЭЛ5-Энерго\" ПАО",
+      "lat_name": "El5-Ener"
+    },
+    {
+      "ticker": "ELMT",
+      "short_name": "iЭлемент",
+      "sec_name": "Элемент",
+      "lat_name": "ELEMENT"
+    },
+    {
+      "ticker": "ENPG",
+      "short_name": "ЭН+ГРУП ао",
+      "sec_name": "МКПАО ЭН+ ГРУП ао",
+      "lat_name": "EN+ GROUP IPJSC ORD SHS"
+    },
+    {
+      "ticker": "ETLN",
+      "short_name": "ЭталонГруп",
+      "sec_name": "МКПАО Эталон Груп",
+      "lat_name": "Etalon Group"
+    },
+    {
+      "ticker": "EUTR",
+      "short_name": "ЕвроТранс",
+      "sec_name": "ЕвроТранс ао",
+      "lat_name": "EvroTrans"
+    },
+    {
+      "ticker": "EVRZ",
+      "short_name": "ЕВРАЗ",
+      "sec_name": "ПАО ЕВРАЗ",
+      "lat_name": "PJSC EVRAZ"
+    },
+    {
+      "ticker": "FEES",
+      "short_name": "Россети",
+      "sec_name": "\"ФСК - Россети\" ПАО",
+      "lat_name": "FGC ROSSETI"
+    },
+    {
+      "ticker": "FESH",
+      "short_name": "ДВМП ао",
+      "sec_name": "ДВ морское пароходство ПАО ао",
+      "lat_name": "DVMP ao"
+    },
+    {
+      "ticker": "FIXR",
+      "short_name": "Фикс Прайс",
+      "sec_name": "ПАО Фикс Прайс",
+      "lat_name": "Fix Price PJSC"
+    },
+    {
+      "ticker": "FLOT",
+      "short_name": "Совкомфлот",
+      "sec_name": "Совкомфлот ао",
+      "lat_name": "Sovcomflot"
+    },
+    {
+      "ticker": "GAZA",
+      "short_name": "ГАЗ ао",
+      "sec_name": "ГАЗ ПАО ао",
+      "lat_name": "Gaz ao"
+    },
+    {
+      "ticker": "GAZAP",
+      "short_name": "ГАЗ ап",
+      "sec_name": "ГАЗ ПАО ап",
+      "lat_name": "Gaz (pref)"
+    },
+    {
+      "ticker": "GAZC",
+      "short_name": "ГАЗКОН-ао",
+      "sec_name": "ГАЗКОН (ПАО) ао",
+      "lat_name": "Gazkon ao"
+    },
+    {
+      "ticker": "GAZP",
+      "short_name": "ГАЗПРОМ ао",
+      "sec_name": "\"Газпром\" (ПАО) ао",
+      "lat_name": "Gazprom"
+    },
+    {
+      "ticker": "GAZS",
+      "short_name": "ГАЗ-сервис",
+      "sec_name": "ГАЗ-сервис (ПАО) ао",
+      "lat_name": "Gaz-servis ao"
+    },
+    {
+      "ticker": "GAZT",
+      "short_name": "ГАЗ-Тек ао",
+      "sec_name": "ГАЗ-Тек ПАО ао",
+      "lat_name": "GAZ-Tek PAO ao"
+    },
+    {
+      "ticker": "GCHE",
+      "short_name": "ЧеркизГ-ао",
+      "sec_name": "Группа Черкизово ПАО-ао",
+      "lat_name": "Cherkizovo Group ao"
+    },
+    {
+      "ticker": "GECO",
+      "short_name": "iГЕНЕТИКО",
+      "sec_name": "ЦГРМ ГЕНЕТИКО ао",
+      "lat_name": "GENETICO"
+    },
+    {
+      "ticker": "GEMA",
+      "short_name": "iММЦБ ао",
+      "sec_name": "ПАО ММЦБ ао",
+      "lat_name": "IMCB PJSC"
+    },
+    {
+      "ticker": "GEMC",
+      "short_name": "МКПАО ЮМГ",
+      "sec_name": "Юнайтед Медикал Груп ПАО",
+      "lat_name": "IPJSC UMG"
+    },
+    {
+      "ticker": "GLRX",
+      "short_name": "ГЛОРАКС",
+      "sec_name": "ПАО ГЛОРАКС",
+      "lat_name": "PJSC GLORAX"
+    },
+    {
+      "ticker": "GMKN",
+      "short_name": "ГМКНорНик",
+      "sec_name": "ГМК \"Нор.Никель\" ПАО ао",
+      "lat_name": "NorNickel GMK"
+    },
+    {
+      "ticker": "GTRK",
+      "short_name": "ГТМ ао",
+      "sec_name": "ПАО \"ГТМ\" ао",
+      "lat_name": "GTM"
+    },
+    {
+      "ticker": "HEAD",
+      "short_name": "Хэдхантер",
+      "sec_name": "МКПАО Хэдхантер",
+      "lat_name": "IPJSC Headhunter"
+    },
+    {
+      "ticker": "HIMCP",
+      "short_name": "Химпром ап",
+      "sec_name": "Химпром ПАО ап",
+      "lat_name": "Himprom ap"
+    },
+    {
+      "ticker": "HNFG",
+      "short_name": "ХЭНДЕРСОН",
+      "sec_name": "ХЭНДЕРСОН ао",
+      "lat_name": "HENDERSON"
+    },
+    {
+      "ticker": "HYDR",
+      "short_name": "РусГидро",
+      "sec_name": "ПАО \"РусГидро\"",
+      "lat_name": "RusGidro"
+    },
+    {
+      "ticker": "IGST",
+      "short_name": "Ижсталь2ао",
+      "sec_name": "Ижсталь ПАО ао 2в.",
+      "lat_name": "Izhstal 2ao"
+    },
+    {
+      "ticker": "IGSTP",
+      "short_name": "Ижсталь ап",
+      "sec_name": "Ижсталь ПАО ап",
+      "lat_name": "Izhstal ap"
+    },
+    {
+      "ticker": "INCB",
+      "short_name": "Инкаб",
+      "sec_name": "Инкаб Холдинг",
+      "lat_name": "Incab Holding"
+    },
+    {
+      "ticker": "IRAO",
+      "short_name": "ИнтерРАОао",
+      "sec_name": "\"Интер РАО\" ПАО ао",
+      "lat_name": "Inter RAO ao"
+    },
+    {
+      "ticker": "IRKT",
+      "short_name": "Яковлев-3",
+      "sec_name": "\"Яковлев\" ПАО ак.об.-3",
+      "lat_name": "Yakovlev-3"
+    },
+    {
+      "ticker": "IVAT",
+      "short_name": "iИВА",
+      "sec_name": "ПАО ИВА ао",
+      "lat_name": "PJSC IVA"
+    },
+    {
+      "ticker": "JNOS",
+      "short_name": "Славн-ЯНОС",
+      "sec_name": "Славнефть-ЯНОС (ПАО) ао",
+      "lat_name": "Slavneft-JANOS"
+    },
+    {
+      "ticker": "JNOSP",
+      "short_name": "Слав-ЯНОСп",
+      "sec_name": "Славнефть-ЯНОС (ПАО) ап",
+      "lat_name": "Slavneft-JANOS (pref)"
+    },
+    {
+      "ticker": "KAZT",
+      "short_name": "Куйбазот",
+      "sec_name": "Куйбышевазот ПАО ао",
+      "lat_name": "Kuib.Azot ao"
+    },
+    {
+      "ticker": "KAZTP",
+      "short_name": "Куйбазот-п",
+      "sec_name": "Куйбышевазот ПАО ап",
+      "lat_name": "Kuibishevazot ap"
+    },
+    {
+      "ticker": "KBSB",
+      "short_name": "ТНСэКубань",
+      "sec_name": "ТНС энерго Кубань ПАО ао",
+      "lat_name": "TNS energo Kuban Company"
+    },
+    {
+      "ticker": "KCHE",
+      "short_name": "КамчатЭ ао",
+      "sec_name": "Камчатскэнерго ПАО ао",
+      "lat_name": "Kamchatskenergo"
+    },
+    {
+      "ticker": "KCHEP",
+      "short_name": "КамчатЭ ап",
+      "sec_name": "Камчатскэнерго ПАО ап",
+      "lat_name": "Kamchatskenergo (pref)"
+    },
+    {
+      "ticker": "KFBA",
+      "short_name": "ИНГРАД ао",
+      "sec_name": "ИНГРАД ПАО ао",
+      "lat_name": "INGRAD"
+    },
+    {
+      "ticker": "KGKC",
+      "short_name": "КурганГКао",
+      "sec_name": "Курганская генер.комп.ПАО ао",
+      "lat_name": "Kurganskaja Gener.Kompanija"
+    },
+    {
+      "ticker": "KGKCP",
+      "short_name": "КурганГКап",
+      "sec_name": "Курганская генер. комп. ПАО ап",
+      "lat_name": "Kurganskaja Gener.Kompanija ap"
+    },
+    {
+      "ticker": "KLSB",
+      "short_name": "КалужскСК",
+      "sec_name": "ао\"Калужская сбыт.комп.\"ПАО",
+      "lat_name": "Kalugsk. Sbyt. Company ao"
+    },
+    {
+      "ticker": "KLVZ",
+      "short_name": "Кристалл",
+      "sec_name": "Алкогольная Группа Кристалл",
+      "lat_name": "KLVZ KRISTALL"
+    },
+    {
+      "ticker": "KMAZ",
+      "short_name": "КАМАЗ",
+      "sec_name": "КАМАЗ ПАО",
+      "lat_name": "KAMAZ"
+    },
+    {
+      "ticker": "KMEZ",
+      "short_name": "КМЗ",
+      "sec_name": "Ковровский механический завод",
+      "lat_name": "Kovrov Mech. Zavod"
+    },
+    {
+      "ticker": "KOGK",
+      "short_name": "КоршГОК ао",
+      "sec_name": "Коршуновский ГОК ПАО ао",
+      "lat_name": "Korshunovskii GOK"
+    },
+    {
+      "ticker": "KRKN",
+      "short_name": "СаратНПЗ",
+      "sec_name": "Саратовский НПЗ ПАО ао",
+      "lat_name": "Saratovskiy NPZ ao"
+    },
+    {
+      "ticker": "KRKNP",
+      "short_name": "СаратНПЗ-п",
+      "sec_name": "Саратовский НПЗ ПАО ап",
+      "lat_name": "Saratovskiy NPZ ap"
+    },
+    {
+      "ticker": "KRKOP",
+      "short_name": "ТКЗКК ап",
+      "sec_name": "ТКЗ Красный котельщик ПАО ап",
+      "lat_name": "TKZ Krasny Kotelshchik ap"
+    },
+    {
+      "ticker": "KROT",
+      "short_name": "КрасОкт-ао",
+      "sec_name": "\"КрасныйОктябрь\" ПАО - ао",
+      "lat_name": "KrasnyiOctyabr"
+    },
+    {
+      "ticker": "KROTP",
+      "short_name": "КрасОкт-1п",
+      "sec_name": "КрасныйОктябрь-1п",
+      "lat_name": "KrasnyiOctabr-1(pr)"
+    },
+    {
+      "ticker": "KRSB",
+      "short_name": "Красэсб ао",
+      "sec_name": "Красноярскэнергосбыт ао",
+      "lat_name": "Krashojarskenergosbyt"
+    },
+    {
+      "ticker": "KRSBP",
+      "short_name": "Красэсб ап",
+      "sec_name": "Красноярскэнергосбыт ап",
+      "lat_name": "Krashojarskenergosbyt pref."
+    },
+    {
+      "ticker": "KUZB",
+      "short_name": "КузнецкийБ",
+      "sec_name": "Банк \"Кузнецкий\" ПАО ао",
+      "lat_name": "Bank \"Kuzneckiy\""
+    },
+    {
+      "ticker": "KZOS",
+      "short_name": "ОргСинт ао",
+      "sec_name": "ПАО \"Органический синтез\" ао",
+      "lat_name": "PAO Organicheskiy Sintez ao"
+    },
+    {
+      "ticker": "KZOSP",
+      "short_name": "ОргСинт ап",
+      "sec_name": "ПАО \"Органический синтез\" ап",
+      "lat_name": "PAO Organicheskiy Sintez ap"
+    },
+    {
+      "ticker": "LEAS",
+      "short_name": "Европлан",
+      "sec_name": "ПАО «ЛК «Европлан»",
+      "lat_name": "Europlan"
+    },
+    {
+      "ticker": "LENT",
+      "short_name": "Лента ао",
+      "sec_name": "Лента МКПАО ао",
+      "lat_name": "Lenta IPJSC ORD SHS"
+    },
+    {
+      "ticker": "LIFE",
+      "short_name": "Фармсинтез",
+      "sec_name": "Фармсинтез ПАО ао",
+      "lat_name": "Farmsintez ao"
+    },
+    {
+      "ticker": "LKOH",
+      "short_name": "ЛУКОЙЛ",
+      "sec_name": "НК ЛУКОЙЛ (ПАО) - ао",
+      "lat_name": "LUKOIL"
+    },
+    {
+      "ticker": "LMBZ",
+      "short_name": "Ламбумиз",
+      "sec_name": "Ламбумиз",
+      "lat_name": "Lambumiz"
+    },
+    {
+      "ticker": "LPSB",
+      "short_name": "ЛЭСК ао",
+      "sec_name": "Липецкая энергосбыт.ком.ОАО ао",
+      "lat_name": "LESK ao"
+    },
+    {
+      "ticker": "LSNG",
+      "short_name": "РСетиЛЭ",
+      "sec_name": "Россети Ленэнерго ПАО-ао",
+      "lat_name": "Rosseti LenEnrg"
+    },
+    {
+      "ticker": "LSNGP",
+      "short_name": "РСетиЛЭ-п",
+      "sec_name": "Россети Ленэнерго ПАО-ап",
+      "lat_name": "Rosseti LenEnrg (pref)"
+    },
+    {
+      "ticker": "LSRG",
+      "short_name": "ЛСР ао",
+      "sec_name": "Группа ЛСР ПАО ао",
+      "lat_name": "LSR"
+    },
+    {
+      "ticker": "LVHK",
+      "short_name": "Левенгук",
+      "sec_name": "Левенгук ПАО ао",
+      "lat_name": "Levenguk ao"
+    },
+    {
+      "ticker": "MAGE",
+      "short_name": "МагадЭн ао",
+      "sec_name": "\"Магаданэнерго\" ПАО ао",
+      "lat_name": "Magadanenergo ao"
+    },
+    {
+      "ticker": "MAGEP",
+      "short_name": "МагадЭн ап",
+      "sec_name": "\"Магаданэнерго\" ПАО ап",
+      "lat_name": "Magadanenergo ap"
+    },
+    {
+      "ticker": "MAGN",
+      "short_name": "ММК",
+      "sec_name": "\"Магнитогорск.мет.комб\" ПАО ао",
+      "lat_name": "MMK"
+    },
+    {
+      "ticker": "MBNK",
+      "short_name": "МТС Банк",
+      "sec_name": "МТС-Банк ао",
+      "lat_name": "MTS Bank"
+    },
+    {
+      "ticker": "MDMG",
+      "short_name": "MDMG-ао",
+      "sec_name": "МКПАО «МД Медикал Груп»",
+      "lat_name": "MD Medical Group IPJSC"
+    },
+    {
+      "ticker": "MFGS",
+      "short_name": "Мегион-ао",
+      "sec_name": "ао \"Славнефть-Мегионнефтегаз\"",
+      "lat_name": "Megion"
+    },
+    {
+      "ticker": "MFGSP",
+      "short_name": "Мегион-ап",
+      "sec_name": "ап Мегионнефтегаз",
+      "lat_name": "Megion (pref)"
+    },
+    {
+      "ticker": "MGKL",
+      "short_name": "МГКЛ",
+      "sec_name": "МГКЛ ао",
+      "lat_name": "MGKL"
+    },
+    {
+      "ticker": "MGNT",
+      "short_name": "Магнит ао",
+      "sec_name": "\"Магнит\" ПАО ао",
+      "lat_name": "Magnit"
+    },
+    {
+      "ticker": "MGNZ",
+      "short_name": "СМЗ-ао",
+      "sec_name": "Соликамский магн.завод(ОАО)ао",
+      "lat_name": "SMZ"
+    },
+    {
+      "ticker": "MGTS",
+      "short_name": "МГТС-5ао",
+      "sec_name": "ПАО \"МГТС\" ао (5 в)",
+      "lat_name": "MGTS-5"
+    },
+    {
+      "ticker": "MGTSP",
+      "short_name": "МГТС-4ап",
+      "sec_name": "ПАО \"МГТС\" ап (4 в)",
+      "lat_name": "MGTS-4"
+    },
+    {
+      "ticker": "MISB",
+      "short_name": "ТНСэнМарЭл",
+      "sec_name": "ТНС энерго Марий Эл ПАО ао",
+      "lat_name": "TNS energo Mariy El ao"
+    },
+    {
+      "ticker": "MISBP",
+      "short_name": "ТНСэМаЭл-п",
+      "sec_name": "ТНС энерго Марий Эл ПАО ап",
+      "lat_name": "TNS energo Mariy El (pref)"
+    },
+    {
+      "ticker": "MOEX",
+      "short_name": "МосБиржа",
+      "sec_name": "ПАО Московская Биржа",
+      "lat_name": "MoscowExchange"
+    },
+    {
+      "ticker": "MRKC",
+      "short_name": "РоссЦентр",
+      "sec_name": "ПАО \"Россети Центр\" ао",
+      "lat_name": "Rosseti Centr"
+    },
+    {
+      "ticker": "MRKK",
+      "short_name": "Россети СК",
+      "sec_name": "Россети Сев. Кавказ ао",
+      "lat_name": "Rosseti Severnyy Kavkaz ao"
+    },
+    {
+      "ticker": "MRKP",
+      "short_name": "РСетиЦП ао",
+      "sec_name": "Россети Центр и Приволжье ао",
+      "lat_name": "Rosseti Centr i Privoljye ao"
+    },
+    {
+      "ticker": "MRKS",
+      "short_name": "РсетСиб ао",
+      "sec_name": "Россети Сибирь ао",
+      "lat_name": "Rosseti Sibir"
+    },
+    {
+      "ticker": "MRKU",
+      "short_name": "Россети Ур",
+      "sec_name": "Россети Урал (ПАО) ао",
+      "lat_name": "Rosseti Ural ao"
+    },
+    {
+      "ticker": "MRKV",
+      "short_name": "РсетВол ао",
+      "sec_name": "Россети Волга ао",
+      "lat_name": "Rosseti Volga"
+    },
+    {
+      "ticker": "MRKY",
+      "short_name": "РоссЮг ао",
+      "sec_name": "Россети Юг  (ПАО) ао",
+      "lat_name": "Rosseti South ao"
+    },
+    {
+      "ticker": "MRKZ",
+      "short_name": "РСетиСЗ ао",
+      "sec_name": "ПАО Россети Северо-Запад ао",
+      "lat_name": "Rosseti Severo-Zapad"
+    },
+    {
+      "ticker": "MRSB",
+      "short_name": "МордЭнСб",
+      "sec_name": "Мордовск.энергсбыт.комп.ПАО ао",
+      "lat_name": "Mordovskaya EnergoSbyt Comp."
+    },
+    {
+      "ticker": "MSNG",
+      "short_name": "+МосЭнерго",
+      "sec_name": "МосЭнерго акции обыкн.",
+      "lat_name": "MosEnrg"
+    },
+    {
+      "ticker": "MSRS",
+      "short_name": "РСетиМР ао",
+      "sec_name": "ПАО Россети Моск.рег. ао",
+      "lat_name": "Rosseti Moscow Region"
+    },
+    {
+      "ticker": "MSTT",
+      "short_name": "Мостотрест",
+      "sec_name": "ПАО \"МОСТОТРЕСТ\" ао",
+      "lat_name": "Mostotrest"
+    },
+    {
+      "ticker": "MTLR",
+      "short_name": "Мечел ао",
+      "sec_name": "Мечел ПАО ао",
+      "lat_name": "Mechel"
+    },
+    {
+      "ticker": "MTLRP",
+      "short_name": "Мечел ап",
+      "sec_name": "Мечел ПАО ап",
+      "lat_name": "Mechel pref."
+    },
+    {
+      "ticker": "MTSS",
+      "short_name": "МТС-ао",
+      "sec_name": "Мобильные ТелеСистемы ПАО ао",
+      "lat_name": "MTS"
+    },
+    {
+      "ticker": "MVID",
+      "short_name": "М.видео",
+      "sec_name": "\"М.видео\" ПАО ао",
+      "lat_name": "M.video"
+    },
+    {
+      "ticker": "NAUK",
+      "short_name": "iНПОНаука",
+      "sec_name": "НПО Наука ао",
+      "lat_name": "NPO Nauka ao"
+    },
+    {
+      "ticker": "NFAZ",
+      "short_name": "НЕФАЗ",
+      "sec_name": "НЕФАЗ ПАО ао",
+      "lat_name": "NEFAZ PAO ao"
+    },
+    {
+      "ticker": "NKHP",
+      "short_name": "НКХП ао",
+      "sec_name": "НКХП ПАО ао",
+      "lat_name": "NKHP ao"
+    },
+    {
+      "ticker": "NKNC",
+      "short_name": "НКНХ ао",
+      "sec_name": "\"Нижнекамскнефтехим\" ПАО ао",
+      "lat_name": "Niznekamskneftekhim ao"
+    },
+    {
+      "ticker": "NKNCP",
+      "short_name": "НКНХ ап",
+      "sec_name": "\"Нижнекамскнефтехим\" ПАО ап",
+      "lat_name": "Niznekamskneftekhim (pref)"
+    },
+    {
+      "ticker": "NKSH",
+      "short_name": "Нижкамшина",
+      "sec_name": "Нижнекамскшина ПАО ао",
+      "lat_name": "Nizhnekamskshina ao"
+    },
+    {
+      "ticker": "NLMK",
+      "short_name": "НЛМК ао",
+      "sec_name": "ПАО \"НЛМК\" ао",
+      "lat_name": "NLMK ao"
+    },
+    {
+      "ticker": "NMTP",
+      "short_name": "НМТП ао",
+      "sec_name": "НМТП (ПАО) ао",
+      "lat_name": "NMTP"
+    },
+    {
+      "ticker": "NNSB",
+      "short_name": "ТНСэнНН ао",
+      "sec_name": "ТНС энерго Нижний Новг.ПАО ао",
+      "lat_name": "TNS energo Nizhniy-Novgorod ao"
+    },
+    {
+      "ticker": "NNSBP",
+      "short_name": "ТНСэнНН ап",
+      "sec_name": "ТНС энерго Нижний Новг.ПАО ап",
+      "lat_name": "TNS energo Nizhniy Novg. pref"
+    },
+    {
+      "ticker": "NSVZ",
+      "short_name": "iНаукаСвяз",
+      "sec_name": "Наука-Связь ПАО ао",
+      "lat_name": "Nauka-Svyaz ao"
+    },
+    {
+      "ticker": "NVTK",
+      "short_name": "Новатэк ао",
+      "sec_name": "ПАО \"НОВАТЭК\" ао",
+      "lat_name": "NOVATEK"
+    },
+    {
+      "ticker": "OGKB",
+      "short_name": "ОГК-2 ао",
+      "sec_name": "ОГК-2 ПАО ао",
+      "lat_name": "OGK-2"
+    },
+    {
+      "ticker": "OMZZP",
+      "short_name": "ОМЗ-ап",
+      "sec_name": "ап\"Объединён.  маш. заводы\"",
+      "lat_name": "OMZ (pref)"
+    },
+    {
+      "ticker": "OZON",
+      "short_name": "Озон",
+      "sec_name": "МКПАО Озон",
+      "lat_name": "OZON"
+    },
+    {
+      "ticker": "OZPH",
+      "short_name": "iОзонФарм",
+      "sec_name": "Озон Фармацевтика",
+      "lat_name": "Ozon Pharmaceuticals"
+    },
+    {
+      "ticker": "PAZA",
+      "short_name": "ПавлАвт ао",
+      "sec_name": "Павловский автобус ПАО ао",
+      "lat_name": "Pavlovo Bus ao"
+    },
+    {
+      "ticker": "PHOR",
+      "short_name": "ФосАгро ао",
+      "sec_name": "ФосАгро ПАО ао",
+      "lat_name": "PhosAgro ao"
+    },
+    {
+      "ticker": "PIKK",
+      "short_name": "ПИК ао",
+      "sec_name": "ПИК СЗ (ПАО) ао",
+      "lat_name": "PIK SZ"
+    },
+    {
+      "ticker": "PLZL",
+      "short_name": "Полюс",
+      "sec_name": "Полюс ПАО ао",
+      "lat_name": "Polus"
+    },
+    {
+      "ticker": "PMSB",
+      "short_name": "ПермьЭнСб",
+      "sec_name": "\"Пермэнергосбыт\" ПАО ао",
+      "lat_name": "Perm' EnergoSbyt"
+    },
+    {
+      "ticker": "PMSBP",
+      "short_name": "ПермьЭнС-п",
+      "sec_name": "\"Пермэнергосбыт\" ПАО ап",
+      "lat_name": "Perm' EnergoSbyt (pref)"
+    },
+    {
+      "ticker": "POSI",
+      "short_name": "iПозитив",
+      "sec_name": "Группа Позитив ао",
+      "lat_name": "PJSC Positive Group"
+    },
+    {
+      "ticker": "PRFN",
+      "short_name": "ТЕПЛАНТ ао",
+      "sec_name": "ТЕПЛАНТ восток (ПАО) ао",
+      "lat_name": "TEPLANT vostok"
+    },
+    {
+      "ticker": "PRMB",
+      "short_name": "Приморье",
+      "sec_name": "АКБ \"Приморье\" ао",
+      "lat_name": "AKB Primorye"
+    },
+    {
+      "ticker": "PRMD",
+      "short_name": "iПРОМОМЕД",
+      "sec_name": "ПРОМОМЕД",
+      "lat_name": "iPROMOMED"
+    },
+    {
+      "ticker": "RAGR",
+      "short_name": "Русагро",
+      "sec_name": "Группа Русагро",
+      "lat_name": "RUSAGRO GROUP"
+    },
+    {
+      "ticker": "RASP",
+      "short_name": "Распадская",
+      "sec_name": "ПАО Распадская ао",
+      "lat_name": "Raspadskaya"
+    },
+    {
+      "ticker": "RBCM",
+      "short_name": "ГК РБК ао",
+      "sec_name": "ГК РБК ПАО ао",
+      "lat_name": "GK RBK ao"
+    },
+    {
+      "ticker": "RDRB",
+      "short_name": "РДБанк ао",
+      "sec_name": "РоссийскийДорож Банк ПАО ао",
+      "lat_name": "RosDor Bank ao"
+    },
+    {
+      "ticker": "RENI",
+      "short_name": "Ренессанс",
+      "sec_name": "Ренессанс Страхование ао",
+      "lat_name": "Renaissance Insurance"
+    },
+    {
+      "ticker": "RGSS",
+      "short_name": "РГС СК ао",
+      "sec_name": "Росгосстрах СК ПАО ао",
+      "lat_name": "Rosgosstrakh ao"
+    },
+    {
+      "ticker": "RKKE",
+      "short_name": "ЭнергияРКК",
+      "sec_name": "РКК Энергия им.С.П.Королева ао",
+      "lat_name": "RKK Energia"
+    },
+    {
+      "ticker": "RNFT",
+      "short_name": "РуссНфт ао",
+      "sec_name": "РуссНефть НК ПАО ао",
+      "lat_name": "RussNeft NK"
+    },
+    {
+      "ticker": "ROLO",
+      "short_name": "Русолово",
+      "sec_name": "\"Русолово\" ПАО ао",
+      "lat_name": "Rusolovo PAO ao"
+    },
+    {
+      "ticker": "ROSN",
+      "short_name": "Роснефть",
+      "sec_name": "ПАО НК Роснефть",
+      "lat_name": "Rosneft"
+    },
+    {
+      "ticker": "ROST",
+      "short_name": "РОСИНТЕРао",
+      "sec_name": "РОСИНТЕР РЕСТОРАНТС (ПАО)",
+      "lat_name": "ROSINTER RESTAURANTS ao"
+    },
+    {
+      "ticker": "RTGZ",
+      "short_name": "ГР Ростов",
+      "sec_name": "Газпром газорасп Р-н-Д ПАО ао",
+      "lat_name": "Gazprom gazorasp. Rostov ao"
+    },
+    {
+      "ticker": "RTKM",
+      "short_name": "Ростел -ао",
+      "sec_name": "Ростелеком (ПАО) ао.",
+      "lat_name": "Rostelecom"
+    },
+    {
+      "ticker": "RTKMP",
+      "short_name": "Ростел -ап",
+      "sec_name": "Ростелеком (ПАО) ап.",
+      "lat_name": "Rostelecom- (pref)"
+    },
+    {
+      "ticker": "RTSB",
+      "short_name": "ТНСэнРст",
+      "sec_name": "ТНС энерго Ростов. ПАО ао",
+      "lat_name": "TNS energo Rostov-na-Dony ao"
+    },
+    {
+      "ticker": "RTSBP",
+      "short_name": "ТНСэнРст-п",
+      "sec_name": "ТНС энерго Ростов. ПАО ап",
+      "lat_name": "TNS energo Rostov-na-Dony(prf)"
+    },
+    {
+      "ticker": "RUAL",
+      "short_name": "РУСАЛ ао",
+      "sec_name": "РУСАЛ ОК МКПАО ао",
+      "lat_name": "RUSAL ao"
+    },
+    {
+      "ticker": "RUSI",
+      "short_name": "ИКРУСС-ИНВ",
+      "sec_name": "РУСС-ИНВЕСТ ИК ПАО ао",
+      "lat_name": "RUSS-INVEST IC ao"
+    },
+    {
+      "ticker": "RZSB",
+      "short_name": "РязЭнСб",
+      "sec_name": "\"Рязанская энергосб.комп\" ПАО",
+      "lat_name": "JSC \"Ryazanenergosbyt\""
+    },
+    {
+      "ticker": "SAGO",
+      "short_name": "СамарЭн-ао",
+      "sec_name": "Самараэнерго (ПАО) - ао",
+      "lat_name": "SamaraEnergo ao"
+    },
+    {
+      "ticker": "SAGOP",
+      "short_name": "СамарЭн-ап",
+      "sec_name": "Самараэнерго (ПАО) - ап",
+      "lat_name": "SamaraEnergo(pref)"
+    },
+    {
+      "ticker": "SARE",
+      "short_name": "СаратЭн-ао",
+      "sec_name": "Саратовэнерго(ПАО)-ао",
+      "lat_name": "SaratovEnergo ao"
+    },
+    {
+      "ticker": "SAREP",
+      "short_name": "СаратЭн-ап",
+      "sec_name": "Саратовэнерго(ПАО)-ап",
+      "lat_name": "SaratovEnergo (pref)"
+    },
+    {
+      "ticker": "SBER",
+      "short_name": "Сбербанк",
+      "sec_name": "Сбербанк России ПАО ао",
+      "lat_name": "Sberbank"
+    },
+    {
+      "ticker": "SBERP",
+      "short_name": "Сбербанк-п",
+      "sec_name": "Сбербанк России ПАО ап",
+      "lat_name": "Sberbank (pref)"
+    },
+    {
+      "ticker": "SELG",
+      "short_name": "Селигдар",
+      "sec_name": "ПАО \"Селигдар\"  ао",
+      "lat_name": "Seligdar"
+    },
+    {
+      "ticker": "SFIN",
+      "short_name": "ЭсЭфАй ао",
+      "sec_name": "ЭсЭфАй ПАО ао",
+      "lat_name": "SFI ao"
+    },
+    {
+      "ticker": "SGZH",
+      "short_name": "Сегежа",
+      "sec_name": "Сегежа ао",
+      "lat_name": "Segezha"
+    },
+    {
+      "ticker": "SIBN",
+      "short_name": "Газпрнефть",
+      "sec_name": "Газпром нефть ПАО ао",
+      "lat_name": "Gazprom neft"
+    },
+    {
+      "ticker": "SLEN",
+      "short_name": "Сахэнер ао",
+      "sec_name": "ПАО \"Сахалинэнерго\" ао",
+      "lat_name": "Sakhalinenergo ao"
+    },
+    {
+      "ticker": "SMLT",
+      "short_name": "Самолет ао",
+      "sec_name": "ГК Самолет ао",
+      "lat_name": "Samolet"
+    },
+    {
+      "ticker": "SNGS",
+      "short_name": "Сургнфгз",
+      "sec_name": "Сургутнефтегаз ПАО акции об.",
+      "lat_name": "Surgut"
+    },
+    {
+      "ticker": "SNGSP",
+      "short_name": "Сургнфгз-п",
+      "sec_name": "Сургутнефтегаз ПАО ап",
+      "lat_name": "Surgut-pref"
+    },
+    {
+      "ticker": "SOFL",
+      "short_name": "iСофтлайн",
+      "sec_name": "Софтлайн ао",
+      "lat_name": "Softline"
+    },
+    {
+      "ticker": "SPBE",
+      "short_name": "СПБ Биржа",
+      "sec_name": "СПБ Биржа ао",
+      "lat_name": "SPB Exchange"
+    },
+    {
+      "ticker": "STSB",
+      "short_name": "ЕГП",
+      "sec_name": "ЕГП ао",
+      "lat_name": "EGP"
+    },
+    {
+      "ticker": "STSBP",
+      "short_name": "ЕГП ап",
+      "sec_name": "ЕГП ап",
+      "lat_name": "EGP (pref)"
+    },
+    {
+      "ticker": "SVAV",
+      "short_name": "СОЛЛЕРС",
+      "sec_name": "ПАО \"СОЛЛЕРС\"",
+      "lat_name": "Sollers Avto"
+    },
+    {
+      "ticker": "SVCB",
+      "short_name": "Совкомбанк",
+      "sec_name": "Совкомбанк ао",
+      "lat_name": "Sovcombank"
+    },
+    {
+      "ticker": "SVET",
+      "short_name": "Светофор",
+      "sec_name": "Светофор Групп ао",
+      "lat_name": "Svetofor Group"
+    },
+    {
+      "ticker": "SVETP",
+      "short_name": "Светофор п",
+      "sec_name": "Светофор Групп ап",
+      "lat_name": "Svetofor Group ps"
+    },
+    {
+      "ticker": "T",
+      "short_name": "Т-Техно ао",
+      "sec_name": "Т-Технологии МКПАО ао",
+      "lat_name": "IPJSC TCS Holding"
+    },
+    {
+      "ticker": "TASB",
+      "short_name": "ТамбЭнСб",
+      "sec_name": "ао\"Тамбов.энергсбыт.комп.\"ПАО",
+      "lat_name": "Tambov EnergoSbyt Company"
+    },
+    {
+      "ticker": "TASBP",
+      "short_name": "ТамбЭнСб-п",
+      "sec_name": "ап\"Тамбов.энергсбыт.комп.\"ПАО",
+      "lat_name": "Tambov EnergoSbyt Comp. (pref)"
+    },
+    {
+      "ticker": "TATN",
+      "short_name": "Татнфт 3ао",
+      "sec_name": "ПАО \"Татнефть\" ао",
+      "lat_name": "Tatneft-3"
+    },
+    {
+      "ticker": "TATNP",
+      "short_name": "Татнфт 3ап",
+      "sec_name": "ПАО \"Татнефть\" ап 3 вып.",
+      "lat_name": "Tatneft (pref)"
+    },
+    {
+      "ticker": "TGKA",
+      "short_name": "ТГК-1",
+      "sec_name": "ао ПАО \"ТГК-1\"",
+      "lat_name": "TGK-1"
+    },
+    {
+      "ticker": "TGKB",
+      "short_name": "ТГК-2",
+      "sec_name": "ао ПАО \"ТГК-2\"",
+      "lat_name": "TGK-2"
+    },
+    {
+      "ticker": "TGKBP",
+      "short_name": "ТГК-2 ап",
+      "sec_name": "ап ПАО \"ТГК-2\"",
+      "lat_name": "TGK-2 pref"
+    },
+    {
+      "ticker": "TGKN",
+      "short_name": "ТГК-14",
+      "sec_name": "ао ПАО \"ТГК-14\"",
+      "lat_name": "TGK-14"
+    },
+    {
+      "ticker": "TNSE",
+      "short_name": "ТНСэнрг ао",
+      "sec_name": "ПАО ГК \"ТНС энерго\" ао",
+      "lat_name": "PAO GK \"TNS energo\" ao"
+    },
+    {
+      "ticker": "TORS",
+      "short_name": "РСТомск ао",
+      "sec_name": "ао ПАО \"Россети Томск\"",
+      "lat_name": "PAO Rosseti Tomsk ao"
+    },
+    {
+      "ticker": "TORSP",
+      "short_name": "РСТомск ап",
+      "sec_name": "ап ПАО \"Россети Томск\"",
+      "lat_name": "PAO Rosseti Tomsk ap"
+    },
+    {
+      "ticker": "TRMK",
+      "short_name": "ТМК ао",
+      "sec_name": "ПАО ТМК",
+      "lat_name": "TMK ao"
+    },
+    {
+      "ticker": "TRNFP",
+      "short_name": "Транснф ап",
+      "sec_name": "Транснефть ПАО акц.пр.",
+      "lat_name": "Transneft (pref)"
+    },
+    {
+      "ticker": "TTLK",
+      "short_name": "Таттел. ао",
+      "sec_name": "\"Таттелеком\" ПАО ао",
+      "lat_name": "Tattelekom"
+    },
+    {
+      "ticker": "TUZA",
+      "short_name": "ТЗА ао",
+      "sec_name": "Туймаз. завод автобетоновозов",
+      "lat_name": "Tuimaz. Zavod Avtobetonovozov"
+    },
+    {
+      "ticker": "UGLD",
+      "short_name": "ЮГК",
+      "sec_name": "ЮГК",
+      "lat_name": "UGC"
+    },
+    {
+      "ticker": "UKUZ",
+      "short_name": "ЮжКузб. ао",
+      "sec_name": "Южный Кузбасс ПАО ао",
+      "lat_name": "Uzhnyi Kuzbass"
+    },
+    {
+      "ticker": "UNAC",
+      "short_name": "iАвиастКао",
+      "sec_name": "Об.авиастр.корп. ПАО ао",
+      "lat_name": "Ob.aviastroitelnaya korp."
+    },
+    {
+      "ticker": "UNKL",
+      "short_name": "ЮУНК ао",
+      "sec_name": "Южно-Уральский никел. комб. ао",
+      "lat_name": "Uzhno-Uralskiy nikel. komb. ao"
+    },
+    {
+      "ticker": "UPRO",
+      "short_name": "Юнипро ао",
+      "sec_name": "Юнипро ПАО ао",
+      "lat_name": "Unipro PAO ao"
+    },
+    {
+      "ticker": "URKZ",
+      "short_name": "УрКузница",
+      "sec_name": "ПАО \"Уральская кузница\" ао",
+      "lat_name": "Uralskaya kuznica ao"
+    },
+    {
+      "ticker": "USBN",
+      "short_name": "УралСиб ао",
+      "sec_name": "БАНК УРАЛСИБ ПАО ао",
+      "lat_name": "BANK URALSIB ao"
+    },
+    {
+      "ticker": "UTAR",
+      "short_name": "ЮТэйр ао",
+      "sec_name": "Авиакомпания \"ЮТэйр\" (ПАО) ао",
+      "lat_name": "UTAir Aviacompany"
+    },
+    {
+      "ticker": "UWGN",
+      "short_name": "ОВК ао",
+      "sec_name": "ПАО НПК ОВК ао",
+      "lat_name": "OVK ao"
+    },
+    {
+      "ticker": "VEON-RX",
+      "short_name": "VEON",
+      "sec_name": "VEON Ltd. ORD SHS",
+      "lat_name": "VEON Ltd. ORD SHS"
+    },
+    {
+      "ticker": "VGSB",
+      "short_name": "ВолгЭнСб",
+      "sec_name": "\"Волгоград.энергосбыткомп\" ПАО",
+      "lat_name": "Volgograd Energo Sbyt"
+    },
+    {
+      "ticker": "VGSBP",
+      "short_name": "ВолгЭнСб-п",
+      "sec_name": "\"Волгоград.энергосбыткомп\" ПАО",
+      "lat_name": "Volgograd Energo Sbyt (pref)"
+    },
+    {
+      "ticker": "VJGZ",
+      "short_name": "Варьеган",
+      "sec_name": "ННК-Варьеганнефтегаз ПАО ао",
+      "lat_name": "Var'eganneftegaz ao"
+    },
+    {
+      "ticker": "VJGZP",
+      "short_name": "Варьеган-п",
+      "sec_name": "ННК-Варьеганнефтегаз ПАО ап",
+      "lat_name": "Var'eganneftegaz ap"
+    },
+    {
+      "ticker": "VKCO",
+      "short_name": "МКПАО \"ВК\"",
+      "sec_name": "Международная компания ПАО ВК",
+      "lat_name": "VK International Public JS Com"
+    },
+    {
+      "ticker": "VLHZ",
+      "short_name": "ВХЗ-ао",
+      "sec_name": "Владимирский химич.з-д(ПАО) ао",
+      "lat_name": "VHZ"
+    },
+    {
+      "ticker": "VRSB",
+      "short_name": "ТНСэнВорон",
+      "sec_name": "ТНС энерго Воронеж ПАО ао",
+      "lat_name": "TNS energo Voroneg ao"
+    },
+    {
+      "ticker": "VRSBP",
+      "short_name": "ТНСэнВор-п",
+      "sec_name": "ТНС энерго Воронеж ПАО ап",
+      "lat_name": "TNS energo Voroneg ap"
+    },
+    {
+      "ticker": "VSEH",
+      "short_name": "ВИ.ру",
+      "sec_name": "ВИ.ру",
+      "lat_name": "VI.ru"
+    },
+    {
+      "ticker": "VSMO",
+      "short_name": "ВСМПО-АВСМ",
+      "sec_name": "Корп. ВСМПО-АВИСМА (ПАО) ао",
+      "lat_name": "Corp. VSMPO-AVISMA ao"
+    },
+    {
+      "ticker": "VSYD",
+      "short_name": "ВыбСудЗ ао",
+      "sec_name": "Выборгский Суд.Завод ПАО ао",
+      "lat_name": "Viborgskii sudostr. Zavod ao"
+    },
+    {
+      "ticker": "VSYDP",
+      "short_name": "ВыбСудЗ ап",
+      "sec_name": "Выборгский Суд.Завод ПАО ап",
+      "lat_name": "Viborgskii sudostr. Zavod ap"
+    },
+    {
+      "ticker": "VTBR",
+      "short_name": "ВТБ ао",
+      "sec_name": "ао ПАО Банк ВТБ",
+      "lat_name": "VTB"
+    },
+    {
+      "ticker": "WTCM",
+      "short_name": "ЦМТ ао",
+      "sec_name": "\"Центр междун. торговли\"ПАО ао",
+      "lat_name": "CMT"
+    },
+    {
+      "ticker": "WTCMP",
+      "short_name": "ЦМТ ап",
+      "sec_name": "\"Центр междун. торговли\"ПАО ап",
+      "lat_name": "CMT (pref)"
+    },
+    {
+      "ticker": "WUSH",
+      "short_name": "iВУШХолднг",
+      "sec_name": "ВУШ Холдинг ао",
+      "lat_name": "WHOOSH Holding"
+    },
+    {
+      "ticker": "X5",
+      "short_name": "КЦ ИКС 5",
+      "sec_name": "Корпоративный центр ИКС 5",
+      "lat_name": "X5 Corporate Center"
+    },
+    {
+      "ticker": "YAKG",
+      "short_name": "ЯТЭК ао",
+      "sec_name": "Якутская топл.-энерг. комп. ао",
+      "lat_name": "YaTEK ao"
+    },
+    {
+      "ticker": "YDEX",
+      "short_name": "ЯНДЕКС",
+      "sec_name": "МКПАО ЯНДЕКС",
+      "lat_name": "YANDEX"
+    },
+    {
+      "ticker": "YKEN",
+      "short_name": "Якутскэнрг",
+      "sec_name": "АК \"Якутскэнерго\" (ПАО) ао",
+      "lat_name": "YakutskEnergo"
+    },
+    {
+      "ticker": "YKENP",
+      "short_name": "Якутскэн-п",
+      "sec_name": "АК \"Якутскэнерго\" (ПАО) ап",
+      "lat_name": "YakutskEnergo ap"
+    },
+    {
+      "ticker": "YRSB",
+      "short_name": "ТНСэнЯр",
+      "sec_name": "ТНС энерго Ярославль ПАО ао",
+      "lat_name": "TNS energo Yaroslavl' ao"
+    },
+    {
+      "ticker": "YRSBP",
+      "short_name": "ТНСэнЯр-п",
+      "sec_name": "ТНС энерго Ярославль ПАО ап",
+      "lat_name": "TNS energo Yaroslavl' (pref)"
+    },
+    {
+      "ticker": "ZAYM",
+      "short_name": "Займер ао",
+      "sec_name": "Займер ао",
+      "lat_name": "Zaymer"
+    },
+    {
+      "ticker": "ZILL",
+      "short_name": "ЗИЛ ао",
+      "sec_name": "Завод им. И.А.Лихачева ПАО ао",
+      "lat_name": "ZIL ao"
+    },
+    {
+      "ticker": "ZVEZ",
+      "short_name": "ЗВЕЗДА ао",
+      "sec_name": "ЗВЕЗДА ПАО ао",
+      "lat_name": "Zvezda ao"
+    }
+  ]
+}

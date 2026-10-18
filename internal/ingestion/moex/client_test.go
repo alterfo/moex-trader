@@ -135,6 +135,34 @@ func TestListSecurities(t *testing.T) {
 	}
 }
 
+func TestListSecurityNames(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("securities.columns"); got != "SECID,SECTYPE,SHORTNAME,SECNAME,LATNAME" {
+			t.Errorf("unexpected securities.columns %q", got)
+		}
+		payload := map[string]any{
+			"securities": map[string]any{
+				"columns": []string{"SECID", "SECTYPE", "SHORTNAME", "SECNAME", "LATNAME"},
+				"data": [][]any{
+					{"SBER", "1", "Сбербанк", "Сбербанк России ПАО ао", "Sberbank"},
+					{"SBERP", "2", "Сбербанк-п", "Сбербанк России ПАО ап", "Sberbank P"},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(payload)
+	}))
+	defer server.Close()
+
+	names, err := NewClient(server.URL, nil).ListSecurityNames(context.Background(), "stock", "shares", "TQBR")
+	if err != nil {
+		t.Fatalf("ListSecurityNames() error = %v", err)
+	}
+	if len(names) != 2 || names[0].ShortName != "Сбербанк" || names[0].SecName != "Сбербанк России ПАО ао" || names[1].LatName != "Sberbank P" || names[1].SecType != "2" {
+		t.Fatalf("unexpected names: %+v", names)
+	}
+}
+
 func TestLastPrice(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/engines/stock/markets/shares/boards/TQBR/securities/SBER.json" {
