@@ -1799,3 +1799,19 @@ Verdict against the pre-registered criteria:
 - Arm E (without 2022) vs D: +0.0132 (h10) and +0.0102 (h20) pooled AUC, descriptive only; 2022 may be a regime that hurts a stationary model.
 
 Consequence: no model swap and no change to `ensemble_model.json`. Depth is recorded as "no reliable AUC effect, some calibration effect"; steps 3-5 may use the deep history for calibration, but the window question for the live model is open until a purged walk-forward through `cmd/backtest` with costs.
+
+## Data depth, step 2: news classifier trained on the 2021-2024 archive (2026-10-18)
+
+Pre-registered in `docs/plans/20261018-data-depth-and-open-problems.md` (commit 5705414) before the run. Training: `Kasymkhan/RussianFinancialNews` through `cmd/newsimport` (alias match on tags + title, 18 trading tickers), records dated before 2025-01-01: 18957 pairs, 18375 labeled samples (the previous archive gave 2855). Validation: `data/news_history.jsonl`, 17 config tickers, records from 2026-04-01 (7129 pairs). `cmd/trainnewsmodel` unchanged (bag-of-words logistic, vocab 3000, min doc freq 3, label = excess return vs IMOEX > 0, entry at the next trading day's open), split 2026-04-01. Per-sample scores from the new read-only `cmd/newsvalidate`; CI is a date-block bootstrap (2000 repeats, seed 42).
+
+| horizon (trading days) | train samples | val samples | val dates | train AUC | val AUC | CI95 | val accuracy | majority baseline |
+|---:|---:|---:|---:|---:|---:|---|---:|---:|
+| 10 (primary) | 18375 | 2866 | 110 | 0.689 | 0.528 | [0.479, 0.574] | 0.540 | 0.547 |
+| 5 | 18375 | 4019 | 105 | 0.699 | 0.486 | [0.425, 0.538] | 0.519 | 0.543 |
+| 1 | 18375 | 4488 | 135 | 0.682 | 0.516 | [0.448, 0.579] | 0.548 | 0.571 |
+
+Slices at the primary horizon: articles mapped to at most 3 tickers, n 2781, AUC 0.533, CI95 [0.483, 0.579]; sources other than Telegram and Google News, n 157 (25 dates), AUC 0.432, CI95 [0.340, 0.533] (too few to read; at h5 and h1 the same slice is 0.558 and 0.563 with CIs from 0.36 to 0.72).
+
+Verdict against the pre-registered criterion (val AUC >= 0.530 at 10 days with the lower CI bound above 0.500, at least 1000 samples and 40 dates): NOT met. AUC 0.528, lower bound 0.479; the sample requirement is met. Six times more training data (18375 vs 2855) moved validation AUC from 0.49-0.53 to 0.49-0.53: the train-validation gap (0.69 vs 0.53) is overfitting to vocabulary, not a data-volume problem. Recorded as "the Russian 2021-2024 archive does not give a directional headline signal on 2026"; the news feature is not added to the price model on this step, and the second stage of step 2 is not run.
+
+Post-hoc observation (not part of the criterion, not a result): at h10 the lowest score quintile has mean excess return -1.04% and positive share 0.406, while the other four quintiles sit at -0.09..-0.22% and 0.452-0.485. A one-sided negative-news effect would match the literature note in `docs/plans/20261015-hypotheses-from-llm-review.md` (H4); it needs its own pre-registration (short-side only, tail of the score) before any use.
