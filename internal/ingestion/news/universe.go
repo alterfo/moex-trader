@@ -227,7 +227,14 @@ func NewUniverse(cfg UniverseConfig) *Universe {
 			u.symbols[t] = t
 		}
 	}
-	for alias, set := range raw {
+	aliasList := make([]string, 0, len(raw))
+	for alias := range raw {
+		aliasList = append(aliasList, alias)
+	}
+	sort.Strings(aliasList)
+	ambiguousStem := map[string]bool{}
+	for _, alias := range aliasList {
+		set := raw[alias]
 		tickers := make([]string, 0, len(set))
 		for t := range set {
 			tickers = append(tickers, t)
@@ -242,7 +249,7 @@ func NewUniverse(cfg UniverseConfig) *Universe {
 			u.words[alias] = tickers
 			stem := stemOf(alias)
 			if len([]rune(stem)) >= 4 {
-				u.stems[stem] = tickers
+				u.addStem(stem, tickers, ambiguousStem)
 			}
 			continue
 		}
@@ -257,6 +264,35 @@ func NewUniverse(cfg UniverseConfig) *Universe {
 		}
 	}
 	return u
+}
+
+func (u *Universe) addStem(stem string, tickers []string, ambiguous map[string]bool) {
+	if ambiguous[stem] {
+		return
+	}
+	existing, ok := u.stems[stem]
+	if !ok {
+		u.stems[stem] = tickers
+		return
+	}
+	merged := map[string]bool{}
+	for _, t := range existing {
+		merged[t] = true
+	}
+	for _, t := range tickers {
+		merged[t] = true
+	}
+	union := make([]string, 0, len(merged))
+	for t := range merged {
+		union = append(union, t)
+	}
+	sort.Strings(union)
+	if !sameCompany(union) {
+		delete(u.stems, stem)
+		ambiguous[stem] = true
+		return
+	}
+	u.stems[stem] = union
 }
 
 func (u *Universe) Tickers() []string {

@@ -26,4 +26,5 @@
 # news archive: derived headlines from Telegram + Google News feeds.
 # ToS-restricted sources (see AGENTS.md) — keep local, never redistribute.
 data/news_history.jsonl
+data/news_quarantine.jsonl
 news_history.jsonl

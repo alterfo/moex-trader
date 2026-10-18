@@ -88,3 +88,21 @@ func TestUniverseBlockedAliasAndCounts(t *testing.T) {
 		t.Fatal("unexpected ticker or alias count")
 	}
 }
+
+func TestUniverseStemCollisionsAreDeterministic(t *testing.T) {
+	for i := 0; i < 60; i++ {
+		u := NewUniverse(UniverseConfig{
+			Names: []TickerName{{Ticker: "AAAA", ShortName: "Альфа"}, {Ticker: "BBBB", ShortName: "Альфы"}, {Ticker: "CCCC", ShortName: "Ромашка"}},
+			Extra: map[string][]string{"CCCC": {"ромашки", "ромашку"}},
+		})
+		if got := tickersOf(u.Match("Об Альфе и альфой")); len(got) != 0 {
+			t.Fatalf("run %d: colliding stem must be ambiguous, got %v", i, got)
+		}
+		if got := tickersOf(u.Match("Альфа выросла")); len(got) != 1 || got[0] != "AAAA" {
+			t.Fatalf("run %d: an exact alias stays unambiguous, got %v", i, got)
+		}
+		if got := tickersOf(u.Match("Ромашки выросли")); len(got) != 1 || got[0] != "CCCC" {
+			t.Fatalf("run %d: same-company aliases sharing a stem must keep matching, got %v", i, got)
+		}
+	}
+}
