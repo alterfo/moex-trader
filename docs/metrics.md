@@ -2055,3 +2055,17 @@ Window max DD, none / R1 / R2: q1 3.56 / 3.58 / 3.10, q2 3.49 / 3.49 / 3.49, q3 
 Verdict on the registered primary criterion (R1; realized >= 0.80 of control, worst-window DD <= 0.90 of control, >= 10 risk-off dates and >= 5 suppressed BUY): NOT met. Realized (98.5%) and informativeness (27 dates, 168 BUY) pass; the worst-window drawdown does not move (3.58% vs 3.56%, ratio 1.006) because the worst window is q1, where R1 removes only 5 trades.
 
 Descriptive, not a verdict: R2 raises realized in two windows (q1 +2940, w1 +19750), lowers it in one (q3 -6043) and leaves three unchanged; w1 max DD falls 3.05% -> 1.82% and the q1 kill switch no longer trips, but the worst-window figure still only moves 3.56% -> 3.49% (ratio 0.98). R2 was not the registered primary and its threshold was not tuned; a gain concentrated in two windows (w1 is 26k of the 28k difference in sum) is not evidence of a stable gate. Any adoption (`internal/risk`) needs its own pre-registration with R2 as the primary and a window not used here.
+
+## Seven hypotheses, step 7: cross-sectional ranking of the OOS ensemble probabilities, net of costs (2026-10-18)
+
+Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (commit "step 7 pre-registration", before the run). `go run ./cmd/rankspread -wf-dir wf-volscale` on the persisted OOS probabilities of the six purged walk-forward windows (2025-03-05..2026-09-16, 17 tickers, 7689 decisions, 458 dates, all with >= 10 tickers). Rank-weighted cross-sectional portfolio per date (absolute weights sum to 1), excess return over IMOEX from the next trading-day open to the close h days later, one tranche per day, date-block bootstrap (block 10, 5000 repeats, seed 20261018). Cost as in step 2g: 0.15% per side, 0.60% per long-short tranche.
+
+| h | dates | gross spread, % | CI95 | net of 0.60% | net CI95 |
+|---:|---:|---:|---|---:|---|
+| 1 | 458 | +0.0143 | [-0.0865, +0.1214] | -0.5857 | [-0.6865, -0.4786] |
+| 5 | 458 | +0.0629 | [-0.1953, +0.3483] | -0.5371 | [-0.7953, -0.2517] |
+| 10 | 458 | -0.0132 | [-0.4230, +0.4238] | -0.6132 | [-1.0230, -0.1762] |
+
+At h = 10: bottom probability quintile mean excess -0.0649 [-0.9010, +0.7262], top quintile -0.4831 [-1.0514, +0.1110] (higher probability, lower excess, not significant); long-only top quintile net of the 0.30% round trip: -0.7831%.
+
+Verdict on the registered primary criterion (net spread at h = 10 > 0 with lower CI bound > 0, >= 100 dates): NOT met, and the gross spread itself is indistinguishable from zero at every horizon. The order of the deployed recipe's probabilities inside a date carries no cross-sectional information, so the cross-sectional direction is closed for this recipe on top of the 2026-09-17 and 2026-10-18 closures. This agrees with the beta decomposition (Task 9): the deployed book earns its realized P&L from the market component and the long/short tilt, not from ranking stocks. No training for a rank objective is justified by this result.

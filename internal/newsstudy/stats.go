@@ -230,3 +230,24 @@ func Mean(v []float64) float64 {
 	}
 	return s / float64(len(v))
 }
+
+func RankSpread(scores, returns []float64) float64 {
+	n := len(scores)
+	if n == 0 || n != len(returns) {
+		return 0
+	}
+	ranks := rankOf(scores)
+	mean := float64(n+1) / 2
+	var absSum float64
+	for _, r := range ranks {
+		absSum += math.Abs(r - mean)
+	}
+	if absSum == 0 {
+		return 0
+	}
+	var ret float64
+	for i := range scores {
+		ret += (ranks[i] - mean) / absSum * returns[i]
+	}
+	return ret
+}

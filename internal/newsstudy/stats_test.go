@@ -42,3 +42,16 @@ func TestAUCCIBracketsNoise(t *testing.T) {
 		t.Fatalf("noise CI should contain 0.5: [%v,%v]", lo, hi)
 	}
 }
+
+func TestRankSpread(t *testing.T) {
+	got := RankSpread([]float64{1, 2, 3, 4}, []float64{-2, -1, 1, 2})
+	if got <= 0 {
+		t.Fatalf("aligned scores must give a positive spread, got %v", got)
+	}
+	if mirrored := RankSpread([]float64{4, 3, 2, 1}, []float64{-2, -1, 1, 2}); math.Abs(mirrored+got) > 1e-12 {
+		t.Fatalf("mirror: %v vs %v", mirrored, got)
+	}
+	if RankSpread([]float64{5, 5, 5}, []float64{1, 2, 3}) != 0 {
+		t.Fatal("all ties must give zero")
+	}
+}
