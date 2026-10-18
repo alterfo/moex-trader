@@ -18,6 +18,7 @@ func TestProbabilityFromReasoning(t *testing.T) {
 	}{
 		{"ensemble:p=0.6134", 0.6134, true},
 		{"ensemble:p=0.4000", 0.4, true},
+		{"ensemble:p=0.6234 drivers=mom_21d:+3.1,rsi_14:-1.2,volume_zscore_20d:+0.8", 0.6234, true},
 		{"csvprob:p=0.1234", 0.1234, true},
 		{"no probability here", 0, false},
 		{"", 0, false},

@@ -150,7 +150,7 @@ func (s *EnsembleSignalSource) Generate(ctx context.Context, feature domain.Feat
 		Confidence:  decimal.NewFromFloat(math.Abs(probability-0.5) * 2),
 		Probability: decimal.NewFromFloat(probability),
 		TargetLots:  0,
-		Reasoning:   fmt.Sprintf("ensemble:p=%.4f", probability),
+		Reasoning:   fmt.Sprintf("ensemble:p=%.4f%s", probability, FormatDrivers(s.Model.Drivers(s.Member, s.maskedVector(feature), driverCount))),
 		GeneratedAt: feature.GeneratedAt,
 	}
 
@@ -192,6 +192,8 @@ func (s *EnsembleSignalSource) RawProbability(feature domain.FeatureContext) (fl
 }
 
 const maxFeatureZ = 12
+
+const driverCount = 3
 
 var untrainedFeatures = map[string]struct{}{
 	"news_count":     {},
