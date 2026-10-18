@@ -1925,3 +1925,23 @@ Observations (descriptive):
 - Adding skewness and kurtosis makes the tail risk worse (R4 versus R3, CVaR 1.031, drawdown 1.25); the estimated conditional third and fourth moments are too noisy to optimise against at this sample size, which matches the instability visible in the paper's own figures 5-6.
 - The only rungs with a CVaR CI entirely below 1 are R1 (0.971), R2 (0.932) and the post-hoc R3 without mean (0.933); all of them pay with a higher drawdown and lower return than equal weight over the period, so none passes the pre-registered criterion either.
 - Limits: price returns without dividends (the same for every rung), a single path that includes 2020 and 2022 (the 2022 exchange halt is in the data for every rung), 16 names and one estimation window length; max drawdown of equal weight is 53.8%, so differences of 10-20% in drawdown ratio are inside the bootstrap intervals.
+
+## Data depth, step 2b: news domain shift test (2026-10-18)
+
+Pre-registered in `docs/plans/20261018-data-depth-and-open-problems.md` (commit ea43010) before the run. Data: `data/news_history.jsonl`, 2026-04-01 onward, 17 config tickers, 7257 pairs, 203 duplicates (same ticker and normalised title) removed, 7054 kept. Train: records before 2026-08-01 (3023 pairs); 14-day gap (322 pairs dropped); test: records from 2026-08-15 (3709 pairs), none of whose normalised titles occur in train. Arms: A trained on 2026 train only (`-vocab-size 1000`), B the step 2 classifier trained on 2021-2024 only (no 2026 data, control), C trained on 2021-2024 plus 2026 train. Score = headline score, label = excess return over IMOEX > 0 with entry at the next trading day's open. CI: date-block bootstrap (2000 repeats, seed 42) at the Bonferroni level 99.17% (6 checks: arms A and C on 3 horizons).
+
+| horizon | arm | train samples | test samples | test dates | AUC | CI 99.17% | source-clean slice (n, AUC) |
+|---:|---|---:|---:|---:|---:|---|---|
+| 10 | A (2026 only) | 1187 | 1427 | 38 | 0.4396 | [0.371, 0.512] | 155, 0.460 |
+| 10 | B (2021-2024 only, control) | 18375 | 1427 | 38 | 0.6132 | [0.534, 0.678] | 155, 0.424 |
+| 10 | C (2021-2024 + 2026) | 19562 | 1427 | 38 | 0.5823 | [0.514, 0.647] | 155, 0.424 |
+| 5 | A | 1603 | 2168 | 39 | 0.4703 | [0.388, 0.570] | 313, 0.482 |
+| 5 | B | 18375 | 2168 | 39 | 0.4797 | [0.355, 0.590] | 313, 0.552 |
+| 5 | C | 19978 | 2168 | 39 | 0.4693 | [0.352, 0.605] | 313, 0.525 |
+| 1 | A | 1328 | 2817 | 49 | 0.5438 | [0.461, 0.616] | 599, 0.572 |
+| 1 | B | 18375 | 2817 | 49 | 0.5338 | [0.410, 0.646] | 599, 0.557 |
+| 1 | C | 19703 | 2817 | 49 | 0.5424 | [0.421, 0.663] | 599, 0.567 |
+
+Verdict against the pre-registered criterion (arm A or C: AUC >= 0.530 and the lower corrected CI bound above 0.500, with at least 1000 test samples and 40 test dates): no arm qualifies. Arm C at 10 days has AUC 0.5823 and lower bound 0.514, but the test has 38 dates against the required 40, so the condition fails and there is no verdict for it; arms A and C at 5 and 1 days fail on the CI bound. Domain-shift reading under the pre-registered rule: not supported. Training on 2026 Telegram and Google text does not help (A is 0.44 at 10 days, below chance, train AUC 0.87), and the control B, which never saw 2026, scores as high as or higher than C (0.613 vs 0.582).
+
+Descriptive, not pre-registered: the step 2 classifier (B) scored month by month at 10 days gives AUC 0.459 (April), 0.407 (May), 0.579 (June), 0.373 (July), 0.502 (August), 0.614 (September), 0.753 (October); at 5 and 1 days every month stays near 0.4-0.57. The 10-day figure on the August-October test is therefore a window effect (September-October only), the same time instability seen in every other test of this series, not evidence of a stable headline signal. The news classifier stays switched off and direction 2 (news as a directional signal) is closed unless a source-diverse archive several times larger accumulates; the data-depth step 4 and the news direction share the same limit, signal non-stationarity.
