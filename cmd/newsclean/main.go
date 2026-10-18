@@ -69,6 +69,7 @@ func run(args []string) error {
 	quarantine := fs.String("quarantine", "", "file receiving removed pairs with a reason (required)")
 	names := fs.String("names", "data/ticker_names.json", "ticker names JSON")
 	blocklist := fs.String("alias-blocklist", "data/news_alias_blocklist.json", "alias blocklist JSON")
+	aliasesPath := fs.String("aliases", "", "learned aliases JSON written by newsimport -aliases-out (ticker to aliases)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -91,6 +92,17 @@ func run(args []string) error {
 	for t, aliases := range news.DefaultAliases() {
 		if known[t] {
 			extra[t] = aliases
+		}
+	}
+	if *aliasesPath != "" {
+		learned, err := loadAliases(*aliasesPath)
+		if err != nil {
+			return err
+		}
+		for t, aliases := range learned {
+			if known[t] {
+				extra[t] = append(extra[t], aliases...)
+			}
 		}
 	}
 	universe := news.NewUniverse(news.UniverseConfig{Names: tickerNames, Extra: extra, Blocked: blocked})
@@ -181,6 +193,18 @@ func sortedCounts(m map[string]int, limit int) string {
 		parts[i] = fmt.Sprintf("%s=%d", e.k, e.v)
 	}
 	return strings.Join(parts, " ")
+}
+
+func loadAliases(path string) (map[string][]string, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var out map[string][]string
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("parse aliases %q: %w", path, err)
+	}
+	return out, nil
 }
 
 func loadBlocklist(path string) (map[string]bool, error) {

@@ -36,3 +36,17 @@ func TestDecideRules(t *testing.T) {
 		}
 	}
 }
+
+func TestDecideUsesLearnedAliases(t *testing.T) {
+	names := []news.TickerName{{Ticker: "UGLD", ShortName: "ЮГК", SecName: "ЮГК ПАО ао"}}
+	known := map[string]bool{"UGLD": true}
+	plain := news.NewUniverse(news.UniverseConfig{Names: names})
+	withLearned := news.NewUniverse(news.UniverseConfig{Names: names, Extra: map[string][]string{"UGLD": {"Южуралзолото"}}})
+	rec := record{Ticker: "UGLD", Source: "Интерфакс (TG)", Title: "Южуралзолото увеличила добычу"}
+	if got := decide(rec, plain, known); got.keep {
+		t.Fatalf("without the learned alias the pair is unsupported: %+v", got)
+	}
+	if got := decide(rec, withLearned, known); !got.keep || got.reason != "text_match" {
+		t.Fatalf("with the learned alias the pair must be kept: %+v", got)
+	}
+}

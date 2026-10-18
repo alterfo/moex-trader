@@ -16,7 +16,7 @@ go build -o "$WORK/newsimport" ./cmd/newsimport
 go build -o "$WORK/newsclean" ./cmd/newsclean
 
 cp "$BASE" "$WORK/merged.jsonl"
-ARGS=(-config config.yaml -out "$WORK/merged.jsonl" -names data/ticker_names.json -alias-blocklist data/news_alias_blocklist.json)
+ARGS=(-config config.yaml -out "$WORK/merged.jsonl" -names data/ticker_names.json -alias-blocklist data/news_alias_blocklist.json -aliases-out "$WORK/aliases.json")
 for f in "$PARQUET_DIR"/train-*.parquet "$PARQUET_DIR"/test-*.parquet; do ARGS+=(-parquet "$f"); done
 ARGS+=(-jsonl "$BASE")
 for f in news_all.jsonl news_backfill.jsonl live/news_merged.jsonl live/wires.jsonl live/news_live.jsonl; do
@@ -28,8 +28,9 @@ for f in "$ROOT"/data/news_raw_tg*.jsonl; do
 done
 
 "$WORK/newsimport" "${ARGS[@]}"
-"$WORK/newsclean" -in "$WORK/merged.jsonl" -out "$WORK/clean.jsonl" -quarantine "$WORK/quarantine.jsonl"
+"$WORK/newsclean" -in "$WORK/merged.jsonl" -out "$WORK/clean.jsonl" -quarantine "$WORK/quarantine.jsonl" -aliases "$WORK/aliases.json"
 
 cp "$WORK/clean.jsonl" "$OUT.tmp" && mv "$OUT.tmp" "$OUT"
 cp "$WORK/quarantine.jsonl" "$QUARANTINE"
+cp "$WORK/aliases.json" "${ALIASES_OUT:-$ROOT/data/ticker_aliases.json}"
 echo "installed $(wc -l < "$OUT") pairs into $OUT, quarantine $(wc -l < "$QUARANTINE")"
