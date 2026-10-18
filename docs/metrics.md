@@ -2069,3 +2069,21 @@ Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (commit "step 7 pre-
 At h = 10: bottom probability quintile mean excess -0.0649 [-0.9010, +0.7262], top quintile -0.4831 [-1.0514, +0.1110] (higher probability, lower excess, not significant); long-only top quintile net of the 0.30% round trip: -0.7831%.
 
 Verdict on the registered primary criterion (net spread at h = 10 > 0 with lower CI bound > 0, >= 100 dates): NOT met, and the gross spread itself is indistinguishable from zero at every horizon. The order of the deployed recipe's probabilities inside a date carries no cross-sectional information, so the cross-sectional direction is closed for this recipe on top of the 2026-09-17 and 2026-10-18 closures. This agrees with the beta decomposition (Task 9): the deployed book earns its realized P&L from the market component and the long/short tilt, not from ranking stocks. No training for a rank objective is justified by this result.
+
+## Seven hypotheses, step 4: deep training history as a walk-forward candidate with costs (2026-10-18)
+
+Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (commit "step 4 pre-registration", before the run). `scripts/depth-candidate.sh` on the ai-box: `export_ensemble.py` (Task 5 copy, embargo 10, 18 features, 28-name order) trained per window on `depth/h10.csv` rows from 2024-01-01 (arm A, fresh same-run control) and from 2015-01-01 (arm D), then replayed with the Task 5 binary and parameters (17 tickers, deposit 1M, `-target-notional 15000`, commission/spread/slippage 0.0005 each, kill switch on, no news history, one window per run, seed 42).
+
+| window | A realized | D realized | A trades | D trades | A max DD | D max DD | A val AUC | D val AUC |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| q1 2025-03-05..06-05 | -8823.41 | +1083.86 | 171 | 8 | 1.53% | 1.07% | 0.4932 | 0.5083 |
+| q2 2025-06-06..09-05 | -8151.57 | +1913.04 | 174 | 5 | 3.17% | 0.07% | 0.4882 | 0.4873 |
+| q3 2025-09-06..12-03 | +28863.29 | 0.00 | 122 | 0 | 0.91% | 0.27% | 0.4354 | 0.4755 |
+| q4 2025-12-04..2026-03-04 | -6022.44 | 0.00 | 94 | 0 | 1.49% | 0.00% | 0.4302 | 0.4770 |
+| w2 2026-03-05..06-06 | -3793.02 | 0.00 | 71 | 0 | 0.97% | 0.10% | 0.4246 | 0.4689 |
+| w1 2026-06-07..09-16 | +38865.30 | +1512.39 | 181 | 39 | 2.66% | 2.58% | 0.4350 | 0.4790 |
+| total / mean | +40938.14 | +4509.29 | 813 | 52 | worst 3.17% | worst 2.58% | 0.4511 | 0.4827 |
+
+No kill switch tripped in either arm. Registered criteria for D against A: (1) sum realized D > A: **FAIL** (+4509 vs +40938); (2) realized D >= A in >= 4 of 6 windows: pass (4 of 6: q1, q2, q4, w2, only because A loses there and D does not trade); (3) worst-window max DD D <= A and no more kill trips: pass (2.58% vs 3.17%, 0 trips both); (4) mean val AUC not lower by more than 0.005: pass (D +0.0316); (5) sum realized D > 0: pass.
+
+Verdict: NOT a candidate (criterion 1). The deeper history raises the validation AUC in every window but the 0.60 / 0.40 thresholds are almost never crossed: 52 closed trades against 813 for A, zero in three of six windows. The deep-history model's probabilities sit closer to 0.5 and the fixed thresholds were set for the narrow-window recipe. Thresholds were not retuned on the test windows (that would be selection on the test); a threshold chosen on training data only (a quantile of the training-period probabilities) would be a separate pre-registered experiment. Context: A here earns +40938 against the Task 5 control +59829 on the same windows (training rows from 2024-01-01 versus the 10.7 thousand-row Task 5 file, stack drift disclosed on 2026-10-18); A's profit is concentrated in q3 and w1, the two windows where the book was short-tilted into falling prices (see Task 9 beta decomposition), which is the income that the better-AUC arm does not reproduce.
