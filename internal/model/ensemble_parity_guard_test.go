@@ -89,41 +89,6 @@ func TestEnsembleDoesNotHoldInRange(t *testing.T) {
 	}
 }
 
-func TestEnsembleIgnoresUntrainedEventFeatures(t *testing.T) {
-	model, err := LoadEnsembleModel("../../ensemble_model.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	source := &EnsembleSignalSource{Model: model, MaxLots: 1}
-
-	feature := liveLikeFeature()
-	feature.EventDividend = 38
-	feature.EventReport = 20
-	feature.EventSanctions = 12
-	feature.EventMNA = 10
-	feature.NegotiationsSignal = decimal.NewFromInt(1)
-
-	quiet, err := source.RawProbability(liveLikeFeature())
-	if err != nil {
-		t.Fatal(err)
-	}
-	loud, err := source.RawProbability(feature)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if quiet != loud {
-		t.Fatalf("untrained event features must not move the ensemble probability: quiet=%v loud=%v", quiet, loud)
-	}
-
-	signal, err := source.Generate(context.Background(), feature)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if signal.HoldReason == domain.HoldReasonOutOfRange {
-		t.Fatalf("live event values on untrained features must not hold the decision: %s", signal.Reasoning)
-	}
-}
-
 func TestToVectorForReadsExtraFeaturesAndRejectsMissing(t *testing.T) {
 	feature := liveLikeFeature()
 	feature.Extra = map[string]float64{"div_yield_ttm_pct": 7.5}

@@ -219,14 +219,9 @@ func (m *EnsembleModel) outOfRangeFeature(vector []float64) (string, float64, bo
 	if len(vector) != len(m.Logistic.Mean) || len(vector) != len(m.Logistic.Std) || len(vector) != len(m.FeatureOrder) {
 		return "", 0, false
 	}
-	used := m.treeFeatures()
 	for i, value := range vector {
 		std := m.Logistic.Std[i]
 		if std <= 0 {
-			continue
-		}
-		_, inTree := used[i]
-		if m.Logistic.Coef[i] == 0 && !inTree {
 			continue
 		}
 		z := (value - m.Logistic.Mean[i]) / std
@@ -235,20 +230,6 @@ func (m *EnsembleModel) outOfRangeFeature(vector []float64) (string, float64, bo
 		}
 	}
 	return "", 0, false
-}
-
-func (m *EnsembleModel) treeFeatures() map[int]struct{} {
-	used := make(map[int]struct{})
-	for _, trees := range [][]treeNode{m.LGBTrees, m.XGBTrees} {
-		for _, t := range trees {
-			for _, si := range t.SplitIndices {
-				if si >= 0 {
-					used[si] = struct{}{}
-				}
-			}
-		}
-	}
-	return used
 }
 
 func (s *EnsembleSignalSource) targetLots(feature domain.FeatureContext) int {
