@@ -29,7 +29,7 @@ type point struct {
 }
 
 func main() {
-	series := flag.String("series", "MX,YD,SR,LK,GZ,GK,RN,NV,TN,MT,MG,VB", "futoi tickers")
+	series := flag.String("series", "MX,YD,SR,LK,GZ,GK,RN,TN,MG,VB", "futoi tickers")
 	fromStr := flag.String("from", "2023-12-01", "first day")
 	tillStr := flag.String("till", "", "last day (default today)")
 	out := flag.String("out", "futoi.csv", "output CSV")
@@ -59,12 +59,11 @@ func main() {
 	for _, s := range strings.Split(*series, ",") {
 		s = strings.TrimSpace(s)
 		last := map[string]point{}
-		for start := from; start.Before(till); start = start.AddDate(0, 0, 7) {
-			stop := start.AddDate(0, 0, 6)
-			if stop.After(till) {
-				stop = till
+		for start := from; !start.After(till); start = start.AddDate(0, 0, 1) {
+			if wd := start.Weekday(); wd == time.Saturday || wd == time.Sunday {
+				continue
 			}
-			rows, err := fetch(client, s, start, stop)
+			rows, err := fetch(client, s, start, start)
 			if err != nil {
 				log.Fatalf("%s %s: %v", s, start.Format("2006-01-02"), err)
 			}

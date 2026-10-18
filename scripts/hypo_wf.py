@@ -154,8 +154,60 @@ def meta_features(d, p):
     return np.column_stack([np.abs(p - 0.5), d["realized_vol_21d_annualized_pct"].to_numpy(float), d["mom_21d"].to_numpy(float), d["imoex_mom5"].to_numpy(float), d["dist_ma50_pct"].to_numpy(float)])
 
 
+FUTOI_MAP = {"YDEX": "YD", "SBER": "SR", "LKOH": "LK", "GAZP": "GZ", "GMKN": "GK", "ROSN": "RN", "TATN": "TN", "MGNT": "MG", "VTBR": "VB"}
+FUTOI_FEATS = ["own_fiz_d5", "own_fiz_lvl", "mx_fiz_d5", "mx_fiz_lvl"]
+
+
+def futoi_daily(path):
+    f = pd.read_csv(path)
+    f["date"] = pd.to_datetime(f["date"], errors="coerce", format="%Y-%m-%d")
+    f = f[f["date"].notna() & (f["group"] == "FIZ")].copy()
+    f["oi"] = f["pos_long"] + f["pos_short"].abs()
+    f = f.sort_values(["series", "date"])
+    g = f.groupby("series")
+    f["fiz_lvl"] = f["pos"] / f["oi"]
+    f["fiz_d5"] = (f["pos"] - g["pos"].shift(5)) / f["oi"]
+    return f[["series", "date", "fiz_lvl", "fiz_d5"]].dropna()
+
+
+def add_futoi(df, path, lag_days=0):
+    f = futoi_daily(path)
+    f["date"] = f["date"] + pd.Timedelta(days=lag_days)
+    parts = []
+    mx = f[f["series"] == "MX"].sort_values("date").rename(columns={"fiz_lvl": "mx_fiz_lvl", "fiz_d5": "mx_fiz_d5"})[["date", "mx_fiz_lvl", "mx_fiz_d5"]]
+    for t, ser in FUTOI_MAP.items():
+        d = df[df["ticker"] == t].sort_values("date")
+        own = f[f["series"] == ser].sort_values("date").rename(columns={"fiz_lvl": "own_fiz_lvl", "fiz_d5": "own_fiz_d5"})[["date", "own_fiz_lvl", "own_fiz_d5"]]
+        d = pd.merge_asof(d, own, on="date", allow_exact_matches=False)
+        d = pd.merge_asof(d.sort_values("date"), mx, on="date", allow_exact_matches=False)
+        parts.append(d)
+    return pd.concat(parts).reset_index(drop=True)
+
+
+def zero_shot(df, score_col):
+    res = []
+    for seed, shift in itertools.product([0], [0, 27, 54]):
+        rows = pd.concat([te for _, te in folds(df, shift)])
+        res.append(dict(shift=shift, auc=float(roc_auc_score(rows["orig"], rows[score_col])), rho=float(spearmanr(rows[score_col], rows["fwd"])[0]), rows=int(len(rows))))
+    rows = pd.concat([te for _, te in folds(df, 0)])
+    rng = np.random.default_rng(20261019)
+    blocks = (rows["date"].rank(method="dense").astype(int) // 10).to_numpy()
+    ub = np.unique(blocks)
+    idx = {b: np.where(blocks == b)[0] for b in ub}
+    aucs = []
+    for _ in range(1000):
+        pick = rng.choice(ub, size=len(ub), replace=True)
+        sel = np.concatenate([idx[b] for b in pick])
+        y = rows["orig"].to_numpy()[sel]
+        if y.min() == y.max():
+            continue
+        aucs.append(roc_auc_score(y, rows[score_col].to_numpy()[sel]))
+    return res, [float(np.percentile(aucs, 2.5)), float(np.percentile(aucs, 97.5))]
+
+
 def main():
     mode, data_path, prices_path, out = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+    extra = sys.argv[5] if len(sys.argv) > 5 else None
     full, new = load(data_path, prices_path)
     df = full[full["keep"]].reset_index(drop=True)
     print("rows", len(df), "label agreement", round(check_labels(df), 4), flush=True)
@@ -169,9 +221,22 @@ def main():
     elif mode == "meta":
         var_feats = PRICE
         kind = "meta"
+    elif mode in ("futoi", "futoi14"):
+        df = add_futoi(df, extra, 14 if mode == "futoi14" else 0)
+        var_feats = PRICE + FUTOI_FEATS
+        kind = "plain"
+    elif mode == "tfm":
+        t = pd.read_csv(extra, parse_dates=["date"])
+        df = df.merge(t, on=["ticker", "date"], how="inner")
+        var_feats = PRICE + ["tfm_ret", "tfm_iqr", "tfm_pos"]
+        kind = "plain"
+        zs, ci = zero_shot(df, "tfm_ret")
+        print("zero-shot tfm_ret", zs, "auc95ci(shift0)", [round(x, 4) for x in ci], flush=True)
+        json.dump(dict(zero_shot=zs, ci=ci), open(out + ".zs", "w"))
     else:
         raise SystemExit("mode")
     df = df.dropna(subset=list(set(var_feats + base_feats + ["imoex_mom5"]))).reset_index(drop=True)
+    print("analysis rows", len(df), "tickers", df["ticker"].nunique(), flush=True)
     cfgs = list(itertools.product(range(5), [0, 27, 54]))
     base = Parallel(n_jobs=6)(delayed(evaluate)(df, c, "plain", base_feats, base_feats) for c in cfgs)
     var = Parallel(n_jobs=6)(delayed(evaluate)(df, c, kind, var_feats, base_feats) for c in cfgs)
