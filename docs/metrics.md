@@ -2104,3 +2104,19 @@ Size first. The whole 90-day replay is realized -1820.29 RUB on 117 closed trade
 | Q6 live vs replay | not comparable on this data: live executions since 09-16 are 66 BUY and 82 SELL (mostly the first three days and opening/closing of inherited positions, 95k `executor_skip` rows because of the net-short cap), the replay closed trades entered since 09-16 are 4 SELL. A like-for-like check needs the live fill prices and the replay open positions; left open |
 
 Verdict under the registered rule (a cause explains the period only if removing it moves realized by at least 50 percent of its absolute value, 910 RUB): the worst three trades do (removing them gives +6364, a change of 8184), beta does not (removing it makes the result worse, -5691), dividends do not (14). So the September-October minus is three idiosyncratic losers, one of them a 25 percent slide in PLZL that the BUY signal bought into, plus a structural fact (Q5): the deployed model has stopped producing BUY signals and mostly says SELL, so in a +22 percent IMOEX quarter its tradable signal is a short book that the rally punishes. Open questions that need other data: why p drifted below 0.4 on 80-95 percent of live decisions (staleness of the 2026-09 training window versus a regime shift; the offline replay on 10-10..10-18 showed p max 0.597), and the live fill-level P&L of the sandbox account.
+
+## Seven hypotheses, step 1 (INTERIM): zero-shot direction of qwen3.8 on Russian headlines (H2; 2026-10-18)
+
+Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (commit 1c43147, before the run). `cmd/llmdirection` (qwen3.8, digest 3f181bb5737e, temperature 0, no thinking, JSON answer direction + confidence 1..5, score = signed confidence). INTERIM because the registered sample of 1200 was not reached: the ai-box Ollama became saturated by other workloads (an empty request waited 10-26 s even with this job paused; `AGENTS.md` forbids parallel qwen3.8 jobs), so the job was stopped at 550 of 1200 rows. The rows are the chronologically first 549 of a seed-42 random sample over 2026-04-01..09-30, so they cover roughly April to mid-July only. Sample B (pre-cutoff, H3) has 5 rows, so H3 is NOT evaluated.
+
+Sample A, 549 labeled events on 76 dates, 0 unparsable answers; entry at the next trading-day open, excess over IMOEX, date-block bootstrap (2000 repeats, seed 42):
+
+| h (trading days) | AUC | CI95 | non-neutral only (n = 232) | deadband 0.5% | Spearman with prior 5-day return | AUC inside prior-return terciles |
+|---:|---:|---|---:|---:|---:|---:|
+| 1 | 0.5198 | [0.4810, 0.5610] | 0.5379 | 0.5279 (n 402) | 0.180 | 0.5124 |
+| 5 | 0.5610 | [0.5168, 0.6079] | 0.6223 | 0.5473 (n 474) | 0.180 | 0.5567 |
+| 10 | 0.5482 | [0.4985, 0.5973] | 0.5950 | 0.5528 (n 503) | 0.180 | 0.5415 |
+
+Against the registered criteria (AUC >= 0.55 and lower CI bound > 0.500, >= 200 events and >= 40 dates): h = 1 NOT met (0.5198), h = 10 NOT met (0.5482 is below 0.55 and the lower bound 0.4985 is below 0.5). h = 5 clears both numbers (0.5610, [0.5168, 0.6079]) but it was not a registered primary horizon and three horizons were read, so it is a hypothesis for the completed sample, not a pass. The momentum-extrapolation control is clean (|rho| = 0.18 < 0.3); the AUC barely moves inside prior-return terciles. Descriptive: the 232 non-neutral answers carry the signal (0.595 at h = 10, 0.622 at h = 5).
+
+Status: the registered primary verdicts are negative, but at h = 10 only by 0.002 AUC and by 0.0015 on the interval bound on a truncated, chronologically biased sample, so this is neither a closure nor an opening of H2. Consequences: H6 (LLM factor scores as ensemble features) and H9 stay unstarted; no LLM use on the trading path changes. To finish: resume `llmdirection` (appends by `ticker|article_id`) when the Ollama queue is free, complete A to 1200 and B to 1200, then rerun `-mode analyze -a A.csv -b B.csv`.

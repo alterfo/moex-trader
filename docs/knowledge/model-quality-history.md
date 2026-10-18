@@ -57,3 +57,16 @@ The 2026-10-04 plan (`docs/plans/completed/20261004-model-quality-and-robustness
 
 ## Macro and dividend-yield model inputs REJECTED (2026-10-10)- Trailing dividend yield, IMOEX/CNY-RUB/Brent returns and key rate as model features: no AUC lift (dividend yield -0.005 mean fold AUC; macro columns -0.041 mean fold, -0.080 pooled). Macro is ticker-invariant per day, so trees memorise the date. Numbers: `docs/metrics.md` "Macro and dividend-yield features". The plumbing stays (`internal/macro`, `features.NewMarketEnricher`, `model.macro_dir`) but nothing uses it live; if macro is revisited, use it as a risk-gate regime filter (backtest it first), not as a model input.
 - USD/RUB (`USD000UTSTOM`) has a 20-month hole on ISS (2024-06..2026-02); CNY/RUB is the continuous FX series.
+
+## Seven-hypotheses programme (2026-10-18): what is now measured
+
+Plan and pre-registered criteria: `docs/plans/20261018-seven-hypotheses.md`; all numbers in `docs/metrics.md` ("Seven hypotheses, step N"). Read before proposing any of these again.
+
+- Evaluation noise (step 5): pooled AUC varies by SD 0.0108 across seed, fold boundaries and training start (dominated by where fold boundaries fall); N95 of the same-test difference is 0.016, so single-configuration AUC differences below 0.016 are inconclusive. Compare recipes pairwise over at least 15 configurations (`scripts/procvar.py`). The deep-history recipe beats the narrow one in 15 of 15 pairs (+0.020) but at an AUC of 0.49-0.52.
+- Deep history as a trading candidate (step 4): REJECTED on the registered criterion, 52 trades against 813 because 0.60/0.40 are almost never crossed by its probabilities; threshold selection from training data only is the untested variant.
+- IMOEX regime mask on new BUYs (step 6): registered R1 (1-day <= -2%) not met; R2 (5-day <= -5%) is a lead (+28% realized, two windows) needing its own pre-registration on a fresh window.
+- Cross-sectional ranking (step 7): the order of the deployed probabilities has no cross-sectional information at any horizon (gross spread -0.01% at h = 10); closed for this recipe.
+- News score (step 2): gross rank spread positive at 5 and 10 days (+0.21%, +0.43% per tranche) and concentrated on the negative side; no net edge after 0.60% tranche cost; liquidity split unsupported.
+- Sept-Oct 2026 (step 8): -1820 RUB on 117 trades over 90 days; three idiosyncratic losers explain it, beta and dividends do not; live decisions are 80-95% bearish (p <= 0.40) with no BUY signals while IMOEX rose 22%.
+- LLM direction (step 1/H2): interim only, see metrics; unfinished until Ollama is free.
+
