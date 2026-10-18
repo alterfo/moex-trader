@@ -2153,3 +2153,20 @@ None of the three explains the drift. What explains it was found afterwards (pos
 Cause: until 2026-10-09 the running trader evaluated the ensemble with `news_count` and `news_sentiment` that the model never trained on (training value 0), because the masking (`maskUntrainedFeatures`, commit f8f64a1, 2026-10-10) was not in the running build. The live news archive grew in volume, so the fed `news_count` grew and the logistic and tree members were pushed to SELL. From 10-10 the logged p is the masked one (0.41-0.48, almost no signals either way). The ai-box `trader` binary is dated 2026-10-06 16:31 UTC, before that fix.
 
 Revision of step 8: the "model nearly always bearish while IMOEX rose" in Q5 was this feed bug, not a property of the model. The live SELL executions of 09-17..10-09 (82 SELL executions against 4 in the replay of the masked model) came from the unmasked news features; step 8's replay (masked) is the better description of what the model alone would have done: -1820 RUB over 90 days, three idiosyncratic losers. The live sandbox P&L of 09-17..10-09 is the P&L of the model plus the news leak and has not been computed here.
+
+## Seven hypotheses, step 10: R2 mask on four unseen windows (2026-10-18)
+
+Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (commit "step 10 pre-registration", before the run). `scripts/regime-fresh.sh` on the ai-box trains one model per window from `depth/h10.csv` rows since 2021-01-01 (`train_till` = day before each window, embargo 10, seed 42), replays it (`-wf-dir`), then `cmd/regimemask` + `csvprob` replays as in step 6 (17 tickers, deposit 1M, costs 0.0005 x 3, target notional 15000, kill switch on).
+
+| window | ensemble replay realized | csvprob none | csvprob R1 | csvprob R2 | max DD (none) | kill (none) |
+|---|---:|---:|---:|---:|---:|---|
+| p1 2024-03-05..06-05 | -1062.31 | -1062 | -1062 | -1062 | 0.73% | no |
+| p2 2024-06-06..09-05 | -2786.11 | -2786 | -2781 | -2786 | 1.23% | no |
+| p3 2024-09-06..12-03 | -885.12 | -885 | -885 | -885 | 1.86% | no |
+| p4 2024-12-04..2025-03-04 | -1347.74 | -2359 | -2359 | -2359 | 8.74% | yes |
+
+Registered reproduction check (csvprob none within 10% of the ensemble replay on the same window): p1, p2, p3 pass; p4 fails (-2359 against -1347.74, kill switch tripped in both with DD 8.87% against 8.74%), so p4 is excluded from the verdict. Risk-off dates in the four windows: R1 21, R2 17; suppressed BUY decisions: R1 7, R2 1.
+
+Verdict on the registered criterion (R2: realized >= 0.80 of control, worst-window DD <= 0.90 of control, >= 10 risk-off dates and >= 5 suppressed BUY): NOT evaluable. Condition 3 fails (1 suppressed BUY across the three valid windows), and with one removed decision the realized sum (-4733.5) and the worst DD (1.86%) are identical to the control. The 2024 models also lose money in every window (sum of realized of the ensemble replay -6081 over four windows), so there is little long exposure to protect. The step 6 lead for R2 is therefore neither confirmed nor refuted by independent data; it stays a single-window-set observation. The combined ten-window figure (descriptive): six step-6 windows control +59539 and R2 +76184, three valid new windows control -4733.5 and R2 -4733.5.
+
+Consequence: no `internal/risk` pre-registration for an IMOEX regime gate. Reopening needs windows with a long-biased, active book (the 2025-2026 windows are the only ones that had one), i.e. new data after 2026-10 or a longer deep-history recipe that actually trades.

@@ -90,7 +90,7 @@ func run(args []string) error {
 		return err
 	}
 	src := backtest.NewISSSource(cfg.MOEXISSBaseURL, moex.NewClient(cfg.MOEXISSBaseURL, nil))
-	candles, err := src.History(context.Background(), "IMOEX", time.Date(2024, 11, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC))
+	candles, err := src.History(context.Background(), "IMOEX", time.Date(2023, 11, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC))
 	if err != nil {
 		return err
 	}
