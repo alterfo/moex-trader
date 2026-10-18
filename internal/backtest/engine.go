@@ -144,6 +144,7 @@ type Config struct {
 	Enricher              features.Enricher
 	Logger                *log.Logger
 	NewsOverrides         map[string]map[string]NewsAggregate
+	Breaker               *risk.TickerBreakerConfig
 	EventOverrides        map[string]map[string]features.EventFlags
 	TopicSignalOverrides  map[string]map[string]features.TopicSignalAggregate
 }
@@ -324,6 +325,7 @@ func (c Config) WithDefaults() Config {
 type Engine struct {
 	cfg       Config
 	gate      risk.Gate
+	breaker   *risk.TickerBreaker
 	kill      *memKillSwitch
 	positions map[string]*position
 	realized  map[string]decimal.Decimal
@@ -386,6 +388,10 @@ func NewEngine(cfg Config) (*Engine, error) {
 	riskCfg.SectorCaps = cfg.SectorCaps
 	riskCfg.Sectors = cfg.Sectors
 	riskCfg.Positions = engine
+	if cfg.Breaker != nil {
+		engine.breaker = risk.NewTickerBreaker(*cfg.Breaker)
+		riskCfg.Breaker = engine.breaker
+	}
 	if cfg.KillSwitch {
 		riskCfg.Store = engine.kill
 	}
@@ -968,6 +974,7 @@ func (e *Engine) recordFill(ticker string, signal domain.TradeSignal, price deci
 	}
 	if pos == nil {
 		e.positions[ticker] = newPosition(signal.Action, signal.TargetLots, price, e.cfg.CommissionRate, day)
+		e.feedBreaker(ticker, signal.Action, signal.TargetLots, price)
 		return nil
 	}
 
@@ -995,6 +1002,7 @@ func (e *Engine) recordFill(ticker string, signal domain.TradeSignal, price deci
 				Div(decimal.NewFromInt(int64(pos.lots + deltaLots)))
 			pos.comm = pos.comm.Add(commissionAmount(price, deltaLots, e.cfg.CommissionRate))
 			pos.lots += deltaLots
+			e.feedBreaker(ticker, signal.Action, deltaLots, price)
 			return nil
 		}
 		closingLots := deltaLots
@@ -1015,6 +1023,7 @@ func (e *Engine) recordFill(ticker string, signal domain.TradeSignal, price deci
 			SignalNote: signal.Reasoning,
 		})
 		pos.lots -= closingLots
+		e.feedBreaker(ticker, oppositeAction(pos.action), closingLots, price)
 		if pos.lots == 0 {
 			delete(e.positions, ticker)
 			return nil
@@ -1025,6 +1034,7 @@ func (e *Engine) recordFill(ticker string, signal domain.TradeSignal, price deci
 
 	e.closePositionLocked(ticker, pos, price, day, signal.Reasoning)
 	e.positions[ticker] = newPosition(signal.Action, signal.TargetLots, price, e.cfg.CommissionRate, day)
+	e.feedBreaker(ticker, signal.Action, signal.TargetLots, price)
 	return nil
 }
 
@@ -1065,7 +1075,28 @@ func (e *Engine) closePositionLocked(ticker string, pos *position, price decimal
 		NetPnl:     net,
 		SignalNote: note,
 	})
+	e.feedBreaker(ticker, oppositeAction(pos.action), pos.lots, price)
 	delete(e.positions, ticker)
+}
+
+func oppositeAction(action domain.Action) domain.Action {
+	if action == domain.ActionSell {
+		return domain.ActionBuy
+	}
+	return domain.ActionSell
+}
+
+func (e *Engine) feedBreaker(ticker string, action domain.Action, lots int, price decimal.Decimal) {
+	if e.breaker == nil || lots <= 0 {
+		return
+	}
+	e.breaker.RecordFill(risk.Fill{
+		Ticker:     ticker,
+		Action:     action,
+		Lots:       lots,
+		Price:      price,
+		Commission: commissionAmount(price, lots, e.cfg.CommissionRate),
+	})
 }
 
 func absLots(lots int) int {

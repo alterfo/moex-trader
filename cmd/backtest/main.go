@@ -23,6 +23,7 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
 	"github.com/olegsidorkin/moex-trader/internal/model"
+	"github.com/olegsidorkin/moex-trader/internal/risk"
 	"github.com/olegsidorkin/moex-trader/internal/spread"
 	"github.com/olegsidorkin/moex-trader/internal/storage"
 	"github.com/olegsidorkin/moex-trader/internal/tearsheet"
@@ -78,6 +79,7 @@ func run() error {
 	var featureBPD int
 	var targetNotionalStr string
 	var volScale bool
+	var breakerOn bool
 	var volScaleMinStr string
 	var volScaleMaxStr string
 	var wfDir string
@@ -128,6 +130,7 @@ func run() error {
 	flag.BoolVar(&volScale, "vol-scale", false, "scale target notional by clamp(median realized_volatility / ticker realized_volatility, min, max)")
 	flag.StringVar(&volScaleMinStr, "vol-scale-min", "", "vol-scale minimum multiplier (required when -vol-scale is set)")
 	flag.StringVar(&volScaleMaxStr, "vol-scale-max", "", "vol-scale maximum multiplier (required when -vol-scale is set)")
+	flag.BoolVar(&breakerOn, "breaker", false, "enable the per-ticker circuit breaker with the live defaults (notional = -target-notional)")
 	flag.StringVar(&wfDir, "wf-dir", "", "when set, persist the per-window model and decision log under <wf-dir>/<from>_<till>/ for walk-forward reproducibility")
 	flag.IntVar(&embargoBars, "embargo-bars", 0, "embargo bars recorded in the persisted walk-forward window (no effect on a standalone backtest)")
 	flag.StringVar(&ensembleMember, "ensemble-member", "", "ensemble member to trade: empty (all), lgb, xgb or logistic")
@@ -384,7 +387,14 @@ func run() error {
 		return fmt.Errorf("load market enricher: %w", err)
 	}
 
+	var breakerCfg *risk.TickerBreakerConfig
+	if breakerOn {
+		cfg := risk.DefaultTickerBreakerConfig()
+		cfg.Notional = targetNotional
+		breakerCfg = &cfg
+	}
 	engine, err := backtest.NewEngine(backtest.Config{
+		Breaker:               breakerCfg,
 		Enricher:              marketEnricher,
 		Tickers:               tickers,
 		From:                  from,

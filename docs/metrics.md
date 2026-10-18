@@ -1978,3 +1978,20 @@ Descriptive, and the reason this is not the same null as steps 2 and 2b: with 19
 | quarterly net (primary cost) | -0.23, +0.48, -0.55, -0.74, -0.23, +2.40, +0.48, -0.25 (%, 7-50 dates each) |
 
 Verdict by the registered rule: criterion not met (lower CI bound below 0 at every cost level). The quintiles are monotone and the point estimate of the net spread is positive, but the interval is wide, 5 of 8 quarters are negative and one quarter (2026Q2, +2.40%) carries the mean. The long-only leg earns nothing after costs; the spread comes from the short leg (bottom quintile -0.52%), which is the part that is not tradable here (no borrow cost modelled, spot shorts not available on the sandbox book). The news branch stays closed as a trading signal; reopening needs an independent period after 2026-10-05.
+
+## Ticker circuit breaker in the gate replay (2026-10-18)
+
+Pre-registered in `docs/plans/20261018-ticker-breaker-parity.md` (commit 0144c6e, before the run). `backtest.Config.Breaker` and `cmd/backtest -breaker` feed the live `risk.TickerBreaker` (defaults: 3 consecutive losing round trips or cumulative loss 5% of target_notional 15000; a tripped ticker stays blocked) from every replay fill. Gate-shaped replays (17 tickers, 90 days, 1M deposit, costs 0.0005×3 + per-ticker spreads, borrow 0.00005/day, caps 90000/90000, deployed `ensemble_model.json`, no news), one run per cell, no tuning. The breaker is NOT wired into the preflight.
+
+| window (90d till) | breaker | closed trades | realized net of borrow | unrealized MTM |
+|---|---|---|---|---|
+| 2026-10-18 | off | 117 | -2455.72 | -2066.01 |
+| 2026-10-18 | on | 96 | -3356.64 | +6139.47 |
+| 2026-07-20 | off | 90 | +34737.78 | +189.38 |
+| 2026-07-20 | on | 85 | +30484.28 | +3086.18 |
+| 2026-04-21 | off | 34 | -3842.92 | +4610.19 |
+| 2026-04-21 | on | 22 | -1183.71 | +3291.07 |
+
+Sum of realized net of borrow over the three windows: off +28439.15, on +25943.92.
+
+Verdict by the registered rule: criterion not met on both parts (the gate window with the breaker is -3356.64, below the 1 RUB threshold; the three-window sum is lower with the breaker). The breaker does not rescue the gate. Side finding: `risk.Gate` rejects every order for a tripped ticker with `ticker_breaker_blocked`, including orders that would close the position, so a tripped ticker's open position is frozen. In the 10-18 window this moves roughly 8.2k RUB from realized to unrealized (MTM -2066 → +6139) and the realized figure, which is what the gate measures, gets worse. Whether blocking exits is intended for live is an open owner question; it is not changed here.

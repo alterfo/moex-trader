@@ -997,3 +997,36 @@ func TestEngine_SectorCapProjectsOrderDeltaForTargetSignals(t *testing.T) {
 		t.Fatalf("open position lots = %d, want 1 (the trim to 1 lot must not be rejected by the sector cap)", result.OpenPositions[0].Lots)
 	}
 }
+
+func TestEngine_TickerBreakerStopsRepeatedLosses(t *testing.T) {
+	run := func(breaker *risk.TickerBreakerConfig) *Result {
+		engine, err := NewEngine(Config{
+			Tickers:        []string{"TEST"},
+			From:           time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC),
+			Till:           time.Date(2024, 3, 30, 0, 0, 0, 0, time.UTC),
+			Deposit:        decimal.NewFromInt(100000),
+			MaxLots:        100,
+			MaxHoldBars:    2,
+			CommissionRate: decimal.RequireFromString("0.02"),
+			SignalSource:   fixedTargetSignal{action: domain.ActionBuy, lots: 2},
+			Source:         fakeSource{candles: benchCandles(120)},
+			Breaker:        breaker,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := engine.Run(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	free := run(nil)
+	guarded := run(&risk.TickerBreakerConfig{MaxConsecutiveLosses: 2, MaxCumulativeLossPct: decimal.RequireFromString("0.5"), Notional: decimal.NewFromInt(1000000)})
+	if free.ClosedTrades < 4 {
+		t.Fatalf("control run needs at least 4 closed trades, got %d", free.ClosedTrades)
+	}
+	if guarded.ClosedTrades != 2 {
+		t.Fatalf("breaker with 2 consecutive losses should stop after 2 closed trades, got %d (control %d)", guarded.ClosedTrades, free.ClosedTrades)
+	}
+}
