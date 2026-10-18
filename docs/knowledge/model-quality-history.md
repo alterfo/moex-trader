@@ -84,3 +84,4 @@ Plan `docs/plans/20261018-seven-hypotheses.md` part B, numbers in `docs/metrics.
 - TimesFM 2.5 zero-shot: AUC 0.522 with a bootstrap interval [0.487, 0.553]; as a feature +0.0022: REJECTED.
 - Fundamentals: no verified dated history; not tested. Record a daily snapshot if this is to be revisited.
 - The harness (`scripts/hypo_wf.py`) calculates ranks over all rows of a date before the deadband filter; ranking after the filter leaks the future return magnitude.
+- Step 17 (2026-10-19): the vol-unit label result above is NOT confirmed across five seeds and a hold-out window (sigma above base in 3 of 5 seeds, hold-out -882 against -603); the base six-window replay sum ranges -13842..+17461 across seeds, so single-seed replays cannot rank recipes. Treat the vol-unit labels as rejected.

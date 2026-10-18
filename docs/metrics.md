@@ -2258,3 +2258,29 @@ Same protocol, data and 15 configurations as steps 11-13 (`scripts/hypo_wf.py`, 
 
 The T-Invest REST call was made with the sandbox token (the production `T_TOKEN` in `.env` is empty): `InstrumentsService/GetAssetFundamentals` returned 18 of 18 tickers, `GetAssetReports` 18 of 18. The response is a current snapshot: about 60 numeric fields (market cap, P/E TTM, P/B, ROE, EPS TTM, dividend yield, `exDividendDate`, etc.) with no as-of date, and many fields are 0.0 when the vendor has no value (for SBER EBITDA, free cash flow, debt ratios). `GetAssetReports` gives report dates with a `createdAt` timestamp, i.e. the calendar is dated by when it became known (SBER Q3 2026 report 2026-10-28, created 2026-10-18). This confirms the step 15 conclusion: no historical join is possible from this API; only a daily snapshot recorder yields leak-free history.
 - Recorder: `cmd/fundsnap` (append-only `data/fundamentals.jsonl`, one JSON line per ticker and day, idempotent per day), `scripts/fundsnap-daily.sh`, launchd agent `com.oleg.moex-trader.fundsnap` at 07:30 daily on the Mac. First snapshot 2026-10-19. A fundamentals experiment is not registered before at least 120 daily snapshots exist (about 2027-02), and the horizon would then be limited to those months.
+
+## Step 17: volatility-unit labels across seeds and a hold-out window (2026-10-19)
+
+Pre-registered in commit 83f1f2e before running. 98 csvprob replays (arms base and sigma at k = 0.5, seeds 0..4, windows q1 q2 q3 q4 w2 w1 and the hold-out h = 2026-09-17..10-17, plus seed 42 for k = 0.25 / 0.5 / 0.75 and base), same replay settings as step 12. Code: `scripts/hypo_wf.py probs`, `scripts/hypo-replay.sh`. Window h has probabilities only for decisions with a known 10-day label (up to about the start of October); later days are HOLD.
+
+Realized net of borrow, RUB, sum over the six Task 5 windows; worst-window max drawdown; window h:
+
+| Seed | base sum | sigma sum | base h | sigma h |
+|---|---|---|---|---|
+| 0 | -10218 | +11542 | -611 | -624 |
+| 1 | +7988 | +22722 | -584 | -705 |
+| 2 | -13842 | +1613 | -612 | -627 |
+| 3 | +7015 | +4569 | -646 | -633 |
+| 4 | +17461 | +17338 | -563 | -1820 |
+| mean | +1681 | +11557 | -603 | -882 |
+
+Per-window mean over seeds, base / sigma: q1 -13306 / -13975, q2 -9480 / -5604, q3 +6975 / +13189, q4 -11795 / -8207, w2 -7103 / -8694, w1 +36389 / +34849. Worst drawdown over all runs: base 2.36%, sigma 2.27%. Number of windows (of six) where sigma beat base, by seed 0..4: 4, 4, 4, 3, 4.
+
+Registered criteria:
+1. mean six-window sum higher for sigma (11557 > 1681) AND sigma above base in at least 4 of 5 seeds: sigma above base in 3 of 5 (seeds 0, 1, 2) -> FAIL;
+2. worst drawdown sigma <= base + 0.5 pp (2.27 <= 2.86) -> PASS;
+3. hold-out window h mean sigma >= base (-882 against -603) -> FAIL;
+4. mean six-window sum of sigma positive -> PASS.
+Verdict: the vol-unit label result of step 12 is NOT confirmed (two of four criteria fail); no candidate-training pre-registration is opened.
+
+Descriptive, not part of the criterion (seed 42): k = 0.25 / 0.5 / 0.75 give six-window sums of +768 / +11611 / +33464, drawdowns 2.24% / 1.99% / 1.69% and hold-out -595 / -3058 / -5308 against base +4340, 1.82%, -664; non-monotonic across k and the largest hold-out loss at the largest k, so no k is selected from this. The seed-to-seed range of the base six-window sum is -13842..+17461, larger than any base-sigma difference above, which is the main reason a single-seed replay (step 12) cannot rank these arms.
