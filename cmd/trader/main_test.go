@@ -2178,3 +2178,65 @@ func TestNewsGateLookbackScalesWithVolatility(t *testing.T) {
 		t.Fatal("with the multiplier off the fixed limit applies")
 	}
 }
+
+func readAuditRecords(t *testing.T, path string) []incidentcheck.AuditRecord {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read audit log: %v", err)
+	}
+	var out []incidentcheck.AuditRecord
+	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		if line == "" {
+			continue
+		}
+		var rec incidentcheck.AuditRecord
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatalf("audit line %q: %v", line, err)
+		}
+		out = append(out, rec)
+	}
+	return out
+}
+
+func TestIncidentCheckAuditRecordsEveryOutcome(t *testing.T) {
+	now := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	meta := incidentcheck.Result{Model: "qwen3.8:latest", Digest: "sha256:abc", PromptSHA: "deadbeefdeadbeef", Raw: `{"verdict":"x"}`}
+	cases := []struct {
+		name        string
+		result      incidentcheck.Result
+		err         error
+		titles      []string
+		wantOutcome string
+		wantVerdict string
+		wantError   bool
+	}{
+		{"damage", incidentcheck.Result{Verdict: incidentcheck.Damage, Reason: "пожар", Model: meta.Model, Digest: meta.Digest, PromptSHA: meta.PromptSHA, Raw: meta.Raw}, nil, []string{"Сбербанк сообщил об атаке на дата-центр"}, "confirmed", "damage", false},
+		{"no damage", incidentcheck.Result{Verdict: incidentcheck.NoDamage, Model: meta.Model, Digest: meta.Digest, PromptSHA: meta.PromptSHA, Raw: meta.Raw}, nil, []string{"Сбербанк сообщил об атаке на дата-центр"}, "rejected", "no_damage", false},
+		{"checker error", meta, errors.New("ollama unreachable"), []string{"Сбербанк сообщил об атаке на дата-центр"}, "error", "", true},
+		{"no headlines", incidentcheck.Result{}, nil, nil, "skipped_no_headlines", "", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "audit", "incident_checks.jsonl")
+			gate := newIncidentShortGate(t, domain.ActionHold, nil)
+			gate.now = func() time.Time { return now }
+			gate.audit = incidentcheck.NewAuditLog(path)
+			gate.checker = &fakeIncidentChecker{result: c.result, err: c.err}
+			feature := incidentFeature(now)
+			feature.IncidentTitles = c.titles
+			_, _ = gate.Generate(context.Background(), feature)
+			records := readAuditRecords(t, path)
+			if len(records) != 1 {
+				t.Fatalf("expected exactly one audit record, got %d", len(records))
+			}
+			rec := records[0]
+			if rec.Outcome != c.wantOutcome || rec.Verdict != c.wantVerdict || (rec.Error != "") != c.wantError || rec.Ticker != "SBER" || !rec.At.Equal(now) {
+				t.Fatalf("unexpected record %+v", rec)
+			}
+			if c.wantOutcome != "skipped_no_headlines" && (rec.Model != meta.Model || rec.Digest != meta.Digest || rec.PromptSHA != meta.PromptSHA || len(rec.Titles) != 1) {
+				t.Fatalf("record misses provenance: %+v", rec)
+			}
+		})
+	}
+}

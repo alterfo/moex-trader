@@ -3,11 +3,14 @@ package incidentcheck
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -22,8 +25,12 @@ const (
 const maxTitles = 8
 
 type Result struct {
-	Verdict Verdict
-	Reason  string
+	Verdict   Verdict
+	Reason    string
+	Raw       string
+	Model     string
+	Digest    string
+	PromptSHA string
 }
 
 type Checker interface {
@@ -31,9 +38,18 @@ type Checker interface {
 }
 
 type Ollama struct {
-	baseURL string
-	model   string
-	client  *http.Client
+	baseURL   string
+	model     string
+	client    *http.Client
+	digestPin string
+
+	mu     sync.Mutex
+	digest string
+}
+
+func (o *Ollama) WithDigestPin(digest string) *Ollama {
+	o.digestPin = strings.TrimSpace(digest)
+	return o
 }
 
 func NewOllama(baseURL, model string, timeout time.Duration) *Ollama {
@@ -106,38 +122,96 @@ func ParseResult(content string) (Result, error) {
 	return Result{}, fmt.Errorf("incident check: unknown verdict %q", raw.Verdict)
 }
 
+type tagsResponse struct {
+	Models []struct {
+		Name   string `json:"name"`
+		Digest string `json:"digest"`
+	} `json:"models"`
+}
+
+func (o *Ollama) modelDigest(ctx context.Context) string {
+	o.mu.Lock()
+	cached := o.digest
+	o.mu.Unlock()
+	if cached != "" {
+		return cached
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, o.baseURL+"/api/tags", nil)
+	if err != nil {
+		return ""
+	}
+	resp, err := o.client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+	var tags tagsResponse
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&tags); err != nil {
+		return ""
+	}
+	for _, m := range tags.Models {
+		if m.Name == o.model {
+			o.mu.Lock()
+			o.digest = m.Digest
+			o.mu.Unlock()
+			return m.Digest
+		}
+	}
+	return ""
+}
+
+func promptHash(prompt string) string {
+	sum := sha256.Sum256([]byte(prompt))
+	return hex.EncodeToString(sum[:])[:16]
+}
+
 func (o *Ollama) Check(ctx context.Context, ticker string, titles []string) (Result, error) {
+	prompt := BuildPrompt(ticker, titles)
+	meta := Result{Model: o.model, PromptSHA: promptHash(prompt)}
+	meta.Digest = o.modelDigest(ctx)
+	if o.digestPin != "" && meta.Digest != o.digestPin {
+		return meta, fmt.Errorf("incident check: model %q digest %q does not match the pinned %q", o.model, meta.Digest, o.digestPin)
+	}
 	body, err := json.Marshal(chatRequest{
 		Model:    o.model,
-		Messages: []chatMessage{{Role: "user", Content: BuildPrompt(ticker, titles)}},
+		Messages: []chatMessage{{Role: "user", Content: prompt}},
 		Stream:   false,
 		Format:   "json",
 		Think:    false,
 		Options:  map[string]any{"temperature": 0, "num_predict": 200},
 	})
 	if err != nil {
-		return Result{}, err
+		return meta, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.baseURL+"/api/chat", bytes.NewReader(body))
 	if err != nil {
-		return Result{}, err
+		return meta, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := o.client.Do(req)
 	if err != nil {
-		return Result{}, fmt.Errorf("incident check: request: %w", err)
+		return meta, fmt.Errorf("incident check: request: %w", err)
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return Result{}, fmt.Errorf("incident check: read: %w", err)
+		return meta, fmt.Errorf("incident check: read: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return Result{}, fmt.Errorf("incident check: status %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+		return meta, fmt.Errorf("incident check: status %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
 	}
 	var parsed chatResponse
 	if err := json.Unmarshal(data, &parsed); err != nil {
-		return Result{}, fmt.Errorf("incident check: decode: %w", err)
+		return meta, fmt.Errorf("incident check: decode: %w", err)
 	}
-	return ParseResult(parsed.Message.Content)
+	meta.Raw = parsed.Message.Content
+	result, err := ParseResult(parsed.Message.Content)
+	if err != nil {
+		return meta, err
+	}
+	result.Raw, result.Model, result.Digest, result.PromptSHA = meta.Raw, meta.Model, meta.Digest, meta.PromptSHA
+	return result, nil
 }

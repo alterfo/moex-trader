@@ -455,6 +455,7 @@ type newsGateSignalSource struct {
 	incidentMinSources int
 	incidentShort      bool
 	checker            incidentcheck.Checker
+	audit              *incidentcheck.AuditLog
 	checkTimeout       time.Duration
 	checkRetryAt       map[string]time.Time
 	lookbackMovePct    decimal.Decimal
@@ -479,7 +480,7 @@ func newNewsGateSignalSource(source orchestrator.SignalSource, newsCfg config.Ne
 	}
 	var checker incidentcheck.Checker
 	if newsCfg.IncidentCheckURL != "" {
-		checker = incidentcheck.NewOllama(newsCfg.IncidentCheckURL, newsCfg.IncidentCheckModel, newsCfg.IncidentCheckTimeout.Std())
+		checker = incidentcheck.NewOllama(newsCfg.IncidentCheckURL, newsCfg.IncidentCheckModel, newsCfg.IncidentCheckTimeout.Std()).WithDigestPin(newsCfg.IncidentCheckDigest)
 	}
 	return &newsGateSignalSource{
 		source:      source,
@@ -495,6 +496,7 @@ func newNewsGateSignalSource(source orchestrator.SignalSource, newsCfg config.Ne
 		lookbackMovePct:    newsCfg.LookbackMovePct,
 		lookbackVolMult:    newsCfg.LookbackVolMult,
 		checker:            checker,
+		audit:              incidentcheck.NewAuditLog(newsCfg.IncidentCheckAudit),
 		checkTimeout:       newsCfg.IncidentCheckTimeout.Std(),
 		now:                time.Now,
 		lastIncidentAlert:  make(map[string]time.Time),

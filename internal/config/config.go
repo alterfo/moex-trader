@@ -106,6 +106,8 @@ type News struct {
 	IncidentCheckURL     string          `yaml:"incident_check_url"`
 	IncidentCheckModel   string          `yaml:"incident_check_model"`
 	IncidentCheckTimeout Duration        `yaml:"incident_check_timeout"`
+	IncidentCheckAudit   string          `yaml:"incident_check_audit_path"`
+	IncidentCheckDigest  string          `yaml:"incident_check_model_digest"`
 	IndustryMatching     bool            `yaml:"industry_matching"`
 	SpoolPath            string          `yaml:"spool_path"`
 	ExitEnabled          bool            `yaml:"exit_enabled"`

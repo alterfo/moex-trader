@@ -106,6 +106,8 @@ news:
   incident_check_url: "http://192.168.88.193:11434"
   incident_check_model: "qwen3.8:latest"
   incident_check_timeout: 60s
+  incident_check_audit_path: "artifacts/incident_checks.jsonl"
+  incident_check_model_digest: "3f181bb5737e4530f86cbdd7efb321d38d76c8101d9bef534d2d4daa7f1e95aa"
   spool_path: "data/news_spool.jsonl"
   exit_enabled: true
   classifier_path: "news_classifier.json"
