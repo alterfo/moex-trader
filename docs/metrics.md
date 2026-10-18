@@ -2014,3 +2014,26 @@ Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (commit 1c43147 and 
 - H4 sign (h = 10): bottom score quintile mean excess -0.9441 [-1.5271, -0.4061], top quintile +0.2120 [-0.1156, +0.5333]; asymmetry |bottom| minus top +0.7321 CI95 [+0.0924, +1.3906]: significant, the negative-news side carries the effect, as in step 2g (short leg). Spot shorts are not available on the sandbook, so the long side is the tradable one and it is not distinguishable from zero.
 
 Verdict: H1 gross criterion met, H4 sign part supported, H4 liquidity part not supported. No trading conclusion: net of costs the step 2g result stands, and the tradable (long) leg is not significant.
+
+## Seven hypotheses, step 5: variance of the evaluation procedure (2026-10-18)
+
+Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (commit "step 5 pre-registration", before the run). Harness: `scripts/procvar.py` (copy of `evalh.py` `wf()`/`fit_predict()` logic with the seed, first-test date, fold length and training start as parameters), run on the ai-box over `~/moex-research/depth/h10.csv` (17 tickers, 15 price columns, horizon 10, 8064 test rows from 2025-04-01). 75 configurations of recipe A (5 seeds x 3 first-test shifts {0, 27, 54 days} x 5 training starts), 15 of recipe D (training from 2015-01-01, 5 seeds x 3 shifts), 3 fold lengths.
+
+| quantity | value |
+|---|---|
+| recipe A pooled AUC over the 75 configurations: mean / SD / min / max | 0.4829 / 0.0108 / 0.4605 / 0.5009 |
+| SD over seed (others fixed) | 0.0019 |
+| SD over training start (others fixed) | 0.0059 |
+| SD over first-test shift (others fixed) | 0.0116 |
+| N95: 95th percentile of the absolute pooled-AUC difference between A configurations with the same shift (900 pairs; median 0.0055) | 0.0160 |
+| recipe A (start 2024-01-01) pooled AUC by shift 0 / 27 / 54 | 0.4959 / 0.4765 / 0.4901 |
+| recipe D pooled AUC by shift 0 / 27 / 54 | 0.5199 / 0.4917 / 0.5117 |
+| D minus A, 15 paired configurations: mean / SD / min / max / positive | +0.0203 / 0.0052 / +0.0112 / +0.0272 / 15 of 15 |
+| fold length 42 / 63 / 84 days (seed 42, shift 0, same 8064 rows): pooled AUC | 0.4933 / 0.5005 / 0.5140 |
+| SD of mean-fold AUC over the 75 A configurations | 0.0145 |
+
+Interpretation under the registered rule: N95 = 0.0160 > 0.010, so every earlier comparison with |ΔAUC| below 0.016 that was judged on a single configuration (depth steps 1-3, experiments A-E of 2026-10-04 by AUC, macro and dividend features) is inconclusive, and new comparisons must be paired over at least 15 configurations. The dominant source is where the fold boundaries fall (SD 0.0116), not the seed (0.0019).
+
+What survives: a paired depth comparison. D beats A in all 15 paired configurations (+0.0112 .. +0.0272, mean +0.0203; per shift +0.024, +0.015, +0.022), so the +0.019 of depth step 1 is not a one-configuration accident. It is still a small gain from a level at the noise floor: recipe A's pooled AUC averages 0.483, below 0.5, and D reaches 0.492-0.520. Absolute predictability on the 2025-04..2026-10 test rows is not demonstrated for either recipe.
+
+Side observations, single seed each and not registered as criteria: lengthening the refit interval from 42 to 84 days raised pooled AUC from 0.493 to 0.514 on identical test rows; the pooled AUC below 0.5 for recipe A agrees with the autumn losses and is the subject of the planned post-mortem of September-October 2026.
