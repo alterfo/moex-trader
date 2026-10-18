@@ -51,6 +51,7 @@ type options struct {
 	macroDir         string
 	trainTickers     string
 	trainMinTurnover string
+	candlesCSV       string
 }
 
 func main() {
@@ -117,7 +118,14 @@ func run(args []string) error {
 		featureBPD = features.ConfigForInterval(opts.intervalMin).BarsPerDay
 	}
 	featureCfg := features.PriceFeatureConfig{BarsPerDay: featureBPD}
-	if opts.intervalMin > 0 && opts.intervalMin != 24 {
+	if opts.candlesCSV != "" {
+		csvSrc, csvErr := newCSVSource(opts.candlesCSV)
+		if csvErr != nil {
+			return csvErr
+		}
+		source = csvSrc
+		log.Printf("exportdataset: reading candles from %s", opts.candlesCSV)
+	} else if opts.intervalMin > 0 && opts.intervalMin != 24 {
 		source = backtest.NewISSSourceInterval(cfg.MOEXISSBaseURL, moexClient, opts.intervalMin)
 		log.Printf("exportdataset: using intraday interval %d min; feature barsPerDay=%d (0 = raw bar-count windows)", opts.intervalMin, featureBPD)
 	} else {
@@ -349,6 +357,7 @@ func parseOptions(args []string) (options, error) {
 	fs.StringVar(&opts.newsHistory, "news-history", "", "path to a finanalys-format news_history.jsonl to override news_sentiment/news_count with real historical values where available")
 	fs.StringVar(&opts.macroDir, "macro-dir", "", "directory with macro series (cmd/macrofetch); adds dividend yield and macro columns")
 	fs.StringVar(&opts.dividends, "dividends", "data/dividends.jsonl", "path to the dividend calendar JSONL used by -label-mode absolute_tr")
+	fs.StringVar(&opts.candlesCSV, "candles-csv", "", "read daily candles from a CSV (ticker,date,open,high,low,close,volume) instead of MOEX ISS")
 	fs.StringVar(&opts.trainTickers, "train-tickers", "", "comma-separated extra training tickers (default: same as trading tickers); FX tickers rejected")
 	fs.StringVar(&opts.trainMinTurnover, "train-min-turnover", opts.trainMinTurnover, "minimum median 20-day turnover (RUB) for a -train-tickers name to contribute a training row")
 	if err := fs.Parse(args); err != nil {
