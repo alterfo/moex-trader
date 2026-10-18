@@ -514,6 +514,35 @@ the unhedged book. `experiment_e_sector_caps` is marked rejected in the
 registry. Persisted `-wf-dir` runs are under
 `/home/oleg/moex-trader-task11/wf-sector`.
 
+## Experiment F: excess-to-IMOEX labels (2026-10-18)
+
+Pre-registered protocol: `docs/plans/20261018-excess-label-walkforward.md` (committed before the run). Question: does the excess-label ensemble pass the Task 13 deployment gate against a fresh same-run absolute control, and does the 2026-10-03 single-window val-AUC advantage (+0.040) transfer to the purged 6-window walk-forward? Protocol: the Task 5 recipe unchanged (6 quarterly windows, `-embargo-bars 10`, 17 tickers, 1M deposit, 15000₽/position, commission/spread/slippage 0.05% each, hold-until-flip, kill switch on, thresholds 0.60/0.40, 18 price/flow features), `-label-mode excess` (F) vs `-label-mode absolute` (F-control), both exported/retrained/backtested on HEAD on the ai-box (`~/moex-trader-task12`), same news archive as Task 5.
+
+Reproducibility verification (pre-registered): the fresh absolute export reproduces the Task 5 dataset byte-for-byte — all 27 non-key fields identical for every common (ticker, date) row (SBER spot check, 0 diffs); the only difference is one extra tail row per ticker (2026-09-17), inside the pre-registered ±10-row tolerance.
+
+Stack drift disclosure: training output changed vs the 2026-10-04 Task 5 run despite identical data, script and env vars — the venv package versions drifted (xgb 3.4.1, lgb 4.7.0, sklearn 1.9.1, pandas 3.0.5, numpy 2.5.3 as of 2026-10-18; Task 5 versions not recorded). The engine is not the cause: the historical `ens-emb10-q1.json` artifact replayed through the HEAD engine gives realized +4002.28 / 74 trades / DD 3.56% / kill yes vs the recorded +4301.27 / 66 / 3.57% / yes (≈93% reproduction). All gate comparisons are therefore against the fresh same-run control, never the stale ledger number.
+
+| window | control realized | F realized | control trades | F trades | control max DD | F max DD | control kill | F kill | control val AUC | F val AUC |
+|---|---|---:|---:|---:|---:|---:|---:|---|---|---:|---:|
+| q1 (2025-03-05 -> 2025-06-05) | +858.10 | +13303.17 | 243 | 194 | 3.07% | 1.63% | no | no | 0.5673 | 0.4559 |
+| q2 (2025-06-06 -> 2025-09-05) | +355.57 | -10261.75 | 205 | 174 | 3.53% | 2.35% | no | no | 0.5550 | 0.4858 |
+| q3 (2025-09-06 -> 2025-12-03) | +32191.60 | -9240.48 | 158 | 100 | 0.94% | 1.97% | no | no | 0.5178 | 0.4767 |
+| q4 (2025-12-04 -> 2026-03-04) | -10183.21 | -1543.91 | 183 | 33 | 2.43% | 0.46% | no | no | 0.4999 | 0.4915 |
+| w2 (2026-03-05 -> 2026-06-06) | +16747.59 | -6836.71 | 115 | 40 | 0.68% | 1.43% | no | no | 0.4836 | 0.4892 |
+| w1 (2026-06-07 -> 2026-09-16) | +27846.13 | +24248.90 | 252 | 184 | 3.68% | 1.71% | no | no | 0.4785 | 0.4989 |
+| total | +67815.78 | +9669.22 | 1156 | 725 | — | — | — | — | mean 0.5170 | mean 0.4830 |
+
+Realized P&L is closed-trade gross minus commission. Gate against the fresh same-run control:
+
+1. total realized: +9669.22 vs +67815.78 — **FAIL**;
+2. realized ≥ control in ≥ 4/6 windows: 1/6 (q1 only) — **FAIL**;
+3. max DD ≤ 3% everywhere and kill never trips: **PASS for F** (max 2.35%, no kill; the control itself prints 3.07–3.68% day-close DD without kill trips — the same order-time vs day-close basis documented in Task 5);
+4. mean val AUC not below control by more than 0.005: 0.4830 vs 0.5170 (−0.034) — **FAIL**;
+5. PBO {F-control, F}: 0.1242 (s=16, 510 periods × 2 candidates) — PASS, but degenerate at 2 candidates, reported descriptively;
+6. 90-day preflight: not run (criteria 1–4 failed).
+
+**Verdict: REJECTED.** H_predictability is rejected: the excess val-AUC advantage does not transfer to walk-forward; on the current stack excess is −0.034 mean val AUC vs absolute, and q1 excess AUC (0.4559) is below chance. H_income is rejected (fails criteria 1, 2, 4). The excess book does show the expected lower-beta profile: max DD ≤ 2.35% everywhere and total realized +9669.22 RUB > 0 — the label removes most of the beta income by design. Consequences: the excess model is not wired as challenger (the precondition in the plan was a positive H_predictability); the 2026-10-03 single-window AUC +0.040 is recorded as non-reproducible in the walk-forward protocol on the current stack. Persisted `-wf-dir` runs under `/home/oleg/moex-trader-task12/wf/{abs17,exc17}`.
+
 ## Deployment decision 2026-10 (Task 13)
 
 Pre-registered gate (fixed 2026-10-04, before any experiment numbers): against
