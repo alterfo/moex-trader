@@ -2202,3 +2202,37 @@ The nightly harness replayed the candidate and the deployed model without the ri
 - `-news-history` changes the result by 12 RUB: the live path masks `news_count`/`news_sentiment`, so the harness news input is inert for the model. The remaining 2000 RUB gap to the preflight is not decomposed; candidates are the per-ticker spread table derived from the trader audit DB (`-spread-db`, not available on the ai-box) and the market enricher.
 - `scripts/daily-retrain-box.sh` now passes the caps (read from `config.sandbox.yaml`) and the borrow rate, and `cmd/retrainreport` compares and thresholds the realized P&L net of borrow when the report has it. Regression tests: `TestParseMetricsPrefersRealizedNetOfBorrow`, `TestDailyScriptReplayMatchesPreflightRisk` (script rate equals `borrowcost.StressRatePerDay`).
 - Earlier nightly verdicts (2026-10-16, 2026-10-17) were produced without the caps; the 10-16 gate failure (candidate -1660 vs deployed +614 on hold30) is not recomputed here. The next nightly run (data to 2026-10-19) is the first on the aligned harness.
+
+## Seven hypotheses, part B, steps 11-13 (2026-10-19)
+
+Protocol from `docs/plans/20261018-seven-hypotheses.md` part B (commit 9811d0e, before running). Code: `scripts/hypo_wf.py`, `scripts/hypo-replay.sh`, `cmd/pricehist`. Data on the ai-box: `exportdataset` 2024-01-01..2026-10-19 with deadband 0 (18 tickers, FX excluded), prices from ISS; 13211 labelled rows after the 0.5% deadband filter, agreement of the rebuilt direction label with the dataset label 100%. 15 configurations (5 seeds x shifts 0/27/54, 63-day test folds from 2025-04-01 + shift, 6403 test rows per configuration), purged on `label_date`.
+
+A bug found and fixed before any result was recorded: the first run computed the per-date ranks among rows that survived the deadband filter, which depends on the future return. The ranks are now computed over all rows of the date before the filter; the first-run numbers (+0.0245) are not used.
+
+| Step | Variant | Base pooled AUC | Variant pooled AUC | Mean paired d | Positive pairs | Spearman p vs forward return (base / variant) |
+|---|---|---|---|---|---|---|
+| 11 | per-date ranks of the 15 price features + 3 momentum-minus-IMOEX features | 0.4905 | 0.5161 | +0.0256 (range 0.0156..0.0315) | 15/15 | -0.019 / +0.024 |
+| 12 | labels in volatility units (+/-0.5 sigma20*sqrt(10)), scored on the original label | 0.4905 | 0.5019 | +0.0114 (range 0.0057..0.0156) | 15/15 | -0.019 / +0.003 |
+| 13 | meta-model filter, top 30% of rows | n/a | n/a | AUC d -0.0004 | 4/15 | mean signed forward return of top 30%: base 0.2276%, meta 0.2654% (d +0.038 pp, positive in 6/15) |
+
+- Stage 1 verdict by the registered rule (mean d >= +0.005 and >= 12/15 positive): step 11 PASS, step 12 PASS, step 13 FAIL (needs +0.10 pp and 12/15).
+- The base recipe scores 0.4905 on these 15 configurations (range 0.479..0.498), i.e. at or below chance for the 2025-04..2026-10 period. Out-of-range share of test rows (|z| > 12 against the training fold) is 0.015% for both, so the serve-time range violation was not the mechanism of the step 11 gain in this evaluation.
+- The 15 configurations share the same data (shifts of 27 days overlap), so the positive-pairs counts overstate independence; the SD of the paired difference is 0.0043 (step 11) and 0.0025 (step 12).
+
+Stage 2 (csvprob replay of the walk-forward probabilities, windows q1..w1 of Task 5, seed 42, 0.60/0.40, 17 tickers, 1M deposit, 15000 RUB per position, costs 0.0005 x3, net caps 90000 and stress borrow as in the preflight, kill switch on), realized net of borrow in RUB:
+
+| Window | base | rank (11) | sigma (12) |
+|---|---|---|---|
+| q1 2025-03-05..06-05 | -10968 | -8035 | -7451 |
+| q2 2025-06-06..09-05 | -4057 | -6344 | -6168 |
+| q3 2025-09-06..12-03 | +2982 | +8685 | +12633 |
+| q4 2025-12-04..2026-03-04 | -11438 | -18071 | -7866 |
+| w2 2026-03-05..06-06 | -9831 | -2392 | -8606 |
+| w1 2026-06-07..09-16 | +37654 | +7198 | +29069 |
+| sum | +4342 | -18959 | +11611 |
+| worst max drawdown | 1.82% | 2.55% | 1.99% |
+| kill switch tripped | 0 | 0 | 0 |
+
+- Registered stage 2 rule (realized not below base and worst drawdown not above base + 0.5 pp = 2.32%): step 11 FAIL on both (sum -18959, drawdown 2.55%), step 12 PASS (sum +11611, drawdown 1.99%; better than base in 4 of 6 windows).
+- Reading: the rank features raise the rank correlation but lose money at 0.60/0.40; the volatility-unit labels give a small AUC gain and a better realized sum, but every figure is within replay noise (one seed, six windows, 2 of 6 windows positive for all three arms) and the absolute AUC of step 12 is 0.502. Passing grants the right to pre-register an integration; it does not replace `ensemble_model.json`.
+- Not tested: combining 11 and 12, other thresholds for the rank variant, more seeds in the replay.
