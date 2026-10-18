@@ -543,6 +543,20 @@ Realized P&L is closed-trade gross minus commission. Gate against the fresh same
 
 **Verdict: REJECTED.** H_predictability is rejected: the excess val-AUC advantage does not transfer to walk-forward; on the current stack excess is −0.034 mean val AUC vs absolute, and q1 excess AUC (0.4559) is below chance. H_income is rejected (fails criteria 1, 2, 4). The excess book does show the expected lower-beta profile: max DD ≤ 2.35% everywhere and total realized +9669.22 RUB > 0 — the label removes most of the beta income by design. Consequences: the excess model is not wired as challenger (the precondition in the plan was a positive H_predictability); the 2026-10-03 single-window AUC +0.040 is recorded as non-reproducible in the walk-forward protocol on the current stack. Persisted `-wf-dir` runs under `/home/oleg/moex-trader-task12/wf/{abs17,exc17}`.
 
+## Sell-bias diagnostic: event features, out-of-range guard, staleness (2026-10-18)
+
+Pre-registered in `docs/plans/20261018-sell-bias-diagnostic.md` before the runs. Data: `trader-sandbox.db` audit events (`ingest` payloads carry the full feature vector, `llm` payloads carry action/probability/hold_reason), 2026-09-16..10-18; ~38.3k decisions since the 2026-10-10 news-masking fix.
+
+D1 (descriptive). Live decisions by day: 09-23..10-09 ran ~4200-4800 SELL/day with near-zero HOLD (the news-feature train/serve skew documented 2026-10-10). From 10-10: ~3600-4200 HOLD/day and ~460-1200 SELL/day, 0 BUY. Post-fix hold_reason split: `out_of_range` ~50-60% of decisions, `model` ~30%, SELL ~14%. Post-fix probability bins: <0.40: ~31% (of which <0.35: ~10%), [0.40,0.60]: ~69%, >=0.60: 0.11% (42 decisions).
+
+D2 (guard). 100% of post-fix `out_of_range` blocks are `event_dividend` with z=14..38. The deployed `ensemble_model.json` carries mean=0/std=1/coef=0 for all 8 event features and both topic signals, and no tree references them — they cannot move the probability. The guard (added 2026-10-10 to catch the news blow-up) therefore vetoed decisions on features that do not influence the model: post-fix it swallowed 7138 would-SELL, 42 would-BUY (all VTBR — the only p>=0.60 decisions) and 14861 would-HOLD. Live pre-guard SELL share: (5202+7138)/38281 = 32.2%. **Verdict: the guard vetoes on structurally-untrained event features during dividend season.** Fix: `outOfRangeFeature` skips features with logistic coef==0 that no tree uses (`internal/model/ensemble.go`), regression test `TestEnsembleIgnoresUntrainedEventFeatures`; `TestEnsembleHoldsOnOutOfRangeFeature` (mom_21d=500) still vetoes. Deploying the fix to the live trader is a separate owner decision (watchdog restart).
+
+D3 (offline replay, deployed model, fixed guard, 2026-10-10..10-18, 136 decisions): 95 HOLD / 41 SELL / 0 BUY, p in [0.263, 0.597]. Replay SELL share 30.1% vs live pre-guard 32.2% (within the pre-registered ±10pp); replay BUY share 0% < 1%. **Verdict: the lean reproduces offline from data+model — not a serving-path defect.**
+
+D4 (fresh model, same recipe, trained till 2026-09-16, same window): 94 HOLD / 39 SELL / **3 BUY**, p in [0.254, 0.626]. BUY share 2.2% vs deployed 0% — the pre-registered criterion (+1pp) is met, but on 3 decisions it is weak evidence: **part of the 0-BUY is model staleness**; SELL shares match (28.7% vs 30.1%). No auto-swap; a manual retrain decision stays with the owner (AGENTS.md invariant).
+
+Conclusion: the residual post-fix sell-lean decomposes into (a) the out-of-range guard vetoing on untrained event features — fixed in code, not yet deployed; (b) the model's own p-distribution on recent data (>=0.60 in 0.11% live, 0% offline replay); (c) a small staleness component in the BUY tail (fresh model 2.2% BUY).
+
 ## Deployment decision 2026-10 (Task 13)
 
 Pre-registered gate (fixed 2026-10-04, before any experiment numbers): against
