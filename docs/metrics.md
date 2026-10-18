@@ -1727,3 +1727,32 @@ Pre-registered in `docs/plans/20261015-hypotheses-from-llm-review.md` (commit d4
 | outcome 2, worst close in 10d | 304 (113) | -4.15% | 1188 | -3.78% | -0.37% | [-1.71%, +0.92%] |
 
 Both intervals contain zero, so the pre-registered criterion is not met (the sample requirement of 200 decisions and 40 dates is met). Descriptive splits (CI 95%, not part of the criterion): thresholds 1, 2 and 5 articles give outcome-1 differences -0.62%, -0.30%, -0.08% and outcome-2 differences -0.46%, -0.29%, -0.20%, every interval contains zero; BUY only (191 burst decisions) -0.05% and -0.71%; SELL only (113 burst decisions) -1.23% and +0.05%, intervals contain zero. The point estimates lean toward a worse outcome after a burst but are far inside the noise; no news-based filter is justified by this data. Window: 5.5 months, one market regime; news carry no sentiment sign, only a count.
+
+## Data depth, step 1: training-history length (2026-10-18)
+
+Pre-registered in `docs/plans/20261018-data-depth-and-open-problems.md` (commits ae62a19, 878c3ae) before the run. Data: `exportdataset -from 2015-01-01 -till 2026-10-07 -horizon-days {10,20} -deadband-pct 0.5 -label-mode absolute`, 17 trading tickers, FX excluded, no news or macro, 15 price columns, 54017 rows per horizon. Protocol: `evalh.py` `wf()` unchanged (expanding purged walk-forward, 9 folds of 63 days from 2025-04-01, LightGBM + logistic average). Test rows are identical across arms (8064 at h10, 8177 at h20); only the training start differs. Run on the ai-box (`~/moex-research`), scripts `depth_eval.py`, `depth_boot.py`.
+
+| h | arm | train rows | pooled AUC | mean fold AUC | folds > 0.5 | Brier | ECE |
+|---|---|---:|---:|---:|---:|---:|---:|
+| 10 | A from 2024 | 4762 | 0.5005 | 0.5371 | 6/9 | 0.2564 | 0.0792 |
+| 10 | B from 2021 | 15490 | 0.4958 | 0.5102 | 6/9 | 0.2503 | 0.0410 |
+| 10 | C from 2018 | 24745 | 0.4921 | 0.5076 | 5/9 | 0.2519 | 0.0654 |
+| 10 | D from 2015 | 33548 | 0.5199 | 0.5287 | 6/9 | 0.2511 | 0.0734 |
+| 10 | E from 2015 excl. 2022-02-24..12-31 | 30542 | 0.5331 | 0.5378 | 6/9 | 0.2511 | 0.0809 |
+| 20 | A from 2024 | 4740 | 0.4696 | 0.4963 | 5/9 | 0.2645 | 0.1211 |
+| 20 | B from 2021 | 15752 | 0.4558 | 0.4754 | 5/9 | 0.2553 | 0.0759 |
+| 20 | C from 2018 | 25268 | 0.4539 | 0.4901 | 5/9 | 0.2561 | 0.0981 |
+| 20 | D from 2015 | 34331 | 0.4883 | 0.5111 | 5/9 | 0.2551 | 0.0919 |
+| 20 | E from 2015 excl. 2022-02-24..12-31 | 31284 | 0.4985 | 0.5025 | 5/9 | 0.2559 | 0.0977 |
+
+D minus A, pooled AUC, block bootstrap over trading dates (2000 repeats, seed 42): h10 +0.0194, CI95 [-0.0062, +0.0457], D beats A in 3 of 9 folds; h20 +0.0188, CI95 [-0.0037, +0.0420], 5 of 9 folds.
+
+Verdict against the pre-registered criteria:
+- Primary (D beats A by >= +0.010 pooled AUC on both horizons and more than half of folds > 0.5): met on the point estimates (+0.0194, +0.0188; 6/9 and 5/9 folds). It is not a swap decision: both intervals contain zero, and the pooled gain at h10 comes with a lower mean fold AUC (0.5287 vs 0.5371) and 3 of 9 fold wins.
+- Secondary (weak positive effect: lower CI bound > -0.002 and D beats A in >= 7 of 9 folds, per horizon): not met on either horizon (lower bounds -0.0062 and -0.0037; fold wins 3 and 5).
+- Monotonicity A, B, C, D is absent (B and C are below A in pooled AUC at both horizons); the gain appears only at 2015, which looks like the effect of more regimes, not of steady accumulation.
+- Absolute level stays at noise: best pooled AUC 0.5199 at h10 (arm D) and 0.4883 at h20, below 0.5. Deeper history does not make the 15 price features predictive on its own.
+- Calibration improves with depth: Brier falls 0.2564 -> 0.2511 (h10) and 0.2645 -> 0.2551 (h20), ECE 0.0792 -> 0.0734 and 0.1211 -> 0.0919 (arm B has the lowest ECE at both horizons). This matters for step 3, not as an alpha claim.
+- Arm E (without 2022) vs D: +0.0132 (h10) and +0.0102 (h20) pooled AUC, descriptive only; 2022 may be a regime that hurts a stationary model.
+
+Consequence: no model swap and no change to `ensemble_model.json`. Depth is recorded as "no reliable AUC effect, some calibration effect"; steps 3-5 may use the deep history for calibration, but the window question for the live model is open until a purged walk-forward through `cmd/backtest` with costs.
