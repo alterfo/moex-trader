@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/olegsidorkin/moex-trader/internal/backtest"
 	"github.com/olegsidorkin/moex-trader/internal/config"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
@@ -31,6 +33,7 @@ type options struct {
 	vocabSize            int
 	minDocFreq           int
 	maxTickersPerArticle int
+	minTurnover          string
 	learningRate         float64
 	l2Lambda             float64
 	epochs               int
@@ -80,7 +83,17 @@ func run(args []string, stdout io.Writer) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	minTurnover := decimal.Zero
+	if opts.minTurnover != "" {
+		parsed, err := decimal.NewFromString(opts.minTurnover)
+		if err != nil {
+			return fmt.Errorf("parse -min-turnover: %w", err)
+		}
+		minTurnover = parsed
+	}
+
 	weights, err := model.TrainNewsClassifier(ctx, source, articles, model.TrainNewsClassifierConfig{
+		MinTurnover: minTurnover,
 		HorizonDays: opts.horizonDays,
 		VocabSize:   opts.vocabSize,
 		MinDocFreq:  opts.minDocFreq,
@@ -185,6 +198,7 @@ func parseOptions(args []string) (options, error) {
 	fs.IntVar(&opts.vocabSize, "vocab-size", opts.vocabSize, "max bag-of-words vocabulary size")
 	fs.IntVar(&opts.minDocFreq, "min-doc-freq", opts.minDocFreq, "minimum document frequency for a token to enter the vocabulary")
 	fs.IntVar(&opts.maxTickersPerArticle, "max-tickers-per-article", 0, "drop ticker-headline pairs whose article maps to more than N tickers (0 = no filter); low values keep only company-specific news")
+	fs.StringVar(&opts.minTurnover, "min-turnover", "", "drop articles whose ticker's median 20-day turnover (RUB) on the publication day is below this value (empty = no filter)")
 	fs.Float64Var(&opts.learningRate, "learning-rate", opts.learningRate, "logistic regression learning rate")
 	fs.Float64Var(&opts.l2Lambda, "l2", opts.l2Lambda, "logistic regression L2 regularization strength")
 	fs.IntVar(&opts.epochs, "epochs", opts.epochs, "logistic regression training epochs")

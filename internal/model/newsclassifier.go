@@ -201,7 +201,15 @@ func trainSparseLogistic(rows []sparseSample, dim int, cfg TrainConfig) (weights
 // IMOEX across horizonDays trading days is positive, 0 otherwise. Entry is
 // the next trading day's open (so the label never uses information that
 // predates the article) and exit is the close horizonDays trading days later.
+type NewsLabelOptions struct {
+	MinTurnover decimal.Decimal
+}
+
 func BuildNewsLabels(ctx context.Context, source backtest.HistoricalSource, articles []NewsArticle, horizonDays int) ([]NewsTrainingSample, error) {
+	return BuildNewsLabelsWithOptions(ctx, source, articles, horizonDays, NewsLabelOptions{})
+}
+
+func BuildNewsLabelsWithOptions(ctx context.Context, source backtest.HistoricalSource, articles []NewsArticle, horizonDays int, opts NewsLabelOptions) ([]NewsTrainingSample, error) {
 	if source == nil {
 		return nil, errors.New("model: historical source is required")
 	}
@@ -255,6 +263,9 @@ func BuildNewsLabels(ctx context.Context, source backtest.HistoricalSource, arti
 				}
 			}
 			if pubIdx < 0 {
+				continue
+			}
+			if opts.MinTurnover.Sign() > 0 && !LiquidOn(candles, pubIdx, TurnoverWindow, opts.MinTurnover) {
 				continue
 			}
 			entryIdx := pubIdx + 1
@@ -388,6 +399,7 @@ type TrainNewsClassifierConfig struct {
 	MinDocFreq  int
 	Split       time.Time
 	TrainCfg    TrainConfig
+	MinTurnover decimal.Decimal
 }
 
 // TrainNewsClassifier builds forward-excess-return labels for articles, fits
@@ -395,7 +407,7 @@ type TrainNewsClassifierConfig struct {
 // reports train/validation AUC and accuracy (against a majority-class
 // baseline) on the split after it.
 func TrainNewsClassifier(ctx context.Context, source backtest.HistoricalSource, articles []NewsArticle, cfg TrainNewsClassifierConfig) (*NewsClassifierWeights, error) {
-	samples, err := BuildNewsLabels(ctx, source, articles, cfg.HorizonDays)
+	samples, err := BuildNewsLabelsWithOptions(ctx, source, articles, cfg.HorizonDays, NewsLabelOptions{MinTurnover: cfg.MinTurnover})
 	if err != nil {
 		return nil, err
 	}

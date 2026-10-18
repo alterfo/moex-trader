@@ -257,3 +257,36 @@ func TestLoadNewsClassifierMissingFile(t *testing.T) {
 		t.Fatal("LoadNewsClassifier() error = nil, want error for missing file")
 	}
 }
+
+func TestBuildNewsLabelsWithOptionsDropsIlliquidTickers(t *testing.T) {
+	baseDay := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	returns := make([]float64, 40)
+	returns[26] = 0.05
+	articles := []NewsArticle{{Ticker: "SBER", ArticleID: "a1", Title: "рост", PublishedAt: baseDay.AddDate(0, 0, 25)}}
+	build := func(turnover float64) datasetSource {
+		src := buildNewsTestSource("SBER", baseDay, returns)
+		for i := range src.series["SBER"] {
+			src.series["SBER"][i].Value = decimal.NewFromFloat(turnover)
+		}
+		return src
+	}
+	threshold := decimal.NewFromInt(10_000_000)
+
+	liquid, err := BuildNewsLabelsWithOptions(context.Background(), build(20_000_000), articles, 3, NewsLabelOptions{MinTurnover: threshold})
+	if err != nil || len(liquid) != 1 {
+		t.Fatalf("liquid ticker: %d samples, err %v, want 1", len(liquid), err)
+	}
+	illiquid, err := BuildNewsLabelsWithOptions(context.Background(), build(1_000_000), articles, 3, NewsLabelOptions{MinTurnover: threshold})
+	if err != nil || len(illiquid) != 0 {
+		t.Fatalf("illiquid ticker: %d samples, err %v, want 0", len(illiquid), err)
+	}
+	unfiltered, err := BuildNewsLabelsWithOptions(context.Background(), build(1_000_000), articles, 3, NewsLabelOptions{})
+	if err != nil || len(unfiltered) != 1 {
+		t.Fatalf("no filter: %d samples, err %v, want 1", len(unfiltered), err)
+	}
+	early := []NewsArticle{{Ticker: "SBER", ArticleID: "a2", Title: "рост", PublishedAt: baseDay.AddDate(0, 0, 5)}}
+	short, err := BuildNewsLabelsWithOptions(context.Background(), build(20_000_000), early, 3, NewsLabelOptions{MinTurnover: threshold})
+	if err != nil || len(short) != 0 {
+		t.Fatalf("less than 20 trailing days of history: %d samples, err %v, want 0", len(short), err)
+	}
+}

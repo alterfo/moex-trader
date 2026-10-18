@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/olegsidorkin/moex-trader/internal/backtest"
 	"github.com/olegsidorkin/moex-trader/internal/config"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
@@ -38,6 +40,7 @@ func run(args []string) error {
 	newsPath := fs.String("news", "", "news JSONL to score")
 	horizon := fs.Int("horizon-days", 3, "forward excess-return horizon in trading days")
 	outPath := fs.String("out", "news_scores.csv", "output CSV")
+	minTurnoverStr := fs.String("min-turnover", "", "drop articles below this median 20-day turnover in RUB (empty = no filter)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -83,7 +86,15 @@ func run(args []string) error {
 	}
 
 	source := backtest.NewISSSource(cfg.MOEXISSBaseURL, moex.NewClient(cfg.MOEXISSBaseURL, nil))
-	samples, err := model.BuildNewsLabels(context.Background(), source, articles, *horizon)
+	minTurnover := decimal.Zero
+	if *minTurnoverStr != "" {
+		parsed, err := decimal.NewFromString(*minTurnoverStr)
+		if err != nil {
+			return fmt.Errorf("parse -min-turnover: %w", err)
+		}
+		minTurnover = parsed
+	}
+	samples, err := model.BuildNewsLabelsWithOptions(context.Background(), source, articles, *horizon, model.NewsLabelOptions{MinTurnover: minTurnover})
 	if err != nil {
 		return err
 	}
