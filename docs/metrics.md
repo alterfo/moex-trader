@@ -2122,3 +2122,34 @@ Sample A, 549 labeled events on 76 dates, 0 unparsable answers; entry at the nex
 Against the registered criteria (AUC >= 0.55 and lower CI bound > 0.500, >= 200 events and >= 40 dates): h = 1 NOT met (0.5198), h = 10 NOT met (0.5482 is below 0.55 and the lower bound 0.4985 is below 0.5). h = 5 clears both numbers (0.5610, [0.5168, 0.6079]) but it was not a registered primary horizon and three horizons were read, so it is a hypothesis for the completed sample, not a pass. The momentum-extrapolation control is clean (|rho| = 0.18 < 0.3); the AUC barely moves inside prior-return terciles. Descriptive: the 232 non-neutral answers carry the signal (0.595 at h = 10, 0.622 at h = 5).
 
 Status: the registered primary verdicts are negative, but at h = 10 only by 0.002 AUC and by 0.0015 on the interval bound on a truncated, chronologically biased sample, so this is neither a closure nor an opening of H2. Consequences: H6 (LLM factor scores as ensemble features) and H9 stay unstarted; no LLM use on the trading path changes. To finish: resume `llmdirection` (appends by `ticker|article_id`) when the Ollama queue is free, complete A to 1200 and B to 1200, then rerun `-mode analyze -a A.csv -b B.csv`.
+
+## Seven hypotheses, step 9: why the live probabilities fell below 0.40 (2026-10-18)
+
+Pre-registered hypotheses P1-P3 in `docs/plans/20261018-seven-hypotheses.md` (commit "step 9 pre-registration", before the run). Window 2026-09-16..10-07 for P2/P3, 2026-07-20..10-07 for P1. Replays: deployed `ensemble_model.json` and a fresh recipe-A model (`train_till` 2026-09-16, `scripts/depth-candidate.sh` pipeline), `cmd/backtest -wf-dir`, 17 tickers. Diagnostic tool: `cmd/featureparity`.
+
+| hypothesis | measure | result | verdict |
+|---|---|---|---|
+| P1 feature extrapolation | Spearman of weekly mean p with weekly cross-sectional mean of mom_63d / dist_ma50_pct / rsi_14 (12 weeks): -0.40 / -0.24 / -0.37; share of window observations above the training 95th percentile: 4% / 6% / 7% (mom_21d: rho +0.08, 12%) | needs |rho| >= 0.6 and >= 25% outside | NOT accepted |
+| P2 staleness | p <= 0.40 share, 374 decisions: deployed 17.1%, fresh model 32.9% | needs fresh <= half of deployed | NOT accepted (the fresh model is more bearish) |
+| P3 base rate | share of rises over 10 days: training 0.451, window 0.487 (193 labels) | needs difference >= 15 pp | NOT accepted (3.6 pp) |
+
+None of the three explains the drift. What explains it was found afterwards (post-hoc, labeled as such, but checked on every day in the table):
+
+- The offline replay of the same model gives p <= 0.40 on 17.1% of decisions in 2026-09-16..10-07; the live audit gave 81-95% in ISO weeks 39-41. The live logged p was lower than the replay p by 0.18 on average (ticker-days 09-17..10-07, 357 pairs), and the gap grew from 0.04 (09-17) to 0.28 (10-02).
+- The live ingest vectors (audit stage `ingest`) differ from the dataset only in small constant indicator offsets (rsi_14 -3.0, realized_vol_21d_annualized -1.85, stoch_k_14 -2.3), worth -0.007 in mean p. Feature-level swaps in `cmd/featureparity` move p by at most 0.006.
+- The logged live p equals the model applied to the UNMASKED ingest vector (news_count up to 144 against a training mean 0.10 and std 0.70, news_sentiment against std 0.021) on every day from 09-20 to 10-09, and equals the model with `news_count`/`news_sentiment` masked to zero from 10-10 on:
+
+| day | logged live p | model on unmasked vector | model on masked vector |
+|---|---:|---:|---:|
+| 09-30 | 0.2160 | 0.2160 | 0.4556 |
+| 10-02 | 0.1903 | 0.1903 | 0.4759 |
+| 10-05 | 0.1901 | 0.1901 | 0.4696 |
+| 10-08 | 0.1504 | 0.1504 | 0.4094 |
+| 10-09 | 0.1752 | 0.1752 | 0.4191 |
+| 10-10 | 0.4043 | 0.1679 | 0.4519 |
+| 10-13 | 0.4651 | 0.1751 | 0.4651 |
+| 10-17 | 0.4572 | 0.1587 | 0.4572 |
+
+Cause: until 2026-10-09 the running trader evaluated the ensemble with `news_count` and `news_sentiment` that the model never trained on (training value 0), because the masking (`maskUntrainedFeatures`, commit f8f64a1, 2026-10-10) was not in the running build. The live news archive grew in volume, so the fed `news_count` grew and the logistic and tree members were pushed to SELL. From 10-10 the logged p is the masked one (0.41-0.48, almost no signals either way). The ai-box `trader` binary is dated 2026-10-06 16:31 UTC, before that fix.
+
+Revision of step 8: the "model nearly always bearish while IMOEX rose" in Q5 was this feed bug, not a property of the model. The live SELL executions of 09-17..10-09 (82 SELL executions against 4 in the replay of the masked model) came from the unmasked news features; step 8's replay (masked) is the better description of what the model alone would have done: -1820 RUB over 90 days, three idiosyncratic losers. The live sandbox P&L of 09-17..10-09 is the P&L of the model plus the news leak and has not been computed here.

@@ -69,4 +69,5 @@ Plan and pre-registered criteria: `docs/plans/20261018-seven-hypotheses.md`; all
 - News score (step 2): gross rank spread positive at 5 and 10 days (+0.21%, +0.43% per tranche) and concentrated on the negative side; no net edge after 0.60% tranche cost; liquidity split unsupported.
 - Sept-Oct 2026 (step 8): -1820 RUB on 117 trades over 90 days; three idiosyncratic losers explain it, beta and dividends do not; live decisions are 80-95% bearish (p <= 0.40) with no BUY signals while IMOEX rose 22%.
 - LLM direction (step 1/H2): interim only, see metrics; unfinished until Ollama is free.
+- Live feed bug (step 9, 2026-10-18): until 2026-10-09 the running trader fed unmasked `news_count`/`news_sentiment` (training value 0) into the ensemble, which pushed live p to 0.15-0.22 and SELL on 81-95% of decisions; the offline masked replay gave 17%. Logged p equals the model on the unmasked ingest vector on every day 09-20..10-09 and the masked one from 10-10. The ai-box binary (2026-10-06) predates the fix. Check build parity of every node whenever a feature-handling fix lands; `cmd/featureparity` reproduces the check from the audit DB.
 
