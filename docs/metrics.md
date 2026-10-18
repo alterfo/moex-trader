@@ -1828,3 +1828,37 @@ Slices at the primary horizon: articles mapped to at most 3 tickers, n 2781, AUC
 Verdict against the pre-registered criterion (val AUC >= 0.530 at 10 days with the lower CI bound above 0.500, at least 1000 samples and 40 dates): NOT met. AUC 0.528, lower bound 0.479; the sample requirement is met. Six times more training data (18375 vs 2855) moved validation AUC from 0.49-0.53 to 0.49-0.53: the train-validation gap (0.69 vs 0.53) is overfitting to vocabulary, not a data-volume problem. Recorded as "the Russian 2021-2024 archive does not give a directional headline signal on 2026"; the news feature is not added to the price model on this step, and the second stage of step 2 is not run.
 
 Post-hoc observation (not part of the criterion, not a result): at h10 the lowest score quintile has mean excess return -1.04% and positive share 0.406, while the other four quintiles sit at -0.09..-0.22% and 0.452-0.485. A one-sided negative-news effect would match the literature note in `docs/plans/20261015-hypotheses-from-llm-review.md` (H4); it needs its own pre-registration (short-side only, tail of the score) before any use.
+
+## Data depth, step 3: calibration across horizons and regimes (2026-10-18)
+
+Pre-registered in `docs/plans/20261018-data-depth-and-open-problems.md` (commit 68e79fa) before the run. Same datasets and folds as step 1 (9 purged folds of 63 days from 2025-04-01, 15 price columns, LightGBM + logistic average), horizons 5, 10, 20; training windows A (from 2024) and D (from 2015). Per fold the model is fit on the first 80% of training rows by date and the calibrator (Platt on the logit, or isotonic) on the last 20%, both strictly before the fold start. Run on the ai-box, script `calib_eval.py`. Pooled over the 9 folds.
+
+| h | window | method | ECE | Brier | AUC | folds with lower ECE than raw |
+|---:|---|---|---:|---:|---:|---:|
+| 5 | A | raw | 0.0439 | 0.2492 | 0.5512 | - |
+| 5 | A | Platt | 0.0866 | 0.2601 | 0.4392 | 2/9 |
+| 5 | A | isotonic | 0.0932 | 0.2615 | 0.4455 | 2/9 |
+| 5 | D | raw | 0.0649 | 0.2518 | 0.5271 | - |
+| 5 | D | Platt | 0.0194 | 0.2498 | 0.4542 | 4/9 |
+| 5 | D | isotonic | 0.0207 | 0.2526 | 0.4543 | 4/9 |
+| 10 | A | raw | 0.0514 | 0.2473 | 0.5549 | - |
+| 10 | A | Platt | 0.1488 | 0.2702 | 0.3988 | 3/9 |
+| 10 | A | isotonic | 0.1628 | 0.2725 | 0.4205 | 2/9 |
+| 10 | D | raw | 0.0896 | 0.2518 | 0.5465 | - |
+| 10 | D | Platt | 0.0416 | 0.2503 | 0.4130 | 5/9 |
+| 10 | D | isotonic | 0.0430 | 0.2507 | 0.4202 | 5/9 |
+| 20 | A | raw | 0.0701 | 0.2489 | 0.5512 | - |
+| 20 | A | Platt | 0.2348 | 0.3039 | 0.3578 | 2/9 |
+| 20 | A | isotonic | 0.2320 | 0.3058 | 0.3544 | 2/9 |
+| 20 | D | raw | 0.1069 | 0.2563 | 0.5190 | - |
+| 20 | D | Platt | 0.0415 | 0.2562 | 0.3250 | 4/9 |
+| 20 | D | isotonic | 0.0545 | 0.2545 | 0.3238 | 5/9 |
+
+Verdict against the pre-registered criterion (best calibrator lowers ECE by at least 20% with Brier not worse and pooled AUC within +-0.005, for all of h5, h10, h20 and both windows): NOT met on any of the six combinations.
+- Window A: both calibrators make ECE and Brier worse at every horizon (ECE x2 to x3.3).
+- Window D: ECE falls by 54-70% and Brier is level or slightly better, but AUC drops by 0.07-0.19. A calibrator that moves AUC from 0.52-0.55 to 0.32-0.45 has inverted the ranking: on the most recent 20% of training dates the base model's score is anti-correlated with the outcome, so the fitted monotone map takes a negative slope. This is a property of the calibration sample (a regime reversal between the last training months and the following test fold), not a coding artifact; the same thing explains why the folds-better count is 2-5 of 9.
+- Regimes: the high/low IMOEX volatility split works and is reported in `calib_result.txt`; the key-rate split is degenerate, the rate did not rise before any of the 9 test folds, so the "rate up" bucket is empty.
+- In this research ensemble the raw probabilities sit close to 0.5 (raw ECE 0.044-0.107), unlike the deployed ensemble whose tails reach 0.07 and 0.93 (Experiment C, ECE 0.21); the miscalibration that matters for the 0.60/0.40 thresholds is not reproduced here and needs the deployed artifact.
+- Sensitivity worth recording: the raw AUC of arm A in this table (0.551-0.555) is far above the same arm in step 1 (0.470-0.501), the only difference being that the last 20% of training rows are held out for the calibrator. A swing of up to 0.08 AUC from dropping the latest training months means every AUC difference of 0.01-0.02 in steps 1-3 is within recipe noise, and arm D is below A here (h10 0.5465 vs 0.5549, h20 0.5190 vs 0.5512). The step 1 "primary criterion met" is therefore not robust.
+
+Consequence: no calibrator is wired into the trader. Calibration stays a diagnostic until it is rerun on the deployed artifact with thresholds recomputed.
