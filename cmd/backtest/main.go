@@ -55,6 +55,8 @@ func run() error {
 	var spreadMinObs int
 	var borrowPctDayStr string
 	var maxNetExposureStr string
+	var maxNetShortStr string
+	var maxNetLongStr string
 	var sectorCapsStr string
 	var sectorsStr string
 	var lookbackDays int
@@ -100,6 +102,8 @@ func run() error {
 	flag.StringVar(&slippageStr, "slippage-pct", "0", "additional adverse slippage applied against each fill, as a fraction of price (e.g. 0.0005 = 0.05%)")
 	flag.StringVar(&borrowPctDayStr, "borrow-pct-day", "0", "short-borrow cost per day as a fraction of short-leg notional (e.g. 0.00005 = 0.005%)")
 	flag.StringVar(&maxNetExposureStr, "max-net-exposure", "0", "cap on aggregate signed net position notional in RUB (0 = disabled)")
+	flag.StringVar(&maxNetShortStr, "max-net-short", "0", "cap on aggregate short notional in RUB (0 = disabled)")
+	flag.StringVar(&maxNetLongStr, "max-net-long", "0", "cap on aggregate long notional in RUB (0 = disabled)")
 	flag.StringVar(&sectorCapsStr, "sector-caps", "", "sector exposure caps as sector=notional pairs, comma-separated (default: config risk.sector_caps)")
 	flag.StringVar(&sectorsStr, "sectors", "", "ticker-to-sector map as ticker=sector pairs, comma-separated (default: config risk.sectors)")
 	flag.IntVar(&lookbackDays, "lookback-days", 30, "max decision points per ticker (0 = unlimited)")
@@ -155,6 +159,14 @@ func run() error {
 	maxNetExposure, err := decimal.NewFromString(maxNetExposureStr)
 	if err != nil {
 		return fmt.Errorf("parse -max-net-exposure: %w", err)
+	}
+	maxNetShort, err := decimal.NewFromString(maxNetShortStr)
+	if err != nil {
+		return fmt.Errorf("parse -max-net-short: %w", err)
+	}
+	maxNetLong, err := decimal.NewFromString(maxNetLongStr)
+	if err != nil {
+		return fmt.Errorf("parse -max-net-long: %w", err)
 	}
 	var targetNotional decimal.Decimal
 	if targetNotionalStr != "" {
@@ -380,6 +392,8 @@ func run() error {
 		Deposit:               deposit,
 		MaxLots:               maxLots,
 		MaxNetExposure:        maxNetExposure,
+		MaxNetShort:           maxNetShort,
+		MaxNetLong:            maxNetLong,
 		SectorCaps:            sectorCaps,
 		Sectors:               sectors,
 		CommissionRate:        commissionRate,
