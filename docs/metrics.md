@@ -1995,3 +1995,22 @@ Pre-registered in `docs/plans/20261018-ticker-breaker-parity.md` (commit 0144c6e
 Sum of realized net of borrow over the three windows: off +28439.15, on +25943.92.
 
 Verdict by the registered rule: criterion not met on both parts (the gate window with the breaker is -3356.64, below the 1 RUB threshold; the three-window sum is lower with the breaker). The breaker does not rescue the gate. Side finding: `risk.Gate` rejects every order for a tripped ticker with `ticker_breaker_blocked`, including orders that would close the position, so a tripped ticker's open position is frozen. In the 10-18 window this moves roughly 8.2k RUB from realized to unrealized (MTM -2066 → +6139) and the realized figure, which is what the gate measures, gets worse. Whether blocking exits is intended for live is an open owner question; it is not changed here.
+
+## Seven hypotheses, step 2: news score decay by horizon and liquidity/sign split (H1, H4; 2026-10-18)
+
+Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (commit 1c43147 and the step 2 commit that follows it, before the run). `go run ./cmd/newsdecay -classifier news_classifier_h10.json -news <archive without "MOEX сайт-новости">`. Classifier retrained with the step 2c flags (`-split 2025-01-01 -horizon-days 10 -vocab-size 3000 -min-doc-freq 3 -max-tickers-per-article 3 -min-turnover 10000000`; train_samples 40413 as in 2c, val AUC 0.518). Test pairs 2025-03-01..2026-09-30: 40270 after the filters (25 seen in train removed), 13175 ticker-days with 20-day median turnover >= 10M RUB, 132 tickers, 575 dates (435 with >= 10 scored tickers). Rank-weighted cross-sectional portfolio per date (weights = demeaned rank, absolute weights sum to 1), gross of costs, entry at the next trading-day open after the MSK publication date, exit at the close h trading days later, excess over IMOEX; date-block bootstrap (block 10, 5000 repeats, seed 20261018). Bars on days without an IMOEX bar are dropped (weekend sessions), so counts differ from step 2c.
+
+| h (trading days) | dates | gross spread, % per tranche | CI95 | per day, % |
+|---:|---:|---:|---|---:|
+| 1 | 435 | +0.0944 | [+0.0210, +0.1706] | +0.0944 |
+| 2 | 435 | +0.1131 | [+0.0123, +0.2141] | +0.0565 |
+| 5 | 435 | +0.2116 | [+0.0700, +0.3603] | +0.0423 |
+| 10 | 435 | +0.4258 | [+0.2117, +0.6627] | +0.0426 |
+| 20 | 435 | +0.5401 | [+0.2352, +0.8645] | +0.0270 |
+
+- Primary criterion (H1: gross spread at h = 5 > 0, lower CI bound > 0, >= 100 dates): MET (+0.2116, [+0.0700, +0.3603], 435 dates). It is a gross figure; step 2g already showed that the 0.60% per tranche cost level removes it at h = 10 (gross 0.86% there on the older set), here h = 10 gross is +0.4258%, below 0.60%.
+- Decay: the per-day spread at h = 1 is 2.2 times the h = 10 one (+0.0944 vs +0.0426), which matches the registered "more than twice" descriptive wording, but the difference (+0.0518 per day) has CI95 [-0.0270, +0.1308], so front-loading is not established. The spread keeps growing with the horizon (0.09 -> 0.43 -> 0.54), so the effect does not vanish by day 5 or 10.
+- H4 liquidity: terciles by ticker median turnover, h = 10. Least liquid tercile +1.2117 [-0.2371, +3.1680] on only 33 dates (the filter leaves too few small names per date), middle +0.3495 [+0.0017, +0.6955] (339 dates), most liquid +0.3774 [+0.1508, +0.6342] (499 dates). Low minus high +0.8343 CI95 [-0.6336, +2.7335]: not significant, H4 liquidity part not supported.
+- H4 sign (h = 10): bottom score quintile mean excess -0.9441 [-1.5271, -0.4061], top quintile +0.2120 [-0.1156, +0.5333]; asymmetry |bottom| minus top +0.7321 CI95 [+0.0924, +1.3906]: significant, the negative-news side carries the effect, as in step 2g (short leg). Spot shorts are not available on the sandbook, so the long side is the tradable one and it is not distinguishable from zero.
+
+Verdict: H1 gross criterion met, H4 sign part supported, H4 liquidity part not supported. No trading conclusion: net of costs the step 2g result stands, and the tradable (long) leg is not significant.
