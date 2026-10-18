@@ -557,6 +557,17 @@ D4 (fresh model, same recipe, trained till 2026-09-16, same window): 94 HOLD / 3
 
 Conclusion: the residual post-fix sell-lean decomposes into (a) the out-of-range guard vetoing on untrained event features — fixed in code, not yet deployed; (b) the model's own p-distribution on recent data (>=0.60 in 0.11% live, 0% offline replay); (c) a small staleness component in the BUY tail (fresh model 2.2% BUY).
 
+## Manual retrain candidate (2026-10-18) — REJECTED, no swap
+
+Pre-registered in `docs/plans/20261018-manual-retrain.md` (owner-approved manual retrain). Candidate: same recipe as the deployed ensemble (absolute-10d, 18 features incl. news, 28-name order, 0.60/0.40), trained on a fresh export (`-from 2024-01-01 -till 2026-10-18`, 18 tickers incl. DATA, current 14619-record news archive) with `ENSEMBLE_TRAIN_TILL=2026-10-17`, embargo 10. Both models replayed through the HEAD engine (guard fix included), 17 tickers, 1M deposit, 15000₽/position, costs 0.0005×3, kill switch on.
+
+| window | deployed realized | candidate realized | deployed trades | candidate trades | deployed max DD | candidate max DD |
+|---|---|---|---:|---:|---:|---:|
+| hold30 (2026-09-17 -> 2026-10-17) | +583.21 | -3281.95 | 32 | 45 | 1.24% | 1.45% |
+| pre90 (2026-07-20 -> 2026-10-17) | +10419.63 | -1508.68 | 137 | 164 | 1.69% | 2.27% |
+
+Gate: candidate realized P&L >= deployed on hold30 (FAIL: -3281.95 vs +583.21) and on pre90 (FAIL: -1508.68 vs +10419.63). **No swap: `ensemble_model.json` stays.** The candidate's fresh BUY signals (2.2% vs 0% in the D4 diagnostic) are unprofitable in this window; extending the training window degrades the SELL side more than it repairs the BUY tail. Retrain again only via the same gate after at least a quarter of new data from 2026-10-17.
+
 ## Deployment decision 2026-10 (Task 13)
 
 Pre-registered gate (fixed 2026-10-04, before any experiment numbers): against
