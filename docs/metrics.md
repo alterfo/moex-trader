@@ -2037,3 +2037,21 @@ Interpretation under the registered rule: N95 = 0.0160 > 0.010, so every earlier
 What survives: a paired depth comparison. D beats A in all 15 paired configurations (+0.0112 .. +0.0272, mean +0.0203; per shift +0.024, +0.015, +0.022), so the +0.019 of depth step 1 is not a one-configuration accident. It is still a small gain from a level at the noise floor: recipe A's pooled AUC averages 0.483, below 0.5, and D reaches 0.492-0.520. Absolute predictability on the 2025-04..2026-10 test rows is not demonstrated for either recipe.
 
 Side observations, single seed each and not registered as criteria: lengthening the refit interval from 42 to 84 days raised pooled AUC from 0.493 to 0.514 on identical test rows; the pooled AUC below 0.5 for recipe A agrees with the autumn losses and is the subject of the planned post-mortem of September-October 2026.
+
+## Seven hypotheses, step 6: IMOEX regime mask on new BUY decisions (H11; 2026-10-18)
+
+Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (commit "step 6 pre-registration", before the run). `cmd/regimemask` rewrites the persisted probabilities of the six purged walk-forward windows (`wf-volscale`, 2025-03-05..2026-09-16, 7689 decisions) into a `csvprob` file; BUY decisions (p >= 0.60) on risk-off dates are removed. Replays: `cmd/backtest -signal-source csvprob -csv-buy-pct 0.60 -csv-sell-pct 0.40`, 17 tickers, deposit 1M, `-max-lots 1000 -target-notional 15000 -lookback-days 0`, commission/spread/slippage 0.0005 each, kill switch on, no borrow, no news.
+
+Reproduction check (registered: within +-10% of the Task 5 control +59829.47): unmasked csvprob sum of realized = +59539.41 (-0.5%), passed.
+
+| variant | risk-off dates / suppressed BUY | realized per window q1 q2 q3 q4 w2 w1 | sum realized | worst window max DD |
+|---|---|---|---:|---:|
+| none (control) | 0 / 0 | 4002, 53, 34089, -12339, 2676, 31057 | +59539.41 | 3.56% (q1, kill switch tripped) |
+| R1: IMOEX 1-day <= -2.0% | 27 / 168 | 4102, 53, 32505, -12339, 2705, 31645 | +58671.15 (98.5%) | 3.58% |
+| R2: IMOEX 5-day <= -5.0% (secondary) | 27 / 318 | 6942, 53, 28046, -12339, 2676, 50807 | +76184.13 (128%) | 3.49% |
+
+Window max DD, none / R1 / R2: q1 3.56 / 3.58 / 3.10, q2 3.49 / 3.49 / 3.49, q3 0.90 / 0.90 / 0.90, q4 2.46 / 2.46 / 2.46, w2 1.17 / 1.16 / 1.17, w1 3.05 / 2.86 / 1.82.
+
+Verdict on the registered primary criterion (R1; realized >= 0.80 of control, worst-window DD <= 0.90 of control, >= 10 risk-off dates and >= 5 suppressed BUY): NOT met. Realized (98.5%) and informativeness (27 dates, 168 BUY) pass; the worst-window drawdown does not move (3.58% vs 3.56%, ratio 1.006) because the worst window is q1, where R1 removes only 5 trades.
+
+Descriptive, not a verdict: R2 raises realized in two windows (q1 +2940, w1 +19750), lowers it in one (q3 -6043) and leaves three unchanged; w1 max DD falls 3.05% -> 1.82% and the q1 kill switch no longer trips, but the worst-window figure still only moves 3.56% -> 3.49% (ratio 0.98). R2 was not the registered primary and its threshold was not tuned; a gain concentrated in two windows (w1 is 26k of the 28k difference in sum) is not evidence of a stable gate. Any adoption (`internal/risk`) needs its own pre-registration with R2 as the primary and a window not used here.
