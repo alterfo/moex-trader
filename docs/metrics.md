@@ -2301,3 +2301,34 @@ Pre-registration unchanged (`docs/plans/20261018-seven-hypotheses.md`, step 1). 
 - H2 verdict (registered threshold AUC >= 0.55 with CI lower bound > 0.5): h = 1 0.511 and h = 10 0.526 on sample A, both fail; "zero-shot direction of the LLM on Russian headlines is not better than random" is recorded, H6 and H9 are closed without a run.
 - H3 (lookahead): B minus A at h = 10 is +0.0264, CI [-0.0175, +0.0695]; the registered leakage rule (difference >= +0.030 with the lower bound above zero) is not met, so no lookahead is detected. Sample B alone is above 0.5 at h = 5 and 10 (CI lower bounds 0.517 and 0.523), which is not part of the registered rule; the old archive is not cleared for calibration use on the strength of this.
 - The score correlates with the previous 5-day return on sample A (rho 0.263, below the 0.3 limit): part of the above-0.5 signal is trailing momentum, the tercile-aligned AUC on A is 0.50-0.52.
+
+## Seven hypotheses, part C, steps 18-21 (2026-10-19)
+
+Pre-registered in commit 1421331 before running. Code: `scripts/factors_wide.py`, `cmd/pricehist` (133 tickers of the TQBR board by traded value today, ISS daily bars from 2014-01-01, 285067 rows), runs on the ai-box. Costs 0.15% per side, borrow 0.005% per day on the short leg, entry at the next open, the 2022-02-25..2022-03-24 trading halt excluded. Splits are removed by treating one-day moves below -45% or above +80% as zero return. Caveat that applies to every row below: the universe is today's TQBR list, so delisted names are absent (survivorship bias, direction unknown for a long-short book and upward for long-only).
+
+### Step 18: cross-sectional factors on the wide universe (monthly = 21 bars, 103 periods 2016-2026; ML variants 79 periods from 2019-01)
+
+| Variant | Net mean per period | NW t (net) | Net Sharpe | Years positive | Post 2022-06 mean (43 periods) | Pre-2022 mean | Gross t | Verdict |
+|---|---|---|---|---|---|---|---|---|
+| V1 composite long-short quintile | +0.66% | 1.48 | 0.49 | 6/9 | +1.40% | +0.13% (60) | 2.50 | FAIL (t 2.5, Sharpe 0.5) |
+| V2 composite long minus universe | +0.43% | 1.94 | 0.61 | 8/9 | +0.64% | +0.29% (60) | 2.62 | FAIL (t 2.5 only) |
+| V3 LightGBM long-short | +0.71% | 1.63 | 0.61 | 6/7 | +1.22% | +0.11% (36) | 2.85 | FAIL (t 2.5) |
+| V4 LightGBM long minus universe | +0.34% | 1.20 | 0.49 | 5/7 | +0.70% | -0.08% (36) | 1.85 | FAIL |
+| V1 at 10-bar rebalancing | +0.41% | 1.70 | 0.51 | 6/9 | +0.41% | | 2.88 | descriptive |
+| V2 at 10-bar rebalancing | +0.18% | 1.34 | 0.44 | 5/9 | +0.21% | | 2.18 | descriptive |
+
+- Registered rule (four variants, Bonferroni t >= 2.5, plus Sharpe >= 0.5, >= 60% positive years, positive after 2022-06): none passes. V2 misses by t only (1.94). The composite has no fitted parameters (five textbook signals, equal weights), so its results are out-of-sample in the sense of no tuning on this data, but the five signals were chosen from the literature before looking.
+- The gain sits almost entirely after 2022: V1 +0.13% per period before the halt (60 periods, indistinguishable from zero) against +1.40% after (43 periods). Annual net sums of V1: 2017 -3.7%, 2018 +31.9%, 2019 -13.7%, 2020 +4.3%, 2021 -10.8%, 2023 +16.1%, 2024 +6.4%, 2025 +16.8%, 2026 (to October) +21.0%. A regime-dependent effect from 43 post-2022 periods is a lead, not a result.
+- Turnover per rebalance is about 100% of the long leg for the composite (125% for the LightGBM variants); the gross t-statistics (2.5-2.9) lose about one point to costs.
+
+### Step 19: preferred-common pairs (6 pairs with both legs >= 1000 bars: MTLR, PMSB, RTKM, SBER, SNGS, TATN; 2016-2026)
+
+Portfolio (equal capital per pair): net mean +0.0058% per day, NW t 0.77, Sharpe 0.24, positive in 8 of 11 years, max drawdown -25.8%, total +14.8%. Per pair t-statistics: MTLR 0.12, PMSB 1.23, RTKM 0.29, SBER 0.31, SNGS -0.39, TATN 1.32. Registered rule (t >= 2.0, Sharpe >= 0.7): FAIL. The spread converges too slowly for the 0.6% round-trip cost over 4 legs.
+
+### Step 20: overnight against intraday (equal-weight liquid universe)
+
+Overnight (previous close to open) mean +0.082% per day, NW t 10.0; intraday (open to close) -0.036% per day, t -1.6. By year (overnight / intraday, % per day): 2016 0.039/0.138, 2017 0.052/-0.065, 2019 0.041/0.021, 2021 0.110/-0.058, 2023 0.188/-0.028, 2024 0.106/-0.151, 2025 0.129/-0.151, 2026 0.093/-0.189. The overnight return is positive in every year; the intraday return has been negative since 2024. A buy-the-close/sell-the-open strategy needs a gross daily mean of at least 0.30%; it is 0.08% (best year 0.19%): not tradable at these costs (registered rule). Not verified: whether the ISS daily candle open/close definition (main session only, evening session in the overnight leg) explains part of the asymmetry.
+
+### Step 21: risk-free hurdle
+
+Key rate (`data/macro/keyrate.csv`): 14% on 2026-10-09; between 14% and 21% since 2025-04. Compounded daily at the key rate, 1,000,000 RUB earns 95,947 RUB over 2025-04-01..2025-09-16, 180,378 RUB over 2025-09-17..2026-10-18, 293,632 RUB over 2025-04-01..2026-10-18 and 12,347 RUB over the last month 2026-09-17..10-18. The LQDT money-market fund returned +4.59% over 2026-06-22..2026-10-18 (118 days, about 14% annualised; ISS history for the current series starts 2026-06-22). The realized sums in parts B and C (single windows of a few thousand to tens of thousands RUB on 1M) are an order of magnitude below this carry; the deployed strategy's sandbox equity change was -25,395 RUB over 2025-09-17..2026-10-18 against +180,378 RUB at the key rate.
