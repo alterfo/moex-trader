@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,7 +26,8 @@ const newsUserAgent = "Mozilla/5.0 (compatible; moex-trader/1.0)"
 const SourceTypeMOEXSiteNews = "moex_sitenews"
 
 type Fetcher struct {
-	httpClient *http.Client
+	httpClient      *http.Client
+	TelegramBaseURL string
 }
 
 func NewFetcher(httpClient *http.Client) *Fetcher {
@@ -328,6 +330,72 @@ func (f *Fetcher) FetchTelegram(ctx context.Context, source Source, since time.T
 		before = nextID
 	}
 	return articles, nil
+}
+
+type TelegramPost struct {
+	Channel     string
+	ID          int64
+	PublishedAt time.Time
+	Text        string
+}
+
+const defaultTelegramBaseURL = "https://t.me"
+
+func (f *Fetcher) FetchTelegramPage(ctx context.Context, channel string, before int64) ([]TelegramPost, error) {
+	if strings.TrimSpace(channel) == "" {
+		return nil, fmt.Errorf("telegram page: empty channel")
+	}
+	base := f.TelegramBaseURL
+	if base == "" {
+		base = defaultTelegramBaseURL
+	}
+	reqURL := base + "/s/" + channel
+	if before > 0 {
+		reqURL += "?before=" + strconv.FormatInt(before, 10)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build telegram request %q: %w", reqURL, err)
+	}
+	req.Header.Set("User-Agent", newsUserAgent)
+	resp, err := f.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("get telegram channel %q: %w", channel, err)
+	}
+	body, readErr := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return nil, &TelegramStatusError{Channel: channel, Status: resp.StatusCode}
+	}
+	if readErr != nil {
+		return nil, fmt.Errorf("read telegram channel %q: %w", channel, readErr)
+	}
+	raw, err := parseTelegramPage(body)
+	if err != nil {
+		return nil, fmt.Errorf("parse telegram channel %q: %w", channel, err)
+	}
+	posts := make([]TelegramPost, 0, len(raw))
+	for _, p := range raw {
+		idPart := p.postID
+		if i := strings.LastIndexByte(idPart, '/'); i >= 0 {
+			idPart = idPart[i+1:]
+		}
+		id, err := strconv.ParseInt(idPart, 10, 64)
+		if err != nil {
+			continue
+		}
+		posts = append(posts, TelegramPost{Channel: channel, ID: id, PublishedAt: p.publishedAt, Text: p.text})
+	}
+	return posts, nil
+}
+
+type TelegramStatusError struct {
+	Channel string
+	Status  int
+}
+
+func (e *TelegramStatusError) Error() string {
+	return fmt.Sprintf("get telegram channel %q: unexpected status %d", e.Channel, e.Status)
 }
 
 type telegramPost struct {

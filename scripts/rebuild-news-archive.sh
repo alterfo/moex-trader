@@ -23,6 +23,9 @@ for f in news_all.jsonl news_backfill.jsonl live/news_merged.jsonl live/wires.js
   [ -f "$NEWSSENT/$f" ] && ARGS+=(-jsonl "$NEWSSENT/$f")
 done
 [ -n "$ISS_CONVERTED" ] && ARGS+=(-jsonl "$ISS_CONVERTED")
+for f in "$ROOT"/data/news_raw_tg*.jsonl; do
+  [ -f "$f" ] && ARGS+=(-jsonl "$f")
+done
 
 "$WORK/newsimport" "${ARGS[@]}"
 "$WORK/newsclean" -in "$WORK/merged.jsonl" -out "$WORK/clean.jsonl" -quarantine "$WORK/quarantine.jsonl"

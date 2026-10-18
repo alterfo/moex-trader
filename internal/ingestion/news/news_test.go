@@ -2,6 +2,7 @@ package news
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -398,5 +399,47 @@ func TestMatcherIndustryRulesTagDieselNewsAsIndirectOilTickers(t *testing.T) {
 	}
 	if got := NewMatcher(DefaultAliases()).Match([]Article{article}); len(got) != 1 {
 		t.Fatalf("without industry rules got %d matches, want 1", len(got))
+	}
+}
+
+func TestFetchTelegramPageParsesPostsAndPassesBefore(t *testing.T) {
+	var gotPath, gotBefore string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotBefore = r.URL.Query().Get("before")
+		_, _ = w.Write([]byte(`<html><body>
+<div class="tgme_widget_message_wrap"><div class="tgme_widget_message" data-post="somech/101">
+<div class="tgme_widget_message_text">Первый пост</div><time datetime="2025-02-03T04:05:06+00:00"></time></div></div>
+<div class="tgme_widget_message_wrap"><div class="tgme_widget_message" data-post="somech/102">
+<div class="tgme_widget_message_text">Второй пост</div><time datetime="2025-02-03T05:05:06+00:00"></time></div></div>
+</body></html>`))
+	}))
+	defer server.Close()
+
+	f := NewFetcher(nil)
+	f.TelegramBaseURL = server.URL
+	posts, err := f.FetchTelegramPage(context.Background(), "somech", 150)
+	if err != nil {
+		t.Fatalf("FetchTelegramPage() error = %v", err)
+	}
+	if gotPath != "/s/somech" || gotBefore != "150" {
+		t.Fatalf("request path %q before %q", gotPath, gotBefore)
+	}
+	if len(posts) != 2 || posts[0].ID != 101 || posts[1].ID != 102 || posts[0].Text != "Первый пост" || posts[0].PublishedAt.IsZero() || posts[0].Channel != "somech" {
+		t.Fatalf("unexpected posts %+v", posts)
+	}
+}
+
+func TestFetchTelegramPageReportsStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/elsewhere", http.StatusFound)
+	}))
+	defer server.Close()
+	f := NewFetcher(&http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }})
+	f.TelegramBaseURL = server.URL
+	_, err := f.FetchTelegramPage(context.Background(), "closed", 0)
+	var status *TelegramStatusError
+	if !errors.As(err, &status) || status.Status != http.StatusFound {
+		t.Fatalf("expected a status error, got %v", err)
 	}
 }

@@ -27,4 +27,5 @@
 # ToS-restricted sources (see AGENTS.md) — keep local, never redistribute.
 data/news_history.jsonl
 data/news_quarantine.jsonl
+data/news_raw_tg*.jsonl
 news_history.jsonl
