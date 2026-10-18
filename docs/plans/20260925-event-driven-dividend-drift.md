@@ -1,6 +1,7 @@
 # Pre-registered protocol: event-driven dividend-drift study (2)
 
-Status: PROTOCOL ONLY. No numbers exist yet for this study. Acceptance bar is
+Status: EXECUTED 2026-09-25, REJECTED (header updated 2026-10-18; it read PROTOCOL ONLY). Results: `docs/metrics.md`
+"Dividend capture event-study (2) - REJECTED 2026-09-25". Original text: no numbers existed when this was written; the acceptance bar is
 fixed below BEFORE the first run; this document is the read-before-numbers
 gate for both sessions (peer review required before results are reported).
 
