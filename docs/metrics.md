@@ -1961,3 +1961,20 @@ Quarterly AUC at 10 days: 2025Q2 0.564 (3118 samples), 2025Q3 0.520, 2025Q4 0.47
 Verdict against the pre-registered criterion (AUC >= 0.530 and the lower CI bound above 0.500, at least 1000 samples and 40 dates, AUC >= 0.5 in at least 4 of 6 quarters, permutation control inside [0.48, 0.52]): NOT met at any horizon. The control and the sample requirements pass everywhere; the AUC bar fails (0.5234, 0.5212, 0.4963), and at 1 day there is no effect. 
 
 Descriptive, and the reason this is not the same null as steps 2 and 2b: with 19-24 thousand samples over 380-470 dates the 10-day and 5-day intervals lie entirely above 0.5, which the earlier 1.4-2.8 thousand sample tests could not show. The effect is small (about +0.02 AUC), unstable across quarters (0.48-0.59 at 10 days), carried almost entirely by Telegram posts, and measured on pairs that are not independent (several channels repost the same wire; the bootstrap blocks by date but not across neighbouring days), so the interval is optimistic. No economic claim follows: AUC 0.52 says nothing about returns net of costs. By the registered rule the news direction stays closed as a trading signal; reopening it needs its own pre-registration with a net-of-cost portfolio test (for example a score-ranked long-short of liquid names with the cost model of step 1), not an ad hoc threshold change.
+
+## Data depth, step 2g: news score net of costs (2026-10-18)
+
+`go run ./cmd/newsportfolio -scores scores_h10.csv` on the step 2c scores (classifier trained before 2025-03-01, horizon 10 trading days, turnover ≥ 10M RUB). Pre-registered in `docs/plans/20261018-data-depth-and-open-problems.md` (commit 8a925ef, before the run). Ticker-day score = mean of article scores; per date with ≥ 10 scored tickers (226 dates, 2025-03-17..2026-10-05) long the top quintile, short the bottom quintile, equal weights, 10-day hold, one tranche per date; cost 0.15% per fill (0.30% round trip per leg, 0.60% per tranche), no short borrow; date-block bootstrap, block 10, 5000 reps, seed 20261018.
+
+| quantity | value |
+|---|---|
+| gross long-short spread per tranche | +0.863% |
+| break-even cost per side | 0.216% |
+| net at 0.15%/side (primary) | +0.263%, CI95 [-0.305, +0.930], pass = false |
+| net at 0.10%/side | +0.463%, CI95 [-0.105, +1.130] |
+| net at 0.20%/side | +0.063%, CI95 [-0.505, +0.730] |
+| long-only top quintile, net of 0.30% round trip | +0.045%, CI95 [-0.258, +0.350] |
+| quintile mean 10d excess, low to high score | -0.518, -0.385, -0.012, +0.206, +0.280 (%) |
+| quarterly net (primary cost) | -0.23, +0.48, -0.55, -0.74, -0.23, +2.40, +0.48, -0.25 (%, 7-50 dates each) |
+
+Verdict by the registered rule: criterion not met (lower CI bound below 0 at every cost level). The quintiles are monotone and the point estimate of the net spread is positive, but the interval is wide, 5 of 8 quarters are negative and one quarter (2026Q2, +2.40%) carries the mean. The long-only leg earns nothing after costs; the spread comes from the short leg (bottom quintile -0.52%), which is the part that is not tradable here (no borrow cost modelled, spot shorts not available on the sandbox book). The news branch stays closed as a trading signal; reopening needs an independent period after 2026-10-05.
