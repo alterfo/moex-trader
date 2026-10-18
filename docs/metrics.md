@@ -570,6 +570,23 @@ Pre-registered in `docs/plans/20261018-manual-retrain.md` (owner-approved manual
 
 Gate: candidate realized P&L >= deployed on hold30 (FAIL: -3281.95 vs +583.21) and on pre90 (FAIL: -1508.68 vs +10419.63). **No swap: `ensemble_model.json` stays.** The candidate's fresh BUY signals (2.2% vs 0% in the D4 diagnostic) are unprofitable in this window; extending the training window degrades the SELL side more than it repairs the BUY tail. Retrain again only via the same gate after at least a quarter of new data from 2026-10-17.
 
+## Preflight-concentration analysis (2026-10-18)
+
+Pre-registered in `docs/plans/20261018-preflight-concentration.md` (owner chose "stop and investigate" after the gate refused the live config). `cmd/backtest` gained `-max-net-short`/`-max-net-long` so the gate replay is reproducible; gate-shaped replays (90d rolling, 17 tickers, 1M deposit, costs 0.0005×3 + per-ticker spreads from `trader-sandbox.db`, borrow 0.00005/day, caps 90000/90000, kill switch on, deployed `ensemble_model.json`, no news — exactly like the live gate) give realized gross +9843.33 (till 10-14) → +3637.89 (till 10-16) → **-1990.32** (till 10-18), matching the gate's own decline (+7156 → +602 → -4859 net of borrow; the CLI lacks lot quantization, hence the level offset). ISS has no bars for 10-17/10-18, so the decline is the left boundary of the rolling window, not new bars.
+
+Closed trades of the till-10-18 gate replay, by close month (realized net, RUB):
+
+| month | trades | sum | mean per trade |
+|---|---:|---:|---:|
+| 2026-07 | 20 | +414.93 | +20.75 |
+| 2026-08 | 35 | +2828.55 | +80.82 |
+| 2026-09 | 37 | -4821.86 | -130.32 |
+| 2026-10 | 24 | -411.94 | -17.16 |
+
+By ticker: OZON +4952.20 (3), MGNT +1444.44 (1), GAZP +885.65 (10), SBER +594.66 (14), VTBR +237.61 (19), RUAL +78.45 (10), TATN +65.69 (10), T -32.16 (4), MTSS -48.65 (9), LKOH -100.52 (3), GMKN -171.25 (8), ROSN -697.07 (6), NVTK -992.47 (4), POSI -1367.08 (3), CHMF -2331.33 (5), **PLZL -4508.49 (7)**. Daily series (84 days): 28 negative days sum -14480.71; top-10 positive days sum ~12000 (top day 2026-08-25 +3988.12).
+
+Verdicts against the pre-registered hypotheses: **I1 (day concentration)** — partially confirmed: positives are month-concentrated (Jul-Aug) rather than day-concentrated; the top day is 33% of positive days' total. **I2 (recent decay)** — CONFIRMED: September is deeply negative (-4821.86, mean -130.32/trade), concentrated in PLZL/CHMF/POSI/NVTK; October still negative. **I3 (self-recovery)** — NOT expected soon: the window keeps dropping profitable August days while September losses stay inside until December; the rolling sum drifts further negative before stabilizing. The live book was protected because live news populates `event_dividend` and the `out_of_range` guard vetoes those decisions — the gate replays without news, so it measures the unvetoed book, which September defeats. Fixing this is a model-quality problem (September regime), not a gate problem: do not loosen the threshold.
+
 ## Deployment decision 2026-10 (Task 13)
 
 Pre-registered gate (fixed 2026-10-04, before any experiment numbers): against
