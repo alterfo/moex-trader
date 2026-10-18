@@ -51,3 +51,17 @@ LLM veto for incident shorts (2026-10-14, owner-approved exception to the 2026-0
 ## Classifier retrained on the 2021-2024 archive (2026-10-18)
 
 - `Kasymkhan/RussianFinancialNews` imported with `cmd/newsimport` (Apache 2.0, 91955 rows, dense from 2021; 97% of the imported records have a date but no time, `BuildNewsLabels` enters on the next day's open so there is no same-day lookahead). Training samples 2855 -> 18375, validation on 2026-04..10 still AUC 0.486-0.528 at 1/5/10 days (`docs/metrics.md`, "Data depth, step 2"). The dead-classifier verdict stands: the limit is not the sample count. `cmd/newsvalidate` dumps per-sample scores for bootstrap checks.
+
+## LLM in the risk contour: rules and gaps (2026-10-18)
+
+Rules that already hold in code (do not loosen without the owner):
+- The LLM never creates a position and never touches the model's BUY/SELL: `internal/incidentcheck` can only confirm (`damage`) or cancel an incident short; `no_damage`, `unclear`, empty headline list, error or timeout all mean no trade (`cmd/trader/incidentcheck.go`). The deterministic gates (risk gate, kill switch, `max_net_short`, news veto) run after it and cannot be overridden by it.
+- Failure is closed: an unreachable checker opens nothing and backs off 10 minutes; an empty `news.incident_check_url` disables the path entirely and reverts to the deterministic detector.
+- Exception scope: owner-approved 2026-10-14 for incident shorts only; any other use of an LLM on the trading path needs a new approval (2026-09-15 decision).
+
+Gaps found on 2026-10-18 (not fixed, they touch the trader path and need a decision):
+- Audit: a verdict is written only to the text log as `ticker, verdict, reason`. The headlines sent, the model name and version, the raw response and the prompt hash are not persisted, so a decision cannot be reconstructed after the fact. Proposed: one JSONL record per check (UTC time, ticker, model, prompt hash, headlines, raw content, parsed verdict, outcome) next to `news.exit_state_path`, with a regression test that a record exists for every outcome including error.
+- Reproducibility: the model is addressed by tag (`qwen3.8:latest`), so a pull silently changes behaviour. Proposed: pin the digest in config and log it with each record.
+- No quality monitor: the share of `damage` verdicts and their later price outcome are not tracked, so drift of the checker cannot be seen. H5 and H12 in `docs/plans/20261015-hypotheses-from-llm-review.md` cover the checks to run on the verdict log once it exists.
+
+Localization status (what is and is not Russian-specific): Cyrillic-aware incident and topic detectors (`[а-яё]*`, not `\w`), Russian sources (RBC, Vedomosti, Interfax, CBR, MOEX notices), exchange calendar and CBR key-rate series. Measured limit: a bag-of-words headline classifier trained on 18375 Russian samples (2021-2024) shows no directional signal on 2026 (`docs/metrics.md`, "Data depth, step 2"); zero-shot LLM direction on Russian headlines (H2) has not been run. Localization is therefore done for detection and filtering, not for sentiment-as-alpha.
