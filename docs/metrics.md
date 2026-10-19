@@ -41,6 +41,10 @@ Results dated up to 2026-09-17 (ledger rows, sections 3.1-3.4, 5.1-5.2) were pro
 
 Metric-bearing changes are committed immediately. A session reads metrics from `HEAD` or from an explicitly requested uncommitted file; an empty `git log -S` search does not prove absence while the working tree has uncommitted changes.
 
+### 0.6 Structural stability and boundary optima
+
+A conclusion drawn from one specification (one seed, one window split, one cost level, one universe definition) is a hard-model conclusion and counts as evidence only if it survives a declared family of small perturbations (see [knowledge/soft-models-and-optimization.md](knowledge/soft-models-and-optimization.md)). Results here are therefore read as stable-pass, stable-fail or unstable; an unstable result is "no finding". Records of instability in this file: the composite factor rule at t 3.67 on the survivor panel against 1.42 on the point-in-time panel (section 8.5), the volatility-unit labels of step 12 not confirmed in step 17 (section 6.7), the 0.08 AUC swing from holding out 20% of training rows (section 6.4), and the sign change of the ridge long-short book under higher borrow (section 8.6). A parameter tuned to a historical optimum sits at the edge of its stability region: the non-monotonic cliff of the exposure cap (section 5.7) is the example, and new studies report a chosen value with its grid neighbours and flag it as a boundary optimum when a neighbour loses more than half of the realized P&L or changes its sign.
+
 ## 1. Metrics ledger
 
 Formal single source of truth for headline P&L numbers. Column order is pre-registered in the strategy-validation plan: `window | realized vs MTM | artifact (commit) | costs | date`. Realized P&L is gross minus commission and borrow; MTM never drives a go/no-go. Historical rows where the original run did not record a field are marked `not recorded` and must be re-verified before reuse. The format is linted by `internal/metricsdoc`.

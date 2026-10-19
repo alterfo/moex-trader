@@ -17,6 +17,7 @@ The index was compiled on 2026-10-18 from the file headings and the sections of 
 | `20261010-news-exit-tuning-and-buy-side.md` | PLANNED, blocked by data |
 | `20260927-moex-pulse.md` | No status in the file, all tasks unchecked (a cloud layer for serving signals); check whether the plan is alive |
 | `20261019-core-rerun.md` | Draft pre-registration (2026-10-19): rerun of the key core of `docs/metrics.md` on refreshed data, result as a paper in `docs/research/`; data inventory verified, freeze date `D` and first run pending |
+| `20261020-structural-stability-candidates.md` | Draft pre-registration (2026-10-20, English only): state-dependent sizing, decision-chain ablation audit, first-digit data-quality diagnostic; from the Arnold note in `docs/knowledge/` |
 
 ## Closed experiments still lying in the plans root
 
