@@ -16,6 +16,7 @@ The index was compiled on 2026-10-18 from the file headings and the sections of 
 | `20261018-gate-failure-remediation.md` | Acceptance protocol accepted by the owner on 2026-10-18; nothing run on the live path; the current model stays forbidden to start until a candidate passes the protocol |
 | `20261010-news-exit-tuning-and-buy-side.md` | PLANNED, blocked by data |
 | `20260927-moex-pulse.md` | No status in the file, all tasks unchecked (a cloud layer for serving signals); check whether the plan is alive |
+| `20261019-core-rerun.md` | Draft pre-registration (2026-10-19): rerun of the key core of `docs/metrics.md` on refreshed data, result as a paper in `docs/research/`; data inventory verified, freeze date `D` and first run pending |
 
 ## Closed experiments still lying in the plans root
 
