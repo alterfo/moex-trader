@@ -57,6 +57,12 @@ Studies outside the core (calendar effects, cycles, ICA portfolio, level crossin
 
 Resources: the ai-box GPU is nearly full (the local qwen3.8 model is resident, 22693 of 24564 MiB used), so R3's zero-shot LLM study cannot run in parallel with other GPU jobs; the sandbox trader stack and cron jobs (`factor_shadow.py`, `ridge_probs.py`, trade recorder) are live and must not be disturbed. Research output goes to a new directory outside the deploy tree.
 
-## Open items to settle before the first run
+## Decisions fixed before the first run (2026-10-20)
 
-The freeze date `D` (the latest common data point is 2026-10-16 for prices, 2026-10-18 for news); which of the closest variants in R2 are rerun if time is short (priority: control, C-logistic, F); the seeds of R1 (seed 42 plus the five seeds of step 17).
+- **Freeze date `D` = 2026-10-16** (the latest trading day common to the price snapshots and the ridge table). The news archive reaches 2026-10-18 but is cut at `D` for every fit; articles after `D` belong to the forward window.
+- **Forward window**: rows dated 2026-10-17 and later (none for prices at the time of writing; accrues daily).
+- **Research directory**: `~/moex-rerun/` on the ai-box (outside the deploy tree and outside `~/moex-research/`, which stays as the record of the original runs); binaries are built from the repository commit recorded in the paper (first staging: `40e94ca`).
+- **R1 seeds**: 42 plus the five seeds 0-4 of step 17; configurations as in section 3.6 of `docs/metrics.md`.
+- **R2 priority if time is short**: control, C-logistic, F, then B and E.
+- **News source for R3**: `~/moex-trader-daily/work/news_history.jsonl` (merged archive), copied to the research directory before use so the live cron cannot move it.
+- **Ridge table for R4/R5**: regenerated from the refreshed panel; the daily cron copy is not used.
