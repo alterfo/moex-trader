@@ -42,9 +42,11 @@ def main():
     d = idx[-1]
     sc = c2.iloc[-1][elig.iloc[-1]].dropna().sort_values()
     k = max(1, len(sc) // 5)
+    h52 = z["high52"].iloc[-1][elig.iloc[-1]].dropna().sort_values()
+    kh = max(1, len(h52) // 5)
     n_days = int(((idx >= anchor) & (idx <= d)).sum())
     rec = dict(date=d.strftime("%Y-%m-%d"), n_eligible=int(len(sc)), rebalance=bool(n_days > 0 and (n_days - 1) % REBAL == 0),
-               long=list(sc.index[-k:][::-1]), short=list(sc.index[:k]), scores={t: round(float(v), 4) for t, v in sc.items()})
+               long=list(sc.index[-k:][::-1]), short=list(sc.index[:k]), long_h52=list(h52.index[-kh:][::-1]), scores={t: round(float(v), 4) for t, v in sc.items()})
     seen = set()
     try:
         with open(out) as fh:

@@ -1,3 +1,4 @@
+import os
 import sys
 import json
 import numpy as np
@@ -26,6 +27,10 @@ def load(path):
         px = px[px["close"] > 0]
         cal = px[px.ticker == "IMOEX"]["date"].sort_values().unique()
         px = px[px["date"].isin(cal)]
+    exclude = os.environ.get("FW_EXCLUDE")
+    if exclude:
+        drop = set(open(exclude).read().replace("\n", ",").split(","))
+        px = px[~px["ticker"].isin(drop)]
     op = px.pivot(index="date", columns="ticker", values="open").sort_index()
     cl = px.pivot(index="date", columns="ticker", values="close").sort_index()
     vo = px.pivot(index="date", columns="ticker", values="volume").sort_index()
@@ -334,6 +339,29 @@ def run_pairs(path, outpath):
         print(c, json.dumps({k: v.get(k) for k in ("n", "mean", "t_nw", "sharpe", "total")}, default=float))
 
 
+def run_attrib(path, outpath, divpath=None):
+    op, cl, vo = load(path)
+    idx = cl.index
+    adj_op, adj_cl, ret = adjust(op, cl, dividends_matrix(divpath, idx, cl.columns))
+    s, elig = signals(adj_cl, cl, vo, ret)
+    cols = [c for c in cl.columns if c != "IMOEX"]
+    elig = elig.reindex(columns=cols).fillna(False)
+    z = {k: zscore_rows(v[cols].where(elig)) for k, v in s.items()}
+    positions = periods(idx, REBAL)
+    cut = pd.Timestamp("2022-02-25")
+    combos = dict(z)
+    combos["V1_composite"] = sum(z.values()) / len(z)
+    combos["C2"] = (z["mom_12_1"] - z["rev_1m"] + z["high52"]) / 3
+    combos["mom_1m"] = -z["rev_1m"]
+    for k, v in combos.items():
+        for mode in ("ls", "lo"):
+            pf = portfolio(v, elig, adj_op[cols], adj_cl[cols], cl[cols], idx, positions, mode)
+            a = pf[pf.index < cut]["net"]
+            b = pf[pf.index >= POST]["net"]
+            t = summarize(pf["net"], pf.index, 252 / REBAL, 3)
+            print(k, mode, "all %.4f t=%.2f sh=%.2f yrs %d/%d | pre %.4f t=%.2f n=%d | post %.4f t=%.2f n=%d | names %.1f" % (t["mean"], t["t_nw"], t["sharpe"], t["pos_years"], t["years"], a.mean(), nw_t(a.values, 3), len(a), b.mean(), nw_t(b.values, 3), len(b), pf["n"].mean()))
+
+
 def run_sequential(path, outpath, divpath=None):
     op, cl, vo = load(path)
     idx = cl.index
@@ -363,4 +391,4 @@ if __name__ == "__main__":
     if mode == "pairs":
         run_pairs(path, out)
     else:
-        {"factors": run_factors, "overnight": run_overnight, "sequential": run_sequential}[mode](path, out, divpath)
+        {"factors": run_factors, "overnight": run_overnight, "sequential": run_sequential, "attrib": run_attrib}[mode](path, out, divpath)
