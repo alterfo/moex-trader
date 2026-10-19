@@ -1,5 +1,7 @@
 # Feature pipeline and model-to-Go inference
 
+Russian translation: [feature-pipeline-and-inference.ru.md](feature-pipeline-and-inference.ru.md). This file is canonical.
+
 Read before touching `internal/model/features.go`, `scripts/export_ensemble.py`, `cmd/exportdataset`, or any XGBoost/LGBM export or Go inference code.
 
 Moved verbatim from AGENTS.md on 2026-10-09; the rules in AGENTS.md itself still take precedence.
@@ -9,7 +11,7 @@ Moved verbatim from AGENTS.md on 2026-10-09; the rules in AGENTS.md itself still
 - The feature vector order is defined once in `internal/model/features.go` (`defaultFeatureOrder`/`ToVector`) and must stay mirrored only in the Python side (`scripts/compare_models.py` `FEATURES`, `scripts/export_ensemble.py`); `cmd/exportdataset` derives its CSV header/rows from `model.ToVector` automatically. A silent mismatch here is exactly the failure mode in ownership rule 4 of AGENTS.md, and an ungated `TestDeployedModelArtifactsMatchFeatureOrder` now checks both tracked artifacts against `ToVector`.
 - Current canonical order (28 names, as of 2026-09-18): the 18 price/flow features — original 14 plus `macd_hist_pct, stoch_k_14, williams_r_14, alligator_spread_pct` — followed by the 8 `event_*` flags, then `negotiations_signal, sanctions_signal`. The deployed `ensemble_model.json` trains on only the 18 price/flow columns; the remaining 10 names are zero-coefficient placeholders that preserve live feature-order parity.
 - `order_book_imbalance` is structurally always 0 in `cmd/exportdataset`'s historical CSV export — no historical order-book snapshots exist. `news_sentiment` / `news_count` default to 0 too, but `cmd/exportdataset -news-history <path>` (added 2026-09-16, mirrors `cmd/trainmodel -news-history` and `cmd/calibrate -news-history`) will backfill real values from a finanalys-format `news_history.jsonl` (see `cmd/newsfetch`) via `model.LoadFinanalysNewsHistory`/`AggregateDailySentiment`/`AggregateDailyTopicSignals`, matched by ticker+date. Without that flag, or for dates/tickers missing from the archive, all three groups still fall back to 0 — a feature-importance run on a dataset built without `-news-history` will still show them as dead weight for that reason alone.
-- `SBMM` (ETF "Первая – Фонд Сберегательный") is NOT tradable via the T-Invest API (`apiTradeAvailableFlag=false`) — dropped from the ticker list and replaced with `POSI`. Don't reintroduce it as an order target.
+- `SBMM` (ETF "First – Savings Fund") is NOT tradable via the T-Invest API (`apiTradeAvailableFlag=false`) — dropped from the ticker list and replaced with `POSI`. Don't reintroduce it as an order target.
 
 ## XGBoost/LGBM → Go inference (solved — don't re-derive)
 

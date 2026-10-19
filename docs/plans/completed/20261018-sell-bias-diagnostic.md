@@ -1,44 +1,46 @@
-# Диагностика SELL-перекоса живого ансамбля (2026-10-18)
+# Diagnosis of the SELL skew of the live ensemble (2026-10-18)
 
-Предрегистрация до запуска проверок. Пункт 4 из четырёх, владелец разрешил 2026-10-18. Исходный симптом задокументирован в `docs/knowledge/model-quality-history.md`: 878 SELL / 0 BUY на 1500 свежих векторов (2026-09-17..10-09), после обнуления новостных признаков «перекос остаётся в самой модели».
+Russian translation: [20261018-sell-bias-diagnostic.ru.md](20261018-sell-bias-diagnostic.ru.md). This file is canonical.
 
-## Данные
+Pre-registration before the checks were run. Item 4 of four, authorized by the owner on 2026-10-18. The original symptom is documented in `docs/knowledge/model-quality-history.md`: 878 SELL / 0 BUY on 1500 fresh vectors (2026-09-17..10-09); after zeroing the news features "the skew remains in the model itself".
 
-`trader-sandbox.db` (живой сэндбокс на Mac): события `ingest` (полный вектор признаков) и `llm` (решение: action, probability, hold_reason, reasoning) с 2026-09-16 по текущий момент, по тикеру и времени цикла.
+## Data
 
-## Проверки (критерии зафиксированы до запуска)
+`trader-sandbox.db` (the live sandbox on the Mac): `ingest` events (the full feature vector) and `llm` events (the decision: action, probability, hold_reason, reasoning) from 2026-09-16 to the present, by ticker and cycle time.
 
-- **D1, описательная.** Распределение решений по дням и бинам вероятности, доля `hold_reason=out_of_range`, какие признаки и z-значения триггерят гейт. Вердикта нет, только числа.
-- **D2, гейт out_of_range.** Если ≥90% блокировок после 2026-10-10 приходятся на признаки с нулевым коэффициентом логистической головы, которые не используются деревьями (`event_*`, `negotiations_signal`, `sanctions_signal` — структурно нулевые в обучении, mean=0/std=1/coef=0), то вердикт: гейт ветует решения по признакам, не влияющим на модель, и в дивидендный сезон подавляет легитимные SELL/BUY. Исправление: `outOfRangeFeature` пропускает признаки с `coef == 0`, не используемые деревьями; регрессионный тест: `event_dividend` в живом диапазоне (14–38) не блокирует, `mom_21d=500` по-прежнему блокирует. Если доля <90%, исправление не делается, причина перекоса ищется дальше.
-- **D3, воспроизведение офлайн.** Реплей развёрнутого `ensemble_model.json` через `cmd/backtest` на окне 2026-09-17..2026-10-09 (тот же период, что и живой перекос): если доля BUY в реплее <1% решений и доля SELL в реплее в пределах ±10 п.п. от живой доли SELL до гейта (считается как доля решений с p ≤ 0.40 среди заблокированных + пропущенных), то перекос воспроизводится данными и моделью, а не серверным путём; вердикт «ожидаемое поведение модели в этом режиме, не дефект инференса». Если реплей даёт заметно больше BUY, перекос — дефект живого пути, и диагностика продолжается.
-- **D4, ретренировка-тест.** Свежая модель того же рецепта, обученная до 2026-09-16 (`ENSEMBLE_TRAIN_TILL=2026-09-16`, embargo 10, 17 тикеров, FEAT18/ORDER как в Task 5), реплей на том же окне: если свежая модель даёт заметно больше BUY/SELL-сигналов, чем развёрнутая, то часть перекоса — устаревание модели; если микс тот же, перекос диктуется данными. Критерий «заметно больше»: доля BUY свежей модели выше доли BUY развёрнутой на ≥1 п.п. решений, либо доля SELL отличается на ≥10 п.п. Свежая модель никуда не деплоится (автозамена запрещена, инвариант AGENTS.md).
+## Checks (criteria fixed before the run)
 
-## Ограничения
+- **D1, descriptive.** Distribution of decisions by day and probability bin, the share of `hold_reason=out_of_range`, which features and z-values trigger the gate. No verdict, only numbers.
+- **D2, the out_of_range gate.** If ≥90% of blocks after 2026-10-10 fall on features with a zero logistic-head coefficient that the trees do not use (`event_*`, `negotiations_signal`, `sanctions_signal` — structurally zero in training, mean=0/std=1/coef=0), the verdict is: the gate vetoes decisions on features that do not affect the model and suppresses legitimate SELL/BUY in the dividend season. Fix: `outOfRangeFeature` skips features with `coef == 0` that are not used by the trees; regression test: `event_dividend` in the live range (14–38) does not block, `mom_21d=500` still blocks. If the share is <90%, the fix is not made and the cause of the skew is sought further.
+- **D3, offline reproduction.** Replay of the deployed `ensemble_model.json` through `cmd/backtest` on the window 2026-09-17..2026-10-09 (the same period as the live skew): if the BUY share in the replay is <1% of decisions and the SELL share in the replay is within ±10 pp of the live SELL share before the gate (computed as the share of decisions with p ≤ 0.40 among the blocked + skipped), then the skew is reproduced by the data and the model, not by the server path; verdict: "expected model behaviour in this regime, not an inference defect". If the replay gives noticeably more BUY, the skew is a defect of the live path and the diagnosis continues.
+- **D4, retrain test.** A fresh model of the same recipe trained up to 2026-09-16 (`ENSEMBLE_TRAIN_TILL=2026-09-16`, embargo 10, 17 tickers, FEAT18/ORDER as in Task 5), replay on the same window: if the fresh model gives noticeably more BUY/SELL signals than the deployed one, part of the skew is model staleness; if the mix is the same, the skew is dictated by the data. The criterion "noticeably more": the BUY share of the fresh model is higher than the BUY share of the deployed one by ≥1 pp of decisions, or the SELL share differs by ≥10 pp. The fresh model is deployed nowhere (auto-replacement is forbidden, AGENTS.md invariant).
 
-Живой трейдер работает; правки кода затрагивают только инференс (`internal/model/ensemble.go`), деплой и перезапуск трейдера в этот план не входят — рестарт только через владельца и вотчдог. Числа попадают в `docs/metrics.md` тем же коммитом.
+## Constraints
 
-## Итог диагностики (2026-10-18)
+The live trader is running; code changes touch only inference (`internal/model/ensemble.go`); deployment and a trader restart are not part of this plan — a restart only through the owner and the watchdog. The numbers go into `docs/metrics.md` in the same commit.
 
-Числа в `docs/metrics.md`, раздел «Sell-bias diagnostic: event features, out-of-range guard, staleness».
+## Diagnosis outcome (2026-10-18)
 
-- D1: перекос 09-23..10-09 (≈100% SELL) — новостной skew, уже исправлен маскировкой 2026-10-10. После фикса: ~59% HOLD по `out_of_range`, ~14% SELL, 0 BUY.
-- D2: 100% блокировок после фикса — `event_dividend` (z 14–38) при coef=0/mean=0/std=1 в развёрнутой модели и нуле в деревьях. Гейт ветовал решения по признакам, не влияющим на вероятность: 7138 would-SELL и 42 would-BUY проглочено за 9 дней. Исправлено: `outOfRangeFeature` пропускает признаки с coef=0 вне деревьев; регрессионный тест добавлен, старый тест по-прежнему ветует `mom_21d=500`. Деплой фикса — отдельное решение владельца (рестарт через вотчдог).
-- D3: офлайн-реплей развёрнутой модели на 2026-10-10..10-18 — 30.1% SELL, 0% BUY, p ≤ 0.597. Перекос воспроизводится данными и моделью, серверный путь чист.
-- D4: свежая модель (обучена до 2026-09-16) на том же окне — 2.2% BUY против 0% (критерий ≥1 п.п. выполнен, но на 3 решениях — слабое доказательство), SELL-доли совпадают. Часть 0-BUY — устаревание модели; автозамена не делается, ручная ретренировка — решение владельца.
-- Условия повторной проверки: если после деплоя фикса доля `out_of_range` останется >5% решений — вернуться к диагностике с новым разбором по признакам.
+Numbers in `docs/metrics.md`, section "Sell-bias diagnostic: event features, out-of-range guard, staleness".
 
-## Попытка деплоя и откат (2026-10-18)
+- D1: the skew of 09-23..10-09 (≈100% SELL) is the news skew, already fixed by masking on 2026-10-10. After the fix: ~59% HOLD by `out_of_range`, ~14% SELL, 0 BUY.
+- D2: 100% of blocks after the fix are `event_dividend` (z 14–38) with coef=0/mean=0/std=1 in the deployed model and zero in the trees. The gate vetoed decisions on features that do not affect the probability: 7138 would-SELL and 42 would-BUY were swallowed in 9 days. Fixed: `outOfRangeFeature` skips features with coef=0 outside the trees; a regression test was added, the old test still vetoes `mom_21d=500`. Deploying the fix is a separate owner decision (a restart through the watchdog).
+- D3: the offline replay of the deployed model on 2026-10-10..10-18 — 30.1% SELL, 0% BUY, p ≤ 0.597. The skew is reproduced by the data and the model, the server path is clean.
+- D4: the fresh model (trained up to 2026-09-16) on the same window — 2.2% BUY against 0% (the criterion ≥1 pp is met, but on 3 decisions — weak evidence), the SELL shares coincide. Part of the 0-BUY is model staleness; auto-replacement is not done, a manual retrain is the owner's decision.
+- Conditions for re-checking: if after deploying the fix the `out_of_range` share remains >5% of decisions, return to the diagnosis with a new per-feature breakdown.
 
-Владелец одобрил деплой фикса («давай 1 2 3»). Трейдер пересобран и перезапущен через вотчдог; префлайт-гейт отказался стартовать: 90-дневный реплей с фиксом realized **-4859.13** net of borrow (98 сделок, hit 41.8%) против **+602.32** у вето-версии (107 сделок, hit 48.6%) на том же окне, +7156.33 на 2026-10-15. Гейт честен: без вето книга на последних 90 днях убыточна — **случайное вето работает как прибыльный режимный фильтр**. Фикс откачен в коде (HEAD = вето-поведение), восстановлен дофиксный бинарник, трейдер перезапущен через вотчдог. Лизинг после 3 стартовых фейлов был освобождён и снова захвачен после кулдауна штатным путём. Числа — в `docs/metrics.md`, «Sell-bias diagnostic», раздел «Deployment attempt and revert».
+## Deployment attempt and rollback (2026-10-18)
 
-Условие повторного деплоя фикса: кандидатная модель проходит префлайт-гейт с убранным вето (реализованный P&L ≥ порога на том же окне). Это отдельная предрегистрированная гипотеза, а не правка кода: любое изменение, разблокирующее решения, — это изменение модели, и гейтуется как оно.
+The owner approved deploying the fix ("go 1 2 3"). The trader was rebuilt and restarted through the watchdog; the preflight gate refused to start: the 90-day replay with the fix gives realized **-4859.13** net of borrow (98 trades, hit 41.8%) against **+602.32** for the veto version (107 trades, hit 48.6%) on the same window, +7156.33 at 2026-10-15. The gate is honest: without the veto the book is loss-making over the last 90 days — **a random veto works as a profitable regime filter**. The fix was rolled back in code (HEAD = veto behaviour), the pre-fix binary was restored, the trader was restarted through the watchdog. After 3 failed starts the lease was released and captured again after the cooldown by the normal path. Numbers are in `docs/metrics.md`, "Sell-bias diagnostic", section "Deployment attempt and revert".
 
-### Поправка (2026-10-18, вечер): вывод об отказе гейта из-за фикса не подтверждён
+The condition for redeploying the fix: a candidate model passes the preflight gate with the veto removed (realized P&L ≥ the threshold on the same window). This is a separate pre-registered hypothesis, not a code edit: any change that unblocks decisions is a model change and is gated as such.
 
-Повторная проверка офлайн (`docs/plans/20261018-gate-failure-remediation.md`):
+### Amendment (2026-10-18, evening): the conclusion that the fix caused the gate refusal is not confirmed
 
-- Реплей гейт-формы в двух сборках из одного исходника HEAD (как есть и с патчем `ae6ffdd`) даёт **идентичные** результаты до последнего знака: окно по 10-18 net of borrow -2467.25 (117 сделок), окно по 10-17 +1209.23 (118 сделок). Фикс гейту безразличен.
-- Живой гейт показал тот же -4859.13 (gross -4361.55, 98 сделок, hit 41.8 %) и со сборкой с фиксом (03:44:31, 03:45:29), и после восстановления дофиксного бинарника (03:56:32 и далее): те же цифры до копейки.
-- +602.32 — гейт 2026-10-17 15:09 (старт окна 07-19), -4859.13 — окно со стартом 07-20; «на том же окне» неверно. Результат гейта задаёт дата начала окна (старт 07-13: +20380, 07-19: +1372, 07-20: -2467, 07-22: -5959 в CLI-реплее).
-- Поэтому «случайное вето работает как прибыльный режимный фильтр» этими данными не подтверждается: гейт-реплей в обеих сборках измеряет книгу без вето. Откат `dcb601d` обоснован ошибочным сравнением; сам откат оставлен в HEAD до решения владельца, нужно ли вето `event_dividend` на живом пути (решение о поведении живого пути, от гейта не зависит).
-- Условие «повторный деплой только после прохождения гейта с убранным вето» снято как обоснованное фактами; остаётся требование прохождения гейта для любого запуска трейдера.
+Offline re-check (`docs/plans/20261018-gate-failure-remediation.md`):
+
+- The gate-form replay in two builds from one HEAD source (as is and with the patch `ae6ffdd`) gives **identical** results to the last digit: the window through 10-18 net of borrow -2467.25 (117 trades), the window through 10-17 +1209.23 (118 trades). The fix is irrelevant to the gate.
+- The live gate showed the same -4859.13 (gross -4361.55, 98 trades, hit 41.8%) both with the build with the fix (03:44:31, 03:45:29) and after restoring the pre-fix binary (03:56:32 onwards): the same figures to the kopeck.
+- +602.32 is the gate of 2026-10-17 15:09 (window start 07-19), -4859.13 is the window starting 07-20; "on the same window" is wrong. The gate result is set by the window start date (start 07-13: +20380, 07-19: +1372, 07-20: -2467, 07-22: -5959 in the CLI replay).
+- Therefore "a random veto works as a profitable regime filter" is not supported by this data: the gate replay in both builds measures the book without the veto. The rollback `dcb601d` was justified by a wrong comparison; the rollback itself is left in HEAD until the owner decides whether the `event_dividend` veto is needed on the live path (a decision about the live path's behaviour, independent of the gate).
+- The condition "redeploy only after the gate passes with the veto removed" is withdrawn as justified by facts; the requirement that the gate pass for any trader start remains.

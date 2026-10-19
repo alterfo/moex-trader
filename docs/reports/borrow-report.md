@@ -1,5 +1,7 @@
 # Short-borrow measurement and stress (Task 11)
 
+Russian translation: [borrow-report.ru.md](borrow-report.ru.md). This file is canonical.
+
 - Sandbox account: 39f02dbf-0979-4e28-b005-d3f151749f40
 - Operations lookback: 180 days
 - Margin-fee operations observed: 0 (0 RUB)

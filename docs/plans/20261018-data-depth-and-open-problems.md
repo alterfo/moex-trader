@@ -1,180 +1,182 @@
-# Больше данных и пять открытых проблем (2026-10-18)
+# More data and five open problems (2026-10-18)
 
-Источник пяти проблем: обзор Darwish, Hassanien, Eissa (2026), раздел о нерешённых задачах. Здесь они привязаны к данным, которых раньше не хватало. Ограничения из `AGENTS.md` и `docs/plans/20261015-hypotheses-from-llm-review.md` действуют без изменений: LLM вне торгового пути, автозамена `ensemble_model.json` без отдельного согласия владельца не делается, метрики попадают в `docs/metrics.md` тем же коммитом.
+Russian translation: [20261018-data-depth-and-open-problems.ru.md](20261018-data-depth-and-open-problems.ru.md). This file is canonical.
 
-## Что известно о данных на 2026-10-18
+Source of the five problems: the review by Darwish, Hassanien, Eissa (2026), the section on unsolved tasks. Here they are tied to data that was missing before. The constraints from `AGENTS.md` and `docs/plans/20261015-hypotheses-from-llm-review.md` apply unchanged: the LLM stays off the trading path, no automatic replacement of `ensemble_model.json` without separate consent of the owner, metrics go into `docs/metrics.md` in the same commit.
 
-- ISS отдаёт TQBR с 2013 года (около 3400 торговых дней у SBER). Окно обучения по умолчанию два года (`trainmodel -from`), протокол `evalh.py` брал `-from 2024-01-01`. Глубина по годам не проверялась; Experiment B (`docs/metrics.md`) расширял только список тикеров и был отклонён (AUC 0.5185, минус 0.0185).
-- Макро-ряды в `data/macro` идут с 2023 года. `cmd/macrofetch -from 2013-01-01` отдаёт imoex, cnyrub, keyrate с 2013 года и brent с 2017.
-- Плотный новостной архив `data/news_history.jsonl` начинается в апреле 2026 (около 1500-2600 записей в месяц); до марта 2026 по 1-10 записей в месяц. `Kasymkhan/RussianFinancialNews` (Apache 2.0): 92 тыс. статей, 2020-06..2024-11, тикеры в `tags`, периода декабрь 2024 – март 2026 в нём нет.
-- Эффективное число наблюдений определяется числом дат, а не строк: горизонт 10 дней и коррелированные тикеры делают добавленные тикеры слабой заменой добавленным годам.
+## What is known about the data as of 2026-10-18
 
-## Порядок
+- ISS serves TQBR from 2013 (about 3400 trading days for SBER). The default training window is two years (`trainmodel -from`), the `evalh.py` protocol used `-from 2024-01-01`. Depth by year was not tested; Experiment B (`docs/metrics.md`) only extended the ticker list and was rejected (AUC 0.5185, minus 0.0185).
+- Macro series in `data/macro` start in 2023. `cmd/macrofetch -from 2013-01-01` gives imoex, cnyrub, keyrate from 2013 and brent from 2017.
+- The dense news archive `data/news_history.jsonl` starts in April 2026 (about 1500-2600 records per month); before March 2026 there are 1-10 records per month. `Kasymkhan/RussianFinancialNews` (Apache 2.0): 92 thousand articles, 2020-06..2024-11, tickers in `tags`, the period December 2024 – March 2026 is not in it.
+- The effective number of observations is set by the number of dates, not rows: a 10-day horizon and correlated tickers make added tickers a weak substitute for added years.
 
-1. Глубина цен (этот раздел, критерии ниже).
-2. Новости из датасета 2020-2024 для классификатора и признаков.
-3. Калибровка по горизонтам и режимам.
-4. Долгие горизонты (20-60 дней) на глубокой истории.
-5. Объяснимость (SHAP, причины сигнала в алерте).
-6. Роль LLM в контуре риска и локализация: оформляются по результатам 2 и 5; критерии пишутся до запуска каждого шага отдельным коммитом.
+## Order
 
-## Шаг 1. Предрегистрация: глубина обучающей истории (критерии зафиксированы до запуска)
+1. Price depth (this section, criteria below).
+2. News from the 2020-2024 dataset for the classifier and features.
+3. Calibration by horizons and regimes.
+4. Long horizons (20-60 days) on deep history.
+5. Explainability (SHAP, reasons for the signal in the alert).
+6. The role of the LLM in the risk loop and localization: drawn up after the results of 2 and 5; criteria are written before the run of each step in a separate commit.
 
-Данные: `exportdataset -from 2015-01-01 -till 2026-10-07 -split 2026-06-18 -horizon-days {10,20} -deadband-pct 0.5 -label-mode absolute`, 17 торговых тикеров (FX исключены), без новостей и макро. Один файл на горизонт, все арки режутся из него.
+## Step 1. Pre-registration: depth of the training history (criteria fixed before the run)
 
-Протокол: `evalh.py` `wf()` без изменений (expanding purged walk-forward, фолды по 63 дня с 2025-04-01, `label_date < fold start`, LightGBM плюс логистическая регрессия, 15 ценовых признаков). Тестовые строки во всех арках идентичны; отличается только начало обучающей выборки.
+Data: `exportdataset -from 2015-01-01 -till 2026-10-07 -split 2026-06-18 -horizon-days {10,20} -deadband-pct 0.5 -label-mode absolute`, 17 trading tickers (FX excluded), no news and no macro. One file per horizon, all arms are cut from it.
 
-Арки:
-- A: обучение с 2024-01-01 (базис).
-- B: с 2021-01-01.
-- C: с 2018-01-01.
-- D: с 2015-01-01.
-- E: с 2015-01-01 без 2022-02-24..2022-12-31 (проверка на режимный разрыв).
+Protocol: `evalh.py` `wf()` unchanged (expanding purged walk-forward, folds of 63 days from 2025-04-01, `label_date < fold start`, LightGBM plus logistic regression, 15 price features). The test rows are identical in all arms; only the start of the training sample differs.
 
-Основная метрика: pooled AUC; вторичные: средний AUC по фолдам, число фолдов с AUC > 0.5, Brier и 10-бинный ECE.
+Arms:
+- A: training from 2024-01-01 (baseline).
+- B: from 2021-01-01.
+- C: from 2018-01-01.
+- D: from 2015-01-01.
+- E: from 2015-01-01 without 2022-02-24..2022-12-31 (a check for a regime break).
 
-Критерий кандидата: арка бьёт A минимум на +0.010 pooled AUC на обоих горизонтах и имеет больше половины фолдов выше 0.5. Разброс в пределах ±0.005 считается шумом (как в `model-quality-history.md`). Слабее: результат записывается как «глубина не помогает», и дальнейшие шаги планируются от окна 2024+.
+Primary metric: pooled AUC; secondary: mean AUC over folds, number of folds with AUC > 0.5, Brier and 10-bin ECE.
 
-Вторичный критерий слабого положительного эффекта (дополнение 2026-10-18, зафиксировано до запуска): основной критерий требует +0.010 на обоих горизонтах, что при 9 фолдах и базе около 0.53 имеет низкую мощность — реальный эффект +0.005..0.008 с большой вероятностью будет записан как «глубина не помогает», и тогда шаги 3-5 потеряют глубокую историю без достаточных оснований. Поэтому слабый, но устойчивый эффект регистрируется отдельно, для каждого горизонта: (1) pooled AUC арки D минус pooled AUC арки A положительна, и нижняя граница блочного bootstrap CI по торговым датам (2000 повторов, блоки по датам, seed 42) выше −0.002; (2) D бьёт A не менее чем в 7 из 9 фолдов. Разности B−A, C−A, D−A на обоих горизонтах приводятся описательно (проверка монотонности на глаз, формальным тестом не является). Если условия выполнены хотя бы на одном горизонте, запись «глубина не помогает» не делается: эффект регистрируется как «слабый положительный, недостаточный для замены модели», и шаги 3-5 (калибровка по горизонтам и режимам, долгие горизонты, объяснимость) могут использовать глубокую историю; замена модели по-прежнему требует только основного критерия. Если D−A ≤ 0 на обоих горизонтах, вывод «глубина не помогает» действует как записано выше. Арка E в монотонность не входит (это проверка режимного разрыва, другой вопрос): для неё описательно сравниваются E и D.
+Candidate criterion: an arm beats A by at least +0.010 pooled AUC at both horizons and has more than half of the folds above 0.5. A spread within ±0.005 counts as noise (as in `model-quality-history.md`). Weaker: the result is recorded as "depth does not help", and further steps are planned from the 2024+ window.
 
-Ограничение выводов: кандидат на замену модели требует отдельно purged walk-forward через `cmd/backtest` с издержками и явного согласия владельца; AUC тут только допуск к такой проверке.
+Secondary criterion for a weak positive effect (addendum 2026-10-18, fixed before the run): the primary criterion requires +0.010 at both horizons, which with 9 folds and a base near 0.53 has low power — a real effect of +0.005..0.008 will with high probability be recorded as "depth does not help", and then steps 3-5 would lose the deep history without sufficient grounds. So a weak but stable effect is registered separately, for each horizon: (1) the pooled AUC of arm D minus the pooled AUC of arm A is positive, and the lower bound of the block bootstrap CI by trading dates (2000 repetitions, blocks by dates, seed 42) is above −0.002; (2) D beats A in at least 7 of 9 folds. The differences B−A, C−A, D−A at both horizons are given descriptively (a by-eye check of monotonicity, not a formal test). If the conditions hold at least at one horizon, the "depth does not help" record is not made: the effect is registered as "weak positive, insufficient to replace the model", and steps 3-5 (calibration by horizons and regimes, long horizons, explainability) may use the deep history; replacing the model still requires only the primary criterion. If D−A ≤ 0 at both horizons, the conclusion "depth does not help" stands as recorded above. Arm E does not take part in monotonicity (it is a regime-break check, a different question): for it, E and D are compared descriptively.
 
-## Шаг 2. Предрегистрация: новостной классификатор на архиве 2021-2024 (критерии зафиксированы до запуска)
+Limit on conclusions: a model replacement candidate separately requires a purged walk-forward through `cmd/backtest` with costs and explicit consent of the owner; AUC here is only the admission to such a test.
 
-Вопрос: даёт ли обучение на русских заголовках 2021-2024 (датасет `Kasymkhan/RussianFinancialNews`, Apache 2.0) направленный сигнал на независимом периоде 2026-04-01..2026-10 там, где прежний классификатор на 2855 сэмплах дал val AUC 0.493-0.529 и был признан мёртвым.
+## Step 2. Pre-registration: news classifier on the 2021-2024 archive (criteria fixed before the run)
 
-Данные:
-- Обучение: `cmd/newsimport` по `train` и `test` parquet, только 18 торговых тикеров, записи с датой до 2025-01-01 (18957 записей, 15386 уникальных статей в 2021-2024; 97% без времени публикации).
-- Проверка: `data/news_history.jsonl`, записи с 2026-04-01 по 17 тикерам config (7129 записей, 6481 статья). Записи этого файла до 2026-04-01 в обучение не входят. Решение владельца от 2026-09-29 по Telegram и Google News действует: срез без них (731 запись) приводится отдельно.
-- Отсутствие утечки: `BuildNewsLabels` входит на открытии следующего торгового дня после даты статьи, поэтому статья «без времени» не видит собственного дня.
+Question: does training on Russian headlines of 2021-2024 (dataset `Kasymkhan/RussianFinancialNews`, Apache 2.0) give a directional signal on the independent period 2026-04-01..2026-10 where the previous classifier on 2855 samples gave val AUC 0.493-0.529 and was declared dead.
 
-Метод: `cmd/trainnewsmodel` без изменений (bag-of-words logistic, `-vocab-size 3000 -min-doc-freq 3`, метка: направление избыточной доходности против IMOEX), `-split 2026-04-01`. Оценки по сэмплам снимает новая команда `cmd/newsvalidate` (только чтение, CSV).
+Data:
+- Training: `cmd/newsimport` over the `train` and `test` parquet, only the 18 trading tickers, records dated before 2025-01-01 (18957 records, 15386 unique articles in 2021-2024; 97% without publication time).
+- Validation: `data/news_history.jsonl`, records from 2026-04-01 for the 17 config tickers (7129 records, 6481 articles). Records of this file before 2026-04-01 do not enter training. The owner's decision of 2026-09-29 on Telegram and Google News stands: the slice without them (731 records) is given separately.
+- No leakage: `BuildNewsLabels` enters at the open of the next trading day after the article date, so an article "without time" does not see its own day.
 
-Основной горизонт: 10 торговых дней (как у ценовой модели). Горизонты 1 и 5 приводятся описательно, вердикт по ним не выносится.
+Method: `cmd/trainnewsmodel` unchanged (bag-of-words logistic, `-vocab-size 3000 -min-doc-freq 3`, label: direction of excess return against IMOEX), `-split 2026-04-01`. Sample scores are taken by the new command `cmd/newsvalidate` (read only, CSV).
 
-Критерий: val AUC основного горизонта >= 0.530 и нижняя граница 95% CI блочного bootstrap по датам публикации (2000 повторов, seed 42) выше 0.500, при условии не менее 1000 проверочных сэмплов и 40 дат. Дополнительно сообщаются AUC на срезе без Telegram и Google, на срезе с `-max-tickers-per-article 3`, точность против мажоритарной доли. Если критерий не выполнен, фиксируется «русский архив 2021-2024 не даёт направленного сигнала», и новостной признак в ценовую модель на шаге 2 не добавляется.
+Primary horizon: 10 trading days (as for the price model). Horizons 1 and 5 are given descriptively, no verdict is issued on them.
 
-Второй этап шага (только если критерий выполнен): оценка оценки классификатора как признака ценовой модели по протоколу шага 1 (арка D плюс `news_sentiment`), порог тот же: +0.010 pooled AUC и большинство фолдов выше 0.5.
+Criterion: val AUC at the primary horizon >= 0.530 and the lower bound of the 95% CI of the block bootstrap by publication dates (2000 repetitions, seed 42) above 0.500, provided at least 1000 validation samples and 40 dates. Additionally reported: AUC on the slice without Telegram and Google, on the slice with `-max-tickers-per-article 3`, accuracy against the majority share. If the criterion is not met, "the Russian 2021-2024 archive gives no directional signal" is recorded, and the news feature is not added to the price model in step 2.
 
-## Шаг 3. Предрегистрация: калибровка по горизонтам и режимам (критерии зафиксированы до запуска)
+Second stage of the step (only if the criterion is met): evaluating the classifier score as a feature of the price model under the step 1 protocol (arm D plus `news_sentiment`), the same threshold: +0.010 pooled AUC and a majority of folds above 0.5.
 
-Вопрос: можно ли довести вероятности ансамбля до калиброванных (ECE и Brier ниже, чем у сырых), устойчиво по горизонтам и режимам рынка, не трогая ранжирование (AUC).
+## Step 3. Pre-registration: calibration by horizons and regimes (criteria fixed before the run)
 
-Данные и протокол: те же датасеты и фолды, что на шаге 1 (`h10.csv`, `h20.csv`, 9 фолдов по 63 дня с 2025-04-01, 15 ценовых признаков, LightGBM плюс логистическая регрессия). Дополнительно датасет `h5.csv` с тем же экспортом для горизонта 5 дней. Обучающие окна: A (с 2024) и D (с 2015).
+Question: can the ensemble probabilities be brought to calibrated ones (ECE and Brier lower than raw), stably across horizons and market regimes, without touching the ranking (AUC).
 
-Калибраторы (обучаются строго до начала фолда): сырой (без калибровки), Platt (логистическая регрессия на логите ансамбля), изотоническая регрессия. Калибровочная выборка: последние 20% обучающих строк по времени (purged: `label_date < fold start`), основная модель обучается на остальных 80%. Это единственный вариант калибровки в шаге, других не подбирается.
+Data and protocol: the same datasets and folds as in step 1 (`h10.csv`, `h20.csv`, 9 folds of 63 days from 2025-04-01, 15 price features, LightGBM plus logistic regression). Additionally the dataset `h5.csv` with the same export for the 5-day horizon. Training windows: A (from 2024) and D (from 2015).
 
-Режимы (по дате решения, пороги считаются только по данным до начала фолда): волатильность IMOEX за 21 день выше или ниже медианы обучающей части; ключевая ставка (из `data/macro`, рост или снижение за 90 дней). Режимный отчёт описательный.
+Calibrators (trained strictly before the start of the fold): raw (no calibration), Platt (logistic regression on the ensemble logit), isotonic regression. Calibration sample: the last 20% of training rows by time (purged: `label_date < fold start`), the main model is trained on the other 80%. This is the only calibration variant in the step, no others are tuned.
 
-Основная метрика: ECE (10 бинов) и Brier, pooled по 9 фолдам, на каждом горизонте.
+Regimes (by decision date, thresholds computed only from data before the start of the fold): IMOEX volatility over 21 days above or below the median of the training part; the key rate (from `data/macro`, rise or fall over 90 days). The regime report is descriptive.
 
-Критерий успеха: для каждого из горизонтов 5, 10, 20 и обоих окон (A, D) лучший калибратор снижает ECE минимум на 20% относительно сырого и не ухудшает Brier, а pooled AUC меняется не более чем на ±0.005. Дополнительно: снижение ECE должно быть в большинстве фолдов (минимум 6 из 9) и в обоих режимах волатильности. Если критерий выполнен не на всех шести комбинациях, фиксируется, на каких выполнен; калибратор в трейдер не подключается без отдельного пересчёта порогов 0.60/0.40 и согласия владельца, потому что калибровка сдвигает вероятности относительно действующих порогов.
+Primary metric: ECE (10 bins) and Brier, pooled over 9 folds, at each horizon.
 
-## Шаг 5. Предрегистрация: объяснимость сигнала (критерии зафиксированы до реализации)
+Success criterion: for each of the horizons 5, 10, 20 and both windows (A, D) the best calibrator lowers ECE by at least 20% relative to raw and does not worsen Brier, while pooled AUC changes by no more than ±0.005. Additionally: the ECE reduction must hold in a majority of folds (at least 6 of 9) and in both volatility regimes. If the criterion is not met on all six combinations, it is recorded on which it is met; the calibrator is not connected to the trader without a separate recomputation of the 0.60/0.40 thresholds and consent of the owner, because calibration shifts probabilities relative to the current thresholds.
 
-Метод: атрибуция по замене признака на базовое значение (occlusion). Для каждого признака вектора считается изменение вероятности ансамбля, если этот признак заменить средним обучающей выборки (`logistic.mean` из `ensemble_model.json`, новых артефактов не нужно). Это не значения Шепли: взаимодействия между признаками не делятся, остаток нелинейности выводится отдельно. Точный TreeSHAP недоступен: в артефакте деревьев нет покрытий узлов. Признаки, замаскированные как необученные (`news_count`, `news_sentiment`), вклада не дают.
+## Step 5. Pre-registration: explainability of the signal (criteria fixed before implementation)
 
-Выход: в `Reasoning` сигнала после `p=` добавляется ` drivers=<имя>:<±вклад в п.п.>,...` для трёх самых больших по модулю вкладов. Парсер `probabilityFromReasoning` и префикс-обрезка алерта это переносят; регрессионные тесты на обе стороны входят в реализацию.
+Method: attribution by replacing a feature with its baseline value (occlusion). For each feature of the vector the change in the ensemble probability is computed if that feature is replaced by the training sample mean (`logistic.mean` from `ensemble_model.json`, no new artifacts needed). These are not Shapley values: interactions between features are not divided, the remainder of nonlinearity is output separately. Exact TreeSHAP is unavailable: the artifact has no node covers for the trees. Features masked as untrained (`news_count`, `news_sentiment`) contribute nothing.
 
-Критерии приёмки (до запуска):
-1. Для логистического члена атрибуция в пространстве логитов совпадает с точной линейной (`coef*(x-mean)/std`) с точностью 1e-9; для вектора, равного базовому, все вклады равны нулю; результат детерминирован.
-2. Тест верности (faithfulness) на датасете `h10.csv`, строки с 2025-04-01, 17 тикеров, развёрнутый артефакт `ensemble_model.json`: замена трёх самых важных по атрибуции признаков на базовые меняет вероятность по модулю в среднем не меньше чем в 1.5 раза сильнее, чем замена трёх случайных признаков (seed 42, 20 случайных выборок на строку, усреднение).
-3. Согласие знака: в строках, где вероятность выходит из зоны 0.40-0.60, знак вклада главного драйвера совпадает со знаком отклонения вероятности от 0.5 не менее чем в 70% случаев.
-Если любой из трёх критериев не выполнен, формат `drivers` в трейдер не подключается, результат записывается в `docs/metrics.md`.
+Output: the signal's `Reasoning` gets ` drivers=<name>:<±contribution in pp>,...` after `p=` for the three largest contributions by absolute value. The parser `probabilityFromReasoning` and the alert prefix truncation carry this through; regression tests for both sides are part of the implementation.
 
-## H23. AR-ICA-MGARCHSK для формирования портфеля (предрегистрация, 2026-10-18)
+Acceptance criteria (before the run):
+1. For the logistic member, the attribution in logit space matches the exact linear one (`coef*(x-mean)/std`) to 1e-9; for a vector equal to the baseline all contributions are zero; the result is deterministic.
+2. A faithfulness test on the dataset `h10.csv`, rows from 2025-04-01, 17 tickers, the deployed artifact `ensemble_model.json`: replacing the three most important features by attribution with their baselines changes the probability in absolute value on average at least 1.5 times more strongly than replacing three random features (seed 42, 20 random draws per row, averaged).
+3. Sign agreement: in rows where the probability leaves the 0.40-0.60 zone, the sign of the contribution of the top driver matches the sign of the deviation of the probability from 0.5 in at least 70% of cases.
+If any of the three criteria is not met, the `drivers` format is not connected to the trader, and the result is recorded in `docs/metrics.md`.
 
-Что это (по найденным первоисточникам, без доступа к оригинальной статье): AR-фильтр средних, затем разложение ковариации методом независимых компонент (ICA, семейство GO-GARCH), по каждой независимой компоненте одномерная GARCH с динамическими асимметрией и эксцессом (GARCHSK, у GJR-варианта называют GO-GJRSK); условная ковариация и старшие моменты активов восстанавливаются обратным линейным отображением и подаются в оптимизатор портфеля, учитывающий коэксцесс и косую асимметрию. Литература: Lassance, DeMiguel, Vrins, ICA как способ снизить размерность тензоров комоментов; Mathematics 2020, 8(11), 1990 (GO-GJRSK). Готовой реализации в Go нет, `gonum` в зависимостях нет.
+## H23. AR-ICA-MGARCHSK for portfolio construction (pre-registration, 2026-10-18)
 
-Почему это не очевидный выигрыш для нас: текущая схема выдаёт позиции равной суммы 15000 RUB, а простейшее масштабирование по волатильности (Experiment D) дало P&L -20 RUB (-0.03%), то есть ожидаемый эффект тоже невелик, и на 17 именах с 250 наблюдениями старшие моменты оцениваются шумно. Поэтому гипотеза проверяется как снижение хвостового риска, а не как рост доходности.
+What it is (from the primary sources found, without access to the original article): an AR filter of the means, then a decomposition of the covariance by independent component analysis (ICA, the GO-GARCH family), for each independent component a univariate GARCH with dynamic skewness and kurtosis (GARCHSK, for the GJR variant called GO-GJRSK); the conditional covariance and higher moments of the assets are restored by the inverse linear map and fed into a portfolio optimizer that accounts for co-kurtosis and co-skewness. Literature: Lassance, DeMiguel, Vrins, ICA as a way to reduce the dimension of comoment tensors; Mathematics 2020, 8(11), 1990 (GO-GJRSK). There is no ready implementation in Go, and `gonum` is not among the dependencies.
 
-Протокол (метод Experiment D): веса портфеля применяются как множитель к размеру позиции в `EnsembleSignalSource` поверх существующих сигналов, без переобучения, на тех же шести окнах и артефактах `wf-volscale`. Сравниваются: контроль (равные позиции), обратная волатильность (уже отклонена, как нижняя планка), ковариационный минимум дисперсии (выборочная ковариация), ICA с GARCH(1,1) на компонентах (GO-GARCH, без SK), ICA с GARCHSK. Каждая следующая ступень оправдывает усложнение только если бьёт предыдущую.
+Why this is not an obvious gain for us: the current scheme issues positions of an equal amount of 15000 RUB, and the simplest volatility scaling (Experiment D) gave P&L -20 RUB (-0.03%), so the expected effect is also small, and on 17 names with 250 observations higher moments are estimated noisily. So the hypothesis is tested as a reduction of tail risk, not as a growth of return.
 
-Критерий (до запуска): ступень принимается, если совокупный realized P&L не хуже контроля более чем на 3%, а максимальная просадка по окнам и 95% CVaR суточной доходности портфеля ниже контроля минимум на 15% при том, что ни в одном окне kill switch не срабатывает раньше, чем у контроля. Иначе: отклонена, пишется в `docs/metrics.md`. Реализация (FastICA, GARCH, GARCHSK) пишется на Go, офлайн-инструментом `cmd/icaportfolio`, в трейдер не подключается до положительного результата и отдельного согласия.
+Protocol (the Experiment D method): the portfolio weights are applied as a multiplier to the position size in `EnsembleSignalSource` on top of the existing signals, without retraining, on the same six windows and `wf-volscale` artifacts. Compared: control (equal positions), inverse volatility (already rejected, as a lower bar), covariance minimum variance (sample covariance), ICA with GARCH(1,1) on the components (GO-GARCH, no SK), ICA with GARCHSK. Each next step justifies the added complexity only if it beats the previous one.
 
-### H23, уточнение по оригиналу (2026-10-18, до реализации; заменяет описание метода выше)
+Criterion (before the run): a step is accepted if the total realized P&L is not worse than control by more than 3%, and the maximum drawdown across windows and the 95% CVaR of the portfolio daily return are lower than control by at least 15%, with the kill switch firing in no window earlier than for control. Otherwise: rejected, recorded in `docs/metrics.md`. The implementation (FastICA, GARCH, GARCHSK) is written in Go as the offline tool `cmd/icaportfolio` and is not connected to the trader until a positive result and separate consent.
 
-Источник: Михайлов А.Ю., Юсиф Н.Б., Сотсков Ю.Н., Хомякова Л.И. Построение динамических портфельных моделей высокого порядка на основе VAR-ICA-MGARCH // Финансы: теория и практика, 2026, 30(4), с. 19-37, DOI 10.26794/2587-5671-2026-30-4-19-37 (прочитан полностью).
+### H23, clarification from the original (2026-10-18, before implementation; replaces the method description above)
 
-Спецификация статьи:
-- Доходности: VAR(1) (порядок по AIC) на логарифмических доходностях, остатки идут в ICA: `IC_t = U * eps_t`.
-- На каждую независимую компоненту одномерная GARCHSK-рекурсия: `xi^H_t = w + a*IC^2_{t-1} + b*xi^H_{t-1}`, то же для `IC^3` (асимметрия) и `IC^4` (эксцесс). Матрицы возвращаются обратным отображением: `H = U^-1 Xi^H U^-T`, `S`, `K` через кронекеровы степени `U`.
-- Полезность: CARA, `U(W) = -exp(-rho*W)`, `rho = 1`, разложение Тейлора до 4-го порядка: `max -exp(-rho(1+mu_p)) * (1 + rho^2/2 * sigma_p^2 - rho^3/6 * s_p^3 + rho^4/24 * k_p^4)` при `sum w = 1`, `w >= 0`. Решается генетическим алгоритмом с недоминируемой сортировкой и элитой.
-- Данные: симуляция 4-мерной модели R на 1000 наблюдениях; эмпирика на 6 китайских акциях (2014-01-03..2019-04-19, 1304 наблюдения).
+Source: Mikhailov A.Yu., Yusif N.B., Sotskov Yu.N., Khomyakova L.I. Construction of dynamic high-order portfolio models based on VAR-ICA-MGARCH // Finance: Theory and Practice, 2026, 30(4), pp. 19-37, DOI 10.26794/2587-5671-2026-30-4-19-37 (read in full).
 
-Что в оценке статьи не позволяет принять её выводы как есть (отмечаю до запуска, чтобы не переносить автоматически):
-- Сравнение идёт по полезности, посчитанной из собственных условных моментов той же модели, а не по реализованным вне выборки доходностям. Нет издержек, реализованной доходности, Шарпа, CVaR, доверительных интервалов, нет сравнения с равными весами и с простыми ковариационными оценками. Симуляция порождается из того же семейства моделей.
-- «Традиционный» портфель статичен (веса 0.44/0.33/0.15/0.07/0/0), динамический пересчитывается ежедневно; выигрыш в полезности частично есть выигрыш от пересчёта.
-- Оценки условных асимметрии и эксцесса неустойчивы (рис. 5-6: до 1442 и 1631, дрейф до 150 у одной компоненты; в таблице 4 `alpha^S` = -0.5174, `alpha^K` = 0.0000), метод оценки параметров не описан.
-- Полезность зависит от единиц: доходности в процентах, `rho = 1`; в долях тот же `rho` делает члены старших порядков пренебрежимо малыми.
-- Определение CEL% `(U(V*) - U(V')) / U(V')` при отрицательных полезностях даёт отрицательное число, в таблице 6 приведены положительные (25-47%); знаковая конвенция не раскрыта. Датировка выборки противоречива (резюме и раздел 3: до 2019-04-19; заключение: до 2024-04-19).
-- Дисперсия `H` и эксцесс `K` в формулах (6) для независимых компонент: диагональный тензор `K` описывает кумулянты, а в разложении полезности нужен четвёртый центральный момент `k_p^4 = sum a^4 kappa4 + 3 (sum a^2 kappa2)^2`; прямое применение `W^T K (W (x) W (x) W)` пропускает перекрёстные члены.
+The specification of the paper:
+- Returns: VAR(1) (order by AIC) on log returns, the residuals go into ICA: `IC_t = U * eps_t`.
+- For each independent component a univariate GARCHSK recursion: `xi^H_t = w + a*IC^2_{t-1} + b*xi^H_{t-1}`, the same for `IC^3` (skewness) and `IC^4` (kurtosis). The matrices are returned by the inverse map: `H = U^-1 Xi^H U^-T`, `S`, `K` through Kronecker powers of `U`.
+- Utility: CARA, `U(W) = -exp(-rho*W)`, `rho = 1`, Taylor expansion to the 4th order: `max -exp(-rho(1+mu_p)) * (1 + rho^2/2 * sigma_p^2 - rho^3/6 * s_p^3 + rho^4/24 * k_p^4)` with `sum w = 1`, `w >= 0`. Solved by a genetic algorithm with non-dominated sorting and elitism.
+- Data: a simulation of a 4-dimensional model in R on 1000 observations; empirics on 6 Chinese stocks (2014-01-03..2019-04-19, 1304 observations).
 
-Реализация (отклонения от статьи фиксируются заранее):
-- Оценка параметров рекурсий для `IC^2`, `IC^3`, `IC^4`: метод наименьших квадратов по рекурсии `xi_t = w + a * x_{t-1} + b * xi_{t-1}` (Нелдер-Мид, ограничения `w` положителен для чётных степеней, `a, b >= 0`, `a + b < 1`), поскольку в статье метод не указан. Условные кумулянты: `kappa2 = xi^H`, `kappa3 = xi^S`, `kappa4 = xi^K - 3 (xi^H)^2`; значения ограничиваются сверху квантилем 99% обучающей выборки, чтобы не повторять неустойчивость рис. 5-6.
-- Портфельные моменты для независимых компонент: `a = U^-T w`, `sigma^2 = sum a^2 kappa2`, `s^3 = sum a^3 kappa3`, `k^4 = sum a^4 kappa4 + 3 sigma^4`.
-- Оптимизатор: детерминированный проекционный градиент на симплексе с несколькими стартами (seed 42) вместо генетического алгоритма: целевая функция гладкий многочлен по `w`, нужна воспроизводимость.
-- ICA: FastICA (deflation, `tanh`), белая стабилизация через разложение Якоби; доходности в процентах, `rho = 1` как в статье, плюс описательный вариант `rho = 5`.
+What in the paper's evaluation does not allow accepting its conclusions as is (noted before the run so as not to transfer them automatically):
+- The comparison is by utility computed from the model's own conditional moments, not by realized out-of-sample returns. No costs, no realized return, Sharpe, CVaR, confidence intervals, no comparison with equal weights and with simple covariance estimators. The simulation is generated from the same family of models.
+- The "traditional" portfolio is static (weights 0.44/0.33/0.15/0.07/0/0), the dynamic one is recomputed daily; the utility gain is partly a gain from recomputation.
+- The estimates of conditional skewness and kurtosis are unstable (figures 5-6: up to 1442 and 1631, drift up to 150 for one component; in table 4 `alpha^S` = -0.5174, `alpha^K` = 0.0000), the parameter estimation method is not described.
+- Utility depends on units: returns in percent, `rho = 1`; in fractions the same `rho` makes the higher-order terms negligible.
+- The definition CEL% `(U(V*) - U(V')) / U(V')` with negative utilities gives a negative number, table 6 gives positive ones (25-47%); the sign convention is not disclosed. The dating of the sample is contradictory (abstract and section 3: until 2019-04-19; conclusion: until 2024-04-19).
+- The variance `H` and kurtosis `K` in formulas (6) for independent components: the diagonal tensor `K` describes cumulants, while the utility expansion needs the fourth central moment `k_p^4 = sum a^4 kappa4 + 3 (sum a^2 kappa2)^2`; direct application of `W^T K (W (x) W (x) W)` misses the cross terms.
 
-Протокол стадии 0 (без сигналов; цель: проверить сам метод формирования портфеля на нашем рынке до интеграции в трейдер):
-- Универсум: акции из `config.yaml` (без FX), дневные закрытия ISS, на каждую ребалансировку допускаются тикеры с историей не менее 3 лет.
-- Окно оценки 750 торговых дней, переоценка и ребалансировка каждые 21 торговый день, тест 2019-01-02..2026-10-07 (включая 2020 и 2022), издержки 0.05% с каждой стороны оборота, long-only.
-- Ступени: R0 равные веса (контроль), R1 обратная волатильность 63 дня, R2 минимум дисперсии по выборочной ковариации, R3 VAR-ICA-GARCH (только второй момент, `s = 0`, `k = 3 sigma^4`), R4 полная VAR-ICA-MGARCHSK по спецификации статьи (`rho = 1`), описательно R4 с `rho = 5` и R4 с `mu = 0`.
-- Метрики: чистая годовая доходность, годовая волатильность, 95% CVaR суточной доходности, максимальная просадка, оборот, Шарп; доверительные интервалы стационарным блочным bootstrap (блок 20 дней, 2000 повторов, seed 42).
-- Критерий для ступени R3 или R4: относительно R0 95% CVaR ниже минимум на 15% и верхняя граница 95% CI отношения CVaR ниже 1.0; максимальная просадка ниже минимум на 15%; чистая годовая доходность не ниже контроля более чем на 1 п.п. Дополнительно R4 принимается как оправданное усложнение только если по CVaR лучше R3 минимум на 5% и лучше R2. Если R3 и R4 не проходят, повтор на артефактах `wf-volscale` не делается, результат пишется в `docs/metrics.md`.
-- Ограничение: любая ступень остаётся офлайн-инструментом (`cmd/icaportfolio`); подключение к `EnsembleSignalSource` или трейдеру требует отдельного пересчёта на сигналах (длинные и короткие позиции) и согласия владельца.
+Implementation (deviations from the paper are fixed in advance):
+- Estimation of the recursion parameters for `IC^2`, `IC^3`, `IC^4`: least squares over the recursion `xi_t = w + a * x_{t-1} + b * xi_{t-1}` (Nelder-Mead, constraints `w` positive for even powers, `a, b >= 0`, `a + b < 1`), since the paper does not state the method. Conditional cumulants: `kappa2 = xi^H`, `kappa3 = xi^S`, `kappa4 = xi^K - 3 (xi^H)^2`; the values are capped at the 99% quantile of the training sample so as not to repeat the instability of figures 5-6.
+- Portfolio moments for independent components: `a = U^-T w`, `sigma^2 = sum a^2 kappa2`, `s^3 = sum a^3 kappa3`, `k^4 = sum a^4 kappa4 + 3 sigma^4`.
+- Optimizer: a deterministic projected gradient on the simplex with several starts (seed 42) instead of a genetic algorithm: the objective is a smooth polynomial in `w`, reproducibility is needed.
+- ICA: FastICA (deflation, `tanh`), white stabilization via Jacobi decomposition; returns in percent, `rho = 1` as in the paper, plus a descriptive variant `rho = 5`.
 
-Детали реализации H23, стадия 0 (зафиксированы до первого запуска, 2026-10-18):
-- Условные кумулянты прогнозируются на период удержания: берётся среднее по 21 дню прогноза рекурсии `xi_{T+h} = mu + rho^(h-1) (xi_{T+1} - mu)`, а не одношаговый прогноз.
-- Прогноз среднего `mu = Phi * y_T` (VAR(1) без свободного члена на демедианных доходностях), как в статье без отдельного члена среднего; вариант `R4_mu0` обнуляет `mu`.
-- Логарифмические доходности в процентах идут в модель, простые доходности идут в симуляцию портфеля; веса дрейфуют между ребалансировками; издержки 0.05% с оборота при каждой ребалансировке, включая начальную закупку.
-- Допуск тикера на ребалансировку: котировка есть в день ребалансировки и не менее 740 торговых дней из 750 окна; ниже 3 допущенных тикеров запуск аварийно останавливается.
-- Если подгонка ступени R3 или R4 на окне не сходится, на этой ребалансировке сохраняются прежние веса (или равные в самом начале); число таких случаев не скрывается.
-- Код: `internal/icaport` (9 тестов: разложение Якоби, обратная матрица, восстановление источников FastICA, рекурсии, моменты против выборочных, градиент против конечных разностей, симплекс, метрики, детерминизм) и `cmd/icaportfolio`.
+Stage 0 protocol (no signals; goal: test the portfolio construction method itself on our market before integration into the trader):
+- Universe: stocks from `config.yaml` (no FX), ISS daily closes; at each rebalance tickers with at least 3 years of history are admitted.
+- Estimation window 750 trading days, re-estimation and rebalancing every 21 trading days, test 2019-01-02..2026-10-07 (including 2020 and 2022), costs 0.05% per side of turnover, long-only.
+- Steps: R0 equal weights (control), R1 inverse volatility over 63 days, R2 minimum variance on the sample covariance, R3 VAR-ICA-GARCH (second moment only, `s = 0`, `k = 3 sigma^4`), R4 full VAR-ICA-MGARCHSK per the paper's specification (`rho = 1`), descriptively R4 with `rho = 5` and R4 with `mu = 0`.
+- Metrics: net annual return, annual volatility, 95% CVaR of the daily return, maximum drawdown, turnover, Sharpe; confidence intervals by stationary block bootstrap (block 20 days, 2000 repetitions, seed 42).
+- Criterion for step R3 or R4: relative to R0 the 95% CVaR is lower by at least 15% and the upper bound of the 95% CI of the CVaR ratio is below 1.0; the maximum drawdown is lower by at least 15%; the net annual return is not below control by more than 1 pp. Additionally R4 is accepted as justified complexity only if it beats R3 by at least 5% on CVaR and beats R2. If R3 and R4 do not pass, no repeat on the `wf-volscale` artifacts is made, and the result is recorded in `docs/metrics.md`.
+- Limitation: any step remains an offline tool (`cmd/icaportfolio`); connecting it to `EnsembleSignalSource` or the trader requires a separate recomputation on signals (long and short positions) and consent of the owner.
 
-## Шаг 2б. Предрегистрация: сдвиг домена новостей (критерии зафиксированы до запуска, 2026-10-18)
+Implementation details of H23, stage 0 (fixed before the first run, 2026-10-18):
+- Conditional cumulants are forecast for the holding period: the mean over the 21 forecast days of the recursion `xi_{T+h} = mu + rho^(h-1) (xi_{T+1} - mu)` is taken, not the one-step forecast.
+- The mean forecast `mu = Phi * y_T` (VAR(1) without an intercept on demeaned returns), as in the paper without a separate mean term; the variant `R4_mu0` zeroes `mu`.
+- Log returns in percent go into the model, simple returns go into the portfolio simulation; weights drift between rebalances; costs of 0.05% of turnover at each rebalance, including the initial purchase.
+- Ticker admission at a rebalance: a quote exists on the rebalance day and at least 740 trading days out of the 750 window; below 3 admitted tickers the run stops with an error.
+- If the fit of step R3 or R4 does not converge on a window, the previous weights are kept at that rebalance (or equal ones at the very start); the number of such cases is not hidden.
+- Code: `internal/icaport` (9 tests: Jacobi decomposition, matrix inverse, FastICA source recovery, recursions, moments against sample ones, gradient against finite differences, simplex, metrics, determinism) and `cmd/icaportfolio`.
 
-Вопрос: нулевой результат шага 2 (AUC 0.486-0.528) объясняется сдвигом домена (обучение на длинных текстах BCS/Finam 2021-2024, проверка на 90% коротких алертов Telegram и Google News 2026) или отсутствием сигнала в заголовках вообще. Состав архива измерен в `docs/knowledge/news-and-events.md` (Archive composition).
+## Step 2b. Pre-registration: news domain shift (criteria fixed before the run, 2026-10-18)
 
-Данные: `data/news_history.jsonl`, записи с 2026-04-01 по 17 тикерам из `config.yaml` (7257 пар на момент предрегистрации, после дедупликации по паре тикер плюс нормализованный заголовок 7054). Обучение: записи 2026-04-01..2026-07-31; зазор 14 календарных дней (метки на 10 торговых дней не перекрывают тест); тест: записи с 2026-08-15. Из теста удаляются пары, у которых нормализованный заголовок (нижний регистр, только буквы и цифры) встречается в обучении для того же тикера; число удалённых приводится. Утверждение источников: решение владельца от 2026-09-29 по Telegram и Google News действует.
+Question: is the null result of step 2 (AUC 0.486-0.528) explained by a domain shift (training on long BCS/Finam texts of 2021-2024, validation on 90% short Telegram and Google News alerts of 2026) or by the absence of any signal in headlines. The archive composition is measured in `docs/knowledge/news-and-events.md` (Archive composition).
 
-Арки:
-- A: обучение только на 2026 (апрель-июль), тот же классификатор (`cmd/trainnewsmodel`, bag-of-words logistic, `-vocab-size 1000 -min-doc-freq 3`, остальное по умолчанию, метка направления избыточной доходности против IMOEX, вход на открытии следующего торгового дня).
-- B: классификатор шага 2 (обучен только на 2021-2024), оценивается на том же тесте без дообучения.
-- C: обучение на 2021-2024 плюс 2026 апрель-июль (`-vocab-size 3000 -min-doc-freq 3`).
+Data: `data/news_history.jsonl`, records from 2026-04-01 for the 17 tickers from `config.yaml` (7257 pairs at the time of pre-registration, 7054 after deduplication by the pair ticker plus normalized headline). Training: records 2026-04-01..2026-07-31; a gap of 14 calendar days (labels at 10 trading days do not overlap the test); test: records from 2026-08-15. Pairs whose normalized headline (lowercase, letters and digits only) occurs in training for the same ticker are removed from the test; the number removed is given. Source approval: the owner's decision of 2026-09-29 on Telegram and Google News stands.
 
-Горизонты 1, 5, 10 торговых дней. Метрика: AUC оценки заголовка на тесте; доверительные интервалы блочным bootstrap по датам публикации (2000 повторов, seed 42) с поправкой Бонферрони на 6 проверок (арки A и C на 3 горизонтах, уровень 1 - 0.05/6 = 99.17%).
+Arms:
+- A: training on 2026 only (April-July), the same classifier (`cmd/trainnewsmodel`, bag-of-words logistic, `-vocab-size 1000 -min-doc-freq 3`, the rest default, label of the direction of excess return against IMOEX, entry at the open of the next trading day).
+- B: the classifier of step 2 (trained only on 2021-2024), evaluated on the same test without further training.
+- C: training on 2021-2024 plus 2026 April-July (`-vocab-size 3000 -min-doc-freq 3`).
 
-Критерий: арка (A или C) на горизонте считается показавшей направленный сигнал, если AUC >= 0.530 и нижняя граница скорректированного CI выше 0.500, при тесте не менее 1000 сэмплов и 40 дат. Арка B используется как контроль: если A или C показывают сигнал, а B нет, сдвиг домена подтверждён; если ни одна из арок не показывает сигнал, вывод «в заголовках нет устойчивого направленного сигнала» не зависит от домена. Дополнительно приводятся срез без Telegram и Google (описательно) и доля дубликатов, удалённых из теста.
+Horizons 1, 5, 10 trading days. Metric: AUC of the headline score on the test; confidence intervals by block bootstrap by publication dates (2000 repetitions, seed 42) with a Bonferroni correction for 6 tests (arms A and C at 3 horizons, level 1 - 0.05/6 = 99.17%).
 
-Следствия: при подтверждении сигнала новостной признак в ценовую модель не добавляется без отдельной предрегистрации оценки по протоколу шага 1; при отсутствии сигнала новостной классификатор остаётся выключенным и направление 2 исчерпано.
+Criterion: an arm (A or C) at a horizon counts as showing a directional signal if AUC >= 0.530 and the lower bound of the corrected CI is above 0.500, with a test of at least 1000 samples and 40 dates. Arm B is used as a control: if A or C show a signal and B does not, the domain shift is confirmed; if no arm shows a signal, the conclusion "there is no stable directional signal in headlines" does not depend on the domain. Additionally given: the slice without Telegram and Google (descriptive) and the share of duplicates removed from the test.
 
-## Шаг 2в. Предрегистрация: новостной классификатор на расширенном архиве (критерии зафиксированы до запуска, 2026-10-18)
+Consequences: if a signal is confirmed, the news feature is not added to the price model without a separate pre-registration of the evaluation under the step 1 protocol; if there is no signal, the news classifier stays off and direction 2 is exhausted.
 
-Вопрос: шаги 2 и 2б работали на 17 тикерах и 1427-2817 тестовых сэмплах за 38-49 дат, а месячный AUC прыгал от 0.37 до 0.75. Теперь универсум 260 акций и десятки тысяч заголовков 2025-2026 (RSS, Telegram, 13 новых каналов): даёт ли обучение на 2021-2024 направленный сигнал на этой выборке и устойчив ли он по времени. Архив получен слиянием и чисткой 2026-10-18 (`docs/knowledge/news-and-events.md`, разделы «Archive merge», «Archive cleaning», «More Telegram channels»), состав зафиксирован до запуска.
+## Step 2v. Pre-registration: news classifier on the extended archive (criteria fixed before the run, 2026-10-18)
 
-Данные и фильтры (до запуска):
-- Архив: `data/news_history.jsonl` после финальной пересборки `scripts/rebuild-news-archive.sh` (с сырыми файлами `data/news_raw_tg*.jsonl`); перед запуском записываются число пар и состав.
-- Обучение: пары, опубликованные до 2025-01-01; исключаются источник «MOEX сайт-новости» (административные уведомления, не тексты новостей) и пары статей, привязанных к 4 и более тикерам (`-max-tickers-per-article 3`, дайджесты БКС).
-- Тест: пары с 2025-03-01 (зазор два месяца больше любого горизонта); те же два исключения; из теста убираются пары, чей нормализованный заголовок встречается в обучении для того же тикера.
-- Тикеры: акции с медианным оборотом за 20 дней не ниже 10 млн RUB на дату решения, как `-train-min-turnover` в `trainmodel`; метки считает `BuildNewsLabels` (вход на открытии следующего торгового дня, избыточная доходность против IMOEX). Фильтр применяется одинаково к обучению и тесту.
-- Модель: `cmd/trainnewsmodel` без изменений (bag-of-words logistic, `-vocab-size 3000 -min-doc-freq 3`), горизонты 1, 5, 10 торговых дней.
+Question: steps 2 and 2b worked on 17 tickers and 1427-2817 test samples over 38-49 dates, and the monthly AUC jumped from 0.37 to 0.75. Now the universe is 260 stocks and tens of thousands of headlines of 2025-2026 (RSS, Telegram, 13 new channels): does training on 2021-2024 give a directional signal on this sample, and is it stable over time. The archive was obtained by merging and cleaning on 2026-10-18 (`docs/knowledge/news-and-events.md`, sections "Archive merge", "Archive cleaning", "More Telegram channels"), the composition is fixed before the run.
 
-Метрика и критерий: AUC оценки на тесте; CI блочным bootstrap по датам публикации (2000 повторов, seed 42) с поправкой Бонферрони на 3 горизонта (уровень 98.33%). Сигнал есть на горизонте, если AUC >= 0.530 и нижняя граница CI выше 0.500 при не менее 1000 тестовых сэмплов и 40 датах, и при этом AUC положителен (>= 0.500) не менее чем в 4 из 6 календарных кварталов теста (требование устойчивости: прежние тесты показывали окно-зависимый результат). Контроль утечки: тот же AUC при перестановке оценок внутри каждой даты (seed 42) должен лежать в [0.48, 0.52]. Описательно приводятся AUC по группам источников (RSS и агентства, Telegram, Google News, профильные сайты), по кварталам и среди 30 самых обсуждаемых тикеров.
+Data and filters (before the run):
+- Archive: `data/news_history.jsonl` after the final rebuild by `scripts/rebuild-news-archive.sh` (with the raw files `data/news_raw_tg*.jsonl`); the number of pairs and the composition are recorded before the run.
+- Training: pairs published before 2025-01-01; the source "MOEX site news" (administrative notices, not news texts) and pairs of articles linked to 4 or more tickers (`-max-tickers-per-article 3`, BCS digests) are excluded.
+- Test: pairs from 2025-03-01 (a gap of two months, more than any horizon); the same two exclusions; pairs whose normalized headline occurs in training for the same ticker are removed from the test.
+- Tickers: stocks with a 20-day median turnover of at least 10 million RUB on the decision date, like `-train-min-turnover` in `trainmodel`; labels are computed by `BuildNewsLabels` (entry at the open of the next trading day, excess return against IMOEX). The filter is applied identically to training and test.
+- Model: `cmd/trainnewsmodel` unchanged (bag-of-words logistic, `-vocab-size 3000 -min-doc-freq 3`), horizons 1, 5, 10 trading days.
 
-Следствия: при выполнении критерия хотя бы на одном горизонте новостной признак можно оценивать как вход ценовой модели только по отдельной предрегистрации по протоколу шага 1; иначе направление новостей как сигнала остаётся закрытым (решение шагов 2 и 2б), теперь на выборке в разы больше.
+Metric and criterion: AUC of the score on the test; CI by block bootstrap by publication dates (2000 repetitions, seed 42) with a Bonferroni correction for 3 horizons (level 98.33%). There is a signal at a horizon if AUC >= 0.530 and the lower CI bound is above 0.500 with at least 1000 test samples and 40 dates, and in addition the AUC is positive (>= 0.500) in at least 4 of 6 calendar quarters of the test (a stability requirement: earlier tests showed a window-dependent result). Leakage control: the same AUC under permutation of scores within each date (seed 42) must lie in [0.48, 0.52]. Descriptively given: AUC by source groups (RSS and agencies, Telegram, Google News, specialized sites), by quarters and among the 30 most discussed tickers.
 
-## Шаг 2г. Предрегистрация: новостной скор после издержек (критерии зафиксированы до запуска, 2026-10-18)
+Consequences: if the criterion is met at least at one horizon, the news feature may be evaluated as an input of the price model only by a separate pre-registration under the step 1 protocol; otherwise the direction of news as a signal stays closed (the decision of steps 2 and 2b), now on a sample many times larger.
 
-Вопрос: превращается ли слабый AUC 0.523 (шаг 2в, горизонт 10 дней) в доходность после издержек. Один первичный тест, остальное описательное, поправка на множественность не нужна.
+## Step 2g. Pre-registration: news score after costs (criteria fixed before the run, 2026-10-18)
 
-- **Данные:** оценки шага 2в (`scores_h10.csv`, обучение до 2025-03-01, тест 2025-03-16..2026-10-05, 19 085 пар, 6 823 пары тикер-дата). Никакой повторной настройки: классификатор, фильтр ликвидности (10 млн руб.) и горизонт фиксированы шагом 2в.
-- **Агрегация:** оценка тикера на дату = среднее оценок его статей за эту дату. Метка = избыточная доходность за 10 дней к индексу (из метки шага 2в).
-- **Портфель:** на каждую дату с не менее чем 10 оценёнными тикерами берётся верхний и нижний квинтиль (k = floor(n/5)), равные веса, удержание 10 торговых дней, траншей открывается каждый день независимо. Доходность транша = среднее избыточной доходности верха минус среднее низа.
-- **Издержки:** 0.15% на сторону сделки (комиссия 0.05% + полуспред 0.05% + проскальзывание 0.05%, как в preflight), то есть 0.30% за круг на ногу и 0.60% на транш (две ноги). Заём шорта не учитывается (оптимистично для шортовой ноги).
-- **Первичный критерий:** средняя чистая доходность транша > 0 и нижняя граница 95% интервала датного блочного бутстрепа (блок 10 дат, 5000 повторов) > 0.
-- **Описательно:** валовый спред, безубыточные издержки, доходности по пяти квинтилям (монотонность), чистая доходность только длинной ноги (верхний квинтиль минус 0.30%), разбивка по кварталам, чувствительность к издержкам 0.10% и 0.20% на сторону.
-- **Если критерий не выполнен:** новости остаются закрытыми как торговый сигнал, ветка закрывается; пересмотр только с новым независимым периодом данных.
-- **Если выполнен:** это основание для теневого прогона, а не для торговли. Требуется независимая проверка на периоде после 2026-10-05 и учёт займа шорта и ограничений ликвидности по числу бумаг.
+Question: does the weak AUC 0.523 (step 2v, 10-day horizon) turn into return after costs. One primary test, the rest descriptive, no multiplicity correction needed.
 
-**Результат шага 2г (2026-10-18):** критерий не выполнен, цифры в `docs/metrics.md` (раздел step 2g). Чистый спред +0.263% на транш, CI95 [-0.305, +0.930]; длинная нога после издержек даёт +0.045%. Ветка новостей закрыта как торговый сигнал.
+- **Data:** the scores of step 2v (`scores_h10.csv`, training until 2025-03-01, test 2025-03-16..2026-10-05, 19 085 pairs, 6 823 ticker-date pairs). No retuning: the classifier, the liquidity filter (10 million RUB) and the horizon are fixed by step 2v.
+- **Aggregation:** a ticker's score on a date = the mean of the scores of its articles for that date. Label = 10-day excess return to the index (from the step 2v label).
+- **Portfolio:** on each date with at least 10 scored tickers the top and bottom quintile are taken (k = floor(n/5)), equal weights, holding 10 trading days, a tranche opens every day independently. Tranche return = mean excess return of the top minus mean of the bottom.
+- **Costs:** 0.15% per side of a trade (commission 0.05% + half-spread 0.05% + slippage 0.05%, as in preflight), i.e. 0.30% per round trip per leg and 0.60% per tranche (two legs). Short borrow is not counted (optimistic for the short leg).
+- **Primary criterion:** the mean net tranche return > 0 and the lower bound of the 95% interval of the date block bootstrap (block 10 dates, 5000 repetitions) > 0.
+- **Descriptive:** gross spread, break-even costs, returns by the five quintiles (monotonicity), net return of the long leg only (top quintile minus 0.30%), breakdown by quarters, sensitivity to costs of 0.10% and 0.20% per side.
+- **If the criterion is not met:** news stays closed as a trading signal, the branch is closed; revisiting only with a new independent data period.
+- **If met:** this is grounds for a shadow run, not for trading. An independent test on the period after 2026-10-05 and accounting for short borrow and liquidity limits on the number of securities are required.
+
+**Result of step 2g (2026-10-18):** the criterion is not met, numbers in `docs/metrics.md` (section step 2g). Net spread +0.263% per tranche, CI95 [-0.305, +0.930]; the long leg after costs gives +0.045%. The news branch is closed as a trading signal.

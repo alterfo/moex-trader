@@ -1,37 +1,39 @@
-# Ручная ретренировка ансамбля (2026-10-18)
+# Manual retraining of the ensemble (2026-10-18)
 
-Владелец одобрил 2026-10-18 («давай 1 2 3», пункт 2). Повод: D4 из диагностики SELL-перекоса — свежая модель даёт 2.2% BUY против 0% у развёрнутой на том же окне (устаревание BUY-хвоста). Автозамена по-прежнему запрещена; это однократная ручная ретренировка с явным согласием.
+Russian translation: [20261018-manual-retrain.ru.md](20261018-manual-retrain.ru.md). This file is canonical.
 
-## Кандидат
+The owner approved on 2026-10-18 ("go 1 2 3", item 2). Reason: D4 of the SELL-skew diagnosis — a fresh model gives 2.2% BUY against 0% for the deployed one on the same window (staleness of the BUY tail). Auto-replacement is still forbidden; this is a one-off manual retraining with explicit consent.
 
-Рецепт развёрнутой модели без изменений: absolute-10d, 18 признаков (включая `news_sentiment`/`news_count`), 28-имённый порядок, colsample 0.8, пороги 0.60/0.40, удержание до флипа. Меняется только обучающее окно.
+## Candidate
 
-- Данные (ai-box, `~/moex-trader-task12`): `exportdataset -config config.sandbox.yaml -tickers <17 живых + DATA> -from 2024-01-01 -till 2026-10-18 -split 2026-06-18 -horizon-days 10 -deadband-pct 0.5 -label-mode absolute -news-history news_history.jsonl -out data-18f-retrain.csv`; `news_history.jsonl` — текущий архив с Mac (14619 записей).
-- Обучение: `scripts/export_ensemble.py`, `ENSEMBLE_TRAIN_TILL=2026-10-17`, `ENSEMBLE_EMBARGO_SPLIT=2026-10-17`, `ENSEMBLE_EMBARGO_BARS=10`, FEAT18/ORDER из Task 5, venv с закреплёнными версиями (`scripts/requirements-ensemble.txt`).
-- Серверный путь не меняется: новостные признаки маскируются (`untrainedFeatures`), гейт out_of_range с фиксом coef=0 — оба уже в HEAD.
+The recipe of the deployed model is unchanged: absolute-10d, 18 features (including `news_sentiment`/`news_count`), 28-name order, colsample 0.8, thresholds 0.60/0.40, hold until flip. Only the training window changes.
 
-## Гейт замены (зафиксирован до запуска)
+- Data (ai-box, `~/moex-trader-task12`): `exportdataset -config config.sandbox.yaml -tickers <17 live + DATA> -from 2024-01-01 -till 2026-10-18 -split 2026-06-18 -horizon-days 10 -deadband-pct 0.5 -label-mode absolute -news-history news_history.jsonl -out data-18f-retrain.csv`; `news_history.jsonl` is the current archive from the Mac (14619 records).
+- Training: `scripts/export_ensemble.py`, `ENSEMBLE_TRAIN_TILL=2026-10-17`, `ENSEMBLE_EMBARGO_SPLIT=2026-10-17`, `ENSEMBLE_EMBARGO_BARS=10`, FEAT18/ORDER from Task 5, a venv with pinned versions (`scripts/requirements-ensemble.txt`).
+- The server path does not change: news features are masked (`untrainedFeatures`), the out_of_range gate with the coef=0 fix — both are already in HEAD.
 
-Оба реплея — движком HEAD (`backtest-fixed` с фиксом гейта, linux/amd64), одинаковые издержки (0.0005×3), 1M депозит, 15000₽/позиция, kill-switch on, 17 тикеров:
+## Replacement gate (fixed before the run)
 
-1. Холдаут 30 дней (2026-09-17..2026-10-17): realized P&L кандидата ≥ realized P&L развёрнутой модели на том же окне.
-2. Префлайт-окно 90 дней (2026-07-20..2026-10-17): realized P&L кандидата ≥ realized P&L развёрнутой модели на том же окне, и ≥ `preflight.min_net_pnl`/`min_closed_trades` (1/1), и max DD кандидата ≤ max DD развёрнутой + 0.5 п.п.
+Both replays use the HEAD engine (`backtest-fixed` with the gate fix, linux/amd64), identical costs (0.0005×3), 1M deposit, 15000 RUB/position, kill-switch on, 17 tickers:
 
-Замена только если выполнены оба пункта; иначе числа фиксируются, модель не меняется.
+1. 30-day holdout (2026-09-17..2026-10-17): the candidate's realized P&L ≥ the deployed model's realized P&L on the same window.
+2. 90-day preflight window (2026-07-20..2026-10-17): the candidate's realized P&L ≥ the deployed model's realized P&L on the same window, and ≥ `preflight.min_net_pnl`/`min_closed_trades` (1/1), and the candidate's max DD ≤ the deployed model's max DD + 0.5 pp.
 
-## После замены
+Replace only if both items hold; otherwise the numbers are recorded and the model is not changed.
 
-- `ensemble_model.json` заменяется; golden backtest обновляется (`-update`), parity fixture перегенерируется (`scripts/dump_parity_fixture.py` на ai-box); `make check` проходит; метрики и реестр (`manual_retrain_20261018`) — тем же коммитом.
-- Деплой (пункт 1): пересборка `./trader` на Mac, рестарт через вотчдог (вотчдог держит лизинг, failure-счётчик сбрасывается после активации); ai-box обновляется штатным aibox-sync (standby).
-- OOS: `cmd/oosfreeze -action freeze` сразу после деплоя.
+## After replacement
 
-## Итог ретренировки (2026-10-18): замены нет
+- `ensemble_model.json` is replaced; the golden backtest is updated (`-update`), the parity fixture is regenerated (`scripts/dump_parity_fixture.py` on the ai-box); `make check` passes; metrics and the registry (`manual_retrain_20261018`) in the same commit.
+- Deployment (item 1): rebuild `./trader` on the Mac, restart through the watchdog (the watchdog holds the lease, the failure counter resets after activation); the ai-box is updated by the normal aibox-sync (standby).
+- OOS: `cmd/oosfreeze -action freeze` right after deployment.
 
-Гейт не пройден, числа в `docs/metrics.md`, раздел «Manual retrain candidate (2026-10-18)». Кандидат (обучен до 2026-10-17, embargo 10, 18 тикеров, тот же рецепт) проигрывает развёрнутой модели в обоих окнах:
+## Retraining outcome (2026-10-18): no replacement
 
-| окно | deployed realized | candidate realized | deployed trades | candidate trades | deployed DD | candidate DD |
+The gate is not passed, numbers in `docs/metrics.md`, section "Manual retrain candidate (2026-10-18)". The candidate (trained up to 2026-10-17, embargo 10, 18 tickers, the same recipe) loses to the deployed model in both windows:
+
+| window | deployed realized | candidate realized | deployed trades | candidate trades | deployed DD | candidate DD |
 |---|---|---|---|---|---|---|
 | hold30 (2026-09-17..10-17) | +583.21 | -3281.95 | 32 | 45 | 1.24% | 1.45% |
 | pre90 (2026-07-20..10-17) | +10419.63 | -1508.68 | 137 | 164 | 1.69% | 2.27% |
 
-Критерий 1 (кандидат ≥ deployed на hold30) и критерий 2 (кандидат ≥ deployed на pre90) не выполнены; `ensemble_model.json` не меняется. Свежие BUY-сигналы кандидата (2.2% против 0% в D4) в этом окне убыточны: обновление обучающего окна ухудшает SELL-сторону сильнее, чем чинит BUY-хвост. Это третье независимое подтверждение, что текущий рецепт чувствителен к обучающему окну при базовой AUC около шума: ручная ретренировка впредь — только через этот гейт. Условие повторной проверки: новый кандидат запускается не раньше, чем накопится заметно больше данных (не менее квартала с 2026-10-17), и только через тот же гейт.
+Criterion 1 (candidate ≥ deployed on hold30) and criterion 2 (candidate ≥ deployed on pre90) are not met; `ensemble_model.json` does not change. The candidate's fresh BUY signals (2.2% against 0% in D4) are loss-making in this window: refreshing the training window worsens the SELL side more than it fixes the BUY tail. This is the third independent confirmation that the current recipe is sensitive to the training window with a base AUC around noise: manual retraining from now on only through this gate. Condition for re-checking: a new candidate runs no earlier than noticeably more data has accumulated (at least a quarter since 2026-10-17), and only through the same gate.

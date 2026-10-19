@@ -1,5 +1,7 @@
 # Income levers and hedging
 
+Russian translation: [income-levers.ru.md](income-levers.ru.md). This file is canonical.
+
 Read before reopening leverage, `max_net_exposure`, dividend capture, futures hedging or market-neutral labels.
 
 Moved verbatim from AGENTS.md on 2026-10-09; the rules in AGENTS.md itself still take precedence.

@@ -1,5 +1,7 @@
 # Go-Live Checklist
 
+Russian translation: [GO_LIVE_CHECKLIST.ru.md](GO_LIVE_CHECKLIST.ru.md). This file is canonical.
+
 This checklist maps the five source-spec go-live requirements to the implementation
 and tests that satisfy them. The current status is verified against the repository at
 the completion of Task 21.

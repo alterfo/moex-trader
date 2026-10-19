@@ -1,28 +1,30 @@
-# Per-ticker circuit breaker в реплее гейта (предрегистрация, 2026-10-18, до запуска)
+# Per-ticker circuit breaker in the gate replay (pre-registration, 2026-10-18, before the run)
 
-## Факты
+Russian translation: [20261018-ticker-breaker-parity.ru.md](20261018-ticker-breaker-parity.ru.md). This file is canonical.
 
-- Живой `cmd/trader` уже работает с `risk.TickerBreaker` (`risk.circuit_breaker_*` не заданы в `config.sandbox.yaml`, значит действуют дефолты: 3 убыточных круга подряд или накопленный убыток 5% от `target_notional`=15000, то есть 750 руб.; блокировка держится до ручного `Reset`).
-- Реплей префлайта (`internal/backtest`) breaker не содержал: гейт оценивает конфигурацию без защиты, которая в live есть.
-- Этот шаг не настраивает пороги. Они берутся ровно из live-дефолтов.
+## Facts
 
-## Изменение (код)
+- The live `cmd/trader` already runs with `risk.TickerBreaker` (`risk.circuit_breaker_*` are not set in `config.sandbox.yaml`, so the defaults apply: 3 losing round trips in a row or a cumulative loss of 5% of `target_notional`=15000, that is 750 RUB; the block holds until a manual `Reset`).
+- The preflight replay (`internal/backtest`) did not contain the breaker: the gate evaluated a configuration without a protection that exists in live.
+- This step does not tune thresholds. They are taken exactly from the live defaults.
 
-- `backtest.Config.Breaker *risk.TickerBreakerConfig` (nil = выключено, поведение прежнее). Движок кормит breaker каждым исполнением (вход, добавление, частичное и полное закрытие, переворот, time-exit) и передаёт его в risk gate. Тест в том же коммите.
-- `cmd/backtest -breaker`: включает breaker с дефолтами и `-target-notional` как Notional.
-- В `cmd/trader` preflight breaker НЕ подключается в этом шаге. Подключение меняет вход в гейт и делается только после явного «да» владельца.
+## Change (code)
 
-## Эксперимент (один запуск, без подбора)
+- `backtest.Config.Breaker *risk.TickerBreakerConfig` (nil = disabled, behaviour unchanged). The engine feeds the breaker with every execution (entry, add, partial and full close, flip, time-exit) and passes it to the risk gate. A test in the same commit.
+- `cmd/backtest -breaker`: enables the breaker with the defaults and `-target-notional` as Notional.
+- The breaker is NOT wired into the `cmd/trader` preflight in this step. Wiring it changes the gate input and is done only after an explicit "yes" from the owner.
 
-Гейт-форма из `docs/plans/completed/20261018-preflight-concentration.md` (17 тикеров, 90 дней, депозит 1M, издержки 0.0005×3 и спреды из `trader-sandbox.db`, заём 0.00005/день, лимиты 90000/90000, ансамбль `ensemble_model.json`, без новостей), с `-breaker` и без, для till ∈ {2026-10-18, 2026-07-20, 2026-04-21}. Три непересекающихся окна по 90 дней: одно «плохое» (последнее) и два контрольных.
+## Experiment (one run, no tuning)
 
-## Критерии
+The gate form from `docs/plans/completed/20261018-preflight-concentration.md` (17 tickers, 90 days, deposit 1M, costs 0.0005×3 and spreads from `trader-sandbox.db`, borrow 0.00005/day, limits 90000/90000, ensemble `ensemble_model.json`, no news), with and without `-breaker`, for till ∈ {2026-10-18, 2026-07-20, 2026-04-21}. Three non-overlapping 90-day windows: one "bad" (the latest) and two controls.
 
-- **Первичный:** с breaker реализованный P&L окна till=2026-10-18 не меньше 1 руб. (порог гейта) И сумма реализованного P&L по трём окнам с breaker не меньше суммы без breaker.
-- Если окно 10-18 проходит, а сумма по трём окнам ниже: это «защита ценой упущенной прибыли», а не починка прогноза; вывод так и формулируется.
-- Если окно 10-18 не проходит: breaker не решает проблему гейта; пороги не меняются, ветка закрывается.
-- Результат любой из веток только описывает; включение в префлайт требует явного решения владельца.
+## Criteria
 
-## Результат (2026-10-18)
+- **Primary:** with the breaker, the realized P&L of the till=2026-10-18 window is not below 1 RUB (the gate threshold) AND the sum of realized P&L over the three windows with the breaker is not below the sum without the breaker.
+- If the 10-18 window passes but the sum over three windows is lower: this is "protection at the price of forgone profit", not a fix of the forecast; the conclusion is worded exactly so.
+- If the 10-18 window does not pass: the breaker does not solve the gate problem; thresholds are not changed, the branch is closed.
+- The outcome of either branch is only descriptive; enabling it in preflight requires an explicit owner decision.
 
-Критерий не выполнен по обеим частям, цифры в `docs/metrics.md` (раздел «Ticker circuit breaker in the gate replay»). Окно 10-18 с breaker: реализованный P&L net of borrow -3356.64 (без: -2455.72); сумма по трём окнам +25943.92 против +28439.15. Ветка закрыта, пороги не менялись, в префлайт не подключено. Побочная находка: gate отклоняет и закрывающие ордера для сработавшего тикера, позиция замораживается.
+## Result (2026-10-18)
+
+The criterion is not met on either part; the numbers are in `docs/metrics.md` (section "Ticker circuit breaker in the gate replay"). The 10-18 window with the breaker: realized P&L net of borrow -3356.64 (without: -2455.72); the sum over three windows is +25943.92 against +28439.15. The branch is closed, thresholds were not changed, nothing was wired into preflight. Side finding: the gate also rejects closing orders for a ticker that has tripped, so the position is frozen.

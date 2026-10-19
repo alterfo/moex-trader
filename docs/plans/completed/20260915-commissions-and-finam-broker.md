@@ -1,5 +1,7 @@
 # Commission Accounting and Finam Broker Support
 
+Russian translation: [20260915-commissions-and-finam-broker.ru.md](20260915-commissions-and-finam-broker.ru.md). This file is canonical.
+
 ## Overview
 
 Two related gaps found while reviewing the first build:
@@ -18,8 +20,8 @@ Two related gaps found while reviewing the first build:
    and historical market data, a demo account, and a published rate limit (200
    req/min per method). Alfa's public docs are ambiguous (mostly a general banking
    partner API, not clearly a retail trading API), so building against it risked
-   producing a plausible-looking but non-functional client. Finam's "Единый дневной"
-   tariff is also cheaper (from 0.01%) than Alfa's "Трейдер" (from 0.014%).
+   producing a plausible-looking but non-functional client. Finam's "Unified Daily"
+   tariff is also cheaper (from 0.01%) than Alfa's "Trader" (from 0.014%).
 
 This plan adds commission accounting (broker-agnostic) and a Finam market-data +
 execution integration, following the same pattern already used for Tinkoff.
@@ -82,8 +84,8 @@ execution integration, following the same pattern already used for Tinkoff.
 - [x] add `Commission decimal.Decimal` to `executor.Fill` in
       `internal/executor/executor.go`
 - [x] add a `Commission` section to `internal/config` (`Broker string`,
-      `Rate decimal.Decimal`), with a documented default matching Finam's "Единый
-      дневной" tariff (`0.0001` = 0.01%) and an env override
+      `Rate decimal.Decimal`), with a documented default matching Finam's "Unified
+      Daily" tariff (`0.0001` = 0.01%) and an env override
       (`MOEX_TRADER_COMMISSION_RATE`)
 - [x] update `config.example.yaml` with the new section
 - [x] write tests for config loading/defaults/env override (valid rate, missing

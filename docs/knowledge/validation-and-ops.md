@@ -1,5 +1,7 @@
 # Validation tooling and live/sandbox operations
 
+Russian translation: [validation-and-ops.ru.md](validation-and-ops.ru.md). This file is canonical.
+
 Read before changing `cmd/strategyvalidation`, walk-forward, the shadow reconciler, metrics/alerts, order execution safeguards, the kill switch, or Telegram wiring.
 
 Moved verbatim from AGENTS.md on 2026-10-09; the rules in AGENTS.md itself still take precedence.

@@ -1,5 +1,7 @@
 # Alpha-without-beta hedge test (0)
 
+Russian translation: [alphahedge-report.ru.md](alphahedge-report.ru.md). This file is canonical.
+
 - Window: 2025-04-01 -> 2026-09-17
 - Tickers: YDEX, OZON, SBER, LKOH, GAZP, GMKN, ROSN, NVTK, TATN, MTSS, MGNT, PLZL, CHMF, DATA, T, VTBR, RUAL, POSI
 - Deposit 1000000, target notional 15000, costs comm/spread/slip 0.0005/0.0005/0.0005

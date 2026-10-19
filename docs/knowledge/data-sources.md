@@ -1,5 +1,7 @@
 # Public data sources: availability checks (2026-10-19)
 
+Russian translation: [data-sources.ru.md](data-sources.ru.md). This file is canonical.
+
 Read before looking for new market data. Rows marked (verified) were confirmed by this repository's own tools; the others come from the assistant in the second terminal pane, which probed the endpoints without tokens on 2026-10-19 and are not independently verified.
 
 | Source | URL | Fields | Delay | History from |

@@ -1,5 +1,7 @@
 # News exit: tuning, replay backtest, buy side
 
+Russian translation: [20261010-news-exit-tuning-and-buy-side.ru.md](20261010-news-exit-tuning-and-buy-side.ru.md). This file is canonical.
+
 Status: PLANNED (created 2026-10-10). Direction: `docs/VISION.md`. Context: `docs/knowledge/news-and-events.md` ("News-position exit").
 
 ## 1. Tune exit parameters (blocked on data)

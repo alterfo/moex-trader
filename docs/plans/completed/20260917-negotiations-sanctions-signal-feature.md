@@ -1,5 +1,7 @@
 # Negotiations/Sanctions Signal Feature
 
+Russian translation: [20260917-negotiations-sanctions-signal-feature.ru.md](20260917-negotiations-sanctions-signal-feature.ru.md). This file is canonical.
+
 ## Overview
 
 The market thesis driving this plan: the RF market currently trades on the
@@ -119,7 +121,7 @@ addition.
       for candidate terms) and wire it into `DetectEvents` alongside the existing
       `event_sanctions` detector
 - [x] write tests for the new regex: positive matches (negotiation-progress headlines,
-      "Уиткофф"-style mentions), negative matches (unrelated headlines), and boundary cases
+      "Witkoff"-style mentions), negative matches (unrelated headlines), and boundary cases
       (partial word matches that should NOT trigger)
 - [x] run project tests - must pass before next task
 

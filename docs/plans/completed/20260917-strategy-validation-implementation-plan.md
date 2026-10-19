@@ -1,5 +1,7 @@
 # Strategy Validation Implementation Plan
 
+Russian translation: [20260917-strategy-validation-implementation-plan.ru.md](20260917-strategy-validation-implementation-plan.ru.md). This file is canonical.
+
 ## Overview
 
 The deployed abs-10d ensemble (18 features, buy/sell thresholds 0.60/0.40, 15000₽ per

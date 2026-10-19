@@ -1,23 +1,25 @@
-# Approximate: видение проекта
+# Approximate: project vision
 
-Главный источник истины и направление движения проекта. Формулировка автора (2026-10-10), приведена дословно. Если код, план или документ противоречат этому файлу, прав этот файл; жёсткие инварианты безопасности из `AGENTS.md` по-прежнему выше любого плана.
+Russian translation: [VISION.ru.md](VISION.ru.md). This file is canonical.
 
-**Идея:** Алготрейдер с новостным анализатором, дающий рекомендации по сделкам на основе анализа новостей и рыночной динамики.
+The main source of truth and direction of the project. The author's wording (2026-10-10), quoted verbatim in the Russian original. If code, a plan or a document contradicts this file, this file is right; the hard safety invariants from `AGENTS.md` still stand above any plan.
 
-**Проблема:** Сложность ручного анализа большого объёма информации о рынке и компаниях для принятия эффективных инвестиционных решений крупными инвесторами.
+**Idea:** An algorithmic trader with a news analyzer that gives trade recommendations based on news analysis and market dynamics.
 
-**Технология:** Конвейер обработки данных включает сбор рыночных данных, вычисление признаков, инференс ансамблевых моделей, применение порога и внешних вето, что приводит к выдаче конкретных сделок и сигнальных алертов.
+**Problem:** It is hard to manually analyze the large volume of information about the market and companies in order to make effective investment decisions for large investors.
 
-**Рабочее название:** Approximate
+**Technology:** The data-processing pipeline includes collecting market data, computing features, inference of ensemble models, applying a threshold and external vetoes, which results in concrete trades and signal alerts.
 
-## Как это читать в терминах репозитория
+**Working name:** Approximate
 
-| Слово из видения | Где живёт в коде |
+## How to read this in repository terms
+
+| Word from the vision | Where it lives in code |
 |---|---|
-| сбор рыночных данных | `internal/ingestion/*`, `internal/orchestrator` |
-| вычисление признаков | `internal/features`, `internal/model/features.go` |
-| инференс ансамблевых моделей | `internal/model/ensemble.go` (LightGBM + XGBoost + logreg) |
-| применение порога | `buy_threshold` / `sell_threshold` в `ensemble_model.json` |
-| внешние вето | новостной veto gate, детектор инцидентов, риск-гейт (`internal/risk`), kill switch |
-| сделки и сигнальные алерты | `internal/executor`, `internal/alert/telegram` |
-| новостной анализатор | `internal/model/newsclassifier.go`, `cmd/newsfetch`, `cmd/newsscore`, `cmd/trainnewsmodel` (развивается в отдельной сессии) |
+| collecting market data | `internal/ingestion/*`, `internal/orchestrator` |
+| computing features | `internal/features`, `internal/model/features.go` |
+| inference of ensemble models | `internal/model/ensemble.go` (LightGBM + XGBoost + logreg); the live sandbox profile reads probabilities from the ridge score table, `internal/model/scoretable.go` |
+| applying a threshold | `buy_threshold` / `sell_threshold` in `ensemble_model.json` (`0.60` / `0.40`; the same constants in `scoretable.go`) |
+| external vetoes | news veto gate, incident detector, risk gate (`internal/risk`), kill switch |
+| trades and signal alerts | `internal/executor`, `internal/alert/telegram` |
+| news analyzer | `internal/model/newsclassifier.go`, `cmd/newsfetch`, `cmd/newsscore`, `cmd/trainnewsmodel` (developed in a separate session) |

@@ -1,55 +1,57 @@
-# Провал предстартового гейта: что установлено и протокол приёмки (2026-10-18)
+# Pre-start gate failure: what is established and the acceptance protocol (2026-10-18)
 
-Статус: протокол приёмки и поправки к трём документам приняты владельцем 2026-10-18 («да, все три»); ничего не запущено на живом пути, `config.sandbox.yaml`, `ensemble_model.json` и `./trader` не менялись. Все числа получены офлайн через `cmd/backtest` в скретче и воспроизводятся командой ниже.
+Russian translation: [20261018-gate-failure-remediation.ru.md](20261018-gate-failure-remediation.ru.md). This file is canonical.
 
-## Установленные факты
+Status: the acceptance protocol and the corrections to three documents were accepted by the owner on 2026-10-18 ("yes, all three"); nothing was run on the live path, and `config.sandbox.yaml`, `ensemble_model.json` and `./trader` were not changed. All numbers were obtained offline through `cmd/backtest` in a scratch directory and are reproduced by the command below.
 
-1. **Гейт отказывает стабильно.** С 2026-10-18 03:44 по 19:43 (МСК) все 30 стартов вотчдога закончились отказом: realized net of borrow около −4 690 при пороге +1, 99 сделок, hit 42,4 %. Хэш конфига `5396378c` и `ensemble_model.json` (2026-09-18) не менялись.
-2. **Фикс гарда `out_of_range` (`ae6ffdd`) гейту безразличен.** Реплей гейт-формы (команда ниже) собран в двух вариантах из одного исходника HEAD: как есть и с патчем `ae6ffdd`. Результаты совпали до последнего знака на обоих окнах (till 10-18: net of borrow −2467,25, 117 сделок; till 10-17: +1209,23, 118 сделок). Ни одной цифры живого гейта (−4859,13 до и после замены бинарника в 03:45:42) фикс не объясняет.
-3. **Вывод в `docs/plans/completed/20261018-sell-bias-diagnostic.md` («−4859 с фиксом против +602 у вето на том же окне») сравнивает разные окна:** +602,32 — гейт 2026-10-17 15:09 (старт окна 07-19), −4859,13 — окно со стартом 07-20. Утверждение «случайное вето работает как прибыльный режимный фильтр» этими данными не подтверждается; в реплее вето не участвует. Откат `dcb601d` основан на этом сравнении.
-4. **Результат гейта определяется датой начала окна, а не новыми барами.** Конец окна не важен (till 10-15, 10-16, 10-17, 10-18: −2630, −2636, −2630, −2467, потому что баров после 10-16 нет). Сдвиг старта при till 10-18:
+## Established facts
 
-| старт окна | realized net of borrow, ₽ | сделок | hit |
+1. **The gate refuses stably.** From 2026-10-18 03:44 to 19:43 (MSK) all 30 watchdog starts ended in a refusal: realized net of borrow about −4 690 against a threshold of +1, 99 trades, hit rate 42.4%. The config hash `5396378c` and `ensemble_model.json` (2026-09-18) did not change.
+2. **The `out_of_range` guard fix (`ae6ffdd`) is irrelevant to the gate.** The gate-form replay (command below) was built in two variants from one HEAD source: as is and with the `ae6ffdd` patch. The results matched to the last digit on both windows (till 10-18: net of borrow −2467.25, 117 trades; till 10-17: +1209.23, 118 trades). The fix explains none of the live gate figures (−4859.13 before and after the binary replacement at 03:45:42).
+3. **The conclusion in `docs/plans/completed/20261018-sell-bias-diagnostic.md` ("−4859 with the fix against +602 for the veto on the same window") compares different windows:** +602.32 is the gate of 2026-10-17 15:09 (window start 07-19), −4859.13 is the window starting 07-20. The claim "a random veto works as a profitable regime filter" is not supported by this data; the veto does not take part in the replay. The rollback `dcb601d` rests on this comparison.
+4. **The gate result is determined by the window start date, not by new bars.** The window end does not matter (till 10-15, 10-16, 10-17, 10-18: −2630, −2636, −2630, −2467, because there are no bars after 10-16). Shifting the start at till 10-18:
+
+| window start | realized net of borrow, RUB | trades | hit |
 |---|---:|---:|---:|
-| 07-13 | +20 380 | 146 | 57,5 % |
-| 07-14 | +14 584 | 144 | 59,0 % |
-| 07-15 | +11 455 | 143 | 55,9 % |
-| 07-16 | +9 382 | 134 | 56,0 % |
-| 07-17 | +9 100 | 129 | 56,6 % |
-| 07-18 | +3 435 | 126 | 56,3 % |
-| 07-19 | +1 372 | 119 | 52,9 % |
-| 07-20 (гейт) | −2 467 | 117 | 52,1 % |
-| 07-21 | −5 085 | 112 | 51,8 % |
-| 07-22 | −5 959 | 107 | 46,7 % |
-| 07-23 | −2 375 | 104 | 49,0 % |
-| 07-24 | −3 034 | 102 | 49,0 % |
-| 07-25 | −3 514 | 98 | 51,0 % |
-| 07-26 | −5 536 | 94 | 50,0 % |
-| 07-27 | −784 | 97 | 48,5 % |
+| 07-13 | +20 380 | 146 | 57.5% |
+| 07-14 | +14 584 | 144 | 59.0% |
+| 07-15 | +11 455 | 143 | 55.9% |
+| 07-16 | +9 382 | 134 | 56.0% |
+| 07-17 | +9 100 | 129 | 56.6% |
+| 07-18 | +3 435 | 126 | 56.3% |
+| 07-19 | +1 372 | 119 | 52.9% |
+| 07-20 (gate) | −2 467 | 117 | 52.1% |
+| 07-21 | −5 085 | 112 | 51.8% |
+| 07-22 | −5 959 | 107 | 46.7% |
+| 07-23 | −2 375 | 104 | 49.0% |
+| 07-24 | −3 034 | 102 | 49.0% |
+| 07-25 | −3 514 | 98 | 51.0% |
+| 07-26 | −5 536 | 94 | 50.0% |
+| 07-27 | −784 | 97 | 48.5% |
 
-   Уровень отличается от живого гейта на постоянный сдвиг (CLI без квантования лотов): 07-19 даёт +1372 в CLI и +602 в гейте.
-5. **Следствие.** Гейт честно сообщает, что на последних 90 днях конфигурация не зарабатывает, но знак результата держится на нескольких крупных сделках у левой границы (шаг +3,8 тыс. при сдвиге 07-19 → 07-20, +19 тыс. между 07-13 и 07-19). «Более устойчивый» гейт (медиана по стартам) сегодня тоже не пройден: из 15 стартов положительны 7 (07-13..07-19), отрицательны 8.
+   The level differs from the live gate by a constant shift (the CLI has no lot quantisation): 07-19 gives +1372 in the CLI and +602 in the gate.
+5. **Consequence.** The gate honestly reports that over the last 90 days the configuration does not earn, but the sign of the result rests on a few large trades near the left boundary (a step of +3.8 thousand when moving 07-19 → 07-20, +19 thousand between 07-13 and 07-19). A "more robust" gate (the median over starts) is also not passed today: of 15 starts 7 are positive (07-13..07-19) and 8 are negative.
 
-## Что это значит для решения
+## What this means for the decision
 
-- Не ослаблять порог и не обходить гейт: данные показывают не дефект гейта, а слабую конфигурацию на нынешнем окне.
-- Причину отказа **нельзя** связывать с фиксом `ae6ffdd`. Решение о нём (ветовать ли `event_dividend` в дивидендный сезон на живом пути, где вето отнимает ~59 % решений) отдельное и от гейта не зависит. Откат основан на ошибочном сравнении; пересмотр решения за владельцем, правки документов делает активный писатель (правило 7 AGENTS.md).
-- Предыдущие документы, где цитируется «−4859 против +602 на том же окне» или «случайное вето как режимный фильтр», нужно поправить: `20261018-sell-bias-diagnostic.md`, `docs/metrics.md` («Sell-bias diagnostic»), `docs/knowledge/model-quality-history.md`.
+- Do not loosen the threshold and do not bypass the gate: the data show not a gate defect but a weak configuration on the current window.
+- The cause of the refusal **must not** be tied to the fix `ae6ffdd`. The decision about it (whether to veto `event_dividend` in the dividend season on the live path, where the veto removes ~59% of decisions) is separate and independent of the gate. The rollback is based on a wrong comparison; reconsidering the decision belongs to the owner, the document corrections are made by the active writer (AGENTS.md rule 7).
+- Earlier documents that quote "−4859 against +602 on the same window" or "a random veto as a regime filter" must be corrected: `20261018-sell-bias-diagnostic.md`, `docs/metrics.md` ("Sell-bias diagnostic"), `docs/knowledge/model-quality-history.md`.
 
-## Протокол приёмки кандидата (предлагается зафиксировать до любых экспериментов)
+## Candidate acceptance protocol (proposed to be fixed before any experiments)
 
-Кандидат-модель (или правило) принимается к замене только если одновременно:
+A candidate model (or rule) is accepted for replacement only if all of the following hold:
 
-1. Проходит критерии Task 13 без изменений (purged walk-forward, 6 окон, критерии 1-6 из `docs/metrics.md`).
-2. Гейт-форма реплея (команда ниже) на `till = today` положительна не менее чем при 12 из 15 стартов окна `today − 90 − k`, `k = 0..14`, и медиана по стартам ≥ `preflight.min_net_pnl`. Это строже нынешнего гейта и устраняет зависимость от одной даты.
-3. Доля трёх крупнейших сделок в сумме положительных сделок окна ≤ 50 % (отчёт для гейт-окна и для двух предыдущих непересекающихся 90-дневных окон).
-4. Для каждого из трёх непересекающихся 90-дневных окон (till = today, today−90, today−180) максимальная просадка ≤ 3 % и kill switch не срабатывает.
+1. It passes the Task 13 criteria unchanged (purged walk-forward, 6 windows, criteria 1-6 of `docs/metrics.md`).
+2. The replay gate form (command below) at `till = today` is positive for at least 12 of 15 window starts `today − 90 − k`, `k = 0..14`, and the median over starts is ≥ `preflight.min_net_pnl`. This is stricter than the present gate and removes the dependence on a single date.
+3. The share of the three largest trades in the sum of the window's positive trades is ≤ 50% (a report for the gate window and for the two previous non-overlapping 90-day windows).
+4. For each of the three non-overlapping 90-day windows (till = today, today−90, today−180) the maximum drawdown is ≤ 3% and the kill switch does not fire.
 
-Для текущей `ensemble_model.json` критерий 2 не выполнен (7 из 15), поэтому замена не требуется, пока не появится кандидат лучше, и текущая модель остаётся запрещена к старту.
+For the current `ensemble_model.json` criterion 2 is not met (7 of 15), so replacement is not required until a better candidate appears, and the current model remains forbidden to start.
 
-Какие гипотезы тестировать, определяется существующим планом (`20261018-seven-hypotheses.md`, шаги 6 и 7, режимный фильтр IMOEX и кросс-секционное ранжирование) и уже проверенным (breaker в реплее: не помог; окна 10/30/90 дней: не помогли). Новых гипотез на окне, которое породило провал, этот документ не вводит: подбор по сентябрьским тикерам (PLZL, CHMF, POSI, NVTK) без предрегистрации и независимых окон был бы подгонкой под то же окно.
+Which hypotheses to test is determined by the existing plan (`20261018-seven-hypotheses.md`, steps 6 and 7, the IMOEX regime filter and cross-sectional ranking) and by what has already been checked (breaker in the replay: did not help; windows of 10/30/90 days: did not help). This document introduces no new hypotheses on the window that produced the failure: selecting by the September tickers (PLZL, CHMF, POSI, NVTK) without pre-registration and independent windows would be fitting to the same window.
 
-## Воспроизведение
+## Reproduction
 
 ```
 git archive HEAD | tar -x -C <veto>; cp -R <veto>/. <fix>/
@@ -58,21 +60,21 @@ git show ae6ffdd -- internal/model/ensemble.go | (cd <fix> && git apply)
 ./bt-<variant> -config config.sandbox.yaml -tickers YDEX,OZON,SBER,LKOH,GAZP,GMKN,ROSN,NVTK,TATN,MTSS,MGNT,PLZL,CHMF,T,VTBR,RUAL,POSI -from <S> -till <T> -deposit 1000000 -max-lots 1000 -commission-rate 0.0005 -spread-pct 0.0005 -spread-db trader-sandbox.db -slippage-pct 0.0005 -borrow-pct-day 0.00005 -target-notional 15000 -max-net-short 90000 -max-net-long 90000 -lookback-days 0 -signal-source ensemble -ensemble-path ensemble_model.json -wf-dir <scratch>
 ```
 
-Источник метрик — строка «Realized P&L net of borrow» в выводе. Сырые выводы лежат в скретче сессии (`gv/out-*`, `gv/sweep/out-*`) и в репозиторий не добавлены.
+The metric source is the "Realized P&L net of borrow" line in the output. The raw outputs are in the session scratch directory (`gv/out-*`, `gv/sweep/out-*`) and were not added to the repository.
 
-## Не проверено
+## Not verified
 
-- Отличие от живого гейта по уровню (≈ +770 для старта 07-19) объяснено квантованием лотов по документации, но не проверено на уровне сделок.
-- Статус ai-box (эндпоинт `:9091` на `/` и `/status` отвечает 404).
+- The level difference from the live gate (≈ +770 for start 07-19) is explained by lot quantisation according to the documentation, but not verified at the trade level.
+- The ai-box status (the `:9091` endpoint answers 404 on `/` and `/status`).
 
-## Позиции песочницы T-Bank (проверено через API, 2026-10-18 вечером, только чтение)
+## T-Bank sandbox positions (checked through the API, evening of 2026-10-18, read-only)
 
-Запросы `SandboxService/GetSandboxAccounts`, `GetSandboxPositions`, `GetSandboxPortfolio`, `GetSandboxOrders` с токеном из `.env`; заявок и записей не создавалось. Единственный аккаунт `39f02dbf-0979-4e28-b005-d3f151749f40` (открыт 2026-09-16, `ACCOUNT_STATUS_OPEN`).
+Requests `SandboxService/GetSandboxAccounts`, `GetSandboxPositions`, `GetSandboxPortfolio`, `GetSandboxOrders` with the token from `.env`; no orders or records were created. The only account is `39f02dbf-0979-4e28-b005-d3f151749f40` (opened 2026-09-16, `ACCOUNT_STATUS_OPEN`).
 
-- 17 открытых позиций, все короткие (по одной на каждый из 17 тикеров конфига), активных заявок нет, фьючерсов нет.
-- Деньги 1 247 822 ₽, стоимость акций −270 285 ₽, портфель 977 537 ₽ (депозит 1 000 000 ₽), `expectedYield` −2,25 %.
-- Нереализованный результат по позициям −20 533 ₽: убыточны 13 из 17 (PLZL −3 417, OZON −3 266, GAZP −2 835, LKOH −2 537, MGNT −1 955, CHMF −1 822, VTBR −1 607, NVTK −1 550, POSI −1 422, ROSN −1 058, T −827, SBER −545, RUAL −357), прибыльны GMKN +1 426, YDEX +1 008, MTSS +144, TATN +88.
-- Суммарная экспозиция коротких позиций 270 285 ₽ (до 18 236 ₽ на тикер).
-- Kill switch в `trader-sandbox.db` не сработал (`active=0`).
+- 17 open positions, all short (one for each of the 17 config tickers), no active orders, no futures.
+- Cash 1 247 822 RUB, value of shares −270 285 RUB, portfolio 977 537 RUB (deposit 1 000 000 RUB), `expectedYield` −2.25%.
+- Unrealized result on positions −20 533 RUB: 13 of 17 are losing (PLZL −3 417, OZON −3 266, GAZP −2 835, LKOH −2 537, MGNT −1 955, CHMF −1 822, VTBR −1 607, NVTK −1 550, POSI −1 422, ROSN −1 058, T −827, SBER −545, RUAL −357), profitable are GMKN +1 426, YDEX +1 008, MTSS +144, TATN +88.
+- Total exposure of the short positions 270 285 RUB (up to 18 236 RUB per ticker).
+- The kill switch in `trader-sandbox.db` did not fire (`active=0`).
 
-Позиции остаются без сопровождения с 2026-10-18 03:43 (останов трейдера), когда торгов нет; биржа открывается в понедельник 2026-10-19. Закрытие позиций или оставление как есть — решение владельца: заявки на закрытие в рамках этой проверки не отправлялись.
+The positions have been unattended since 2026-10-18 03:43 (trader stop), when there is no trading; the exchange opens on Monday 2026-10-19. Closing the positions or leaving them as they are is the owner's decision: no closing orders were sent as part of this check.

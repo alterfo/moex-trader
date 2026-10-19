@@ -1,60 +1,62 @@
-# Experiment F: excess-лейблы через гейт Task 13 (2026-10-18)
+# Experiment F: excess labels through the Task 13 gate (2026-10-18)
 
-Предрегистрация до запуска. Владелец разрешил работу в зоне ансамбля/модели 2026-10-18 («даю, делай все 4»: этот эксперимент — пункт 1 из четырёх).
+Russian translation: [20261018-excess-label-walkforward.ru.md](20261018-excess-label-walkforward.ru.md). This file is canonical.
 
-## Приор
+Pre-registration before the run. The owner authorized work in the ensemble/model zone on 2026-10-18 ("I give permission, do all 4": this experiment is item 1 of four).
 
-Единственный измеренный крупный сдвиг предсказательной силы в истории проекта: excess-лейблы (избыточная доходность против IMOEX) дают val AUC +0.040 (0.5226 против 0.4824 у absolute), бета-загрузку −0.189 против −0.302 и положительную остаточную альфу t≈2.0 после реалистичного хеджа (`docs/metrics.md`, «Market-neutral retraining: excess-to-IMOEX labels…», 2026-10-03). Измерено на одном валидационном окне через `cmd/alphahedge`, а не через стандартный протокол Task 5 (6 очищенных окон, embargo 10).
+## Prior
 
-Старый excess-запуск 2026-09-16 (реестр: `excess_label_baseline`, realized +235, 2/6 окон) был на старом конвейере до исправлений 2026-09-17/18 и с другими данными — он не отменяет измерение 2026-10-03, но обязывает проверить перенос AUC-эффекта в walk-forward.
+The only large measured shift in predictive power in the project's history: excess labels (excess return over IMOEX) give val AUC +0.040 (0.5226 against 0.4824 for absolute), a beta loading of −0.189 against −0.302 and a positive residual alpha t≈2.0 after a realistic hedge (`docs/metrics.md`, "Market-neutral retraining: excess-to-IMOEX labels…", 2026-10-03). It was measured on a single validation window through `cmd/alphahedge`, not through the standard Task 5 protocol (6 purged windows, embargo 10).
 
-## Что измеряется
+The old excess run of 2026-09-16 (registry: `excess_label_baseline`, realized +235, 2/6 windows) was on the old pipeline before the fixes of 2026-09-17/18 and with different data — it does not cancel the measurement of 2026-10-03, but obliges us to check the transfer of the AUC effect into walk-forward.
 
-Тот же протокол, что у контроля `purged_walkforward_control` (Task 5), меняется только `-label-mode`: `absolute` → `excess`. Две ветки одного прогона:
+## What is measured
 
-- **F-control (abs)**: свежий absolute-контроль на HEAD, тем же кодом и архивом новостей, что и F. Гейт считается против него (защита от дрейфа движка — урок из раздела «100% short book» в metrics.md: сравнение только против свежего контроля того же прогона, исторический контроль — контекст).
-- **F (exc)**: то же, с `-label-mode excess`.
+The same protocol as the control `purged_walkforward_control` (Task 5); only `-label-mode` changes: `absolute` → `excess`. Two branches of one run:
 
-## Протокол (зафиксирован до запуска)
+- **F-control (abs)**: a fresh absolute control on HEAD, with the same code and news archive as F. The gate is computed against it (protection against engine drift — a lesson from the "100% short book" section in metrics.md: comparison only against a fresh control of the same run, the historical control is context).
+- **F (exc)**: the same, with `-label-mode excess`.
 
-Окна, тренировка и флаги — из `run-task5.sh` (workspace `~/moex-trader-task5` на ai-box):
+## Protocol (fixed before the run)
 
-- Окна: q1 (train_till 2025-03-04, backtest 2025-03-05..2025-06-05), q2 (2025-06-05 / 2025-06-06..2025-09-05), q3 (2025-09-05 / 2025-09-06..2025-12-03), q4 (2025-12-03 / 2025-12-04..2026-03-04), w2 (2026-03-04 / 2026-03-05..2026-06-06), w1 (2026-06-06 / 2026-06-07..2026-09-16).
-- Данные (обе ветки, ai-box): `exportdataset -config config.sandbox.yaml -tickers <17 тикеров из run-task5.sh> -from 2024-09-01 -till 2026-09-17 -split 2026-06-18 -horizon-days 10 -deadband-pct 0.5 -label-mode {absolute|excess} -news-history news_history.jsonl -out data-17f-{abs,exc}-full.csv`.
-- `news_history.jsonl` = архив из workspace Task 5 (2026-09-18, 1193 записи) — тот же, что у исторического контроля, чтобы тренировочные строки не отличались из-за новостей. На инференсе новостные признаки обнуляются (`untrainedFeatures`), поэтому архив влияет только на обучение.
-- Верификация воспроизводимости ДО запуска тренировок: absolute-экспорт должен воспроизвести структуру датасета Task 5 (первые строки 2024-09-02, YDEX 2024-10-22, SBER 641 строка, всего 10744 строки). Расхождение больше чем на ±10 строк на тикер — остановиться и сообщить владельцу; меньшее расхождение фиксируется в metrics.md.
-- Тренировка на окно: `scripts/export_ensemble.py` с `ENSEMBLE_FEATURES14` = 18 ценовых/поточных признаков из `run-task5.sh`, `ENSEMBLE_FEATURE_ORDER` = 28 имён, `ENSEMBLE_TRAIN_TILL`/`ENSEMBLE_EMBARGO_SPLIT` = train_till окна, `ENSEMBLE_EMBARGO_BARS=10`, venv `/home/oleg/moex-venv/bin/python`. Модель пишется в `ens-{abs,exc}-emb10-<окно>.json`; val AUC печатается на фиксированном окне 2026-06-18..2026-09-16 (как в Task 5).
-- Бэктест на окно: `./backtest -config config.sandbox.yaml -tickers <17> -from <bt_from> -till <bt_till> -deposit 1000000 -max-lots 1000 -commission-rate 0.0005 -spread-pct 0.0005 -slippage-pct 0.0005 -target-notional 15000 -lookback-days 0 -signal-source ensemble -ensemble-path <модель окна> -news-history news_history.jsonl -wf-dir wf/<abs17|exc17> -embargo-bars 10 -out bt-<вариант>-17-<окно>.md`. Бинарники `exportdataset`/`backtest` кросс-компилируются с Mac на linux/amd64 (`CGO_ENABLED=0 GOOS=linux GOARCH=amd64`), как в `scripts/deploy-failover.sh`; на ai-box ставятся в отдельный workspace `~/moex-trader-task12`, ничего живого не трогается.
-- Пороги 0.60/0.40, удержание до флипа, kill-switch включён — без изменений.
+Windows, training and flags are from `run-task5.sh` (workspace `~/moex-trader-task5` on the ai-box):
 
-## Гейт (критерии Task 13, против F-control)
+- Windows: q1 (train_till 2025-03-04, backtest 2025-03-05..2025-06-05), q2 (2025-06-05 / 2025-06-06..2025-09-05), q3 (2025-09-05 / 2025-09-06..2025-12-03), q4 (2025-12-03 / 2025-12-04..2026-03-04), w2 (2026-03-04 / 2026-03-05..2026-06-06), w1 (2026-06-06 / 2026-06-07..2026-09-16).
+- Data (both branches, ai-box): `exportdataset -config config.sandbox.yaml -tickers <17 tickers from run-task5.sh> -from 2024-09-01 -till 2026-09-17 -split 2026-06-18 -horizon-days 10 -deadband-pct 0.5 -label-mode {absolute|excess} -news-history news_history.jsonl -out data-17f-{abs,exc}-full.csv`.
+- `news_history.jsonl` = the archive from the Task 5 workspace (2026-09-18, 1193 records) — the same as in the historical control, so that training rows do not differ because of news. At inference the news features are zeroed (`untrainedFeatures`), so the archive affects only training.
+- Reproducibility verification BEFORE the training runs: the absolute export must reproduce the Task 5 dataset structure (first rows 2024-09-02, YDEX 2024-10-22, SBER 641 rows, 10744 rows in total). A discrepancy of more than ±10 rows per ticker — stop and tell the owner; a smaller discrepancy is recorded in metrics.md.
+- Training per window: `scripts/export_ensemble.py` with `ENSEMBLE_FEATURES14` = the 18 price/flow features from `run-task5.sh`, `ENSEMBLE_FEATURE_ORDER` = 28 names, `ENSEMBLE_TRAIN_TILL`/`ENSEMBLE_EMBARGO_SPLIT` = the window's train_till, `ENSEMBLE_EMBARGO_BARS=10`, venv `/home/oleg/moex-venv/bin/python`. The model is written to `ens-{abs,exc}-emb10-<window>.json`; val AUC is printed on the fixed window 2026-06-18..2026-09-16 (as in Task 5).
+- Backtest per window: `./backtest -config config.sandbox.yaml -tickers <17> -from <bt_from> -till <bt_till> -deposit 1000000 -max-lots 1000 -commission-rate 0.0005 -spread-pct 0.0005 -slippage-pct 0.0005 -target-notional 15000 -lookback-days 0 -signal-source ensemble -ensemble-path <window model> -news-history news_history.jsonl -wf-dir wf/<abs17|exc17> -embargo-bars 10 -out bt-<variant>-17-<window>.md`. The `exportdataset`/`backtest` binaries are cross-compiled from the Mac to linux/amd64 (`CGO_ENABLED=0 GOOS=linux GOARCH=amd64`), as in `scripts/deploy-failover.sh`; on the ai-box they are placed in a separate workspace `~/moex-trader-task12`, nothing live is touched.
+- Thresholds 0.60/0.40, hold until flip, kill-switch on — unchanged.
 
-1. суммарный realized P&L F > F-control (MTM не считается);
-2. realized P&L F ≥ F-control не менее чем в 4 из 6 окон;
-3. max DD ≤ 3% в каждом окне и kill-switch не срабатывает;
-4. средний val AUC F не ниже F-control более чем на 0.005 (F — изменение лейбла, критерий применим);
-5. PBO по матрице {F-control, F} через `cmd/strategyvalidation -returns-dirs`, `DefaultSplits`, < 0.5 — при двух кандидатах PBO вырожден, значение приводится описательно;
-6. 90-дневный preflight с кандидатом — только если 1–4 пройдут.
+## Gate (Task 13 criteria, against F-control)
 
-Гипотезы, фиксированные до запуска:
+1. the total realized P&L of F > F-control (MTM does not count);
+2. realized P&L of F ≥ F-control in at least 4 of 6 windows;
+3. max DD ≤ 3% in each window and the kill-switch does not fire;
+4. the mean val AUC of F is not lower than F-control by more than 0.005 (F is a label change, the criterion is applicable);
+5. PBO over the matrix {F-control, F} through `cmd/strategyvalidation -returns-dirs`, `DefaultSplits`, < 0.5 — with two candidates PBO degenerates, the value is given descriptively;
+6. a 90-day preflight with the candidate — only if 1–4 pass.
 
-- **H_predictability** (сообщается, не гейтит): средний val AUC F ≥ среднего val AUC F-control + 0.005. Отрицательный результат (эффект 2026-10-03 не переносится в walk-forward) ослабляет основания для challenger-шага (пункт 2 из четырёх).
-- **H_income** (гейт 1–4): ожидается непрохождение, потому что excess намеренно убирает бета-доход, который был ~2/3 реализованного P&L абсолютной книги; критерии 1–2 зафиксируют цену бета-дохода по окнам. Прохождение всех критериев 1–4 — кандидат на замену, но замены не происходит без purged walk-forward через `cmd/backtest` с издержками и явного согласия владельца (инвариант AGENTS.md; автозамена запрещена). Живой рецепт (`ensemble_model.json` + `config.sandbox.yaml`) не меняется ни при каком исходе этого эксперимента.
+Hypotheses fixed before the run:
 
-## Регистрация
+- **H_predictability** (reported, does not gate): the mean val AUC of F ≥ the mean val AUC of F-control + 0.005. A negative result (the effect of 2026-10-03 does not transfer into walk-forward) weakens the grounds for the challenger step (item 2 of four).
+- **H_income** (gate 1–4): failure is expected, because excess deliberately removes the beta income that was ~2/3 of the realized P&L of the absolute book; criteria 1–2 will fix the price of the beta income by window. Passing all criteria 1–4 makes a replacement candidate, but no replacement happens without a purged walk-forward through `cmd/backtest` with costs and the owner's explicit consent (AGENTS.md invariant; auto-replacement is forbidden). The live recipe (`ensemble_model.json` + `config.sandbox.yaml`) does not change under any outcome of this experiment.
 
-- Реестр: `experiment_f_excess_labels`, метрика `realized_pnl_6q_purged`, значение 0, статус `pending` — добавляется этим коммитом до запуска (как эксперименты A–E 2026-10-04).
-- Результаты: раздел «Experiment F: excess-to-IMOEX labels (2026-10-18)» в `docs/metrics.md` тем же коммитом, что и числа; realized P&L по окнам, trades, max DD, kill, val AUC, PBO, вердикт по критериям 1–5.
-- `make check` (`go test ./...`, `go vet ./...`, линт metrics.md) должен проходить в каждом коммите.
+## Registration
 
-## Итог F (2026-10-18)
+- Registry: `experiment_f_excess_labels`, metric `realized_pnl_6q_purged`, value 0, status `pending` — added by this commit before the run (like experiments A–E of 2026-10-04).
+- Results: the section "Experiment F: excess-to-IMOEX labels (2026-10-18)" in `docs/metrics.md` in the same commit as the numbers; realized P&L by window, trades, max DD, kill, val AUC, PBO, verdict on criteria 1–5.
+- `make check` (`go test ./...`, `go vet ./...`, metrics.md lint) must pass in every commit.
 
-Отвергнуто по обеим гипотезам. Числа в `docs/metrics.md`, раздел «Experiment F: excess-to-IMOEX labels (2026-10-18)».
+## Outcome of F (2026-10-18)
 
-- Воспроизводимость: свежий absolute-экспорт совпадает с датасетом Task 5 по всем полям на всех общих строках (проверка SBER, 0 отличий; единственное отличие — одна хвостовая строка 2026-09-17 на тикер, в пределах допуска).
-- Дрейф стека, а не движка: при идентичных данных, скрипте и переменных окружения обученные модели отличаются от Task 5 — версии пакетов venv изменились (xgb 3.4.1, lgb 4.7.0, sklearn 1.9.1, pandas 3.0.5, numpy 2.5.3; версии Task 5 не записаны). Исторический артефакт `ens-emb10-q1.json` на HEAD-движке воспроизводит результат Task 5 на ~93% (+4002/74/3.56% против +4301/66/3.57%), то есть движок не причина. Гейт считается против свежего same-run контроля, как и было предрегистрировано.
-- Гейт: критерии 1 (total realized +9669.22 против +67815.78), 2 (1/6 окон не хуже контроля) и 4 (средний val AUC 0.4830 против 0.5170, −0.034) не пройдены; критерий 3 пройден (max DD ≤ 2.35%, kill ни разу); PBO 0.1242 (вырожден при 2 кандидатах, описательно).
-- H_predictability отвергнута: AUC-преимущество 2026-10-03 (+0.040 на одном окне) в walk-forward не переносится; на текущем стеке excess хуже absolute в среднем, q1 excess AUC 0.4559 ниже случайного.
-- H_income отвергнута. Ожидаемый профиль низкой беты подтвердился: DD ≤ 2.35% везде, суммарный realized положителен (+9669.22).
-- Следствия: excess-модель НЕ подключается как challenger (предусловием пункта 2 была положительная H_predictability); пункт 2 из четырёх пересматривается с владельцем. Живой рецепт не тронут.
-- Условия повторной проверки: (1) тот же эксперимент на стеке с зафиксированными версиями пакетов (requirements-файл, заморозка venv) — тогда сравнение с историческим контролем снова прямое; (2) excess-кандидат через `cmd/alphahedge` на свежем движке с realised-разложением по окнам. Без хотя бы одного из условий F не открывать повторно.
+Rejected on both hypotheses. Numbers in `docs/metrics.md`, section "Experiment F: excess-to-IMOEX labels (2026-10-18)".
+
+- Reproducibility: the fresh absolute export matches the Task 5 dataset in all fields on all common rows (SBER check, 0 differences; the only difference is one trailing row of 2026-09-17 per ticker, within tolerance).
+- Stack drift, not engine drift: with identical data, script and environment variables the trained models differ from Task 5 — the venv package versions changed (xgb 3.4.1, lgb 4.7.0, sklearn 1.9.1, pandas 3.0.5, numpy 2.5.3; the Task 5 versions were not recorded). The historical artifact `ens-emb10-q1.json` on the HEAD engine reproduces the Task 5 result by ~93% (+4002/74/3.56% against +4301/66/3.57%), so the engine is not the cause. The gate is computed against the fresh same-run control, as pre-registered.
+- Gate: criteria 1 (total realized +9669.22 against +67815.78), 2 (1/6 windows not worse than the control) and 4 (mean val AUC 0.4830 against 0.5170, −0.034) are not passed; criterion 3 is passed (max DD ≤ 2.35%, kill never); PBO 0.1242 (degenerate with 2 candidates, descriptive).
+- H_predictability is rejected: the AUC advantage of 2026-10-03 (+0.040 on a single window) does not transfer into walk-forward; on the current stack excess is worse than absolute on average, q1 excess AUC 0.4559 is below random.
+- H_income is rejected. The expected low-beta profile was confirmed: DD ≤ 2.35% everywhere, the total realized is positive (+9669.22).
+- Consequences: the excess model is NOT connected as a challenger (the precondition of item 2 was a positive H_predictability); item 2 of four is reconsidered with the owner. The live recipe is untouched.
+- Conditions for re-checking: (1) the same experiment on a stack with pinned package versions (a requirements file, a frozen venv) — then comparison with the historical control is direct again; (2) an excess candidate through `cmd/alphahedge` on the fresh engine with a realized decomposition by window. Without at least one of the conditions F is not reopened.

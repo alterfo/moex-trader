@@ -1,5 +1,7 @@
 # Plan: macro and fundamental features in the model, position/PnL awareness in the risk gate
 
+Russian translation: [20261010-macro-fundamental-features.ru.md](20261010-macro-fundamental-features.ru.md). This file is canonical.
+
 Status: EXECUTED 2026-10-10. Part C and the feature plumbing shipped; the pre-registered evaluation found no AUC lift (docs/metrics.md "Macro and dividend-yield features"), so no model was retrained for deployment. Decided with the user: fundamentals and macro become model features; account positions and PnL go to the risk gate only, never into the model.
 
 ## 1. Why this split

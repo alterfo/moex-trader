@@ -1,5 +1,7 @@
 # OOS freeze (Task 10)
 
+Russian translation: [oos-freeze.ru.md](oos-freeze.ru.md). This file is canonical.
+
 The deployed abs-10d recipe is frozen as of 2026-09-17. The next two quarters
 (at least 183 days of collection) must run against this exact recipe without
 modification. Any change to the model artifact or the live-relevant config

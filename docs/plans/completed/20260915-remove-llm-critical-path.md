@@ -1,5 +1,7 @@
 # Remove LLM From the Live Trading Critical Path
 
+Russian translation: [20260915-remove-llm-critical-path.ru.md](20260915-remove-llm-critical-path.ru.md). This file is canonical.
+
 ## Overview
 
 `cmd/trader`'s live decision loop currently calls an LLM (Ollama) synchronously
@@ -80,8 +82,7 @@ new signal source and rewiring `cmd/trader`/`cmd/backtest` to use it.
   `MaxLots`, fat-finger bands, daily loss, drawdown, kill switch — independent
   of signal source. Not touched.
 - No Python anywhere in this repo — hard project rule
-  (`~/.claude/CLAUDE.md`: "Python в проектах больше не используем — только
-  Go"). No mature Go library exists for *training* gradient boosting models
+  (`~/.claude/CLAUDE.md`: "no more Python in projects, only Go"). No mature Go library exists for *training* gradient boosting models
   (only inference libs like `leaves`, which still need Python/R to produce the
   model), so gradient boosting is out for v1. A regularized logistic
   regression trained via gradient descent is fully implementable in pure Go

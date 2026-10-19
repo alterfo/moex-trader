@@ -1,5 +1,7 @@
 # MOEX Multi-Agent Trader
 
+Russian translation: [20260914-moex-multi-agent-trader.ru.md](20260914-moex-multi-agent-trader.ru.md). This file is canonical.
+
 ## Overview
 
 A Go trading system for MOEX instruments: ingests market data + news, builds a
@@ -146,8 +148,8 @@ an unrelated, untouched reference for ideas (ticker list, news-source weights) o
 - [x] run tests — must pass before task 9
 
 ### Task 9: Prompt template and few-shot examples
-- [x] system prompt builder taking a `FeatureContext`, explicit instruction "Отвечай
-      ТОЛЬКО валидным JSON, без markdown-оберток и пояснений" (Go-Live checklist item)
+- [x] system prompt builder taking a `FeatureContext`, explicit instruction (in Russian) "Answer
+      ONLY with valid JSON, no markdown wrappers or explanations" (Go-Live checklist item)
 - [x] embed 3–5 few-shot examples (varied tickers/sentiment/actions) directly in the
       system prompt
 - [x] write tests verifying prompt assembly for several `FeatureContext` inputs

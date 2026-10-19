@@ -1,5 +1,7 @@
 # Pre-registered protocol: causal event study of news topics (DiD / stacked DiD / TWFE / AIPW)
 
+Russian translation: [20261009-event-causal-study.ru.md](20261009-event-causal-study.ru.md). This file is canonical.
+
 Status: EXECUTED 2026-10-09 (protocol written before the first run). Results: `docs/metrics.md` "Event causal study".
 Tool: `cmd/eventstudy` (net-new). Result goes to `docs/metrics.md` in the same commit.
 

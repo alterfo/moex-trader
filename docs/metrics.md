@@ -1,5 +1,7 @@
 # Metrics
 
+Russian translation: [metrics.ru.md](metrics.ru.md). This file is canonical.
+
 Single source of truth for backtest and analysis numbers. Formal structure
 (columns: window | realized vs MTM | artifact (commit) | costs | date) is the
 Metrics ledger section below; per-task sections that follow record the
@@ -930,8 +932,8 @@ ISS candles (`cmd/trainnewsmodel`). Results on date splits:
   artifact**: 84% of corpus headlines score < -0.3 (model learned "everything
   negative"). Label diagnostics: h=10 val labels are 43 pos / 91 neg (68%
   majority), train 87/300; a blanket-negative bias therefore fakes edge.
-  Semantically wrong: "Сбербанк рекордная прибыль" -> -0.625,
-  "АКРА повысило до AA(RU)" -> -0.566.
+  Semantically wrong: `Сбербанк рекордная прибыль` -> -0.625,
+  `АКРА повысило до AA(RU)` -> -0.566.
 - Horizon 5d: val AUC 0.587 — noise.
 
 Conclusion: the news classifier cannot be meaningfully recalibrated on
@@ -1268,7 +1270,7 @@ class baseline** (val acc 0.529 vs baseline 0.552, val AUC 0.533). The
 9596-article archive from scratch (the 9171-article 2026-09-17 backfill was
 never retained — see the section above).
 
-Archive: `cmd/newsfetch -out data/news_history.jsonl` — RSS/Google/ЦБ/MOEX at
+Archive: `cmd/newsfetch -out data/news_history.jsonl` — RSS/Google/CBR/MOEX at
 `-since-days 30` (2315 records) plus `-retro-from 2026-04-01` Telegram retro
 (7281 records), 2026-04-01..09-29, 42 tickers. Labels: forward excess return
 over IMOEX from live MOEX ISS candles, `cmd/trainnewsmodel`, horizon 3d.
@@ -1950,7 +1952,7 @@ Descriptive, not pre-registered: the step 2 classifier (B) scored month by month
 
 ## Data depth, step 2c: news classifier on the expanded 260-ticker archive (2026-10-18)
 
-Pre-registered in `docs/plans/20261018-data-depth-and-open-problems.md` (commit fb8f160) before the run. Archive: `data/news_history.jsonl` after the Telegram backfill and cleaning (153151 pairs, 260 tickers; `docs/knowledge/news-and-events.md`). Filters, as registered: source "MOEX сайт-новости" excluded; articles mapped to four or more tickers excluded (`-max-tickers-per-article 3`, and the same rule applied to the test file, which removed 27938 of 72132 test pairs: `newsvalidate` has no such flag, caught and fixed before the first scoring); train = pairs before 2025-01-01 (63581 pairs; 40413 labeled samples after the liquidity filter), test = pairs from 2025-03-01 (31 pairs with a headline seen in train removed), median 20-day turnover at least 10 million RUB on the publication day (`-min-turnover`, new in `BuildNewsLabelsWithOptions`). `cmd/trainnewsmodel` otherwise unchanged (bag-of-words logistic, vocab 3000, min doc freq 3), excess-return label against IMOEX with entry at the next day's open. CI: date-block bootstrap (2000 repeats, seed 42), Bonferroni level 98.33% for three horizons. Scores from `cmd/newsvalidate`, analysis `analyze.py` in the session scratch.
+Pre-registered in `docs/plans/20261018-data-depth-and-open-problems.md` (commit fb8f160) before the run. Archive: `data/news_history.jsonl` after the Telegram backfill and cleaning (153151 pairs, 260 tickers; `docs/knowledge/news-and-events.md`). Filters, as registered: source `MOEX сайт-новости` excluded; articles mapped to four or more tickers excluded (`-max-tickers-per-article 3`, and the same rule applied to the test file, which removed 27938 of 72132 test pairs: `newsvalidate` has no such flag, caught and fixed before the first scoring); train = pairs before 2025-01-01 (63581 pairs; 40413 labeled samples after the liquidity filter), test = pairs from 2025-03-01 (31 pairs with a headline seen in train removed), median 20-day turnover at least 10 million RUB on the publication day (`-min-turnover`, new in `BuildNewsLabelsWithOptions`). `cmd/trainnewsmodel` otherwise unchanged (bag-of-words logistic, vocab 3000, min doc freq 3), excess-return label against IMOEX with entry at the next day's open. CI: date-block bootstrap (2000 repeats, seed 42), Bonferroni level 98.33% for three horizons. Scores from `cmd/newsvalidate`, analysis `analyze.py` in the session scratch.
 
 | horizon | test samples | test dates | AUC | CI 98.33% | quarters with AUC >= 0.5 (of 6) | within-date permutation AUC |
 |---:|---:|---:|---:|---|---:|---:|
@@ -2471,48 +2473,48 @@ F1 (index, MX futures retail net-position change, contrarian position on IMOEX, 
 F2 (stock futures, pooled panel of up to 17 names, abnormal return t..t+5 on z of the 5-day change in retail net share, 3657 observations): coefficient -0.0004, date-clustered t -0.52; halves 2020-23 t 0.01, 2024-26 t -0.91. Criterion |t| >= 2.6 with the same negative sign in both halves: FAIL. The 23:50 snapshot: t -1.04.
 Verdict: FAIL on both blocks; retail/institutional positioning in FORTS carries no usable forecast of the index or of single names at a 5-day horizon on this sample. Not redo with the same features.
 
-## Step 30. Внутридневные свечи, календарные эффекты, циклы (2026-10-19, критерии зафиксированы в docs/plans/20261018-seven-hypotheses.md до запуска, коммит 320fffc)
+## Step 30. Intraday candles, calendar effects, cycles (2026-10-19, criteria fixed in docs/plans/20261018-seven-hypotheses.md before the run, commit 320fffc)
 
-Данные: 10-минутные свечи ISS TQBR 2011-12-15..2026-10-16, 29 компаний (YNDX и YDEX склеены), 5 186 545 баров основной сессии, 100 823 тикера-дня после фильтра полноты; S&P 500 (^GSPC, Yahoo) 24 814 дневных закрытий с 1927-12-30; IMOEX 7 277 дней с 1997-09-22. Скрипты: `scripts/intraday_study.py`, `scripts/calendar_cycles.py`, `scripts/intraday_followup.py` (после запуска).
+Data: 10-minute ISS TQBR candles 2011-12-15..2026-10-16, 29 companies (YNDX and YDEX merged), 5 186 545 main-session bars, 100 823 ticker-days after the completeness filter; S&P 500 (^GSPC, Yahoo) 24 814 daily closes since 1927-12-30; IMOEX 7 277 days since 1997-09-22. Scripts: `scripts/intraday_study.py`, `scripts/calendar_cycles.py`, `scripts/intraday_followup.py` (after the run).
 
-Блок I (порог t >= 2.6):
-- I1 внутридневной моментум: коэффициент -0.016, t -1.18 (половины +0.007 и -0.033); чистая средняя стратегии -0.103% в день. Не прошёл.
-- I2 овернайт против внутри дня: овернайт +0.074% в день (t 7.07), внутри дня -0.060% (t -3.10), разность +0.133% (t 6.90; половины +0.055, t 2.21 и +0.201, t 7.04). Критерий существования пройден. Торговая форма (покупка на закрытии, продажа на открытии, 0.05% за сторону): чистая -0.026% в день (t -2.50). Не торгуем.
-- I3 время суток: слоты, прошедшие критерий |t| >= 3.5 с одним знаком в обеих половинах: 16:30 (-0.0096%, t -4.27) и 18:30 (+0.0120%, t +5.83). Величины около 1 б.п. на бар, торговой ценности нет.
-- I4a знаковый оборот за день к анормальной доходности следующего дня: средний наклон +0.0438% на 1 σ (t 6.48; половины +0.0605, t 5.13 и +0.0296, t 4.00). Критерий пройден.
-- I4b знаковый оборот первых двух часов к остатку дня: +0.0024% (t 0.50). Не прошёл.
+Block I (threshold t >= 2.6):
+- I1 intraday momentum: coefficient -0.016, t -1.18 (halves +0.007 and -0.033); net mean of the strategy -0.103% per day. Failed.
+- I2 overnight versus intraday: overnight +0.074% per day (t 7.07), intraday -0.060% (t -3.10), difference +0.133% (t 6.90; halves +0.055, t 2.21 and +0.201, t 7.04). The existence criterion passed. Tradable form (buy at the close, sell at the open, 0.05% per side): net -0.026% per day (t -2.50). Not traded.
+- I3 time of day: slots that passed the |t| >= 3.5 criterion with the same sign in both halves: 16:30 (-0.0096%, t -4.27) and 18:30 (+0.0120%, t +5.83). Magnitudes of about 1 bp per bar, no trading value.
+- I4a signed turnover of the day against the abnormal return of the next day: mean slope +0.0438% per 1 sigma (t 6.48; halves +0.0605, t 5.13 and +0.0296, t 4.00). Criterion passed.
+- I4b signed turnover of the first two hours against the rest of the day: +0.0024% (t 0.50). Failed.
 
-Дополнение после запуска (не входило в критерии, описательно): (а) I4a с контролем доходности того же дня: наклон знакового оборота +0.0167% (t 2.15; половины t 1.97 и 0.95), наклон дневной доходности +0.0453% (t 4.39): бо́льшая часть I4a объясняется продолжением дневной доходности. (б) Лонг-шорт по трём верхним и трём нижним значениям F, держание до следующего закрытия: брутто +0.170% в сутки (t 6.79; половины +0.238 и +0.112), после 0.05% за сторону (четыре стороны) -0.030% (t -1.21), после 0.15% за сторону -0.430% (t -17.2). Лонг трёх верхних минус равновзвешенная вселенная: брутто +0.095% (t 5.50), нетто при 0.05% за сторону -0.005%.
+Post-run addition (not part of the criteria, descriptive): (a) I4a controlling for the same-day return: the signed-turnover slope is +0.0167% (t 2.15; halves t 1.97 and 0.95), the daily-return slope is +0.0453% (t 4.39): most of I4a is explained by continuation of the daily return. (b) Long-short on the top three and bottom three values of F, held to the next close: gross +0.170% per day (t 6.79; halves +0.238 and +0.112), after 0.05% per side (four sides) -0.030% (t -1.21), after 0.15% per side -0.430% (t -17.2). Long of the top three minus the equal-weight universe: gross +0.095% (t 5.50), net at 0.05% per side -0.005%.
 
-Блок S (порог |t| >= 3.0 открытие, |t| >= 2.0 подтверждение и IMOEX; US 1953-1989 / 1990-2026 / IMOEX 1997-2026). Найденных эффектов нет. Классические эффекты на открытии сильны и исчезают после 1990:
-- понедельник: -0.210% (t -7.86) / +0.010% (t 0.31) / IMOEX +0.087% (t 1.27); среда +0.094% (t 4.41) / +0.013 / -0.101 (t -1.58); пятница +0.089% (t 4.71) / -0.020 / +0.029;
-- смена месяца: +0.130% (t 5.50) / +0.041% (t 1.44) / IMOEX +0.219% (t 3.11);
-- предпраздничный день: +0.264% (t 6.84) / +0.054% (t 1.06) / IMOEX +0.118% (t 0.87);
-- январь: +0.934% (t 1.10) / -0.395% (t -0.57) / IMOEX +1.460% (t 0.77);
-- Halloween (ноябрь-апрель против май-октябрь, месячная разность): +0.980% (t 2.88) / +0.549% (t 1.48) / IMOEX +2.891% (t 2.60); на открытии порог 3.0 не достигнут;
-- лучший месяц открытия (ноябрь): +0.984% (t 1.34) / +1.488% (t 2.13) / IMOEX +0.847% (t 0.39).
-Описательно: средняя годовая лог-доходность S&P по году цикла (год % 4 = 0, 1, 2, 3): 6.6%, 4.8%, 1.9%, 11.5% (третий год после выборов самый сильный). Средние по месяцам IMOEX: май-сентябрь отрицательны (-1.72% в мае), декабрь-апрель +1.8..+3.2%.
+Block S (threshold |t| >= 3.0 for discovery, |t| >= 2.0 for confirmation and IMOEX; US 1953-1989 / 1990-2026 / IMOEX 1997-2026). No effects found. The classic effects are strong in the discovery period and vanish after 1990:
+- Monday: -0.210% (t -7.86) / +0.010% (t 0.31) / IMOEX +0.087% (t 1.27); Wednesday +0.094% (t 4.41) / +0.013 / -0.101 (t -1.58); Friday +0.089% (t 4.71) / -0.020 / +0.029;
+- turn of the month: +0.130% (t 5.50) / +0.041% (t 1.44) / IMOEX +0.219% (t 3.11);
+- pre-holiday day: +0.264% (t 6.84) / +0.054% (t 1.06) / IMOEX +0.118% (t 0.87);
+- January: +0.934% (t 1.10) / -0.395% (t -0.57) / IMOEX +1.460% (t 0.77);
+- Halloween (November-April versus May-October, monthly difference): +0.980% (t 2.88) / +0.549% (t 1.48) / IMOEX +2.891% (t 2.60); the discovery threshold 3.0 is not reached;
+- best discovery month (November): +0.984% (t 1.34) / +1.488% (t 2.13) / IMOEX +0.847% (t 0.39).
+Descriptive: mean annual log return of the S&P by cycle year (year % 4 = 0, 1, 2, 3): 6.6%, 4.8%, 1.9%, 11.5% (the third year after an election is the strongest). IMOEX monthly means: May-September are negative (-1.72% in May), December-April are +1.8..+3.2%.
 
-Блок Y:
-- Y1 периодограмма: S&P g 0.00096, p 0.072, максимум на периоде 4.8 дня; IMOEX g 0.00208, p 0.847, период 3.2 дня. Не прошёл.
-- Y2 фиксированные циклы 40/48/108 месяцев: OOS R^2 отрицательны во всех шести парах (от -0.0009 до -0.059), p от 0.12 до 0.73. Не прошёл.
-- Y3 отношения дисперсий (z S&P по четырём 25-летним подвыборкам; IMOEX): q=2 [-1.01, +8.99, +1.20, -3.72], IMOEX +1.71; q=5 [-0.72, +6.43, -0.15, -2.68], +1.21; q=21 [+1.00, +3.92, -0.67, -1.72], +0.54; q=252 [+0.83, +2.76, -0.73, -0.76], +0.48. Сильный моментум только в 1953-1977, после 2002 знак обратный. Не прошёл ни один q.
-- Y4 моментум временных рядов 12 месяцев (лонг при плюсе, иначе кэш): разность средних после плюса и после минуса: S&P 1928-1989 +0.658% (t 1.33), 1990-2026 +0.689% (t 0.92), IMOEX -0.654% (t -0.52). Порог t 2.6 не достигнут. Описательно: на 1990-2026 стратегия CAGR 8.50% против 8.96% у buy-and-hold, просадка -20% против -53%, Sharpe 0.71 против 0.58; IMOEX CAGR 8.2% против 14.9%.
-- Y5 (описательно): автокорреляция модуля доходности на лагах 1/21/250: S&P 0.32/0.22/0.13, IMOEX 0.38/0.25/0.09; доминирующие периоды волатильной компоненты 1450-3600 дней (4-10 лет) без устойчивости между рядами.
+Block Y:
+- Y1 periodogram: S&P g 0.00096, p 0.072, maximum at a period of 4.8 days; IMOEX g 0.00208, p 0.847, period 3.2 days. Failed.
+- Y2 fixed cycles of 40/48/108 months: OOS R^2 is negative in all six pairs (from -0.0009 to -0.059), p from 0.12 to 0.73. Failed.
+- Y3 variance ratios (S&P z over four 25-year subsamples; IMOEX): q=2 [-1.01, +8.99, +1.20, -3.72], IMOEX +1.71; q=5 [-0.72, +6.43, -0.15, -2.68], +1.21; q=21 [+1.00, +3.92, -0.67, -1.72], +0.54; q=252 [+0.83, +2.76, -0.73, -0.76], +0.48. Strong momentum only in 1953-1977, the sign is reversed after 2002. No q passed.
+- Y4 12-month time-series momentum (long if positive, otherwise cash): difference of means after a positive versus after a negative: S&P 1928-1989 +0.658% (t 1.33), 1990-2026 +0.689% (t 0.92), IMOEX -0.654% (t -0.52). The t 2.6 threshold is not reached. Descriptive: over 1990-2026 the strategy CAGR is 8.50% against 8.96% for buy-and-hold, drawdown -20% against -53%, Sharpe 0.71 against 0.58; IMOEX CAGR 8.2% against 14.9%.
+- Y5 (descriptive): autocorrelation of the absolute return at lags 1/21/250: S&P 0.32/0.22/0.13, IMOEX 0.38/0.25/0.09; dominant periods of the volatility component are 1450-3600 days (4-10 years) with no persistence across the series.
 
-Вердикт шага: найденных циклов и сезонности нет; календарные эффекты, значимые до 1990, исчезли на подтверждении; из внутридневных гипотез существование подтвердили овернайт-премия (I2) и знаковый оборот к следующему дню (I4a), но обе не переживают издержки 0.05% за сторону, и I4a в основном повторяет дневной моментум. Боевая модель не меняется.
+Verdict of the step: no cycles or seasonality found; the calendar effects that were significant before 1990 vanished on confirmation; of the intraday hypotheses, the overnight premium (I2) and next-day signed turnover (I4a) were confirmed to exist, but neither survives the 0.05% per side costs, and I4a mostly repeats daily momentum. The live model does not change.
 
-## Ставка заимствования шортов: измерение и чувствительность ridge ls (2026-10-19)
+## Short-borrow rate: measurement and ridge ls sensitivity (2026-10-19)
 
-Измерение. Реальных данных о ставке нет: на реальных счетах T-Инвестиций (брокерский и инвесткопилка, 2020-2026, 271 и 2354 операций) нет ни одной операции MARGIN_FEE и ни одной короткой сделки, маржинальный статус обоих счетов отключён (GetMarginAttributes: код 30051); sandbox комиссии за перенос не списывает (`cmd/borrowmeasure`, 180 дней, 0 операций). Публичные условия брокера: внутридневной шорт бесплатен, за перенос позиции через ночь плата берётся за каждый календарный день; вторичный источник называет ставку РЕПО в среднем около 17% годовых (не подтверждено тарифом счёта). Принятая в проекте стресс-ставка 0.005% в день (1.8% годовых) примерно в десять раз ниже этой оценки.
+Measurement. There is no real rate data: the real T-Invest accounts (brokerage and investment piggy bank, 2020-2026, 271 and 2354 operations) contain not a single MARGIN_FEE operation and not a single short trade, and margin status is disabled on both accounts (GetMarginAttributes: code 30051); the sandbox does not charge rollover fees (`cmd/borrowmeasure`, 180 days, 0 operations). The broker's public terms: an intraday short is free, a position carried overnight is charged for every calendar day; a secondary source gives the REPO rate at about 17% per year on average (not confirmed by the account tariff). The project's accepted stress rate of 0.005% per day (1.8% per year) is about ten times below this estimate.
 
-Чувствительность: реплей ridge ls (скрипт шага 27, те же 17 бумаг, caps 90000), реализованный P&L за вычетом заимствования, руб.
+Sensitivity: ridge ls replay (step 27 script, the same 17 stocks, caps 90000), realized P&L net of borrow, RUB.
 
-| ставка в день | окно G (гейт) | сумма шести окон q1-w2 | положительных окон | худшее окно |
+| rate per day | window G (gate) | sum of six windows q1-w2 | positive windows | worst window |
 |---|---|---|---|---|
-| 0.00005 (1.8% годовых) | +3916 | +684 | 3 из 6 | -2697 |
-| 0.00023 (8.4% годовых) | +3583 | -1611 | 2 из 6 | -3097 |
-| 0.00047 (17.2% годовых) | +3140 | -4672 | 2 из 6 | -3631 |
-| 0.00070 (25.6% годовых) | +2715 | -7605 | 2 из 6 | -4143 |
+| 0.00005 (1.8% per year) | +3916 | +684 | 3 of 6 | -2697 |
+| 0.00023 (8.4% per year) | +3583 | -1611 | 2 of 6 | -3097 |
+| 0.00047 (17.2% per year) | +3140 | -4672 | 2 of 6 | -3631 |
+| 0.00070 (25.6% per year) | +2715 | -7605 | 2 of 6 | -4143 |
 
-Вывод: гейт на окне G проходит при любой ставке до 25% годовых (+2715), но сумма шести исторических окон при ставке около 17% годовых отрицательна, и положительных окон остаётся два из шести. Если реальная ставка близка к РЕПО, шортовая часть ridge ls в среднем убыточна; решение о сохранении шортов зависит от точной ставки в тарифе счёта.
+Conclusion: the gate on window G passes at any rate up to 25% per year (+2715), but the sum of the six historical windows at a rate of about 17% per year is negative, and only two of six windows stay positive. If the real rate is close to REPO, the short part of ridge ls is loss-making on average; the decision to keep the shorts depends on the exact rate in the account tariff.

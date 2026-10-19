@@ -1,34 +1,48 @@
-# Планы и предрегистрации
+# Plans and pre-registrations
 
-Индекс составлен 2026-10-18 по заголовкам файлов и разделам `docs/metrics.md`. Правила: критерии пишутся до запуска, числа попадают в `docs/metrics.md` тем же коммитом, что и результат, итог плана отражается в его заголовке `Status:`. Завершённые старые планы лежат в `completed/`.
+Russian translation: [README.ru.md](README.ru.md). This file is canonical.
 
-## Действующие
+The index was compiled on 2026-10-18 from the file headings and the sections of `docs/metrics.md`, and refreshed on 2026-10-19 to cover every plan file. Rules: criteria are written before the run, numbers go into `docs/metrics.md` in the same commit as the result, the outcome of a plan is reflected in its `Status:` heading. Old finished plans live in `completed/`. System structure is described in [../ARCHITECTURE.md](../ARCHITECTURE.md).
 
-| План | Статус |
+## Active
+
+| Plan | Status |
 |---|---|
-| `20261018-data-depth-and-open-problems.md` | Идёт. Шаги 1, 2, 3, 5, 6 и H23 выполнены (глубина цен, новостной классификатор, калибровка: нулевые; объяснимость: принято; VAR-ICA-MGARCHSK: отклонён), шаг 2б (сдвиг домена новостей) выполнен: вердикта нет по числу дат (38 < 40), сдвиг домена не подтверждён, шаг 4 отложен |
-| `20261015-hypotheses-from-llm-review.md` | Реестр гипотез H1-H22 из обзоров LLM-прогнозирования; результаты закрытых гипотез в `docs/metrics.md` (H20, H22: нулевые) |
-| `20261010-news-exit-tuning-and-buy-side.md` | PLANNED, заблокирован данными |
-| `20260927-moex-pulse.md` | Статус в файле не указан (облачный слой раздачи сигналов); проверить, живой ли план |
+| `20261018-data-depth-and-open-problems.md` | In progress. Steps 1, 2, 3, 5, 6 and H23 are done (price depth, news classifier, calibration: null; explainability: accepted; VAR-ICA-MGARCHSK: rejected), step 2b (news domain shift) is done: no verdict because of the number of dates (38 < 40), domain shift not confirmed, step 4 postponed |
+| `20261018-seven-hypotheses.md` | Registry of pre-registered steps 1-21 (zero-shot LLM direction, decay of the news reaction, variance of the evaluation procedure, IMOEX regime filter, cross-sectional ranking, parts B and C); the status of each step is in the file and in `docs/metrics.md` |
+| `20261015-hypotheses-from-llm-review.md` | Registry of hypotheses H1-H22 from the LLM forecasting reviews; results of closed hypotheses in `docs/metrics.md` (H20, H22: null) |
+| `20261019-placebo-check.md` | PLANNED: placebo check of the ridge score table (`cmd/placebocheck`); criteria are fixed before implementation and before the first run |
+| `20261018-gate-failure-remediation.md` | Acceptance protocol accepted by the owner on 2026-10-18; nothing run on the live path; the current model stays forbidden to start until a candidate passes the protocol |
+| `20261010-news-exit-tuning-and-buy-side.md` | PLANNED, blocked by data |
+| `20260927-moex-pulse.md` | No status in the file, all tasks unchecked (a cloud layer for serving signals); check whether the plan is alive |
 
-## Выполненные (результат в `docs/metrics.md`)
+## Closed experiments still lying in the plans root
 
-| План (лежит в `completed/`) | Итог |
+| Plan | Outcome |
 |---|---|
-| `20261018-excess-label-walkforward.md` | Experiment F, отвергнут по обеим гипотезам |
-| `20261018-manual-retrain.md` | Кандидат не прошёл гейт |
-| `20261018-sell-bias-diagnostic.md` | Диагностика SELL-перекоса, раздел «Sell-bias diagnostic» |
-| `20261018-preflight-concentration.md` | Расследование отказа префлайта, раздел «Preflight-concentration analysis» |
-| `20261010-macro-fundamental-features.md` | EXECUTED, прироста AUC нет, модель не переобучалась |
-| `20261009-event-causal-study.md` | EXECUTED, эффекта не найдено |
-| `20260925-event-driven-dividend-drift.md` | EXECUTED, отвергнут (захват дивидендов) |
-| `20260925-alpha-without-beta-test.md` | EXECUTED, альфа переживает бета-нейтральное исполнение |
-| `20260917-strategy-validation-action-plan.md` | Согласованный план валидации; реализация в `completed/20260917-strategy-validation-implementation-plan.md` |
+| `20261018-recent-window-training.md` | Training on 10/30/90-day windows: criterion not met by any variant; per-window summary in `20261018-recent-window-training-summary.csv` |
+| `20261018-ticker-breaker-parity.md` | Per-ticker breaker in the gate replay: criterion not met, branch closed, preflight not changed |
 
-## Перенос в `completed/` (выполнен 2026-10-18)
+These two are finished and may move to `completed/` together with the link fixes, following the rule below.
 
-Девять выполненных планов из таблицы выше перенесены в `completed/` (`git mv`) одним коммитом вместе с заменой путей `docs/plans/<имя>` на `docs/plans/completed/<имя>` в `docs/metrics.md`, `docs/knowledge/*`, `docs/reports/dividendstudy-report.md` и в самих планах; заодно исправлена старая битая ссылка на `completed/20261004-model-quality-and-robustness.md`. Правило: новый выполненный план переносится в `completed/` в том же коммите, где его итог попадает в `docs/metrics.md`, с правкой ссылок.
+## Completed (result in `docs/metrics.md`)
 
-## Замечание
+| Plan (lives in `completed/`) | Outcome |
+|---|---|
+| `20261018-excess-label-walkforward.md` | Experiment F, rejected on both hypotheses |
+| `20261018-manual-retrain.md` | The candidate did not pass the gate |
+| `20261018-sell-bias-diagnostic.md` | Diagnosis of the SELL skew, section "Sell-bias diagnostic" |
+| `20261018-preflight-concentration.md` | Investigation of the preflight refusal, section "Preflight-concentration analysis" |
+| `20261010-macro-fundamental-features.md` | EXECUTED, no AUC gain, the model was not retrained |
+| `20261009-event-causal-study.md` | EXECUTED, no effect found |
+| `20260925-event-driven-dividend-drift.md` | EXECUTED, rejected (dividend capture) |
+| `20260925-alpha-without-beta-test.md` | EXECUTED, the alpha survives beta-neutral execution |
+| `20260917-strategy-validation-action-plan.md` | The agreed validation plan; implementation in `completed/20260917-strategy-validation-implementation-plan.md` |
 
-В корне репозитория лежит неотслеживаемый бинарник `backtest` (результат `go build ./cmd/backtest`); он не относится к планам, не тронут.
+## Move to `completed/` (done 2026-10-18)
+
+The nine finished plans from the table above were moved to `completed/` (`git mv`) in one commit, together with replacing the paths `docs/plans/<name>` by `docs/plans/completed/<name>` in `docs/metrics.md`, `docs/knowledge/*`, `docs/reports/dividendstudy-report.md` and in the plans themselves; an old broken link to `completed/20261004-model-quality-and-robustness.md` was fixed at the same time. Rule: a newly finished plan moves to `completed/` in the same commit in which its outcome goes into `docs/metrics.md`, with the links fixed.
+
+## Note
+
+The repository root contains an untracked `backtest` binary (the result of `go build ./cmd/backtest`); it is unrelated to the plans and untouched.

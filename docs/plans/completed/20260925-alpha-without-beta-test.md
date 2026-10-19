@@ -1,5 +1,7 @@
 # Pre-registered protocol: does alpha survive beta-neutral execution? (0)
 
+Russian translation: [20260925-alpha-without-beta-test.ru.md](20260925-alpha-without-beta-test.ru.md). This file is canonical.
+
 Status: EXECUTED 2026-09-25 (header updated 2026-10-18; it read PROTOCOL ONLY). Results: `docs/metrics.md`
 "Alpha-without-beta hedge test (0)". Original text: no numbers existed when this was written; the acceptance bar is
 fixed below BEFORE the first run; this document is the read-before-numbers
