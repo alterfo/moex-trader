@@ -131,7 +131,7 @@ def periods(idx, step):
     return pos
 
 
-def portfolio(score, elig, adj_op, adj_cl, cl, idx, positions, mode, step=REBAL):
+def portfolio(score, elig, adj_op, adj_cl, cl, idx, positions, mode, step=REBAL, exclude=None):
     rows = []
     adj_cl_ff = adj_cl.ffill()
     prev_long, prev_short = set(), set()
@@ -148,6 +148,10 @@ def portfolio(score, elig, adj_op, adj_cl, cl, idx, positions, mode, step=REBAL)
         k = max(1, len(names) // 5)
         top = list(ranked.index[-k:])
         bot = list(ranked.index[:k])
+        if exclude is not None:
+            flagged = exclude.iloc[p]
+            kept = [x for x in top if not bool(flagged.get(x, False))]
+            top = kept if kept else top
         entry = adj_op.iloc[p + 1].fillna(adj_cl.iloc[p])
         fwd = (adj_cl_ff.iloc[p + step] / entry - 1)
         fwd = fwd.reindex(names).fillna(0.0)
