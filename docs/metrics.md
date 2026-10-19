@@ -2,54 +2,48 @@
 
 Russian translation: [metrics.ru.md](metrics.ru.md). This file is canonical.
 
-Single source of truth for backtest and analysis numbers. Formal structure
-(columns: window | realized vs MTM | artifact (commit) | costs | date) is the
-Metrics ledger section below; per-task sections that follow record the
-derivation details. Realized P&L is the AGENTS.md invariant for go/no-go
-judgments; MTM is shown separately and never drives a decision.
+Empirical results of the MOEX Trader research programme, written as a single paper-style record: setting, method, results by topic, synthesis. It is the single source of truth for every backtest and analysis number in the repository (rule 8 in `AGENTS.md`: a change that adds or edits a number lands in the same commit as the code or plan it concerns). Status: 2026-10-19. The previous, chronological version (about 2500 lines, one section per task) is preserved in git history at commit `82a124b` (`git show 82a124b:docs/metrics.md`); Appendix A maps its section names to the sections below, so older citations stay resolvable.
 
-> **Pending recomputation (2026-09-17 review fixes):** the backtest/exportdataset,
-> training sample builder, live ingestion, and the tail-precision/momentum/regime
-> analysis CLIs now fetch the full 300-bar feature lookback (434 calendar days) so
-> EMA/SMMA indicators converge exactly as they do live, and `realized_volatility`
-> is bounded to that same trailing 300-bar window in live, backtest, and training.
-> The deployed `ensemble_model.json` (277ebf7) predates these corrections, so it
-> must be retrained on an `exportdataset` run built with the corrected feature
-> construction before preflight/live numbers can be cited; the OOS freeze must also
-> be re-frozen on the corrected code. Every backtest, preflight, and analysis number
-> in this file was produced before these corrections and must be re-derived after
-> that retrain; the ledger rows below are retained for traceability only until then.
+## Abstract
 
-> **Backtest/news weighting alignment (2026-09-18 review fixes):** `backtest.LoadNewsOverrides`
-> now weight-averages `news_sentiment` by `trust_weight`, matching
-> `model.AggregateDailySentiment`. `-news-history` backtests recorded before this
-> alignment used unweighted averaging and must be re-derived before reuse.
+1. **The deployed price/flow ensemble has no demonstrable predictive edge.** Validation AUC sits at 0.46-0.55 depending on the recipe and evaluation window; the noise of the evaluation procedure itself is 0.016 AUC at the 95th percentile (section 3.6). Tail decisions (p >= 0.60 or p <= 0.40) hit 42.4% against a 47.7% base rate (bootstrap p = 0.9123, section 3.1).
+2. **Its realized P&L is mostly market beta.** On 2025-04..2026-09 the book earned +194293 RUB realized, of which the IMOEX component is about two thirds (short tilt in a falling index). Neutralising the beta with the real IMOEX future removes the alpha (t = -0.49 to +0.39, section 5.4); excess-to-IMOEX labels halve the beta loading but leave a residual alpha of t about 2.0, short of the registered bar (section 5.5).
+3. **No variation of the recipe passes the pre-registered deployment gate** (dividend-adjusted labels, wide training universe, calibration and single members, volatility scaling, sector caps, excess labels, deeper history, volatility-unit labels, rank features, TimesFM, open interest, wide-panel breadth; sections 4 and 6). The closest, the logistic single member, fails the drawdown criterion.
+4. **News and event information adds little.** Headline-classifier AUC reaches 0.52 only with 19-24 thousand samples; net of costs the top-minus-bottom quintile spread is +0.263% per tranche with a confidence interval spanning zero (section 7). Zero-shot LLM direction on Russian headlines is not better than random (AUC 0.511-0.526). Event studies of sanctions, negotiations, level crossings and news bursts find no tradable effect.
+5. **Calendar effects, cycles and intraday patterns are absent after 1990 / after costs** (section 8.11). The overnight premium (+0.07-0.10% per day) is real but smaller than the 0.30% needed to trade it.
+6. **The one positive result is cross-sectional.** A ridge model on a point-in-time panel of the whole TQBR board (monthly rebalancing, 2019-2026) gives a long book minus universe of +1.07% per period (Newey-West t = 3.35, Sharpe 1.11), passing the registered rule; its long-short form misses on t (2.54) and needs a short-borrow cost below about 5% per year, which was never measured (section 8.6). As a live gate candidate it passes the rolling gate in 59% of windows, not the registered 70% (section 8.8).
+7. **A live-path defect, not the model, produced the September-October SELL drift**: until 2026-10-09 the running trader fed unmasked `news_count` and `news_sentiment` to a model trained on zeros (section 9.1).
+8. **The risk-free hurdle is high**: the 14% key rate pays +12347 RUB per month on 1M RUB; every strategy window recorded here earned less (section 8.12).
 
-## Tail-precision falsification (Task 1)
+## 0. Conventions
 
-Pre-registered pooled metric over the available window of the deployed
-`ensemble_model.json` (commit 277ebf7). Outcome "in the signal's direction":
-BUY -> move > +0.5%, SELL -> move < -0.5% over 10 trading days.
+### 0.1 Quantities
 
-| date | window | tail decisions | pooled precision | pooled base rate | right-tailed bootstrap p | artifact |
-|---|---|---|---|---|---|---|
-| 2026-09-17 | 2026-06-19 -> 2026-09-17 | 500 (303 BUY / 197 SELL) | 42.4% (212/500) | 47.7% | 0.9123 (83 episodes, 10000 trials) | ensemble_model.json @ 277ebf7 |
+- **Realized P&L** is gross P&L of closed trades minus commission (and minus borrow where stated); **MTM** is the mark-to-market of open positions. Only realized P&L drives go/no-go decisions; MTM is reported separately.
+- **Costs** ("0.0005 x 3"): commission 0.05%, spread 0.05% and slippage 0.05% per fill, unless stated. **Borrow stress**: 0.00005 per day (0.005% per day, 1.8% per year) on short notional. Deposit 1M RUB, 15000 RUB target notional per position, thresholds BUY p >= 0.60 and SELL p <= 0.40, hold until the signal flips, drawdown kill switch on.
+- **AUC** is the area under the ROC curve of the predicted probability against the realized direction label; 0.5 is chance. A single-configuration difference below 0.005 AUC is treated as noise (original band); the measured noise of the evaluation procedure is larger (section 3.6).
+- **Sharpe** in `internal/backtest` is annualised from daily equity returns with sample standard deviation times sqrt(252); `internal/strategyvalidation.SharpeRatio` is a per-period, non-annualised sample Sharpe, deliberately matching the granularity of the series it deflates (PSR/DSR). The two are not comparable. Sortino uses the downside returns only; CAGR = (final/initial)^(365.25/days) - 1; Calmar = CAGR / |max drawdown|. Runs with fewer than 30 closed trades carry a warning.
+- **Intervals** are date-block or ISO-week bootstrap confidence intervals (seed 42 or the seed stated; 2000-5000 repeats); multiple-test corrections (Bonferroni, Holm) are stated per test. `t` is Newey-West or date-clustered as stated.
 
-Decision-day samples: 1260; P(move > +0.5%) = 47.1%, P(move < -0.5%) = 48.7%.
+### 0.2 Windows
 
-Conclusion: the tail does not beat the base rate (slightly below it); the
-right-tailed block-bootstrap p-value gives no evidence of tail edge. This run
-is an approximation — per-quarter models were not saved, so the exact
-walk-forward version depends on Task 13.
+The six purged walk-forward windows ("Task 5 windows") are q1 2025-03-05..06-05, q2 2025-06-06..09-05, q3 2025-09-06..12-03, q4 2025-12-04..2026-03-04, w2 2026-03-05..06-06 and w1 2026-06-07..09-16; window h is 2026-09-17..10-17 (hold-out) and window G is 2026-07-20..2026-10-18 (the 90-day preflight window of the gate).
 
-## Metrics ledger
+### 0.3 Method of record
 
-Formal single source of truth for headline P&L numbers. Column order is
-pre-registered in the strategy-validation plan: `window | realized vs MTM |
-artifact (commit) | costs | date`. Realized P&L is gross minus commission and
-borrow; MTM is open-position mark-to-market and never drives a go/no-go.
-Historical rows where the original run did not record a field are marked
-`not recorded` and must be re-verified before reuse.
+Each experiment follows a pre-registered plan (`docs/plans/`, committed before the first run) with numeric acceptance criteria. A verdict is stated against those criteria only; anything computed after seeing results is labelled descriptive and cannot support a decision. Comparisons that depend on a recipe with training randomness are made against a fresh same-run control, never against an older ledger number (stack drift: library versions changed between 2026-10-04 and 2026-10-18; the HEAD engine reproduces an archived artifact to about 93%).
+
+### 0.4 Provenance of numbers
+
+Results dated up to 2026-09-17 (ledger rows, sections 3.1-3.4, 5.1-5.2) were produced before the review fixes of that date: live and backtest features now use the full 300-bar lookback (434 calendar days) so EMA/SMMA indicators converge as in live, `realized_volatility` is bounded to that window, live features use closed daily bars only, and `backtest.LoadNewsOverrides` weights news by `trust_weight`. Those results are retained for traceability and must be re-derived before reuse as evidence; the purged baseline of 2026-10-04 (section 3.5) and everything after it use the corrected pipeline.
+
+### 0.5 Process rule (incident E4)
+
+Metric-bearing changes are committed immediately. A session reads metrics from `HEAD` or from an explicitly requested uncommitted file; an empty `git log -S` search does not prove absence while the working tree has uncommitted changes.
+
+## 1. Metrics ledger
+
+Formal single source of truth for headline P&L numbers. Column order is pre-registered in the strategy-validation plan: `window | realized vs MTM | artifact (commit) | costs | date`. Realized P&L is gross minus commission and borrow; MTM never drives a go/no-go. Historical rows where the original run did not record a field are marked `not recorded` and must be re-verified before reuse. The format is linted by `internal/metricsdoc`.
 
 | window | realized vs MTM | artifact (commit) | costs | date |
 |---|---|---|---|---|
@@ -62,108 +56,47 @@ Historical rows where the original run did not record a field are marked
 | 2026-06-19 -> 2026-09-17 (90d preflight) | MTM +25699; realized not recorded | ensemble_model.json @ 277ebf7 | zero (pre-Task-5 preflight) | 2026-09-17 |
 | 2025-03-05 -> 2026-09-16 (6 windows) | realized +101246.75 (18f), +103739.34 (20f); MTM not recorded | negotiations/sanctions evidence-gate walk-forward (Task 6) | commission 0.05%, spread+slippage 0.05% each | 2026-09-18 |
 
-The two `not recorded` rows (+75028, +63212) were reported in the two-session
-source debate but their window/cost/realized-vs-MTM provenance was not
-committed. They are kept as ledger rows so the numbers are not lost, but they
-must be re-derived before they can be cited as evidence.
+The two `not recorded` rows (+75028, +63212) were reported in the two-session source debate but their window, cost and realized-vs-MTM provenance was not committed. They are kept so the numbers are not lost, and must be re-derived before they are cited as evidence.
 
-## Dividend capture event-study (2) — REJECTED 2026-09-25
+## 2. Apparatus
 
-Pre-registered protocol: `docs/plans/completed/20260925-event-driven-dividend-drift.md`;
-tool `cmd/dividendstudy`; calendar `data/dividends.jsonl` (123 events 2021-2027
-via T-Invest `GetDividends`, 65 in study window 2024-01-01..2026-12-19).
-Position 30000 RUB notional, lot-quantized (GAZP/GMKN/MTSS/RUAL=10, rest 1),
-costs comm+spread+slip 0.05% per leg, exit at ex-date close.
+**Universe and data.** Trading universe: the 17 tickers of `config.sandbox.yaml` (18 with DATA, which was dropped live on 2026-09-21 because it cannot be shorted). Prices: MOEX ISS daily candles (ISS also publishes weekend equity sessions, while IMOEX is not calculated on weekends, which matters for label timing, section 6.2). Training sets: `exportdataset` from 2024-01-01 unless stated; wide sets use the TQBR board (262 common and preferred shares) with a point-in-time liquidity filter (trailing median 20-day turnover of at least 10 million RUB). Research runs execute on the ai-box (`~/moex-research`), separate from the deploy directory.
 
-Mean excess return over IMOEX by entry offset (td before LastBuyDate);
-bootstrap CI resampling whole waves (seed 42, 2000 repl); tax = holding-tax on
-received dividend (0.13 worst-case, 0.00 if `DividendNet` is already net):
+**Engine.** `internal/backtest` is the live path without the network: features on day `d` come from candles `[:d]`, entry at `candles[d+1].Open`, mark-to-market at `candles[d].Close`, the same `risk.HardenedGate`, a single chronological portfolio loop (so the 3% drawdown kill switch and the 0.5% daily-loss limit see the aggregate equity curve; the kill switch blocks new entries and does not liquidate). Live features use closed daily bars only (`closedDailyCandles`, `closedBarReturnPct`); before this fix 12 of the 18 deployed features were zero in live because the lookback was 10 days.
 
-| offset | excess (tax 0.13) | CI (tax 0.13) | excess (tax 0.00) | CI (tax 0.00) | LOO (0.13 / 0.00) |
+**Preflight.** The live gate replays the last 90 days with spread and slippage costs, judges **realized** P&L, requires `preflight.min_closed_trades` before `preflight.min_net_pnl`, and logs a SHA-256 of the gate-relevant configuration.
+
+**Recipe under test ("abs-10d").** Absolute 10-bar forward-return label with a 0.5% dead band, 18 price/flow columns plus news (28-name feature order), LightGBM + XGBoost + logistic regression averaged, thresholds 0.60/0.40. Embargo of 10 days removes training rows whose label date reaches into the test window (the purged control). Reporting tools: `Result.Markdown()`, an HTML tearsheet (`-tearsheet`), `cmd/walkforward` (rolling or anchored windows, aggregate equity chaining), per-window `period_returns.csv` with a SHA-256 for the PBO matrix.
+
+## 3. Baseline performance of the deployed recipe
+
+### 3.1 Tail-precision falsification (generation 1, 2026-09-17)
+
+Pre-registered pooled metric over 2026-06-19..2026-09-17 of the deployed `ensemble_model.json` (277ebf7); outcome "in the signal's direction": BUY -> move > +0.5%, SELL -> move < -0.5% over 10 trading days.
+
+| tail decisions | pooled precision | pooled base rate | right-tailed bootstrap p |
+|---|---|---|---|
+| 500 (303 BUY / 197 SELL) | 42.4% (212/500) | 47.7% | 0.9123 (83 episodes, 10000 trials) |
+
+Decision-day samples 1260; P(move > +0.5%) = 47.1%, P(move < -0.5%) = 48.7%. The tail does not beat the base rate. Per-quarter models were not saved, so this is an approximation of the walk-forward version.
+
+### 3.2 Momentum benchmark (generation 1)
+
+Top-k momentum on `mom_21d` (k = 5, rebalance every 10 trading days), same 18 tickers and costs, window 2026-06-19..2026-09-17 (81 complete trading days).
+
+| strategy | realized | MTM | closed trades | win rate | max DD |
 |---|---|---|---|---|---|
-| -10 | +0.0050 | [-0.0149,+0.0198] | +0.0114 | [-0.0083,+0.0263] | year fail / all pass |
-| -5 | -0.0027 | [-0.0165,+0.0104] | +0.0037 | [-0.0102,+0.0168] | ticker..wave fail / year+wave fail |
-| -3 (primary) | -0.0063 | [-0.0223,+0.0097] | +0.0001 | [-0.0165,+0.0165] | all 4 fail / all 4 fail |
-| -2 | -0.0034 | [-0.0124,+0.0067] | +0.0030 | [-0.0066,+0.0137] | all 4 fail / season+year+wave fail |
-| -1 | +0.0006 | [-0.0052,+0.0079] | +0.0071 | [+0.0008,+0.0151] * | all 4 fail / all pass |
+| ensemble (deployed) | +34690.64 | +29646.56 | 200 | 48.0% | 1.07% |
+| momentum long-only | -6697.58 | -3736.18 | 107 | 59.8% | 1.87% |
+| momentum long+short | -13111.02 | -7635.80 | 219 | 59.4% | 1.18% |
 
-Mean gap ratio **-0.97** (ex-date open ~ one full dividend below LastBuy close:
-the drop is ~fully priced). Cover: 65 events, 9 waves, 80% outside largest
-wave — mass bars pass; rejection is falsification, not data scarcity.
+The ensemble beats both momentum variants net of costs, so "the model is momentum plus noise" is not supported on this window. Both sides run through one engine, so engine-wide biases cancel in this relative comparison.
 
-Verdict: **REJECT** — pre-registered acceptance needs a contiguous subset
-containing {-2,-3,-5}; all of those contain 0 in CI and fail leave-one-out
-under both tax conventions. Only offset -1 excludes 0 (and only at tax 0.00)
-— outside the pre-registered subset, a single lucky offset decides nothing by
-protocol. Dividend capture is not deployable as the (2) income bet; the income
-lever reverts to (1) at 2-3x notional under a `max_net_exposure` cap. Detail:
-`docs/reports/dividendstudy-report.md`.
+### 3.3 Six-quarter grid on the portfolio engine (generation 1)
 
-## Process rule (incident E4, two-session race)
+Deployed artifact substituted on each window (per-quarter models were not persisted), 18 tickers, 1M deposit, 15000 RUB per position, costs 0.0005 x 3.
 
-Metric-bearing changes are committed immediately. A session must only read
-metrics from `HEAD` or from an explicitly requested uncommitted file — an
-empty `git log -S` search does not prove absence when the working tree has
-uncommitted changes.
-
-## Momentum benchmark (Task 2)
-
-Pre-registered top-k momentum benchmark on `mom_21d` (k=5), rebalanced every
-10 trading days, on the same 18 tickers with the same commission/spread/
-slippage/kill-switch/deposit as the live config, compared against the deployed
-ensemble over the same window. Costs per fill: commission 0.05%, spread 0.05%,
-slippage 0.05%. Window: 2026-06-19 -> 2026-09-17 (81 complete trading days;
-the incomplete current bar is dropped for reproducibility).
-
-| date | strategy | realized P&L | MTM P&L | closed trades | win rate | max DD | artifact |
-|---|---|---|---|---|---|---|---|
-| 2026-09-17 | ensemble (deployed) | +34690.64 | +29646.56 | 200 | 48.0% | 1.07% | ensemble_model.json |
-| 2026-09-17 | momentum long-only | -6697.58 | -3736.18 | 107 | 59.8% | 1.87% | momentumbench |
-| 2026-09-17 | momentum long+short | -13111.02 | -7635.80 | 219 | 59.4% | 1.18% | momentumbench |
-
-Verdict: the ensemble's realized P&L beats both momentum variants net of costs,
-so "the model is momentum + noise" is not supported on this window. This is a
-relative comparison — both sides run through the same engine, so engine-wide
-biases (including the Task 4 kill-switch gap) cancel out. Absolute ensemble
-numbers come from the momentumbench engine and differ from other headline
-numbers (reconciled in Task 17).
-
-## Live/backtest feature parity fix (Task 3)
-
-Live feature construction now uses only closed daily bars. Before this fix the
-live input carried the current unclosed bar and an intraday `LastPrice`, so
-`return_pct` was an intraday return and the candle-derived indicators were
-computed over a different bar set than backtest. After the fix:
-
-- `internal/orchestrator/ingest.go` drops the current unclosed daily bar
-  (`closedDailyCandles`) and fetches enough history for the full daily
-  indicator window (`dailyCandleLookback`, ~434 calendar days, covering the
-  300-bar EMA/SMMA convergence margin used by backtest).
-- `internal/features/builder.go` computes `return_pct` from the last two closed
-  bars (`closedBarReturnPct`), matching backtest's `LastPrice = prev close`.
-
-The prior 10-day candle lookback left 12 of the 18 deployed features
-(mom_21d/63d, rsi_14, dist_ma20/50, realized_vol_21d, volume_zscore_20d,
-macd_hist, stoch_k, williams_r, alligator_spread) at zero in live; that gap is
-now closed as part of this task.
-
-## Portfolio risk gate in backtest (Task 4)
-
-The backtest now runs tickers in a single chronological portfolio loop instead
-of ticker-by-ticker loops. Each gate request receives portfolio-level
-`CurrentEquity` and the previous portfolio close as `DayStartEquity`, so the
-3% drawdown kill switch and 0.5% daily-loss limit evaluate the same aggregate
-curve the live trader sees. Decision: the kill switch keeps the current live
-behavior — block new entries only, do not liquidate open positions — and Task 8's
-gap-stress test is the compensating control for the un-liquidated exposure.
-
-Six-quarter grid re-run after the fix. Same deployed `ensemble_model.json`,
-18 sandbox tickers, 1M RUB deposit, 15000₽/position, commission/spread/
-slippage 0.05% each, hold-until-flip. The exact per-quarter models are still
-not persisted, so this substitutes the deployed artifact on each window; Task 13
-will make the true walk-forward rerunnable.
-
-| window | realized P&L | MTM P&L | closed trades | max DD | kill-frozen days | daily-loss blocked days |
+| window | realized | MTM | closed trades | max DD | kill-frozen days | daily-loss blocked days |
 |---|---|---|---|---|---|---|
 | 2025-04-01 -> 2025-06-30 | +42453.50 | +42093.83 | 199 | 0.77% | 0 | 0 |
 | 2025-07-01 -> 2025-09-30 | +9171.72 | +27576.50 | 104 | 0.90% | 0 | 0 |
@@ -171,595 +104,750 @@ will make the true walk-forward rerunnable.
 | 2026-01-05 -> 2026-03-31 | -6655.63 | -6729.68 | 95 | 1.80% | 0 | 0 |
 | 2026-04-01 -> 2026-06-30 | +41695.40 | +54945.79 | 110 | 0.90% | 0 | 1 |
 | 2026-07-01 -> 2026-09-17 | +47216.95 | +40051.28 | 181 | 1.07% | 0 | 2 |
-| total | +153482.21 | +163901.86 | 797 | — | 0 | 4 |
+| total | +153482.21 | +163901.86 | 797 | - | 0 | 4 |
 
-The persistent drawdown kill switch froze 0 days on these windows. The
-portfolio-level daily-loss limit blocked new entries on 4 days total (Q3, Q5,
-Q6); under the old ticker-local backtest gate this limit was dead code because
-`DayStartEquity` was never set.
+The drawdown kill switch froze 0 days; the portfolio-level daily-loss limit blocked entries on 4 days (under the earlier ticker-local gate it was dead code because `DayStartEquity` was never set).
 
-## Preflight hardening (Task 5)
+### 3.4 Preflight replay after hardening (generation 1)
 
-Preflight now replays with `preflight.spread_pct` + `preflight.slippage_pct`
-fill costs, judges by **realized** P&L (closed trades, gross − commission), and
-requires at least `preflight.min_closed_trades` before checking
-`preflight.min_net_pnl`. Gate decisions log a SHA-256 hash of the
-gate-relevant configuration.
+90-day replay 2026-06-19..2026-09-17, 18 tickers, `ensemble_model.json`: realized +43040.38, MTM +38818.21, 197 closed trades, hit rate 49.2%, max DD 1.07%, 3 daily-loss blocked days. Replayed through read-only `cmd/backtest`; the live gate additionally injects real lot sizes, so exact gate numbers differ by lot quantisation.
 
-Post-fix 90-day preflight replay (2026-06-19 -> 2026-09-17, 18 sandbox tickers,
-1M RUB deposit, 15000₽/position, ensemble_model.json, commission/spread/
-slippage 0.05% each, hold-until-flip, kill switch on):
+### 3.5 Purged walk-forward baseline (2026-10-04)
 
-| date | realized P&L | MTM P&L | closed trades | hit rate | max DD | daily-loss blocked days | artifact |
-|---|---|---|---|---|---|---|---|
-| 2026-09-17 | +43040.38 | +38818.21 | 197 | 49.2% | 1.07% | 3 | ensemble_model.json |
-
-Replayed through read-only `cmd/backtest` because a sandbox trader was already
-running; the live `cmd/trader` gate additionally injects real Tinkoff lot sizes,
-so the exact gate numbers may differ by the lot-quantization step.
-
-## Attempt registry, DSR and PBO (Task 7)
-
-`cmd/strategyvalidation` and `internal/strategyvalidation` record every
-configuration tried so far from `AGENTS.md` and `docs/metrics.md`. The source
-debate artifacts (`critique-left.md`, `rebuttal-right.md`,
-`plan-additions-right.md`) were never committed, so the registry is labelled
-from the surviving documentation; `docs/habr-ai-article/backtest-results.md`
-is not in this tree.
-
-| metric | value |
-|---|---:|
-| documented attempts | 41 |
-| selected | 7 |
-| rejected | 24 |
-| control/reference/benchmark | 10 |
-| realized-series observations | 6 quarterly returns |
-| mean return | 0.025580 |
-| sample stdev | 0.021710 |
-| Sharpe | 1.178255 |
-| skewness | -0.309658 |
-| kurtosis (non-excess) | 1.141267 |
-| probabilistic Sharpe vs 0 | 0.986645 |
-| expected max Sharpe (41 trials) | 0.983521 |
-| deflated Sharpe (Bailey & Lopez de Prado) | 0.642892 |
-| deflated Sharpe p-value | 0.357108 |
-| Harvey-Liu multiple-testing t | 3.5 |
-| Harvey-Liu critical Sharpe | 1.565248 |
-| conservative DSR, max(expected, Harvey-Liu) | 0.233384 |
-
-The only archived realized per-period series is the Task 4 six-quarter
-grid (realized P&L divided by the 1M RUB deposit): +42453.50, +9171.72,
-+19600.27, -6655.63, +41695.40, +47216.95. Both the standard DSR and the
-Harvey-Liu conservative DSR are below the pre-registered go/no-go bar of
-DSR > 0.95.
-
-PBO is implemented as generic CSCV code with tests, but it was NOT computable
-from this summary-only registry: no per-strategy period-return matrices were
-archived for the ~40 attempts. This is superseded by the 2026-10-04
-`cmd/strategyvalidation -returns-dirs` path, which persisted per-window
-`period_returns.csv` and computed CSCV PBO = 0.1529 for the Task 13 registry —
-see "Deployment decision 2026-10 (Task 13)".
-
-## Period-return matrices and pre-registered attempts (Task 4)
-
-`cmd/walkforward` and `cmd/backtest -wf-dir` now persist one
-`period_returns.csv` per window (`date,realized_net`, one row per trading day,
-decimal strings) alongside `window.json`; the window record stores the file
-name and a SHA256 of the CSV and `Window.Validate`/`Load` check both, so a
-tampered or missing daily series fails loudly. Daily realized net is the sum
-of closed-trade `NetPnl` by close date, matching the existing realized-P&L
-definition (gross minus commission).
-
-`cmd/strategyvalidation -returns-dirs a,b,c` loads each variant's per-window
-CSVs, joins them by date into a `trading_dates x variants` matrix (missing
-dates filled with 0), and computes CSCV PBO via
-`ProbabilityOfBacktestOverfitting` with `DefaultSplits`. Disjoint variant
-calendars are an error. This makes PBO computable from separately-run
-walk-forwards without the old single-run `-candidates` grid.
-
-The registry now pre-registers the six attempts of this plan before any of
-their numbers exist, so the multiple-testing penalty is honest from the start:
-`purged_walkforward_control` (Task 5) plus `experiment_a`..`experiment_e`
-(Tasks 7-11), all `realized_pnl_6q_purged` with value 0 and status `pending`
-(the control is `control`). Runtime `DefaultRegistry` attempt count is now
-47 = 41 historical attempts + 6 pre-registered. The Task 7 table above is the
-historical 41-attempt DSR computation and is not recomputed here.
-
-## Purged walk-forward baseline (2026-10-04)
-
-Honest six-window walk-forward of the deployed recipe (absolute-10d label,
-18 price/flow features, buy/sell 0.60/0.40, 15000 RUB target notional, 1M RUB
-deposit, commission/spread/slippage 0.05% each, hold-until-flip, kill switch
-on) on the current 17-ticker config universe (DATA excluded — dropped live on
-2026-09-21 for `short-enabled=false`). Each window retrains a fresh ensemble
-via `scripts/export_ensemble.py` on rows with `date <= train_till` (the day
-before the OOS window), then backtests OOS via `cmd/backtest -signal-source
-ensemble` on the portfolio-level engine. Two training variants per window:
-`-embargo-bars 0` (old behaviour) and `-embargo-bars 10` (purge every training
-row whose `label_date` reaches into the test window). Embargo is implemented
-in calendar days on both the Go and Python paths. The purged (embargo 10) run
-is the deployment-gate control (`purged_walkforward_control`).
-
-Dataset: the 2026-09-18 corrected `data-28f-full.csv` export from the ai-box
-`moex-trader-ns-task5` workspace (434-day EMA/SMMA convergence warmup),
-filtered to the 17 config tickers. `val_auc` is the fixed held-out window
-2026-06-18 -> 2026-09-16 that `scripts/export_ensemble.py` prints; for w1
-(2026-06-07 -> 2026-09-16) that window overlaps the OOS window, so w1's val
-AUC is not a clean out-of-sample measure. Persisted per-window
-`-wf-dir` (window.json + period_returns.csv) on the ai-box under
-`/home/oleg/moex-trader-task5/wf/embargo0_17` and `.../embargo10_17`.
+Six-window walk-forward of the recipe on 17 tickers: each window retrains a fresh ensemble on rows with `date <= train_till` (the day before the window) and backtests out of sample on the portfolio engine, with embargo 0 (old behaviour) and embargo 10 (the control `purged_walkforward_control`). Dataset: the 2026-09-18 corrected export with the 434-day warmup. `val_auc` is the fixed held-out window 2026-06-18..09-16 printed by `scripts/export_ensemble.py`; for w1 it overlaps the test window, so w1's AUC is not clean out of sample.
 
 | window | emb0 realized | emb0 trades | emb0 max DD | emb0 kill | emb0 val AUC | emb10 realized | emb10 trades | emb10 max DD | emb10 kill | emb10 val AUC |
 |---|---|---|---|---|---|---|---|---|---|---|
-| q1 (2025-03-05 -> 2025-06-05) | +8373.93 | 251 | 3.08% | no | 0.5941 | +4301.27 | 66 | 3.57% | yes | 0.5947 |
-| q2 (2025-06-06 -> 2025-09-05) | +2935.09 | 216 | 3.51% | no | 0.5654 | +9.36 | 215 | 3.50% | no | 0.5730 |
-| q3 (2025-09-06 -> 2025-12-03) | +36239.52 | 194 | 0.66% | no | 0.5357 | +34089.03 | 193 | 0.90% | no | 0.5301 |
-| q4 (2025-12-04 -> 2026-03-04) | -9612.54 | 185 | 2.27% | no | 0.5246 | -12339.10 | 187 | 2.46% | no | 0.5257 |
-| w2 (2026-03-05 -> 2026-06-06) | -538.58 | 133 | 1.78% | no | 0.4962 | +2676.41 | 141 | 1.17% | no | 0.4872 |
-| w1 (2026-06-07 -> 2026-09-16) | +47635.22 | 292 | 1.33% | no | 0.5313 | +31092.50 | 283 | 3.05% | no | 0.5115 |
-| total | +85032.64 | 1271 | — | — | — | +59829.47 | 1085 | — | — | — |
+| q1 | +8373.93 | 251 | 3.08% | no | 0.5941 | +4301.27 | 66 | 3.57% | yes | 0.5947 |
+| q2 | +2935.09 | 216 | 3.51% | no | 0.5654 | +9.36 | 215 | 3.50% | no | 0.5730 |
+| q3 | +36239.52 | 194 | 0.66% | no | 0.5357 | +34089.03 | 193 | 0.90% | no | 0.5301 |
+| q4 | -9612.54 | 185 | 2.27% | no | 0.5246 | -12339.10 | 187 | 2.46% | no | 0.5257 |
+| w2 | -538.58 | 133 | 1.78% | no | 0.4962 | +2676.41 | 141 | 1.17% | no | 0.4872 |
+| w1 | +47635.22 | 292 | 1.33% | no | 0.5313 | +31092.50 | 283 | 3.05% | no | 0.5115 |
+| total | +85032.64 | 1271 | - | - | mean 0.5412 | +59829.47 | 1085 | - | - | mean 0.5370 |
 
-Realized P&L is closed-trade gross minus commission (MTM never drives the
-verdict). Mean val AUC: embargo 0 = 0.5412, embargo 10 = 0.5370 (delta
--0.0042, inside the +/-0.005 noise band). Purging costs -25203.16 RUB
-(-29.6%) of realized P&L but the control stays strongly positive, so Task 5
-does not trigger the stop-before-Task-7 warning.
+Purging costs -25203.16 RUB (-29.6%) of realized P&L; the control stays strongly positive. The mean validation-AUC difference (-0.0042) is inside the noise band. Max DD above 3% without a kill trip (q1 emb0, q2 emb0, q2 emb10) reflects that the gate evaluates drawdown on the risk-gate equity basis at order time while the reported figure is the day-close mark-to-market curve. An embargo purge bug in `scripts/export_ensemble.py` (string against Timestamp comparison) was fixed.
 
-Two engine notes for the deployment gate (Task 13). (1) Several windows show
-max DD above 3% without the persistent kill switch tripping (q1 emb0 3.08%,
-q2 emb0 3.51%, q2 emb10 3.50%): the gate evaluates drawdown on the risk-gate
-equity basis at order time while the reported max DD is the day-close MTM
-curve. (2) `scripts/export_ensemble.py` embargo purge had a string-vs-
-Timestamp comparison bug that crashed the embargo-10 training path; fixed by
-parsing `label_date` with `pd.to_datetime` before the cutoff comparison.
+### 3.6 Variance of the evaluation procedure (step 5, 2026-10-18)
 
-## Experiment A: dividend-adjusted (total-return) labels (2026-10-04)
+75 configurations of recipe A (5 seeds x 3 first-test shifts {0, 27, 54 days} x 5 training starts), 15 of recipe D (training from 2015, 5 seeds x 3 shifts) and 3 fold lengths, on 17 tickers, 15 price columns, horizon 10, 8064 test rows (`scripts/procvar.py`).
 
-Same pipeline as the Task 5 control but with `LabelModeAbsoluteTR`: whenever a
-dividend ex-date (first trading session after `last_buy_date`) falls inside
-(entry, exit], `dividend_net` is added to the exit price before the 10-day
-forward return is computed. Dataset rebuilt on the ai-box with the identical
-17-ticker, 434-day-warmup, cost-widened recipe
-(`-label-mode absolute_tr -commission-pct 0.0005 -dividends data/dividends.jsonl`),
-then the same per-window embargo-10 ensemble retrain + OOS backtest. Label
-balance moves 2855 pos / 3509 neg (control) to 2934 pos / 3347 neg (TR).
+| quantity | value |
+|---|---|
+| recipe A pooled AUC over 75 configurations: mean / SD / min / max | 0.4829 / 0.0108 / 0.4605 / 0.5009 |
+| SD over seed / over training start / over first-test shift (others fixed) | 0.0019 / 0.0059 / 0.0116 |
+| N95: 95th percentile of the absolute pooled-AUC difference between A configurations with the same shift (900 pairs; median 0.0055) | 0.0160 |
+| recipe A (start 2024-01-01) pooled AUC by shift 0 / 27 / 54 | 0.4959 / 0.4765 / 0.4901 |
+| recipe D pooled AUC by shift 0 / 27 / 54 | 0.5199 / 0.4917 / 0.5117 |
+| D minus A over 15 paired configurations: mean / SD / min / max / positive | +0.0203 / 0.0052 / +0.0112 / +0.0272 / 15 of 15 |
+| fold length 42 / 63 / 84 days (seed 42, shift 0, same rows): pooled AUC | 0.4933 / 0.5005 / 0.5140 |
 
-| window | control realized | TR realized | control trades | TR trades | control max DD | TR max DD | control kill | TR kill | control val AUC | TR val AUC |
-|---|---|---|---|---|---|---|---|---|---|---|
-| q1 (2025-03-05 -> 2025-06-05) | +4301.27 | +5866.61 | 66 | 64 | 3.57% | 3.49% | yes | yes | 0.5947 | 0.5978 |
-| q2 (2025-06-06 -> 2025-09-05) | +9.36 | -304.50 | 215 | 212 | 3.50% | 3.63% | no | no | 0.5730 | 0.5777 |
-| q3 (2025-09-06 -> 2025-12-03) | +34089.03 | +17936.85 | 193 | 201 | 0.90% | 1.58% | no | no | 0.5301 | 0.5288 |
-| q4 (2025-12-04 -> 2026-03-04) | -12339.10 | -10116.08 | 187 | 184 | 2.46% | 2.07% | no | no | 0.5257 | 0.5195 |
-| w2 (2026-03-05 -> 2026-06-06) | +2676.41 | -8232.75 | 141 | 131 | 1.17% | 2.60% | no | no | 0.4872 | 0.4943 |
-| w1 (2026-06-07 -> 2026-09-16) | +31092.50 | +25446.12 | 283 | 276 | 3.05% | 3.89% | no | no | 0.5115 | 0.5113 |
-| total | +59829.47 | +30596.25 | 1085 | 1068 | — | — | — | — | — | — |
+Since N95 = 0.0160 > 0.010, any comparison below 0.016 AUC judged on one configuration is inconclusive (this covers depth steps 1-3, experiments A-E by AUC, macro and dividend features), and new comparisons must be paired over at least 15 configurations. The dominant source is where the fold boundaries fall (SD 0.0116), not the seed. What survives is the paired depth comparison (D beats A in 15 of 15), a small gain at the noise floor: recipe A averages 0.483, below chance, and D reaches 0.492-0.520. Absolute predictability on 2025-04..2026-10 is not demonstrated for either recipe.
 
-Realized P&L is closed-trade gross minus commission. Verdict: **REJECT**.
-Dividend-adjusted labels lose -29233.22 RUB (-48.9%) of realized P&L versus
-the purged control and stay positive in only 3 of 6 windows (control: 5 of 6),
-while mean val AUC is statistically unchanged (0.5382 vs 0.5370, +0.0012,
-inside the +/-0.005 noise band) — the dividend signal is too small relative to
-the 10-day holding window to help, and it degrades the windows where it adds
-noise (q2, w2). `experiment_a_dividend_adjusted` is marked rejected in the
-registry. Persisted per-window `period_returns.csv` under
-`/home/oleg/moex-trader-task7/wf/tr_17`.
+### 3.7 Multiple testing: attempt registry, DSR and PBO
 
-## Experiment B: wide training universe, unchanged trading universe (2026-10-04)
+`cmd/strategyvalidation` / `internal/strategyvalidation` record every configuration tried. On the archived six-quarter realized series (+42453.50, +9171.72, +19600.27, -6655.63, +41695.40, +47216.95, divided by the 1M deposit; the only archived per-period series):
 
-Trains the same absolute-10d, 18-feature, 0.60/0.40 ensemble on a wider
-universe while trading and evaluating only the 17 config tickers. The wide
-list is `data/train_tickers.json`: 262 common+preferred shares on ISS TQBR
-(`SECTYPE` 1/2, fetched 2026-10-04 via `cmd/listtqbr`). A name contributes a
-training row only on dates where its trailing median 20-day turnover is at
-least 10,000,000 RUB, computed from bars available on that date only
-(`-train-tickers` + `-train-min-turnover 10000000`, `internal/model/liquidity.go`),
-and only train-split rows are kept for the 140 wide-only names, so the
-validation/evaluation set stays exactly the 17 trading tickers. FX tickers are
-rejected outright. The 17-ticker train/val rows are byte-identical to the
-control (train 5398, val 966, none 4380); the wide set adds 27557 labeled
-training rows across 140 names (label 0 = 15965, label 1 = 11592).
+| metric | value |
+|---|---:|
+| documented attempts (selected / rejected / control, reference, benchmark) | 41 (7 / 24 / 10) |
+| observations | 6 quarterly returns |
+| mean / sample stdev | 0.025580 / 0.021710 |
+| Sharpe (per period) | 1.178255 |
+| skewness / kurtosis (non-excess) | -0.309658 / 1.141267 |
+| probabilistic Sharpe vs 0 | 0.986645 |
+| expected max Sharpe (41 trials) | 0.983521 |
+| deflated Sharpe (Bailey and Lopez de Prado) / p-value | 0.642892 / 0.357108 |
+| Harvey-Liu t / critical Sharpe | 3.5 / 1.565248 |
+| conservative DSR, max(expected, Harvey-Liu) | 0.233384 |
 
-| window | control realized | wide realized | control trades | wide trades | control max DD | wide max DD | control kill | wide kill | control val AUC | wide val AUC |
-|---|---|---|---|---|---|---|---|---|---|---|
-| q1 (2025-03-05 -> 2025-06-05) | +4301.27 | +2757.66 | 66 | 36 | 3.57% | 4.38% | yes | yes | 0.5947 | 0.5679 |
-| q2 (2025-06-06 -> 2025-09-05) | +9.36 | -193.10 | 215 | 162 | 3.50% | 3.37% | no | no | 0.5730 | 0.5452 |
-| q3 (2025-09-06 -> 2025-12-03) | +34089.03 | +36987.00 | 193 | 157 | 0.90% | 0.93% | no | no | 0.5301 | 0.5065 |
-| q4 (2025-12-04 -> 2026-03-04) | -12339.10 | -9034.41 | 187 | 139 | 2.46% | 2.36% | no | no | 0.5257 | 0.4880 |
-| w2 (2026-03-05 -> 2026-06-06) | +2676.41 | +15475.07 | 141 | 87 | 1.17% | 0.59% | no | no | 0.4872 | 0.4927 |
-| w1 (2026-06-07 -> 2026-09-16) | +31092.50 | +40825.25 | 283 | 186 | 3.05% | 2.20% | no | no | 0.5115 | 0.5106 |
-| total | +59829.47 | +86817.47 | 1085 | 767 | — | — | — | — | — | — |
+Both DSR forms are below the pre-registered bar of 0.95. PBO (CSCV) was not computable from the summary-only registry; since 2026-10-04 `cmd/walkforward` and `cmd/backtest -wf-dir` persist per-window `period_returns.csv`, and `cmd/strategyvalidation -returns-dirs a,b,c` joins variants into a date x variant matrix (missing dates 0) and computes CSCV PBO (section 4.1). The registry pre-registers the six attempts of the 2026-10-04 plan (control plus experiments A-E) before their numbers existed; the default registry holds 47 attempts (41 historical + 6).
 
-Realized P&L is closed-trade gross minus commission. Verdict: **REJECT**.
-The wide set raises total realized P&L to +86817.47 RUB (+45.1% vs control)
-and matches/exceeds the control in 4 of 6 windows, but it fails the
-pre-registered gate on two other criteria: mean val AUC drops to 0.5185 vs
-control 0.5370 (-0.0185, outside the +/-0.005 band) and q1 has max DD 4.38%
-with the kill switch tripping (criterion requires DD <= 3% in every window
-and the kill switch never trips). The extra names help realized P&L mostly in
-w2/w1 while diluting discriminative signal on the early windows.
-`experiment_b_wide_train_narrow_trade` is marked rejected in the registry.
-Persisted per-window `period_returns.csv` under
-`/home/oleg/moex-trader-task8/wf/wide_17`.
+## 4. Deployment gate and single-change experiments
 
-## Experiment C: probability calibration and ensemble-vs-members (2026-10-04)
+### 4.1 The gate
 
-Adds probability-calibration tooling (`internal/model/reliability.go`: Brier
-score, 10-bin ECE, reliability table) and a `cmd/strategyvalidation
--reliability <wf-dir>` reader. `cmd/backtest -wf-dir` now persists one
-`reliability.csv` per window (`date,ticker,probability,label`) where the label
-is the same absolute-10d / 0.5%-deadband forward-return label used for
-training, computed only for decision dates whose forward window is complete.
-The same Task 5 embargo-10 per-window ensemble artifacts are replayed four
-ways through the new `-ensemble-member` flag: ensemble average, LGBM only,
-XGBoost only, logistic regression only, all at buy/sell 0.60/0.40.
+Fixed on 2026-10-04 before any experiment numbers, against the purged control (`purged_walkforward_control`, section 3.5) on the same six windows with embargo 10, 1M deposit, costs 0.0005 x 3, kill switch on. A variant is deployable only if all hold: (1) total realized P&L exceeds the control; (2) realized P&L is at least the control in at least 4 of 6 windows; (3) max drawdown is at most 3% in every window and the kill switch never trips; (4) for label or training changes (A, B, C) mean validation AUC is not below the control by more than 0.005; (5) PBO over the plan's attempts is below 0.5; (6) the 90-day preflight passes.
 
-Reliability over the six purged windows (pooled decision/realized-label
-pairs):
+PBO over the eight persisted variants (control, A, B, C-lgb, C-xgb, C-logistic, D, E; a 510-period x 8-candidate matrix, s = 16) is 0.1529 (1968 of 12870 combinations overfit), so criterion 5 passes for the set. Registry-level deflated Sharpe (47 attempts, 6 observations) is 0.6260 (p 0.3740). Per-variant DSR on the six windows (not a criterion): control 0.1290, A 0.0641, B 0.2306, C-lgb 0.0347, C-xgb 0.0942, C-logistic 0.1683, D 0.1323, E 0.0899.
 
-| member | samples | Brier | ECE (10 bins) |
-|---|---:|---:|---:|
-| ensemble | 7046 | 0.302700 | 0.209763 |
-| lgb | 7825 | 0.330966 | 0.255687 |
-| xgb | 7030 | 0.311151 | 0.222077 |
-| logistic | 7046 | 0.290461 | 0.199672 |
+| variant | total realized | trades | windows >= control | worst max DD | kill-tripped windows | mean val AUC | failed criteria |
+|---|---:|---:|---:|---:|---:|---:|---|
+| control | +59829.47 | 1085 | - | 3.57% | 1 | 0.5370 | (baseline) |
+| A dividend-adjusted labels | +30596.25 | 1068 | 2/6 | 3.89% | 1 | 0.5382 | 1, 2, 3 |
+| B wide training universe | +86817.47 | 767 | 4/6 | 4.38% | 1 | 0.5185 | 3, 4 |
+| C lgb only | +19166.99 | 1578 | 1/6 | 3.26% | 0 | 0.5245 | 1, 2, 3, 4 |
+| C xgb only | +41881.38 | 1175 | 2/6 | 3.79% | 1 | 0.5037 | 1, 2, 3, 4 |
+| C logistic only | +81382.67 | 904 | 4/6 | 3.69% | 1 | 0.5653 | 3 |
+| D volatility-scaled size | +59809.47 | 1070 | 3/6 | 3.60% | 1 | - | 1, 2, 3 |
+| E sector cap | +34856.60 | 430 | 2/6 | 2.76% | 0 | - | 1, 2 |
 
-The logistic member has the best calibration; every model is still materially
-miscalibrated in the tails (positive rate near 0.42-0.55 in both extreme bins
-despite predicted probabilities near 0.07 and 0.93). Per-window realized P&L
-(closed trades, gross minus commission):
+**Verdict: nothing passes.** The closest is C-logistic (passes 1, 2, 4; fails 3 on a 3.69% drawdown with a q1 kill trip); B leads on realized P&L but fails drawdown and AUC; E is the only variant satisfying criterion 3 but fails 1 and 2. The live recipe is untouched.
 
-| window | ensemble realized | lgb realized | xgb realized | logistic realized |
-|---|---:|---:|---:|---:|
-| q1 (2025-03-05 -> 2025-06-05) | +4301.27 | +2729.41 | +3653.26 | -1249.64 |
-| q2 (2025-06-06 -> 2025-09-05) | +9.36 | -10924.04 | -5940.92 | -4772.99 |
-| q3 (2025-09-06 -> 2025-12-03) | +34089.03 | +10658.77 | +24486.59 | +43237.16 |
-| q4 (2025-12-04 -> 2026-03-04) | -12339.10 | -9134.91 | -10402.34 | -7407.85 |
-| w2 (2026-03-05 -> 2026-06-06) | +2676.41 | +432.66 | +3356.23 | +15346.89 |
-| w1 (2026-06-07 -> 2026-09-16) | +31092.50 | +25405.11 | +26728.56 | +36229.09 |
-| total | +59829.47 | +19166.99 | +41881.38 | +81382.67 |
+### 4.2 Experiments A-E (2026-10-04)
 
-Per-member summary:
+- **A, dividend-adjusted (total-return) labels.** `LabelModeAbsoluteTR` adds `dividend_net` to the exit price when an ex-date (first session after `last_buy_date`) falls inside (entry, exit]. Label balance moves from 2855 pos / 3509 neg to 2934 / 3347. Realized -29233.22 (-48.9%) against the control, positive in 3 of 6 windows (control 5 of 6); mean val AUC unchanged (0.5382 vs 0.5370). Rejected.
+- **B, wide training universe, unchanged trading universe.** Training on the 262-share TQBR list (`data/train_tickers.json`) with the 10 million RUB trailing-turnover filter adds 27557 labelled rows over 140 names (label 0 = 15965, label 1 = 11592); the 17-ticker validation rows stay byte-identical to the control. Realized +86817.47 (+45.1%) but mean val AUC 0.5185 (-0.0185, outside the band) and q1 max DD 4.38% with the kill switch tripping. Rejected.
+- **C, calibration and single members.** `internal/model/reliability.go` provides Brier score, 10-bin ECE and reliability tables (`cmd/strategyvalidation -reliability`). Replaying the control artifacts one member at a time:
 
-| member | total realized | trades | positive windows | worst max DD | kill-tripped windows | mean val AUC |
+| member | samples | Brier | ECE (10 bins) | total realized | trades | worst max DD | kill-tripped | mean val AUC |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| ensemble | 7046 | 0.302700 | 0.209763 | +59829.47 | 1085 | 3.57% | 1 | 0.5370 |
+| lgb | 7825 | 0.330966 | 0.255687 | +19166.99 | 1578 | 3.26% | 0 | 0.5245 |
+| xgb | 7030 | 0.311151 | 0.222077 | +41881.38 | 1175 | 3.79% | 1 | 0.5037 |
+| logistic | 7046 | 0.290461 | 0.199672 | +81382.67 | 904 | 3.69% | 1 | 0.5653 |
+
+The logistic member is the best calibrated and earns the most, but every model is materially miscalibrated in the tails (positive rate near 0.42-0.55 in both extreme bins despite predicted probabilities near 0.07 and 0.93). The ensemble rerun is bit-identical to the control. Rejected on the gate.
+- **D, volatility-scaled position size.** `risk.vol_scale` multiplies the target notional by `clamp(sigma_median / sigma_ticker, 0.5, 1.5)` (sizing only, no retraining). Realized +59809.47 against +59829.47 (-20.00 RUB, -0.03%): P&L-neutral. Rejected.
+- **E, sector exposure cap.** `risk.sector_caps` at 45000 RUB per sector (banks SBER/VTBR/T; oil and gas LKOH/ROSN/TATN/NVTK/GAZP; metals GMKN/PLZL/CHMF/RUAL), per-ticker projection so risk-reducing orders always pass. Realized +34856.60 (-24972.87, -41.7%), trades 1085 -> 430; every window stays under 3% drawdown and the kill switch never trips, but only 4 of 6 windows are positive (q1 flips from +4301.27 to -5697.73). The cap truncates the concentrated legs that carried the best windows, i.e. cuts market beta. Rejected.
+
+### 4.3 Experiment F: excess-to-IMOEX labels (2026-10-18)
+
+Protocol `docs/plans/completed/20261018-excess-label-walkforward.md`, committed before the run: the section 3.5 recipe with `-label-mode excess` (F) against a fresh same-run `-label-mode absolute` control, both exported, retrained and replayed at HEAD on the ai-box. The fresh absolute export reproduces the earlier dataset byte-for-byte except one extra tail row per ticker. Library versions had drifted since 2026-10-04 (xgb 3.4.1, lgb 4.7.0, sklearn 1.9.1, pandas 3.0.5, numpy 2.5.3); the archived `ens-emb10-q1.json` replays at HEAD to +4002.28 / 74 trades against the recorded +4301.27 / 66 (about 93%), so every gate comparison here is against the fresh control.
+
+| window | control realized | F realized | control trades | F trades | control val AUC | F val AUC |
 |---|---:|---:|---:|---:|---:|---:|
-| ensemble | +59829.47 | 1085 | 5/6 | 3.57% | 1 | 0.5370 |
-| lgb | +19166.99 | 1578 | 4/6 | 3.26% | 0 | 0.5245 |
-| xgb | +41881.38 | 1175 | 4/6 | 3.79% | 1 | 0.5037 |
-| logistic | +81382.67 | 904 | 3/6 | 3.69% | 1 | 0.5653 |
+| q1 | +858.10 | +13303.17 | 243 | 194 | 0.5673 | 0.4559 |
+| q2 | +355.57 | -10261.75 | 205 | 174 | 0.5550 | 0.4858 |
+| q3 | +32191.60 | -9240.48 | 158 | 100 | 0.5178 | 0.4767 |
+| q4 | -10183.21 | -1543.91 | 183 | 33 | 0.4999 | 0.4915 |
+| w2 | +16747.59 | -6836.71 | 115 | 40 | 0.4836 | 0.4892 |
+| w1 | +27846.13 | +24248.90 | 252 | 184 | 0.4785 | 0.4989 |
+| total / mean | +67815.78 | +9669.22 | 1156 | 725 | 0.5170 | 0.4830 |
 
-Realized P&L is closed-trade gross minus commission; the ensemble rerun is
-bit-identical to the Task 5 control at +59829.47 RUB. The logistic single
-member leads on both realized P&L and calibration, but no deploy decision is
-made here — Task 13 evaluates all C variants against the pre-registered gate
-(note logistic and xgb trip the kill switch in q1 and have worst DD above 3%).
-Persisted `wf-dir` runs and `reliability.csv` files are under
-`/home/oleg/moex-trader-task9/wf/c_{ensemble,lgb,xgb,logistic}`.
+Gate: total realized FAIL (+9669.22 vs +67815.78); windows >= control 1/6 FAIL; drawdown PASS (F max 2.35%, no kill; the control itself prints 3.07-3.68% day-close DD without kill trips); mean val AUC 0.4830 vs 0.5170 (-0.034) FAIL; PBO {control, F} = 0.1242 (degenerate at two candidates); preflight not run. **Rejected.** The 2026-10-03 single-window AUC advantage (+0.040, section 5.5) does not transfer to the purged walk-forward on the current stack; the excess book has the expected lower-beta profile (max DD at most 2.35%) because the label removes most of the beta income by design.
 
-## Experiment D: volatility-scaled position size (2026-10-04)
+## 5. Market exposure, hedging and borrow
 
-Adds `risk.vol_scale` (enabled/min_mult/max_mult, default disabled) and applies
-it inside `EnsembleSignalSource` sizing: the target notional is multiplied by
-`clamp(σ_median / σ_ticker, min_mult, max_mult)` before lots are derived, where
-`σ_ticker` is the existing `realized_volatility` feature and `σ_median` is the
-cross-sectional median of positive `realized_volatility` across the configured
-tickers with data on the same decision bar. A zero or missing `σ_ticker` (or a
-bar with no positive volatilities) falls back to multiplier 1. All arithmetic
-is `decimal.Decimal`; the median is injected per bar by the backtest engine via
-`FeatureContext.CrossSectionalVolatility`, so live and backtest share the same
-sizing path. The option is wired as `-vol-scale -vol-scale-min -vol-scale-max`
-in both `cmd/backtest` and `cmd/walkforward`, and persisted in the per-window
-`walkforward.Config`. The pre-registered setting is min 0.5 / max 1.5, replayed
-over the same Task 5 embargo-10 per-window ensemble artifacts (no retraining —
-vol-scale is a sizing-only change).
+### 5.1 Overnight gap stress (generation 1)
 
-| window | control realized | vol-scale realized | control trades | vol-scale trades | control max DD | vol-scale max DD | control kill | vol-scale kill |
-|---|---:|---:|---:|---:|---:|---:|---|---|
-| q1 (2025-03-05 -> 2025-06-05) | +4301.27 | +3930.80 | 66 | 65 | 3.57% | 3.60% | yes | yes |
-| q2 (2025-06-06 -> 2025-09-05) | +9.36 | +270.78 | 215 | 215 | 3.50% | 3.42% | no | no |
-| q3 (2025-09-06 -> 2025-12-03) | +34089.03 | +34211.13 | 193 | 186 | 0.90% | 0.77% | no | no |
-| q4 (2025-12-04 -> 2026-03-04) | -12339.10 | -12406.69 | 187 | 189 | 2.46% | 2.45% | no | no |
-| w2 (2026-03-05 -> 2026-06-06) | +2676.41 | +3425.01 | 141 | 152 | 1.17% | 1.02% | no | no |
-| w1 (2026-06-07 -> 2026-09-16) | +31092.50 | +30378.44 | 283 | 263 | 3.05% | 3.13% | no | no |
-| total | +59829.47 | +59809.47 | 1085 | 1070 | — | — | — | — |
+Open portfolio at the end of the 2026-06-19..09-17 replay: 18 positions, gross 266573 RUB (long 43687, short 222887, net -179200). The kill switch blocks new entries and does not liquidate, so a gap hits equity in full first.
 
-Realized P&L is closed-trade gross minus commission. Verdict: **REJECT**.
-Volatility scaling with min 0.5 / max 1.5 is essentially P&L-neutral: total
-realized +59809.47 RUB vs the purged control +59829.47 RUB (-20.00 RUB,
--0.03%), so it fails deployment-gate criterion 1 (total realized P&L must
-exceed control). It stays positive in 5 of 6 windows like the control, and the
-per-window max DD / kill-switch profile is nearly identical (q1 still trips the
-kill switch; q1/q2/w1 still print day-close max DD above 3%). The sizing
-change redistributes a few percent of notional across names but does not add
-edge over the flat 15000₽/position control. `experiment_d_volatility_scaled` is
-marked rejected in the registry. Persisted `-wf-dir` runs are under
-`/home/oleg/moex-trader-task10/wf-volscale`.
+| scenario | P&L | % of deposit | breaches 3% DD | breaches 0.5% daily |
+|---|---|---|---|---|
+| worst historical day (2026-03-09) | -3827.21 | -0.38% | no | no |
+| worst per-ticker composite | -6731.51 | -0.67% | no | yes |
+| synthetic -10% | +17919.97 | +1.79% | no | no |
+| synthetic -20% | +35839.93 | +3.58% | no | no |
+| synthetic +10% | -17919.97 | -1.79% | no | yes |
+| synthetic +20% | -35839.93 | -3.58% | yes | yes |
 
-## Experiment E: sector exposure cap (2026-10-04)
+### 5.2 Beta and regime decomposition (generation 1)
 
-Adds `risk.sector_caps` (sector -> max gross position notional) and
-`risk.sectors` (ticker -> sector) to config, enforced in
-`HardenedGate.ApproveReason` with the same per-ticker projection as
-`max_net_exposure`: the order replaces only its own ticker's leg, so the
-check is `Σ_{t∈sector, t≠ticker} |notional_t| + |notional_ticker after
-order| ≤ cap`. Risk-reducing orders (trim/flatten) therefore always pass when
-the projected sector gross is inside the cap, a cap of zero allows only
-flatten-to-flat, and a ticker without a sector is never blocked. Default
-sector map: banks SBER/VTBR/T, oil&gas LKOH/ROSN/TATN/NVTK/GAZP, metals
-GMKN/PLZL/CHMF/RUAL, all others unassigned (uncapped); default caps off.
-Pre-registered setting: 45000 RUB per sector (= 3 positions at the 15000 RUB
-target notional), replayed over the same Task 5 embargo-10 per-window ensemble
-artifacts (no retraining — the cap is a risk-gate-only change). Wired as
-`-sector-caps`/`-sectors` in `cmd/backtest` and persisted in the per-window
-`walkforward.Config`.
+One continuous replay of the deployed ensemble, 2025-04-01..2026-09-17, 18 tickers, costs 0.0005 x 3, decomposed net of IMOEX.
 
-| window | control realized | sector realized | control trades | sector trades | control max DD | sector max DD | control kill | sector kill |
-|---|---:|---:|---:|---:|---:|---:|---|---|
-| q1 (2025-03-05 -> 2025-06-05) | +4301.27 | -5697.73 | 66 | 79 | 3.57% | 2.76% | yes | no |
-| q2 (2025-06-06 -> 2025-09-05) | +9.36 | +2533.41 | 215 | 46 | 3.50% | 2.65% | no | no |
-| q3 (2025-09-06 -> 2025-12-03) | +34089.03 | +20352.66 | 193 | 89 | 0.90% | 0.90% | no | no |
-| q4 (2025-12-04 -> 2026-03-04) | -12339.10 | -7523.17 | 187 | 49 | 2.46% | 1.74% | no | no |
-| w2 (2026-03-05 -> 2026-06-06) | +2676.41 | +2386.11 | 141 | 60 | 1.17% | 1.11% | no | no |
-| w1 (2026-06-07 -> 2026-09-16) | +31092.50 | +22805.32 | 283 | 107 | 3.05% | 2.49% | no | no |
-| total | +59829.47 | +34856.60 | 1085 | 430 | — | — | — | — |
-
-Realized P&L is closed-trade gross minus commission. Verdict: **REJECT**.
-The 45000-per-sector cap costs realized P&L: +34856.60 RUB vs the purged
-control +59829.47 RUB (-24972.87 RUB, -41.7%), so it fails deployment-gate
-criterion 1 (total realized P&L must exceed control). It wins on risk: every
-window stays under the 3% drawdown floor, the kill switch never trips, and
-only 4 of 6 windows are positive (q1 flips from +4301.27 to -5697.73, the
-only window the control tripped its kill switch on). The cap truncates the
-concentrated sector legs that drove the control's best windows, cutting the
-trade count from 1085 to 430; the reduced gross exposure is safer but the
-income being cut is market beta, matching the `max_net_exposure` finding on
-the unhedged book. `experiment_e_sector_caps` is marked rejected in the
-registry. Persisted `-wf-dir` runs are under
-`/home/oleg/moex-trader-task11/wf-sector`.
-
-## Experiment F: excess-to-IMOEX labels (2026-10-18)
-
-Pre-registered protocol: `docs/plans/completed/20261018-excess-label-walkforward.md` (committed before the run). Question: does the excess-label ensemble pass the Task 13 deployment gate against a fresh same-run absolute control, and does the 2026-10-03 single-window val-AUC advantage (+0.040) transfer to the purged 6-window walk-forward? Protocol: the Task 5 recipe unchanged (6 quarterly windows, `-embargo-bars 10`, 17 tickers, 1M deposit, 15000₽/position, commission/spread/slippage 0.05% each, hold-until-flip, kill switch on, thresholds 0.60/0.40, 18 price/flow features), `-label-mode excess` (F) vs `-label-mode absolute` (F-control), both exported/retrained/backtested on HEAD on the ai-box (`~/moex-trader-task12`), same news archive as Task 5.
-
-Reproducibility verification (pre-registered): the fresh absolute export reproduces the Task 5 dataset byte-for-byte — all 27 non-key fields identical for every common (ticker, date) row (SBER spot check, 0 diffs); the only difference is one extra tail row per ticker (2026-09-17), inside the pre-registered ±10-row tolerance.
-
-Stack drift disclosure: training output changed vs the 2026-10-04 Task 5 run despite identical data, script and env vars — the venv package versions drifted (xgb 3.4.1, lgb 4.7.0, sklearn 1.9.1, pandas 3.0.5, numpy 2.5.3 as of 2026-10-18; Task 5 versions not recorded). The engine is not the cause: the historical `ens-emb10-q1.json` artifact replayed through the HEAD engine gives realized +4002.28 / 74 trades / DD 3.56% / kill yes vs the recorded +4301.27 / 66 / 3.57% / yes (≈93% reproduction). All gate comparisons are therefore against the fresh same-run control, never the stale ledger number.
-
-| window | control realized | F realized | control trades | F trades | control max DD | F max DD | control kill | F kill | control val AUC | F val AUC |
-|---|---|---:|---:|---:|---:|---:|---:|---|---|---:|---:|
-| q1 (2025-03-05 -> 2025-06-05) | +858.10 | +13303.17 | 243 | 194 | 3.07% | 1.63% | no | no | 0.5673 | 0.4559 |
-| q2 (2025-06-06 -> 2025-09-05) | +355.57 | -10261.75 | 205 | 174 | 3.53% | 2.35% | no | no | 0.5550 | 0.4858 |
-| q3 (2025-09-06 -> 2025-12-03) | +32191.60 | -9240.48 | 158 | 100 | 0.94% | 1.97% | no | no | 0.5178 | 0.4767 |
-| q4 (2025-12-04 -> 2026-03-04) | -10183.21 | -1543.91 | 183 | 33 | 2.43% | 0.46% | no | no | 0.4999 | 0.4915 |
-| w2 (2026-03-05 -> 2026-06-06) | +16747.59 | -6836.71 | 115 | 40 | 0.68% | 1.43% | no | no | 0.4836 | 0.4892 |
-| w1 (2026-06-07 -> 2026-09-16) | +27846.13 | +24248.90 | 252 | 184 | 3.68% | 1.71% | no | no | 0.4785 | 0.4989 |
-| total | +67815.78 | +9669.22 | 1156 | 725 | — | — | — | — | mean 0.5170 | mean 0.4830 |
-
-Realized P&L is closed-trade gross minus commission. Gate against the fresh same-run control:
-
-1. total realized: +9669.22 vs +67815.78 — **FAIL**;
-2. realized ≥ control in ≥ 4/6 windows: 1/6 (q1 only) — **FAIL**;
-3. max DD ≤ 3% everywhere and kill never trips: **PASS for F** (max 2.35%, no kill; the control itself prints 3.07–3.68% day-close DD without kill trips — the same order-time vs day-close basis documented in Task 5);
-4. mean val AUC not below control by more than 0.005: 0.4830 vs 0.5170 (−0.034) — **FAIL**;
-5. PBO {F-control, F}: 0.1242 (s=16, 510 periods × 2 candidates) — PASS, but degenerate at 2 candidates, reported descriptively;
-6. 90-day preflight: not run (criteria 1–4 failed).
-
-**Verdict: REJECTED.** H_predictability is rejected: the excess val-AUC advantage does not transfer to walk-forward; on the current stack excess is −0.034 mean val AUC vs absolute, and q1 excess AUC (0.4559) is below chance. H_income is rejected (fails criteria 1, 2, 4). The excess book does show the expected lower-beta profile: max DD ≤ 2.35% everywhere and total realized +9669.22 RUB > 0 — the label removes most of the beta income by design. Consequences: the excess model is not wired as challenger (the precondition in the plan was a positive H_predictability); the 2026-10-03 single-window AUC +0.040 is recorded as non-reproducible in the walk-forward protocol on the current stack. Persisted `-wf-dir` runs under `/home/oleg/moex-trader-task12/wf/{abs17,exc17}`.
-
-## Sell-bias diagnostic: event features, out-of-range guard, staleness (2026-10-18)
-
-Pre-registered in `docs/plans/completed/20261018-sell-bias-diagnostic.md` before the runs. Data: `trader-sandbox.db` audit events (`ingest` payloads carry the full feature vector, `llm` payloads carry action/probability/hold_reason), 2026-09-16..10-18; ~38.3k decisions since the 2026-10-10 news-masking fix.
-
-D1 (descriptive). Live decisions by day: 09-23..10-09 ran ~4200-4800 SELL/day with near-zero HOLD (the news-feature train/serve skew documented 2026-10-10). From 10-10: ~3600-4200 HOLD/day and ~460-1200 SELL/day, 0 BUY. Post-fix hold_reason split: `out_of_range` ~50-60% of decisions, `model` ~30%, SELL ~14%. Post-fix probability bins: <0.40: ~31% (of which <0.35: ~10%), [0.40,0.60]: ~69%, >=0.60: 0.11% (42 decisions).
-
-D2 (guard). 100% of post-fix `out_of_range` blocks are `event_dividend` with z=14..38. The deployed `ensemble_model.json` carries mean=0/std=1/coef=0 for all 8 event features and both topic signals, and no tree references them — they cannot move the probability. The guard (added 2026-10-10 to catch the news blow-up) therefore vetoed decisions on features that do not influence the model: post-fix it swallowed 7138 would-SELL, 42 would-BUY (all VTBR — the only p>=0.60 decisions) and 14861 would-HOLD. Live pre-guard SELL share: (5202+7138)/38281 = 32.2%. **Verdict: the guard vetoes on structurally-untrained event features during dividend season.** Fix: `outOfRangeFeature` skips features with logistic coef==0 that no tree uses (`internal/model/ensemble.go`), regression test `TestEnsembleIgnoresUntrainedEventFeatures`; `TestEnsembleHoldsOnOutOfRangeFeature` (mom_21d=500) still vetoes. Deploying the fix to the live trader is a separate owner decision (watchdog restart).
-
-D3 (offline replay, deployed model, fixed guard, 2026-10-10..10-18, 136 decisions): 95 HOLD / 41 SELL / 0 BUY, p in [0.263, 0.597]. Replay SELL share 30.1% vs live pre-guard 32.2% (within the pre-registered ±10pp); replay BUY share 0% < 1%. **Verdict: the lean reproduces offline from data+model — not a serving-path defect.**
-
-D4 (fresh model, same recipe, trained till 2026-09-16, same window): 94 HOLD / 39 SELL / **3 BUY**, p in [0.254, 0.626]. BUY share 2.2% vs deployed 0% — the pre-registered criterion (+1pp) is met, but on 3 decisions it is weak evidence: **part of the 0-BUY is model staleness**; SELL shares match (28.7% vs 30.1%). No auto-swap; a manual retrain decision stays with the owner (AGENTS.md invariant).
-
-Conclusion: the residual post-fix sell-lean decomposes into (a) the out-of-range guard vetoing on untrained event features — fixed in code, not yet deployed; (b) the model's own p-distribution on recent data (>=0.60 in 0.11% live, 0% offline replay); (c) a small staleness component in the BUY tail (fresh model 2.2% BUY).
-
-**Deployment attempt and revert (2026-10-18, same day).** The guard fix was deployed to the live Mac trader (rebuild + watchdog restart) and the preflight gate refused to start: 90-day replay with the fix realized **-4859.13** net of borrow (gross -4361.55, borrow 497.58, 98 closed trades, hit 41.8%, DD 1.12%) vs **+602.32** (gross +1105.67, borrow 503.35, 107 trades, hit 48.6%, DD 0.90%) for the vetoing build on the same window (2026-10-17 pass) and +7156.33 on 2026-10-15. The gate is honest: unblocking the vetoed decisions turns the recent 90-day book negative, i.e. **the accidental event-dividend veto acts as a profitable regime filter** and the model underneath is not profitable without it. The code fix is reverted in HEAD (the pre-fix binary was restored and the trader restarted through the watchdog); the veto behaviour stays live. Re-landing the fix requires a candidate model that passes the preflight gate with the veto removed — pre-registered as a separate hypothesis, not a code change.
-
-**Correction (2026-10-18, evening): the attribution above is not supported.** Two builds of `cmd/backtest` from the same HEAD source, with and without the `ae6ffdd` guard change, produce identical gate-shaped replay output to the last digit (window ending 2026-10-18: realized net of borrow -2467.25, 117 closed trades; ending 2026-10-17: +1209.23, 118 trades). The live gate printed the same -4859.13 (gross -4361.55, 98 trades, hit 41.8%) with the fixed binary (03:44:31, 03:45:29) and after the pre-fix binary was restored (03:56:32 onward). The "+602.32 on the same window" is the 2026-10-17 15:09 gate (window start 2026-07-19), not the same window. The gate result is set by the window start, not by new bars (replay, window ending 2026-10-18, realized net of borrow by start date: 07-13 +20380, 07-14 +14584, 07-15 +11455, 07-16 +9382, 07-17 +9100, 07-18 +3435, 07-19 +1372, 07-20 -2467, 07-21 -5085, 07-22 -5959, 07-23 -2375, 07-24 -3034, 07-25 -3514, 07-26 -5536, 07-27 -784; ending 10-15/16/17/18 with start 07-20: -2630/-2636/-2630/-2467; 7 of the 15 starts are positive). So "the accidental veto acts as a profitable regime filter" is not shown by the gate: the gate replay measures the unvetoed book in both builds. The revert `dcb601d` rests on the mismatched comparison; it is left in HEAD pending an owner decision on whether the live path should veto on `event_dividend`, which is independent of the gate. Details and the acceptance protocol: `docs/plans/20261018-gate-failure-remediation.md`.
-
-## Manual retrain candidate (2026-10-18) — REJECTED, no swap
-
-Pre-registered in `docs/plans/completed/20261018-manual-retrain.md` (owner-approved manual retrain). Candidate: same recipe as the deployed ensemble (absolute-10d, 18 features incl. news, 28-name order, 0.60/0.40), trained on a fresh export (`-from 2024-01-01 -till 2026-10-18`, 18 tickers incl. DATA, current 14619-record news archive) with `ENSEMBLE_TRAIN_TILL=2026-10-17`, embargo 10. Both models replayed through the HEAD engine (guard fix included), 17 tickers, 1M deposit, 15000₽/position, costs 0.0005×3, kill switch on.
-
-| window | deployed realized | candidate realized | deployed trades | candidate trades | deployed max DD | candidate max DD |
-|---|---|---|---:|---:|---:|---:|
-| hold30 (2026-09-17 -> 2026-10-17) | +583.21 | -3281.95 | 32 | 45 | 1.24% | 1.45% |
-| pre90 (2026-07-20 -> 2026-10-17) | +10419.63 | -1508.68 | 137 | 164 | 1.69% | 2.27% |
-
-Gate: candidate realized P&L >= deployed on hold30 (FAIL: -3281.95 vs +583.21) and on pre90 (FAIL: -1508.68 vs +10419.63). **No swap: `ensemble_model.json` stays.** The candidate's fresh BUY signals (2.2% vs 0% in the D4 diagnostic) are unprofitable in this window; extending the training window degrades the SELL side more than it repairs the BUY tail. Retrain again only via the same gate after at least a quarter of new data from 2026-10-17.
-
-## Preflight-concentration analysis (2026-10-18)
-
-Pre-registered in `docs/plans/completed/20261018-preflight-concentration.md` (owner chose "stop and investigate" after the gate refused the live config). `cmd/backtest` gained `-max-net-short`/`-max-net-long` so the gate replay is reproducible; gate-shaped replays (90d rolling, 17 tickers, 1M deposit, costs 0.0005×3 + per-ticker spreads from `trader-sandbox.db`, borrow 0.00005/day, caps 90000/90000, kill switch on, deployed `ensemble_model.json`, no news — exactly like the live gate) give realized gross +9843.33 (till 10-14) → +3637.89 (till 10-16) → **-1990.32** (till 10-18), matching the gate's own decline (+7156 → +602 → -4859 net of borrow; the CLI lacks lot quantization, hence the level offset). ISS has no bars for 10-17/10-18, so the decline is the left boundary of the rolling window, not new bars.
-
-Closed trades of the till-10-18 gate replay, by close month (realized net, RUB):
-
-| month | trades | sum | mean per trade |
-|---|---:|---:|---:|
-| 2026-07 | 20 | +414.93 | +20.75 |
-| 2026-08 | 35 | +2828.55 | +80.82 |
-| 2026-09 | 37 | -4821.86 | -130.32 |
-| 2026-10 | 24 | -411.94 | -17.16 |
-
-By ticker: OZON +4952.20 (3), MGNT +1444.44 (1), GAZP +885.65 (10), SBER +594.66 (14), VTBR +237.61 (19), RUAL +78.45 (10), TATN +65.69 (10), T -32.16 (4), MTSS -48.65 (9), LKOH -100.52 (3), GMKN -171.25 (8), ROSN -697.07 (6), NVTK -992.47 (4), POSI -1367.08 (3), CHMF -2331.33 (5), **PLZL -4508.49 (7)**. Daily series (84 days): 28 negative days sum -14480.71; top-10 positive days sum ~12000 (top day 2026-08-25 +3988.12).
-
-Verdicts against the pre-registered hypotheses: **I1 (day concentration)** — partially confirmed: positives are month-concentrated (Jul-Aug) rather than day-concentrated; the top day is 33% of positive days' total. **I2 (recent decay)** — CONFIRMED: September is deeply negative (-4821.86, mean -130.32/trade), concentrated in PLZL/CHMF/POSI/NVTK; October still negative. **I3 (self-recovery)** — NOT expected soon: the window keeps dropping profitable August days while September losses stay inside until December; the rolling sum drifts further negative before stabilizing. The live book was protected because live news populates `event_dividend` and the `out_of_range` guard vetoes those decisions — the gate replays without news, so it measures the unvetoed book, which September defeats. Fixing this is a model-quality problem (September regime), not a gate problem: do not loosen the threshold.
-
-## Deployment decision 2026-10 (Task 13)
-
-Pre-registered gate (fixed 2026-10-04, before any experiment numbers): against
-the Task 5 purged control (`purged_walkforward_control`), on the same 6
-quarterly purged windows (`-embargo-bars 10`), 1M RUB deposit, costs 0.0005
-commission + 0.0005 spread + 0.0005 slippage, kill switch on. A variant is
-deployable only if ALL hold: (1) total realized P&L > control; (2) realized
-P&L >= control in at least 4 of 6 windows; (3) max drawdown <= 3% in every
-window and the kill switch never trips; (4) for label/training changes (A, B,
-C), mean val AUC not below control by more than 0.005; (5) PBO over the full
-registry of this plan's attempts < 0.5; (6) 90-day preflight passes.
-
-PBO is now computable: `cmd/strategyvalidation -returns-dirs` joins the eight
-persisted per-window `period_returns.csv` variants (control, A, B, C-lgb,
-C-xgb, C-logistic, D, E) into a 510-period x 8-candidate matrix and computes
-CSCV PBO with s=16. Result: PBO = 0.1529 (1968 of 12870 combinations
-overfit), so criterion 5 passes for the set as a whole. Registry-level
-deflated Sharpe (47 attempts, 6 observations, abs-10d 18-month series) =
-0.6260 (p 0.3740). Per-variant deflated Sharpe on the six purged windows is
-reported below but is NOT a deployment criterion.
-
-| variant | total realized | windows >= control | worst max DD | kill-tripped | mean val AUC | fails criteria |
-|---|---:|---:|---:|---:|---:|---|
-| control | +59829.47 | — | 3.57% | 1 | 0.5370 | (baseline) |
-| A dividend-adjusted | +30596.25 | 2/6 | 3.89% | 1 | 0.5382 | 1, 2, 3 |
-| B wide-train | +86817.47 | 4/6 | 4.38% | 1 | 0.5185 | 3, 4 |
-| C lgb | +19166.99 | 1/6 | 3.26% | 0 | 0.5245 | 1, 2, 3, 4 |
-| C xgb | +41881.38 | 2/6 | 3.79% | 1 | 0.5037 | 1, 2, 3, 4 |
-| C logistic | +81382.67 | 4/6 | 3.69% | 1 | 0.5653 | 3 |
-| D vol-scale | +59809.47 | 3/6 | 3.60% | 1 | — | 1, 2, 3 |
-| E sector caps | +34856.60 | 2/6 | 2.76% | 0 | — | 1, 2 |
-
-Per-variant deflated Sharpe (six purged windows, 47-trial deflation, not a
-criterion): control 0.1290, A 0.0641, B 0.2306, C-lgb 0.0347, C-xgb 0.0942,
-C-logistic 0.1683, D 0.1323, E 0.0899.
-
-Verdict: NOTHING PASSES. No candidate clears all of criteria 1-4, so criteria
-5 and 6 are moot. The closest candidate is the logistic single member
-(C-logistic): it passes realized P&L (1), windows >= control (2) and val AUC
-(4), but fails criterion 3 — worst day-close max DD 3.69% with the q1 kill
-switch tripping — so it is not deployable on the pre-registered gate. B leads
-on realized P&L but fails the DD/kill and AUC criteria. E is the only variant
-that satisfies criterion 3 (all DD <= 2.76%, kill never trips) but fails
-criteria 1 and 2. The live recipe (`ensemble_model.json` +
-`config.sandbox.yaml`) is left untouched. `experiment_c_probability_calibration`
-is marked rejected in the registry (was pending).
-
-## Gap-stress test (Task 8)
-
-Models overnight gaps against the deployed strategy's open portfolio at the
-end of a 90-day replay (2026-06-19 -> 2026-09-17, 18 sandbox tickers, 1M RUB
-deposit, 15000₽/position, ensemble_model.json, hold-until-flip, commission/
-spread/slippage 0.05% each). Gap history lookback: 365 calendar days. The
-sticky kill switch blocks new entries at 3% drawdown / 0.5% daily loss but
-does NOT liquidate open positions, so a gap hits equity in full first.
-
-| date | scenario | P&L | P&L % of deposit | breaches 3% DD | breaches 0.5% daily | artifact |
-|---|---|---|---|---|---|---|
-| 2026-09-17 | worst historical day (2026-03-09) | -3827.21 | -0.38% | false | false | ensemble_model.json |
-| 2026-09-17 | worst-per-ticker-combined | -6731.51 | -0.67% | false | true | ensemble_model.json |
-| 2026-09-17 | synthetic -10% (net-short favorable) | +17919.97 | +1.79% | false | false | ensemble_model.json |
-| 2026-09-17 | synthetic -20% (net-short favorable) | +35839.93 | +3.58% | false | false | ensemble_model.json |
-| 2026-09-17 | synthetic +10% (net-short adverse) | -17919.97 | -1.79% | false | true | ensemble_model.json |
-| 2026-09-17 | synthetic +20% (net-short adverse) | -35839.93 | -3.58% | true | true | ensemble_model.json |
-
-Current open portfolio at cutoff: 18 positions, gross exposure 266573₽
-(long 43687₽, short 222887₽, net -179200₽). The worst observed aligned
-historical day (2026-03-09) and the worst-per-ticker composite stay below the
-3% drawdown floor; a uniform +20% adverse gap would breach it (-3.58%).
-Marks use the live ISS daily close and shift slightly between runs.
-
-## Beta / regime decomposition (Task 9)
-
-`cmd/betaregime` replays the deployed `ensemble_model.json` as one continuous
-run (2025-04-01 -> 2026-09-17, 18 sandbox tickers, 1M RUB deposit, 15000 RUB
-notional per position, commission/spread/slippage 0.05% each, hold-until-flip,
-kill switch on) and decomposes realized P&L net of IMOEX. The equal-weight
-18-ticker benchmark (long each name at the same notional, daily rebalanced) is
-the null-universe context; the momentum benchmarks are the Task 2 top-k
-`mom_21d` plans (k=5, rebalance every 10 trading days). Continuous-run numbers
-differ from the Task 4 six-window grid because positions carry across quarter
-boundaries instead of being cut at each window.
-
-Results net of costs:
-
-| strategy | realized P&L | MTM P&L | closed trades | return on trade notional | max DD |
+| strategy | realized | MTM | closed trades | return on trade notional | max DD |
 |---|---|---|---|---|---|
 | ensemble (deployed) | +194293.10 | +188225.76 | 862 | +4.77% | 2.11% |
-| equal-weight 18-ticker | -673.13 | -68102.99 | 516 | -0.24% | 11.97% |
+| equal-weight 18 tickers | -673.13 | -68102.99 | 516 | -0.24% | 11.97% |
 | momentum long-only | -20948.09 | -38708.67 | 500 | -1.27% | 4.68% |
 | momentum long+short | -32082.28 | -26713.25 | 1151 | -0.80% | 3.20% |
 
-Realized P&L decomposition net of IMOEX (long and short legs separate; return
-measured on gross trade notional, not the 1M deposit):
-
-| leg | trades | realized P&L | notional | IMOEX component | excess | return on notional |
+| leg | trades | realized | notional | IMOEX component | excess | return on notional |
 |---|---|---|---|---|---|---|
 | long | 261 | +67261.43 | 1986656.57 | +28429.45 | +38831.98 | +3.39% |
 | short | 601 | +127031.67 | 2090319.43 | +100892.32 | +26139.35 | +6.08% |
 | total | 862 | +194293.10 | 4076976.00 | +129321.77 | +64971.33 | +4.77% |
 
-The IMOEX (beta) component is ~2x the excess (alpha) component: on this window
-the deployed book is short-tilted (601 short vs 261 long trades) and earned a
-large part of its P&L from short beta in a declining IMOEX.
+The IMOEX (beta) component is about twice the excess component: the book is short-tilted (601 short vs 261 long trades) and earned much of its P&L from short beta in a declining index. Regression of P&L on alpha, equal-weight and momentum benchmarks with cluster-robust errors: per trade (862 trades, 18 ticker clusters) alpha +0.01056 (t 1.47), equal-weight beta -1.681 (t -6.19), momentum beta +1.070 (t 0.78), R2 0.111; per day (486 days, 6 quarter clusters) alpha +0.00031 (t 4.66), equal-weight beta -0.274 (t -2.64), momentum beta -0.197 (t -1.05), R2 0.233. Quarter regimes (IMOEX return, +-3% flat band): 2025Q2 -3.95% down, 2025Q3 -5.75% down, 2025Q4 +4.51% up, 2026Q1 +0.70% flat, 2026Q2 -15.39% down, 2026Q3 -2.55% flat. Only one of six quarters is a bull quarter; the short book earned in the three down quarters.
 
-Regression `P&L ~ alpha + beta1*equal-weight + beta2*momentum`, cluster-robust
-standard errors:
+### 5.3 Alpha without beta: synthetic IMOEX overlay (2026-09-25)
 
-| level | N | clusters | alpha (t) | beta1 equal-weight (t) | beta2 momentum (t) | R2 |
+Pre-registered (commit `d39da47`). Does the deployed ensemble's daily alpha survive execution-level beta neutralisation by a synthetic IMOEX overlay (no position sign or size changes)? HEAD rerun: 867 trades, +202640 realized (about 4% engine drift against section 5.2).
+
+| overlay share | leg P&L | leg costs | daily alpha (cluster t, df = 5) | beta equal-weight | beta momentum | bootstrap CI at block 20 / 40 |
 |---|---|---|---|---|---|---|
-| per-trade | 862 | 18 (ticker) | +0.01056 (1.47) | -1.681 (-6.19) | +1.070 (0.78) | 0.111 |
-| per-day | 486 | 6 (quarter) | +0.00031 (4.66) | -0.274 (-2.64) | -0.197 (-1.05) | 0.233 |
+| 0.00 | 0 | 0 | +0.000325 (3.98) | -0.291 | -0.084 | excludes 0 / excludes 0 |
+| 0.50 | -68502 | 3744 | +0.000216 (3.45) | -0.181 | -0.125 | excludes 0 / excludes 0 |
+| 1.00 | -137004 | 7488 | +0.000101 (2.10) | -0.065 | -0.171 | [+0.000017, +0.000190] / [+0.000018, +0.000179] |
 
-OOS quarter regimes (IMOEX return, pre-registered +/-3% flat band):
+At share 1.00 the CI at block 5 touches zero ([-0.000002, +0.000209]); blocks 10/60 give [+0.000012, +0.000196] / [+0.000030, +0.000179]. All six leave-one-quarter-out drops keep alpha positive. Registered bar met (CI excludes 0 on contiguous {20, 40}; leave-one-out positive), with the caveat that the overlay leg is frictionless and that **all numbers were produced without short borrow**. Rerun with borrow 0.00005 per day: share 0 alpha 0.000316 (t 3.84), 0.5 alpha 0.000206 (t 3.25), 1.0 alpha 0.000090 (t 1.85, p 0.124), CI {20, 40} still excludes 0 (L10 touches 0); at twice the rate (0.00010) the condition fails (L20 [-0.000008, +0.000170], L40 [-0.000006, +0.000158]). The alpha is sensitive to the real borrow rate.
 
-| window | IMOEX return | regime |
-|---|---|---|
-| 2025-04-01 -> 2025-06-30 | -3.95% | trend-down |
-| 2025-07-01 -> 2025-09-30 | -5.75% | trend-down |
-| 2025-10-01 -> 2025-12-30 | +4.51% | trend-up |
-| 2026-01-05 -> 2026-03-31 | +0.70% | flat |
-| 2026-04-01 -> 2026-06-30 | -15.39% | trend-down |
-| 2026-07-01 -> 2026-09-17 | -2.55% | flat |
+### 5.4 Real IMOEX-futures overlay (2026-10-02)
 
-Readout: only one of six OOS quarters is a bull (trend-up) quarter, so "two
-bull quarters" is not the story; the tail risk is the opposite direction —
-three trend-down quarters, including a -15.39% Q2 2026, are where the short
-book earned. Per-day alpha is positive and significant under quarter clusters
-(t=4.66, df=5), but per-trade alpha is not (t=1.47), and both regressions show
-a significant negative loading on the long-only equal-weight benchmark,
-consistent with the short tilt. These are observations for the human go/no-go
-review, not an automated decision.
+The preceding test replaced by the tradable instrument: MX front-month series from ISS FORTS (quarterly roll 3 calendar days before last trade), contract notional 230000 RUB (GO 27464 RUB, about 11.9%), fee 15.18 RUB per contract per side. HEAD rerun base: 778 trades, +184077 realized.
 
-## OOS freeze (Task 10)
+| overlay | share | avg contracts | leg P&L | leg costs | avg daily alpha (cluster t) | beta equal-weight | CI {20, 40} excludes 0 |
+|---|---|---|---|---|---|---|---|
+| none | 0.00 | - | 0 | 0 | +0.000300 (3.68) | -0.287 | yes |
+| synthetic cash IMOEX | 0.50 | - | -66079 | 3622 | +0.000193 (3.18) | -0.179 | yes |
+| synthetic cash IMOEX | 1.00 | - | -132158 | 7244 | +0.000080 (1.83) | -0.065 | yes |
+| real MX, whole contracts | 0.50 | 0.03 | -19000 | 1681 | +0.000266 (3.12) | -0.284 | yes (hedge almost never fires) |
+| real MX, whole contracts | 1.00 | 0.48 | -174800 | 16906 | -0.000036 (-0.49) | -0.053 | no |
+| real MX, divisible (unit 0.01) | 1.00 | 46.7 | -144940 | 14314 | +0.000028 (0.39) | -0.054 | no |
 
-The abs-10d recipe is frozen for the next two quarters. The manifest stores the
-model and config SHA256, feature order, thresholds, tickers, sizing and cost
-fields; `cmd/oosfreeze` recomputes the recipe hash from the current files and
-resets the collection count to zero when it changes.
+One contract (230000 RUB) against an average beta exposure of about 107000 RUB makes the hedge bang-bang; the fully divisible variant loses significance too (about 12800 RUB of basis, roll and tracking separate it from the frictionless overlay). **The alpha-without-beta claim does not survive the real instrument**: realized P&L is predominantly a net-short IMOEX-beta bet. This supersedes section 5.3 and closes the beta-neutral income lever at the current book size (about 200k); reopening needs a much larger book or per-name single-stock futures.
 
-| field | value |
-|---|---|
-| frozen at | 2026-09-17T16:09:40Z |
-| code SHA | 30a422a9eb7193ab9300d00b4ec7c9190b98e94e |
-| recipe SHA256 | 7d6e616c8973e8d2c32110e049b5a539c616ba367fab86732ac0aa850e51de9e |
-| model SHA256 | feb827494ba0bc943ab722d1dff888e0fe4c523bd170d463a5e3ca2fa11e6140 |
-| config SHA256 | 54c8d1949fd8c3b514c8a2b9c23a6c9048d7e20a433ad24038ab8eec6540b1ef |
-| minimum collection | 183 days |
-| real-money execution | disabled |
+### 5.5 Market-neutral retraining (2026-10-03)
 
-## Short-borrow measurement and stress (Task 11)
+Excess-to-IMOEX labels against absolute labels, otherwise identical (13438 rows; absolute 5398 pos / 6802 neg / 1238 hold, excess 4116 / 4179 / 5143 hold: the dead band swallows more rows). Validation AUC (2026-06-18..09-16), xgb / lgbm / logreg / ensemble: absolute 0.4895 / 0.4922 / 0.4634 / 0.4824; excess 0.5447 / 0.5237 / 0.4570 / 0.5226 (ensemble +0.040, outside the noise band; not reproduced in the walk-forward of section 4.3). Hedged books (2025-04-01..2026-09-17, models rebuilt here):
 
-Live Tinkoff sandbox measurement via `cmd/borrowmeasure` (180-day operations
-lookback). The broker API exposes short availability and short margin risk
-rates per share but does not expose a borrow fee rate; no margin-fee
-operations were observed in the account history, so the pre-registered
-0.005%/day stress is the go/no-go borrow rate.
+| model | overlay | trades / realized | leg P&L | alpha per day (cluster t) | beta unhedged / hedged | CI {20, 40} excludes 0 |
+|---|---|---|---|---|---|---|
+| absolute | none | 789 / +221316 | 0 | +0.000363 (6.02) | -0.302 / - | yes |
+| absolute | synthetic 1.0 | - | -143051 | +0.000130 (4.43) | / -0.066 | yes |
+| absolute | real MX whole 1.0 | - | -189900 | +0.000007 (0.12) | / -0.056 | no |
+| absolute | real MX divisible 1.0 | - | -165809 | +0.000062 (1.21) | / -0.057 | no |
+| excess | none | 392 / +81881 | 0 | +0.000175 (2.96) | -0.189 / - | yes |
+| excess | synthetic 1.0 | - | -43117 | +0.000108 (3.46) | / -0.073 | yes |
+| excess | real MX whole 1.0 | - | -33100 | +0.000125 (2.49, p 0.055) | / -0.029 | yes (hedge fires rarely) |
+| excess | real MX divisible 1.0 | - | -48030 | +0.000085 (2.04, p 0.097) | / -0.079 | no |
+| excess, borrow 5 bp/day | synthetic 1.0 | - | -43117 | +0.000102 (3.17) | / -0.073 | yes |
 
-| date | short-enabled names | margin-fee ops | measured rate | applied rate | artifact |
+Excess labels work as intended (beta loading -0.189 vs -0.302, a real intercept) at 2.6x lower realized P&L. With a divisible hedge the excess alpha is 0.000085 per day (t 2.04, p 0.097), about 2.7x the dead absolute residual but short of the registered bar. Not a deployment-ready income source.
+
+**Phase 2b, regime-balanced training (2026-10-03), rejected.** Inverse-frequency weights by trailing cross-sectional mean return (`ENSEMBLE_REGIME_BALANCE`, window 21 or 63, 2-4 buckets) lower validation AUC in every variant (ensemble 0.4964 / 0.4948 / 0.4804 / 0.4887 against 0.5226 unweighted); after a divisible hedge the residual alpha turns negative (rb21 b3 -0.000124, t -1.57; rb21 b2 -0.000165, t -1.94, CI entirely negative). Beta-residualised price features were deferred (cross-zone live/backtest parity risk, small expected gain).
+
+### 5.6 Managed-beta leverage grid (2026-09-25)
+
+Beta-neutral book (`-shares 1`), borrow 0.00005 per day, leverage = larger `-target-notional` on the same 1M deposit (no broker margin). Acceptance: max quarterly DD at most 3% and positive realized net at every multiplier.
+
+| target notional | realized net of borrow | daily alpha (t) | max quarterly DD | result |
+|---|---|---|---|---|
+| 15000 (1x) | +197275 | +0.000090 (1.85) | 1.11% | pass (baseline) |
+| 30000 (2x) | +395785 | +0.000195 (1.92) | 2.15% | pass |
+| 45000 (3x) | +589992 | +0.000293 (2.01) | 2.56% | pass |
+| 60000 (4x) | +753632 | +0.000364 (1.95) | 3.55% | fail |
+
+The hedged book scaled 2-3x under the 3% budget; this lever depends on the hedge, which section 5.4 shows is not achievable at the current book size.
+
+### 5.7 Aggregate exposure cap (`max_net_exposure`)
+
+**Unhedged live book, HEAD rerun 2026-09-30** (signed-net semantics; window 2025-04-01..2026-09-17, borrow 0.00005 per day; the 2026-09-25 figures predate the 2026-09-17 feature fixes):
+
+| target notional | cap | realized net of borrow | trades | max quarterly DD | result |
 |---|---|---|---|---|---|
-| 2026-09-17 | 17 of 18 (DATA not shortable) | 0 (0 RUB) | unmeasurable | 0.005%/day stress | docs/reports/borrow-report.md |
+| 15000 (1x, live) | 0 | +197275 | 871 | 1.96% | pass |
+| 15000 | 90000 | +87861 | 341 | 1.71% | pass (income -55%) |
+| 30000 (2x) | 0 | +395785 | 1012 | 3.57% | fail |
+| 30000 | 60000 | +81730 | 234 | 2.21% | pass (2.31% at twice the borrow) |
+| 30000 | 75000 | -6555 | 50 | 2.52% | fail (income negative) |
+| 30000 | 90000 | +144058 | 249 | 1.94% | pass |
+| 45000 (3x) | 0 | +589992 | 1050 | 4.26% | fail |
+| 45000 | 90000 | -19338 | 74 | 4.95% | fail (worse than uncapped on both axes) |
+| 45000 | 120000 | +127923 | 188 | 3.85% | fail |
 
-Per-ticker short risk rates (Dshort = minimal-margin short risk rate,
-DshortMin = initial-margin short risk rate) are in `docs/reports/borrow-report.md`.
-DATA reports short-enabled=false with zero short risk rates, so a SELL signal
-on DATA cannot open a short in the sandbox. The engine now supports
-`-borrow-pct-day` (`backtest.Config.BorrowPctPerDay`), charging the rate daily
-against short-leg notional and reporting `TotalBorrow` plus
-`RealizedPnlNetBorrow = RealizedPnl - TotalBorrow`.
+The only cap keeping every quarter under 3% (2x with 60k) earns less than half the live 1x. The cap is discontinuous and non-monotonic (60k to 75k turns +81730 into -6555 as trades collapse 234 to 50), so the profitable region cannot be tuned into: the book's income is its market beta and an aggregate cap removes the cross-name diversification. Stay at 1x; the cap ships as a fail-closed guardrail only.
+
+**Synthetic 100% short book (2026-09-30)**, SELL on every bar and BUY on the last: cap 0 +51381 (1581 trades, max DD 5.83%, 18 names); 30000 +4981 (2 trades, 0.86%); 45000 +5864 (3, 1.04%); 60000 +8831 (4, 0.87%); 90000 +11484 (6, 1.68%). A cap costs 78-90% of the income because `risk.Gate` is an order-level fail-closed check that never resizes: the first tickers fill the cap and the book freezes. The uncapped all-short control breaches the 3% drawdown on its own (5.83%), so the live loss of 2026-09-30 (17 shorts, net about -210k, -4.53 RUB realized over 60 trades) was not caused by a missing cap.
+
+**Semantics change, signed net to gross (2026-10-01).** The cap now bounds the sum of `|signed position notional|`; the net cap is blind to gross risk (long 500k SBER and short 500k OZON net to zero). Per-ticker projection (the order replaces only its own leg) and an explicit `risk.Request.ExposureDeltaLots` are load-bearing: treating `TargetLots` as a delta double-counted held positions (a latent bug). Regression: the 100% short grid reproduces exactly (cap 0 +51381.37, 1581 trades, 5.83%; 30000 +4981.30, 2, 0.86%; 45000 +5863.69, 3, 1.04%; 60000 +8830.73, 4, 0.87%; 90000 +11483.63, 6, 1.68%); an intermediate book-wide-additive implementation collapsed the capped rows to 0 closed trades by blocking the final flatten-to-flat order (`TestHardenedGateMaxExposureAllowsReducingOrder`). Live keeps `max_net_exposure: 0`.
+
+### 5.8 Short-borrow cost
+
+**Measurement.** `cmd/borrowmeasure` (180-day lookback) shows 17 of 18 names shortable (DATA is not) and 0 margin-fee operations (0 RUB); the broker API exposes short margin risk rates but no borrow fee. The real T-Invest accounts (brokerage and investment piggy bank, 2020-2026, 271 and 2354 operations) contain no `MARGIN_FEE` operation and no short trade, and margin status is disabled on both (code 30051); the sandbox charges no rollover. Public terms: intraday shorts are free, overnight carry is charged per calendar day; a secondary source quotes the REPO rate at about 17% per year (unconfirmed by the account tariff). The project's stress rate of 0.005% per day (1.8% per year) is about ten times below this estimate. `-borrow-pct-day` charges the rate daily on short notional and reports `RealizedPnlNetBorrow`.
+
+**Sensitivity of the ridge long-short replay** (section 8.8 recipe, 17 stocks, caps 90000), realized net of borrow, RUB:
+
+| rate per day | window G | sum of six windows | positive windows | worst window |
+|---|---|---|---|---|
+| 0.00005 (1.8% per year) | +3916 | +684 | 3 of 6 | -2697 |
+| 0.00023 (8.4%) | +3583 | -1611 | 2 of 6 | -3097 |
+| 0.00047 (17.2%) | +3140 | -4672 | 2 of 6 | -3631 |
+| 0.00070 (25.6%) | +2715 | -7605 | 2 of 6 | -4143 |
+
+The gate window passes at any rate up to 25% per year, but at about 17% per year the six historical windows sum negative; if the real rate is close to REPO the short part of ridge long-short is loss-making on average.
+
+### 5.9 Out-of-sample freeze (2026-09-17)
+
+The abs-10d recipe is frozen for two quarters (minimum collection 183 days; real-money execution disabled): frozen at 2026-09-17T16:09:40Z, code SHA `30a422a9eb7193ab9300d00b4ec7c9190b98e94e`, recipe SHA256 `7d6e616c8973e8d2c32110e049b5a539c616ba367fab86732ac0aa850e51de9e`, model SHA256 `feb827494ba0bc943ab722d1dff888e0fe4c523bd170d463a5e3ca2fa11e6140`, config SHA256 `54c8d1949fd8c3b514c8a2b9c23a6c9048d7e20a433ad24038ab8eec6540b1ef`. `cmd/oosfreeze` recomputes the recipe hash from the current files and resets the collection count when it changes.
+
+## 6. Labels, horizon, training data and features
+
+### 6.1 Horizon sweep and news-set features (2026-10-08)
+
+Expanding purged walk-forward, 9 folds of 63 days from 2025-04-01, 15 price columns, LightGBM + logistic average.
+
+| horizon (days) | 9 | 10 | 12 | 15 | 20 | 25 | 30 | 40 |
+|---|---|---|---|---|---|---|---|---|
+| mean fold AUC | 0.5292 | 0.5311 | 0.5204 | 0.5018 | 0.4864 | 0.4818 | 0.4730 | 0.4617 |
+| pooled AUC | 0.5038 | 0.4974 | 0.4875 | 0.4799 | 0.4646 | 0.4695 | 0.4734 | 0.4678 |
+
+AUC falls monotonically with horizon (below 0.5 from 15 days; per-fold range 0.33-0.64); 10 days is the best and is deployed. Rolling per-ticker news-set features (5/10/20-day counts, surge, keyword balance, topic means, sources, market-wide count `mkt10`; archive 2026-04-01..09-29, 21-day folds from 2026-06-01): pooled AUC gains are market timing (`mkt10` alone 0.58-0.61); the within-day cross-sectional news AUC is 0.55-0.57 (10-day CI [0.504, 0.612], 20-day [0.517, 0.620]) before correcting for label overlap, not significant. Price features are anti-predictive across tickers in 2026-06..09 (within-day AUC 0.35-0.39); flipping them would fit a known regime. No variant approached 0.7 (best about 0.57).
+
+### 6.2 Label timing: weekend sessions (2026-10-01/02)
+
+MOEX trades equities on weekends (SBER Saturday 2026-06-06: volume 1373638, 55 intraday bars) while IMOEX is not calculated, so a 10-bar window spans a different calendar time per ticker: over 14041 labels the effective weekday horizon is 7-11 (mean 9.31, only 9.3% exactly 10), and the mean calendar span ranges from 11.33 days (DATA) to 13.69 (OZON). Live trades the same bars as the backtest (the broker reports weekend sessions as open), so the track record is not invalidated. Rebuilding labels with `-horizon-mode calendar_days` changes the sign of 667 of 12328 common keys (5.41%); on the holdout 2026-06-19..09-17 (bars vs calendar): validation AUC 0.4610 vs 0.4635 (+0.0025, inside the band), realized +53786.79 vs +40355.35 (-25%), max DD 1.58% vs 1.97%. The inconsistency is real but is not the AUC ceiling; the bars recipe stays.
+
+### 6.3 Training-history depth (step 1, 2026-10-18)
+
+`exportdataset -from {2015,2018,2021,2024}`, 17 tickers, 15 price columns, 54017 rows per horizon, the section 6.1 walk-forward; test rows identical across arms.
+
+| h | arm | train rows | pooled AUC | mean fold AUC | folds > 0.5 | ECE |
+|---|---|---:|---:|---:|---:|---:|
+| 10 | A from 2024 | 4762 | 0.5005 | 0.5371 | 6/9 | 0.0792 |
+| 10 | B from 2021 | 15490 | 0.4958 | 0.5102 | 6/9 | 0.0410 |
+| 10 | C from 2018 | 24745 | 0.4921 | 0.5076 | 5/9 | 0.0654 |
+| 10 | D from 2015 | 33548 | 0.5199 | 0.5287 | 6/9 | 0.0734 |
+| 10 | E from 2015 without 2022-02-24..12-31 | 30542 | 0.5331 | 0.5378 | 6/9 | 0.0809 |
+| 20 | A | 4740 | 0.4696 | 0.4963 | 5/9 | 0.1211 |
+| 20 | B | 15752 | 0.4558 | 0.4754 | 5/9 | 0.0759 |
+| 20 | C | 25268 | 0.4539 | 0.4901 | 5/9 | 0.0981 |
+| 20 | D | 34331 | 0.4883 | 0.5111 | 5/9 | 0.0919 |
+| 20 | E | 31284 | 0.4985 | 0.5025 | 5/9 | 0.0977 |
+
+D minus A pooled AUC: h10 +0.0194 (CI95 [-0.0062, +0.0457], D wins 3 of 9 folds), h20 +0.0188 ([-0.0037, +0.0420], 5 of 9). The primary criterion (+0.010 on both horizons, majority of folds above 0.5) is met on the point estimates but is not a swap decision (both intervals contain zero; the secondary criterion fails); B and C are below A, so the gain appears only at 2015 (more regimes), and the absolute level stays at noise. Calibration improves with depth (Brier 0.2564 -> 0.2511 at h10). Excluding 2022 adds +0.0132 / +0.0102 (descriptive). The paired comparison of section 3.6 later confirmed D > A (15 of 15) as a small gain at the noise floor. No model swap.
+
+### 6.4 Calibration across horizons and regimes (step 3)
+
+Platt and isotonic calibrators fitted on the last 20% of training rows, horizons 5/10/20, windows A and D, pooled over 9 folds. Window A: both calibrators worsen ECE and Brier at every horizon (ECE x2 to x3.3). Window D: ECE falls 54-70% with Brier level or slightly better, but AUC drops by 0.07-0.19 (e.g. h10 raw 0.5465 -> 0.4130 Platt): on the most recent 20% of training dates the base score is anti-correlated with the outcome, so the fitted monotone map inverts the ranking. Criterion (ECE -20%, Brier not worse, AUC within +-0.005, all six combinations): not met on any. The research ensemble's raw probabilities sit near 0.5 (raw ECE 0.044-0.107), unlike the deployed ensemble whose tails reach 0.07 and 0.93 (ECE 0.21, section 4.2). The raw AUC of arm A here (0.551-0.555) is far above its step-1 value (0.470-0.501) merely by holding the last 20% of training rows out: an up-to-0.08 swing that places every 0.01-0.02 difference of steps 1-3 inside recipe noise. No calibrator is wired in.
+
+### 6.5 Breadth of the training panel (step 24/24b, 2026-10-19)
+
+172 securities that ever passed the liquidity threshold on TQBR 2014-2026 (including delisted), the project's own 15 features from split-adjusted candles, 376553 labelled rows (43395 for the 18 trading tickers); test = the 18 trading tickers on the 15 configurations of section 6.7. Pooled AUC on the original label: base18 0.4786 (Spearman -0.030), wide 0.4957 (+0.018), wide2020 0.5051 (+0.035); paired difference to base18 +0.0171 (14/15) and +0.0265 (15/15): stage 1 passes, but absolute AUC stays at chance. At the fixed 0.60/0.40 thresholds the wide models almost never trade (4-5 closed trades over six windows for wide, 11-17 for wide2020, about 490 for base18), so the formal stage-2 pass is not informative. With quantile thresholds (BUY above the 80th and SELL below the 20th percentile of the model's own probabilities over the previous 60 days; about 580 trades per arm and seed), sum of the six windows by seed 0..4: base18 -28053, -32124, -30521, -27037, -20835 (mean -27714); wide -12376, -14832, +139, -7442, -17370 (mean -10376); wide2020 -2853, -24862, -14365, -10516, +662 (mean -10387); worst DD 2.37% / 2.06% / 1.83%; hold-out h mean +384 / -623 / -1391. Criteria hold-out not worse and sum positive FAIL. Breadth reduces the loss by about 17000 RUB but does not make the recipe profitable.
+
+### 6.6 Deep history as a walk-forward candidate with costs (step 4)
+
+Per-window ensembles trained from 2024-01-01 (A, fresh control) and from 2015-01-01 (D), replayed with the Task 5 parameters.
+
+| window | A realized | D realized | A trades | D trades | A val AUC | D val AUC |
+|---|---:|---:|---:|---:|---:|---:|
+| q1 | -8823.41 | +1083.86 | 171 | 8 | 0.4932 | 0.5083 |
+| q2 | -8151.57 | +1913.04 | 174 | 5 | 0.4882 | 0.4873 |
+| q3 | +28863.29 | 0.00 | 122 | 0 | 0.4354 | 0.4755 |
+| q4 | -6022.44 | 0.00 | 94 | 0 | 0.4302 | 0.4770 |
+| w2 | -3793.02 | 0.00 | 71 | 0 | 0.4246 | 0.4689 |
+| w1 | +38865.30 | +1512.39 | 181 | 39 | 0.4350 | 0.4790 |
+| total / mean | +40938.14 | +4509.29 | 813 | 52 | 0.4511 | 0.4827 |
+
+D fails criterion 1 (+4509 vs +40938) while passing the others: validation AUC is higher in every window, but the deep-history probabilities sit closer to 0.5 and the fixed 0.60/0.40 thresholds are almost never crossed (52 trades vs 813). Thresholds were not retuned on the test windows. A's profit comes from q3 and w1, the two windows where the short-tilted book rode falling prices (section 5.2).
+
+### 6.7 Feature and label variants (part B, steps 11-17, 2026-10-19)
+
+Data: `exportdataset` 2024-01-01..2026-10-19 (18 tickers, 13211 labelled rows), 15 configurations (5 seeds x shifts 0/27/54, 63-day folds from 2025-04-01, 6403 test rows each), purged on `label_date`. A look-ahead bug (per-date ranks computed after the dead-band filter) was fixed before any result was recorded.
+
+| step | variant | base pooled AUC | variant pooled AUC | mean paired d | positive pairs | stage 1 |
+|---|---|---|---|---|---|---|
+| 11 | per-date ranks of the 15 price features + 3 momentum-minus-IMOEX features | 0.4905 | 0.5161 | +0.0256 | 15/15 | pass |
+| 12 | labels in volatility units (+-0.5 sigma20 sqrt(10)), scored on the original label | 0.4905 | 0.5019 | +0.0114 | 15/15 | pass |
+| 13 | meta-model filter, top 30% of rows | - | - | AUC d -0.0004 | 4/15 | fail |
+| 14 | FORTS open interest of individuals (own futures 5-day change and level for 9 shares + MX index future), previous-day data | 0.4749 | 0.4825 | +0.0076 | 11/15 | fail |
+| 14b | same, lagged 14 days (free-tier availability) | 0.4760 | 0.4471 | -0.0289 | 0/15 | fail, harmful |
+| 16a | TimesFM 2.5 zero-shot median forecast return | 0.5 | 0.5220 (shift 27: 0.5200, 54: 0.5253) | - | - | fail: CI [0.487, 0.553] includes 0.5 |
+| 16b | base + TimesFM forecast features | 0.4905 | 0.4927 | +0.0022 | 14/15 | fail |
+
+Stage 2 (csvprob replay of the walk-forward probabilities, 0.60/0.40, net caps 90000, borrow stress), realized net of borrow:
+
+| window | base | rank (11) | sigma (12) |
+|---|---|---|---|
+| q1 | -10968 | -8035 | -7451 |
+| q2 | -4057 | -6344 | -6168 |
+| q3 | +2982 | +8685 | +12633 |
+| q4 | -11438 | -18071 | -7866 |
+| w2 | -9831 | -2392 | -8606 |
+| w1 | +37654 | +7198 | +29069 |
+| sum | +4342 | -18959 | +11611 |
+| worst max DD | 1.82% | 2.55% | 1.99% |
+
+Step 11 fails stage 2 (sum and drawdown), step 12 passes it, but every figure is inside replay noise. **Step 17 (pre-registered, 98 replays across seeds 0-4 and the hold-out h):** sigma-label six-window sum by seed +11542, +22722, +1613, +4569, +17338 against base -10218, +7988, -13842, +7015, +17461 (means +11557 vs +1681); hold-out h mean -882 vs -603; worst DD 2.27% vs 2.36%. Sigma beats base in 3 of 5 seeds (needs 4) and fails the hold-out: **the step-12 result is not confirmed** (2 of 4 criteria fail). Descriptive (seed 42, k = 0.25 / 0.5 / 0.75): sums +768 / +11611 / +33464, hold-out -595 / -3058 / -5308, non-monotonic; the seed-to-seed range of the base sum (-13842..+17461) exceeds any base-sigma difference.
+
+Step 14 detail: `iss.moex.com/iss/analyticalproducts/futoi` is open without a token with history from 2023-12 but the free tier withholds the last 14 days, so a live model would see the lagged arm (14b), which is worse than base. Step 15 (fundamentals): the T-Invest `GetAssetFundamentals` returns a current snapshot of about 60 fields without an as-of date (and `GetAssetReports` report dates with `createdAt`), so any historical join leaks the future; `cmd/fundsnap` records a daily append-only snapshot (`data/fundamentals.jsonl`, first snapshot 2026-10-19); no experiment before at least 120 daily snapshots (about 2027-02). TimesFM extraction: 14545 forecasts in 2432 s on CPU.
+
+### 6.8 Macro and dividend-yield features (2026-10-10)
+
+Walk-forward as in section 6.1 on 12540 labelled rows (44.4% positive, no news): base A (15 price/flow) mean fold AUC 0.5320 / pooled 0.4976 (folds > 0.5: 6/9); +dividend yield 0.5270 / 0.4963 (6/9); +9 macro series (IMOEX, CNY/RUB, Brent, key rate) 0.4912 / 0.4175 (3/9); both 0.4853 / 0.4178 (4/9). Macro columns are identical for all tickers on a date, so trees only memorise the regime (-0.041 mean fold, -0.080 pooled). Criterion (+0.010 pooled and a majority of folds above 0.5): met by no arm; no backtest was run. Macro may still help as a risk-gate regime filter; step 26 (section 8.7) later shows no out-of-sample macro information.
+
+### 6.9 Negotiations and sanctions topic signals (2026-09-18)
+
+With versus without `negotiations_signal` and `sanctions_signal` (same 18-ticker dataset, absolute-10d, costs 0.0005 x 3): validation AUC xgb / lgbm / logreg / ensemble 0.4896 / 0.5172 / 0.5080 / 0.5084 (18 features) vs 0.4920 / 0.5172 / 0.5080 / 0.5098 (20 features), ensemble +0.0014 (inside the band). Six-window realized: 18-feature +101246.75 (max DD 3.52%), 20-feature +103739.34 (3.55%), +2492.59 (+2.5%) with mixed signs (worse in q1, q4, w1). The news archive then covered only 2026-08-14..09-17, so the signals were zero in every training window (9 and 5 non-zero rows, all in the last test window). No measurable improvement; the comparison needs a richer historical backfill. The topic features have zero coefficients in the deployed model.
+
+### 6.10 Explainability of signals (2026-10-18)
+
+Occlusion attribution: each trained feature is replaced by its training mean and the change in ensemble probability is the driver; the top 3 are appended to `Reasoning` as ` drivers=<feature>:<signed percentage points>` (not Shapley: interactions are unsplit and the tree artifact has no node covers). Unit tests confirm the logistic occlusion delta equals the exact linear contribution to 1e-9. `cmd/explaincheck` on the deployed artifact (10195 rows from 2025-04-01, 17 tickers, 20 draws per row): replacing the 3 top drivers moves the probability by 0.0822 against 0.0236 for 3 random trained features (ratio 3.48, needed 1.5); in the decision zone (3964 rows) the sign of the top driver matches the side of 0.5 in 95.9% of rows (needed 70%). Both criteria met. The claim is faithfulness of the model's own dependence on inputs, not causality of returns.
+
+## 7. News and event information
+
+### 7.1 Headline-classifier recalibration attempts (2026-09)
+
+Both attempts label headlines by forward excess return over IMOEX (`cmd/trainnewsmodel`, horizon 3 days unless stated, bag-of-words logistic).
+
+- **2026-09-25, 1517 headlines (20 tickers, 2026-08-14..09-24).** Horizon 3: val AUC 0.568, accuracy 0.605 vs baseline 0.591. The deployed classifier (h = 3, trained 2026-09-16 on 48k Telegram samples; val AUC 0.533 below baseline 0.552) scores every corpus headline in [-0.22, 0.09]: dead weight. Horizon 10 shows val AUC 0.80-0.89 but is a label-imbalance artifact (84% of headlines score below -0.3; validation labels 43 pos / 91 neg). Horizon 5: 0.587, noise.
+- **2026-09-29, 9596 articles rebuilt from RSS/Google/CBR/MOEX (2315 records) and Telegram retro (7281), 2026-04-01..09-29, 42 tickers.**
+
+| variant | articles | train_n | val_n | train AUC | val AUC | val acc | baseline |
+|---|---|---|---|---|---|---|---|
+| deployed 2026-09-16 | 48294 | 48294 | 2364 | 0.690 | 0.533 | 0.529 | 0.552 |
+| A all tickers, split 08-15 | 9596 | 2855 | 1349 | 0.840 | 0.531 | 0.538 | 0.570 |
+| B config tickers only | 3415 | 759 | 497 | 0.950 | 0.493 | 0.469 | 0.511 |
+| C all tickers, split 09-01 | 9596 | 3115 | 1089 | 0.830 | 0.527 | 0.534 | 0.576 |
+| D one ticker per article | 6858 | 2125 | 970 | 0.880 | 0.540 | 0.535 | 0.580 |
+
+Every variant is below the majority baseline; the train-validation AUC gap (0.31-0.46) is overfitting, and with about 1000 validation samples the AUC standard error is about 0.016, so the 0.527-0.540 spread is noise. Behaviourally the deployed classifier is dead (92% of scores inside +-0.1, range [-0.247, +0.266]) while the new ones fire on about 64% of headlines (range about +-0.8) with below-baseline accuracy: deploying them would swap a harmless near-zero feature for an actively wrong one. `news_classifier.json` stays. These numbers use the ToS-restricted Telegram and Google News sources (owner decision recorded in `AGENTS.md`) and must not be quoted as a clean corpus.
+
+### 7.2 Where the 9596 articles are lost (2026-10-01)
+
+An instrumented replica of `BuildNewsLabels` (asserted to reproduce its sample count; `TestNewsLabelsDropAudit`) accounts for every drop: ticker lookup failures 0, short history 0, articles before the first candle 0, tail without an exit bar 385, non-positive prices 0, **IMOEX entry bar missing 2757**, **IMOEX exit bar missing 2055**, samples produced 4399 (train 2855 / val 1544). 96.5% of the missing index dates are weekends (Saturday 2347, Sunday 2300 of 4812): MOEX publishes weekend sessions for equities, IMOEX is not calculated, and the date lookup misses. It is a calendar-alignment bug rather than a ticker-mapping problem; dropping weekend bars before the loop would recover up to about 4647 samples.
+
+### 7.3 Classifier trained on the 2021-2024 archive (step 2, 2026-10-18)
+
+Training: `Kasymkhan/RussianFinancialNews` via `cmd/newsimport` (18 tickers, records before 2025-01-01): 18957 pairs, 18375 labelled samples (previously 2855). Validation: `data/news_history.jsonl`, 17 tickers, records from 2026-04-01 (7129 pairs); unchanged `cmd/trainnewsmodel` (vocab 3000, min doc freq 3), entry at the next open; `cmd/newsvalidate` scores; date-block bootstrap.
+
+| horizon (trading days) | val samples | val dates | train AUC | val AUC | CI95 | val accuracy | majority baseline |
+|---:|---:|---:|---:|---:|---|---:|---:|
+| 10 (primary) | 2866 | 110 | 0.689 | 0.528 | [0.479, 0.574] | 0.540 | 0.547 |
+| 5 | 4019 | 105 | 0.699 | 0.486 | [0.425, 0.538] | 0.519 | 0.543 |
+| 1 | 4488 | 135 | 0.682 | 0.516 | [0.448, 0.579] | 0.548 | 0.571 |
+
+Criterion (val AUC >= 0.530 at 10 days, lower bound above 0.5): not met. Six times more training data left validation AUC at 0.49-0.53; the train-validation gap is overfitting to vocabulary. Post-hoc: the lowest score quintile has mean 10-day excess return -1.04% and positive share 0.406 against -0.09..-0.22% and 0.452-0.485 for the other quintiles, a one-sided negative-news pattern needing its own pre-registration.
+
+### 7.4 Domain-shift test (step 2b)
+
+7054 unique 2026 pairs on 17 tickers; train before 2026-08-01 (3023 pairs), 14-day gap, test from 2026-08-15 (3709 pairs, no title seen in train). Arms: A trained on 2026 only; B the section 7.3 classifier (never saw 2026, control); C both. CI at the Bonferroni level 99.17%.
+
+| horizon | arm | train samples | test samples | test dates | AUC | CI 99.17% |
+|---:|---|---:|---:|---:|---:|---|
+| 10 | A | 1187 | 1427 | 38 | 0.4396 | [0.371, 0.512] |
+| 10 | B | 18375 | 1427 | 38 | 0.6132 | [0.534, 0.678] |
+| 10 | C | 19562 | 1427 | 38 | 0.5823 | [0.514, 0.647] |
+| 5 | A / B / C | 1603 / 18375 / 19978 | 2168 | 39 | 0.4703 / 0.4797 / 0.4693 | lower bounds 0.388 / 0.355 / 0.352 |
+| 1 | A / B / C | 1328 / 18375 / 19703 | 2817 | 49 | 0.5438 / 0.5338 / 0.5424 | lower bounds 0.461 / 0.410 / 0.421 |
+
+No arm qualifies (arm C at 10 days has 38 test dates against the required 40). Training on 2026 text does not help (A is below chance at 10 days with train AUC 0.87) and the control B scores as high as C: domain shift is not supported. Month by month, B at 10 days gives AUC 0.459 (April), 0.407, 0.579, 0.373, 0.502, 0.614 (September), 0.753 (October): the 10-day figure is a September-October window effect, the same time instability seen in every test of this series.
+
+### 7.5 Expanded 260-ticker archive (step 2c)
+
+Archive after the Telegram backfill and cleaning: 153151 pairs, 260 tickers. Filters as registered: the `MOEX` website-news source excluded, articles mapped to four or more tickers excluded (also applied to the test file, removing 27938 of 72132 test pairs), training pairs before 2025-01-01 (63581 pairs, 40413 samples after the liquidity filter), test from 2025-03-01 (31 pairs with a headline seen in train removed), median 20-day turnover at least 10 million RUB. CI at the Bonferroni level 98.33%.
+
+| horizon | test samples | test dates | AUC | CI 98.33% | quarters with AUC >= 0.5 (of 6) | within-date permutation AUC |
+|---:|---:|---:|---:|---|---:|---:|
+| 10 | 19085 | 417 | 0.5234 | [0.5022, 0.5424] | 4 | 0.5021 |
+| 5 | 23095 | 381 | 0.5212 | [0.5007, 0.5421] | 5 | 0.5016 |
+| 1 | 23766 | 471 | 0.4963 | [0.4735, 0.5196] | 4 | 0.4917 |
+
+Quarterly AUC at 10 days: 0.564, 0.520, 0.477, 0.534, 0.592, 0.488. By source at 10 days: Telegram 0.5238 (17153), Google 0.5442 (1796). Criterion (AUC >= 0.530 with lower bound above 0.5, plus control, at least 4 of 6 quarters): not met at any horizon. Descriptively the 10- and 5-day intervals now lie above 0.5 (effect about +0.02 AUC), unstable across quarters, carried by Telegram posts and measured on non-independent pairs (reposted wires), so the interval is optimistic and no economic claim follows.
+
+### 7.6 News score net of costs and decay (steps 2g and 2, seven hypotheses)
+
+Ticker-day score = mean article score; per date with at least 10 scored tickers (226 dates, 2025-03-17..2026-10-05), long the top quintile and short the bottom, 10-day hold, one tranche per date, 0.15% per fill (0.60% per tranche), no borrow, date-block bootstrap (block 10, 5000 reps).
+
+| quantity | value |
+|---|---|
+| gross long-short spread per tranche | +0.863% |
+| break-even cost per side | 0.216% |
+| net at 0.15% / 0.10% / 0.20% per side | +0.263% [-0.305, +0.930] / +0.463% [-0.105, +1.130] / +0.063% [-0.505, +0.730] |
+| long-only top quintile net of 0.30% round trip | +0.045% [-0.258, +0.350] |
+| quintile mean 10-day excess, low to high score | -0.518, -0.385, -0.012, +0.206, +0.280 (%) |
+| quarterly net (8 quarters) | -0.23, +0.48, -0.55, -0.74, -0.23, +2.40, +0.48, -0.25 (%) |
+
+The criterion (lower CI bound above 0) fails at every cost level; five of eight quarters are negative and 2026Q2 (+2.40%) carries the mean; the spread comes from the short leg, which is not tradable here.
+
+Decay by horizon (retrained classifier, val AUC 0.518; 435 dates with at least 10 scored tickers in 2025-03-01..2026-09-30; rank-weighted cross-sectional portfolio, gross of costs, excess over IMOEX):
+
+| h (days) | gross spread % per tranche | CI95 | per day % |
+|---:|---:|---|---:|
+| 1 | +0.0944 | [+0.0210, +0.1706] | +0.0944 |
+| 2 | +0.1131 | [+0.0123, +0.2141] | +0.0565 |
+| 5 | +0.2116 | [+0.0700, +0.3603] | +0.0423 |
+| 10 | +0.4258 | [+0.2117, +0.6627] | +0.0426 |
+| 20 | +0.5401 | [+0.2352, +0.8645] | +0.0270 |
+
+H1 (gross spread at 5 days above 0): met (gross only; at 10 days +0.4258% is below the 0.60% tranche cost). Front-loading is not established (per-day difference h1 minus h10 +0.0518, CI [-0.0270, +0.1308]). H4 liquidity: least liquid tercile +1.2117 [-0.2371, +3.1680] on 33 dates, middle +0.3495 [+0.0017, +0.6955], most liquid +0.3774 [+0.1508, +0.6342]; low minus high +0.8343 [-0.6336, +2.7335], not supported. H4 sign: bottom quintile mean excess -0.9441 [-1.5271, -0.4061], top +0.2120 [-0.1156, +0.5333], asymmetry +0.7321 [+0.0924, +1.3906]: the negative-news side carries the effect, and the long (tradable) side is indistinguishable from zero. The news direction stays closed as a trading signal; reopening needs an independent period after 2026-10-05.
+
+### 7.7 Zero-shot LLM direction on Russian headlines (steps 1 and H3, final 2026-10-19)
+
+`cmd/llmdirection` (qwen3.8, digest `3f181bb5737e`, temperature 0, no thinking, JSON answer direction plus confidence 1..5). Sample A (clean): 1200 articles over 157 dates, 2026-04-01..09-30; sample B (pre-cutoff, lookahead test): 1114 articles over 399 dates, 2023-01-01..2024-06-30; 0 unparsable answers. Label: sign of excess return over IMOEX, entry at the next open.
+
+| sample | h | AUC | CI95 | AUC without neutral (n) | Spearman with prior 5-day return | AUC within return terciles |
+|---|---|---|---|---|---|---|
+| A | 1 | 0.5111 | [0.4793, 0.5407] | 0.5325 (520) | 0.263 | 0.5009 |
+| A | 5 | 0.5272 | [0.4941, 0.5597] | 0.5598 (520) | 0.263 | 0.5198 |
+| A | 10 | 0.5260 | [0.4921, 0.5605] | 0.5519 (520) | 0.263 | 0.5156 |
+| B | 1 | 0.5290 | [0.4987, 0.5599] | 0.5525 (398) | 0.123 | 0.5283 |
+| B | 5 | 0.5465 | [0.5170, 0.5765] | 0.5996 (398) | 0.123 | 0.5427 |
+| B | 10 | 0.5524 | [0.5232, 0.5821] | 0.6060 (398) | 0.123 | 0.5469 |
+
+H2 (AUC >= 0.55 with lower bound above 0.5): fails on sample A at h = 1 and h = 10; the claim "zero-shot LLM direction on Russian headlines is not better than random" is recorded and H6 and H9 are closed without a run. H3 (lookahead): B minus A at h = 10 is +0.0264 [-0.0175, +0.0695]; the registered leakage rule (+0.030 with lower bound above 0) is not met, so no lookahead is detected, yet sample B alone is above chance at h = 5 and 10, so the old archive is not cleared for calibration use. Part of the signal is trailing momentum (rho 0.263 on A, below the 0.3 limit).
+
+### 7.8 Event causal study: sanctions, negotiations, incidents (2026-10-09)
+
+Protocol `docs/plans/completed/20261009-event-causal-study.md`. Panel: 17 tickers x 140 trading days (2026-04-01..10-09), 10213 archive records, abnormal return against IMOEX (market model beta fitted on 2025-10-01..2026-03-31; `excess` mode as robustness), 2000 date-bootstrap and 1000 placebo draws, seed 42. No P&L is involved.
+
+| topic | events / dates | stacked DiD CAR[0,+1] [95% CI] | AIPW ATT (t) | placebo p | Holm p | MDE | verdict |
+|---|---|---|---|---|---|---|---|
+| sanctions | 71 / 45 | -0.0018 [-0.0094, +0.0045] | +0.0011 (0.35) | 0.675 | 0.675 | 0.0100 | not supported |
+| negotiations | 58 / 37 | -0.0051 [-0.0124, +0.0015] | -0.0002 (-0.05) | 0.337 | 0.673 | 0.0098 | not supported |
+| incident | 12 / 9 | -0.0230 [-0.0662, +0.0074] | -0.0238 (-1.42) | 0.026 | 0.078 | 0.0518 | underpowered |
+
+Sanctions and negotiations show no detectable effect (minimum detectable effect about 1.0% over two days; consistent with the AUC rejection of the topic signals, section 6.9). The incident direction matches the live BUY veto (raw CAR[0,+1] -2.6% [-6.7%, -0.2%]) but N = 12 on 9 dates fails the power floor; the veto stays as defence in depth, revisit at 30 or more live triggers. Pre-trends are clean for all three; TWFE and stacked DiD agree in sign and size; `excess` mode reproduces every verdict. Limits: six months, one regime, generic-news ticker attribution biasing toward zero (VKCO 41% of records), timestamps that lag the first reaction, no instrument for IV.
+
+### 7.9 Level-crossing event study: stops and take-profits (H20, 2026-10-15)
+
+Do prices behave differently after crossing a level where stop and take-profit orders plausibly cluster (20-day extremes, round numbers) than after an ordinary level at the same distance? Criteria and placebo fixed in `docs/plans/20261015-hypotheses-from-llm-review.md`. Data: 10-minute ISS bars for 16 basket tickers, 2024-11-15..2026-10-11, main session, gaps excluded, 12213 events (5784 real, 6429 placebo). Outcome: signed abnormal return against the basket divided by the hour-of-day robust sigma (positive = continuation); difference = real minus placebo with a 97.5% day-bootstrap CI.
+
+| level | placebo | horizon | real signed z | placebo signed z | diff (CI97.5) | real mean bp |
+|---|---|---|---:|---:|---|---:|
+| 20-day extreme | 4th extreme | 10m | +0.164 | -0.026 | +0.190 [-0.014, +0.410] | +1.8 |
+| 20-day extreme | 4th extreme | 1h (primary) | +0.048 | -0.125 | +0.173 [+0.034, +0.317] | +1.3 |
+| 20-day extreme | 4th extreme | 4h | +0.024 | -0.010 | +0.034 [-0.103, +0.163] | +1.2 |
+| round number | half-step grid | 10m | -0.019 | +0.109 | -0.127 [-0.281, +0.008] | -0.4 |
+| round number | half-step grid | 1h (primary) | -0.063 | -0.054 | -0.009 [-0.105, +0.080] | -1.4 |
+| round number | half-step grid | 4h | -0.047 | -0.040 | -0.008 [-0.086, +0.068] | -1.8 |
+
+The primary extreme test meets the statistical criterion (CI excludes zero, both halves positive, 1368 events on 424 dates) but fails the economic one (+1.3 bp against a 30 bp round-trip hurdle) and the difference comes from the placebo level reversing (-2.8 bp). The share of crossings returning through the level within 30 minutes is 0.471 real vs 0.473 placebo: no stop-run signature. **Extension** (six primary tests, 99.2% CI): fine rounding (basket) -0.005 [-0.023, +0.012]; SMA200 vs SMA173 +0.062 [-0.260, +0.379]; illiquid 38 names: extreme +0.101 [-0.080, +0.297], round 1-10% -0.027 [-0.099, +0.046], fine round +0.011 [-0.005, +0.026] (both arms reverse about 13-17 bp at 1h, most likely bid-ask bounce, far below the 100 bp hurdle); news reversal (first-hour extreme crossing, 93 crossed of 1203) +0.100 [-0.816, +1.010], inconclusive (needed at least 100 crossed events). No test rejects the null and none reaches the cost hurdle; no entry signal and no protective filter is justified. Order-book tests need an AlgoPack subscription or our own snapshot collector.
+
+### 7.10 News burst as a risk regime (H22, 2026-10-17)
+
+Decisions from the six `wf-volscale` windows since 2026-04-01 (1492 BUY/SELL decisions with a 10-day forward). Burst = at least 3 articles on the ticker in the 24 hours before 10:00 MSK of the decision date. Bootstrap by ISO week, 2000 draws, CI 97.5%.
+
+| test | burst n (dates) | burst mean | rest n | rest mean | difference | CI 97.5% |
+|---|---|---:|---|---:|---:|---|
+| signed 10-day return | 304 (113) | +0.34% | 1188 | +0.75% | -0.41% | [-2.20%, +1.33%] |
+| worst close within 10 days | 304 (113) | -4.15% | 1188 | -3.78% | -0.37% | [-1.71%, +0.92%] |
+
+Both intervals contain zero: criterion not met (the sample requirement is). Thresholds of 1, 2 and 5 articles, BUY-only and SELL-only splits all contain zero; the point estimates lean toward a worse outcome after a burst but are far inside the noise. No news-based filter is justified (five and a half months, one regime, counts without sentiment sign).
+
+### 7.11 Dividend capture event study (2026-09-25), rejected
+
+Pre-registered protocol `docs/plans/completed/20260925-event-driven-dividend-drift.md`; `cmd/dividendstudy`; calendar `data/dividends.jsonl` (123 events 2021-2027 from T-Invest `GetDividends`, 65 in the study window 2024-01-01..2026-12-19, 9 waves). Position 30000 RUB, costs 0.05% per leg, exit at the ex-date close; mean excess return over IMOEX by entry offset (trading days before the last buy date), bootstrap over whole waves (seed 42, 2000 repeats), holding tax 0.13 (worst case) or 0.00:
+
+| offset | excess (tax 0.13) | CI (tax 0.13) | excess (tax 0.00) | CI (tax 0.00) |
+|---|---|---|---|---|
+| -10 | +0.0050 | [-0.0149, +0.0198] | +0.0114 | [-0.0083, +0.0263] |
+| -5 | -0.0027 | [-0.0165, +0.0104] | +0.0037 | [-0.0102, +0.0168] |
+| -3 (primary) | -0.0063 | [-0.0223, +0.0097] | +0.0001 | [-0.0165, +0.0165] |
+| -2 | -0.0034 | [-0.0124, +0.0067] | +0.0030 | [-0.0066, +0.0137] |
+| -1 | +0.0006 | [-0.0052, +0.0079] | +0.0071 | [+0.0008, +0.0151] |
+
+The mean gap ratio is -0.97: the ex-date open sits about one full dividend below the last-buy close, so the drop is almost fully priced. Acceptance needed a contiguous subset containing {-2, -3, -5} with the CI excluding zero and leave-one-out stability under both tax conventions; all fail, and only offset -1 (tax 0.00) excludes zero, outside the registered subset. **Rejected**: dividend capture is not deployable; the income lever reverts to position scaling under an exposure cap, which sections 5.6-5.7 then closed. Detail: `docs/reports/dividendstudy-report.md`.
+
+## 8. Portfolio construction and cross-sectional signals
+
+### 8.1 VAR-ICA-MGARCHSK portfolio formation (H23 stage 0, signal-free)
+
+Method of Mikhaylov et al. (Finance: Theory and Practice 2026, 30(4)); `cmd/icaportfolio` on `internal/icaport`. Universe: 16 tickers with at least 740 of 750 days, ISS daily price returns, 750-day estimation window, rebalance every 21 trading days, 99 rebalances 2019-01-02..2026-10-07, long-only, 0.05% cost on turnover; least-squares moment recursions, multi-start projected gradient instead of the genetic algorithm; stationary block bootstrap (block 20, 2000 repeats).
+
+| rung | ann. return | ann. vol | CVaR95 (daily) | max drawdown | Sharpe | turnover per rebalance |
+|---|---:|---:|---:|---:|---:|---:|
+| R0 equal weight (control) | 0.65% | 24.99% | 3.785% | 53.81% | 0.15 | 0.070 |
+| R1 inverse volatility 63d | 0.55% | 24.19% | 3.675% | 53.24% | 0.15 | 0.125 |
+| R2 minimum variance, sample covariance | -2.68% | 23.58% | 3.529% | 63.28% | 0.00 | 0.116 |
+| R3 VAR-ICA-GARCH, variance only | 0.30% | 26.17% | 3.834% | 59.35% | 0.14 | 1.010 |
+| R4 full VAR-ICA-MGARCHSK, rho 1 | -5.76% | 26.84% | 3.952% | 74.28% | -0.09 | 0.851 |
+| R4 with rho 5 (descriptive) | -1.31% | 28.19% | 4.276% | 65.82% | 0.10 | 1.398 |
+| R4 with mu 0 (descriptive) | -8.46% | 23.66% | 3.672% | 77.21% | -0.25 | 0.239 |
+
+CVaR95 ratios against equal weight (CI95): R1 0.971 [0.961, 0.979], R2 0.932 [0.884, 0.984], R3 1.013 [0.955, 1.076], R4 1.044 [0.976, 1.121]; R4 / R3 1.031 [0.983, 1.089], R4 / R2 1.120 [1.064, 1.180]. Criterion (R3 or R4 at least 15% lower CVaR with upper bound below 1, at least 15% lower drawdown, return not more than 1pp below; R4 must beat R3 and R2): not met. **H23 rejected for this universe**; nothing is wired in. The noisy VAR(1) mean term drives the weights (turnover about 100% for R3, 85% for R4 against 7%; 25% with the mean off); without it the ICA variance forecast is indistinguishable from the sample-covariance minimum-variance portfolio (R3 with mu 0 vs R2: CVaR ratio 1.000 [0.979, 1.023]); higher moments make tail risk worse (R4 / R3 drawdown 1.25).
+
+### 8.2 IMOEX regime mask on new BUY decisions (steps 6 and 10)
+
+`cmd/regimemask` rewrites persisted walk-forward probabilities into a `csvprob` file removing BUY decisions (p >= 0.60) on risk-off dates; R1 = IMOEX 1-day return <= -2.0%, R2 = 5-day return <= -5.0%.
+
+**Step 6**, six `wf-volscale` windows (reproduction check passed: unmasked +59539.41, -0.5% against the control):
+
+| variant | risk-off dates / suppressed BUY | realized per window q1 q2 q3 q4 w2 w1 | sum realized | worst window max DD |
+|---|---|---|---:|---:|
+| none | 0 / 0 | 4002, 53, 34089, -12339, 2676, 31057 | +59539.41 | 3.56% |
+| R1 | 27 / 168 | 4102, 53, 32505, -12339, 2705, 31645 | +58671.15 (98.5%) | 3.58% |
+| R2 (secondary) | 27 / 318 | 6942, 53, 28046, -12339, 2676, 50807 | +76184.13 (128%) | 3.49% |
+
+The registered primary (R1: realized at least 0.80 of control, worst-window drawdown at most 0.90 of control) fails on drawdown (ratio 1.006). R2 raises realized in two windows (w1 is 26k of the 28k gain) and lowers w1 max DD 3.05% -> 1.82%, but was not the registered primary.
+
+**Step 10**, four unseen windows (2024-03-05..2025-03-04; models trained since 2021): control realized p1 -1062.31, p2 -2786.11, p3 -885.12, p4 -1347.74 (p4 fails the reproduction check and is excluded; its kill switch tripped, DD 8.74%). Risk-off dates R1 21, R2 17; suppressed BUY R1 7, R2 1. R2 is **not evaluable** (1 suppressed BUY across the valid windows; realized sum -4733.5 and worst DD 1.86% identical to the control). The 2024 models lose money in every window, so there is little long exposure to protect. No `internal/risk` pre-registration for an IMOEX regime gate; reopening needs a long-biased active book.
+
+### 8.3 Cross-sectional ranking of OOS ensemble probabilities (step 7)
+
+`cmd/rankspread -wf-dir wf-volscale`: six windows, 17 tickers, 7689 decisions, 458 dates, rank-weighted portfolio per date, excess over IMOEX from the next open, cost 0.15% per side (0.60% per tranche).
+
+| h | dates | gross spread % | CI95 | net of 0.60% | net CI95 |
+|---:|---:|---:|---|---:|---|
+| 1 | 458 | +0.0143 | [-0.0865, +0.1214] | -0.5857 | [-0.6865, -0.4786] |
+| 5 | 458 | +0.0629 | [-0.1953, +0.3483] | -0.5371 | [-0.7953, -0.2517] |
+| 10 | 458 | -0.0132 | [-0.4230, +0.4238] | -0.6132 | [-1.0230, -0.1762] |
+
+At h = 10 the bottom probability quintile earns -0.0649 [-0.9010, +0.7262] and the top -0.4831 [-1.0514, +0.1110]. The order of the deployed recipe's probabilities inside a date carries no cross-sectional information (consistent with section 5.2): criterion not met and the gross spread is indistinguishable from zero at every horizon; no rank-objective training is justified.
+
+### 8.4 Cross-sectional factors on the whole board (part C, steps 18-21 and corrections)
+
+Code `scripts/factors_wide.py`; `cmd/pricehist` and `cmd/tqbrsnap` (881385 daily snapshot rows of all 719 securities that traded on TQBR 2014-2026, including delisted). Costs 0.15% per side, borrow 0.005% per day on the short leg, entry at the next open, the 2022-02-25..03-24 halt excluded; one-day moves below -45% or above +80% are treated as splits. The first run used today's 133 most liquid names and price returns (survivorship and look-back liquidity bias). Three corrections, each found by inspection before any decision: total return with dividends from the T-Invest calendar (2152 events; the ISS endpoint is unavailable), removal of an availability look-ahead (names without an exit price carry the last close), and a **point-in-time universe** (252 bars of history and 60-day median traded value at least 30 million RUB on the date; 57.6 names per period). Known gaps: T-Invest resolves only 186 of 587 old tickers (dividends missing for most delisted names), dividends above 35% of the previous close dropped as unit mismatches, no corporate-action correction beyond the split rule.
+
+**Step 18 on the point-in-time universe, total return** (monthly = 21 bars, 128 periods 2016-2026; ML from 2019). Registered rule: four variants, Bonferroni t >= 2.5, Sharpe >= 0.5, at least 60% positive years, positive after 2022-06.
+
+| variant | net mean per period | NW t | net Sharpe | years positive | post 2022-06 mean (52 periods) | max drawdown | verdict |
+|---|---|---|---|---|---|---|---|
+| V1 composite long-short quintile | +0.01% | 0.01 | 0.00 | 7/11 | +1.23% | -72% | fail |
+| V2 composite long minus universe | +0.40% | 1.54 | 0.47 | 6/11 | +0.89% | -22% | fail |
+| V3 LightGBM long-short | +0.68% | 1.27 | 0.42 | 6/8 | +1.20% | -39% | fail |
+| V4 LightGBM long minus universe | +0.58% | 1.94 | 0.64 | 6/8 | +0.82% | -17% | fail (t only) |
+| V1 at 10-bar rebalancing | +0.12% | 0.48 | 0.15 | 7/11 | +0.40% | -52% | descriptive |
+| V2 at 10-bar rebalancing | +0.14% | 0.99 | 0.32 | 6/11 | +0.25% | -38% | descriptive |
+
+On the survivor-only panel the same variants gave higher t (V3 2.29, V4 2.25, V1 1.78, V2 1.69); the point-in-time universe lowers every t-statistic. Descriptive attribution (long-short quintile, net, full sample): mom_12_1 +1.24% per period (t 2.17), high52 +1.77% (t 2.99), low_vol -0.32% (t -0.55), low_max -0.85% (t -1.88), **rev_1m -2.69% (t -5.18, zero positive years of 11)**: one-month returns continue rather than reverse on MOEX, so the registered composite, which treats rev_1m as a reversal signal, worked against the strongest signal in the data.
+
+**Step 19, preferred-common pairs** (6 pairs with both legs >= 1000 bars: MTLR, PMSB, RTKM, SBER, SNGS, TATN; 2016-2026): net mean +0.0058% per day, NW t 0.77, Sharpe 0.24, positive in 8 of 11 years, max drawdown -25.8%, total +14.8%; per-pair t 0.12, 1.23, 0.29, 0.31, -0.39, 1.32. Registered rule (t >= 2.0, Sharpe >= 0.7): fail; the spread converges too slowly for the 0.6% four-leg cost.
+
+**Step 20, overnight against intraday** (point-in-time, total return): overnight +0.102% per day (NW t 12.1), intraday -0.058% (t -2.36); overnight is positive in every year, intraday negative since 2024. A buy-the-close/sell-the-open strategy needs a gross daily mean of at least 0.30%; not tradable at these costs.
+
+### 8.5 Sequential test of a hand-set composite (step 23)
+
+Rule fixed in `81b2112`: composite C2 = mean of z(mom_12_1), z(1-month momentum = -rev_1m) and z(high52); signs and the drop of low_vol and low_max chosen on 2016-2021 data of the survivor panel; test 2022-06-01..2026-10-18 (52 periods, point-in-time universe).
+
+| arm | test net mean per period | NW t | Sharpe | net sum by year | verdict |
+|---|---|---|---|---|---|
+| C2 long-short | +1.17% | 1.42 | 0.56 | 2022 (Jun-) -27.7%, 2023 +0.2%, 2024 +47.4%, 2025 +15.2%, 2026 +26.0% | fail (t >= 2.0 not met) |
+| C2 long minus universe | +0.83% | 1.94 | 0.77 | 2022 -4.8%, 2023 +1.7%, 2024 +25.3%, 2025 +15.7%, 2026 +5.0% | descriptive |
+
+On the survivor panel the same rule gave t 3.67, a product of the universe. Reference period 2016-2021 (where the signs were chosen, not out of sample): +2.49% per period, t 3.10, Sharpe 1.31, 6 of 6 years positive. Funds excluded: figures unchanged. Long-only books beat the universe but not the key-rate carry in 2024-2026 (high52 top quintile 2024 +4.4% against universe -16.7% and carry +19.1%; 2025 +8.2%, -6.7%, +20.9%; 2026 to October -7.0%, -20.8%, +11.5%). Short-borrow sensitivity of C2 long-short (net, after 2022-06): 0.005% per day +1.17% (t 1.42), 0.03% per day (10.9% per year) +0.42% (t 0.51), 0.06% per day -0.49% (t -0.59); the long-short result needs a borrow cost below about 5% per year to be positive after 2022.
+
+### 8.6 Ridge and MLP against LightGBM (step 25, 2026-10-19)
+
+Same data, features (five signals and their cross-sectional ranks), target (cross-sectional rank of the next 21-bar return), expanding window from 2019-01 with refits every 63 days, 92 monthly periods to October 2026, costs and universe as in section 8.4, total return. Family of six models, registered threshold t >= 2.6.
+
+| model | arm | net mean per period | NW t | net Sharpe | years positive | post 2022-06 mean | max drawdown | gross t |
+|---|---|---|---|---|---|---|---|---|
+| ridge (alpha 10) | long-short quintile | +1.73% | 2.54 | 0.88 | 7/8 | +1.74% | -38% | 3.16 |
+| ridge | long minus universe | +1.07% | 3.35 | 1.11 | 6/8 | +1.19% | -16% | 3.81 |
+| MLP (32-16, five seeds) | long-short quintile | +0.49% | 1.05 | 0.35 | 5/8 | +0.82% | -22% | 2.20 |
+| MLP | long minus universe | +0.42% | 1.49 | 0.54 | 6/8 | +0.71% | -14% | 2.17 |
+| LightGBM (V3 / V4, same period) | long-short / long minus universe | +0.68% / +0.58% | 1.27 / 1.94 | 0.42 / 0.64 | 6/8 | - | - | - |
+
+**Ridge long minus universe passes all four registered conditions**; ridge long-short misses on t (2.54); both MLP variants and LightGBM fail. The linear model with weights learned only from past data learns the positive weight on one-month momentum that the hand-set composite had with the wrong sign (the existence of that inverted signal was known from the section 8.4 attribution, so the result is not fully clean). Net sums by calendar year, long minus universe: 2019 +4.6%, 2020 -1.6%, 2021 +26.5%, 2022 (Jun-) -6.0%, 2023 +18.7%, 2024 +20.9%, 2025 +18.4%, 2026 +16.7%; long-short: +3.0%, +3.0%, +45.3%, -25.4%, +31.9%, +49.9%, +16.2%, +35.5%.
+
+Descriptive, computed after seeing the result: the ridge top quintile (long only, net, compounded) returned +180% over 2019-2026 against +1% for the equal-weight universe, but in 2024-2026 it beat the universe by 20 points per year while earning less than the key rate (2024 +4.6% vs carry 19.1%; 2025 +13.3% vs 20.9%; 2026 -3.8% vs 11.5%). The long book minus the IMOEX price-index return (a short future without basis, roll or contract-size effects) is +1.36% per period (t 3.99, Sharpe 1.32, positive every year, post-2022 +1.33%, t 2.84); the earlier real-futures test (section 5.4) found whole-contract sizing and beta mismatch destroyed a daily alpha on a 1M account. Ridge long-short under higher borrow: 0.005% per day t 2.54 (post-2022 1.65), 0.03% per day t 1.42, 0.06% per day t 0.07. Long turnover 93% of the long leg per month; about 65 eligible names per month, 13 in the top quintile; capacity, mid-cap preferred liquidity and execution at the open are not modelled. The ridge track was added to the forward recorder (`~/moex-shadow`) before its first rebalancing record; the registered forward criterion is in the plan (step 22 addenda).
+
+### 8.7 Universe model: decomposition, lead-lag, regimes, macro (step 26)
+
+Code `scripts/world_model.py`, data `scripts/world_fetch.py`; same panel and costs as section 8.6 (a first run had a data defect in the FX series after 2024-06-11 and was replaced).
+
+**M1, out-of-sample decomposition of daily ticker returns** (walk-forward by year, 504 training days, test 2019..2026, 150-220 tickers per year), pooled R2:
+
+| model | R2 2019-2026 | R2 2023-2026 |
+|---|---|---|
+| A market (IMOEX) | 0.116 | 0.107 |
+| B market + 5 statistical factors | 0.245 | 0.283 |
+| C market + macro (USDRUB/CNYRUB, Brent, VIX, UST10, RVI, key-rate change, SPX lag) | 0.091 | 0.092 |
+| D B + C | 0.223 | 0.271 |
+
+Macro adds nothing out of sample (incremental R2 negative every year, -0.005 to -0.083); the market explains 11-12% of daily variance, the common structure about 28% in recent years, about 72% is idiosyncratic. The five statistical factors do not map stably to named sectors.
+
+**M2, drivers of IMOEX next-day return** (1947 test days): R2 against the expanding mean -1.0% (fail), sign hit rate 53.4% (one-sided p 0.0016, pass), NW t of the net excess over buy-and-hold 1.76 (needs 2.6, fail), post-2022-06 excess +0.05% per day (t 1.35, pass); Sharpe 0.07 against -0.50, max drawdown -29.5% vs -70.5%; 2022 dominates. **Fail** (2 of 4). **M3, two-state Markov-switching variance, hold IMOEX unless P(high variance) >= 0.5 else key-rate carry:** Sharpe -0.34 vs -0.51 (difference +0.17, needs 0.2), drawdown -48.9% vs -71.6% (ratio 0.68, pass), post-2022-06 difference -0.12 (fail). **Fail.** **M4, macro-conditioned stock signal added to ridge** (91 periods): ridge baseline reproduces +1.07% (t 3.35); ridge + macro +1.04% (t 3.26, Sharpe 1.10, 8 of 8 years positive); paired difference -0.011% (t -0.04, needs 2.0); macro alone -0.52% (t -1.71). **Fail.**
+
+**M5, descriptive** (2021-2024, 134 tickers, 102642 ticker-days): a news item exists on 21.3% of ticker-days, on 40.2% of days with |z| > 3 (2032 events) and 19.6% of quiet days; 59.8% of large idiosyncratic moves have no archive item (the archive crawls a few publishers, so absence is not evidence of no cause).
+
+Verdict: no tested model of the universe predicts out of sample beyond the existing ridge; the measurable result is the decomposition (market 12%, common structure up to 28%, macro 0 out of sample, about 72% idiosyncratic of which about 40% coincides with ticker news).
+
+### 8.8 Gate-passing candidate search (step 27)
+
+Replay: 17 tickers, 1M deposit, 15000 RUB per position, costs 0.0005 x 3, net caps 90000, borrow 0.00005 per day, thresholds 0.60/0.40, csvprob; ridge scores from `scripts/ridge_probs.py` (percentile r in the full eligible universe, p = 0.5 + (r - 0.5)/3, held 21 bars). The live sandbox profile reads this table (`model.score_table_path`, `data/ridge_scores.csv`).
+
+- **27, ridge long-short**, realized net of borrow: q1 -2, q2 +1136, q3 +407, q4 +2113, w2 -274, w1 -2697, G +3916 (81 closed). Positive windows 3 of 6 (needs 4): fail; controls: bias variant G +2077, flipped sign G -4491 with a negative six-window sum.
+- **27b, project recipe** (5 seeds, 18 tickers from 2024-01-01) with and without the ridge agreement filter: base six-window sum +1681 (seeds -13842..+17461), G -11884 (all seeds negative, -19440..-4291); filtered -6688 and G -3303. The recipe fails the gate window for every seed (consistent with the preflight error).
+- **27c, 34 rolling 90-day windows every 15 days** (2025-03-05..2026-07-13, gate rule realized > 1 RUB with at least one closed trade): ridge long-short passes 20 of 34 (59%), sum +10171, min -4125, max +3324; flip passes 5 of 34 (15%), sum -31076. Windows starting 2026-05-14..06-28 are negative (-1366, -3615, -4125, -2677). Criterion (pass share >= 70%): 59% fail.
+
+The ridge signal has a real sign (the flip loses systematically) and passes the current gate window, but at 15000 RUB per position its P&L is of the order of the +1 RUB threshold with a pass rate near 60%, so a green gate on a given day is close to a coin flip with a positive tilt. No candidate meets the registered bar; the ensemble artifact, gate and config are unchanged.
+
+### 8.9 Report events and dividend history (step 28)
+
+`cmd/reportsfetch` (T-Invest, history from 2014-03): 289 of 719 point-in-time tickers resolve (delisted names do not, so event studies are survivor-biased), 3811 report dates, 1811 dividend records; after eligibility, 2016+ and excluding 30 days around the 2022 halt, 1448 events. The AlgoPack key is rejected ("subscribers only"), so no order-book or tradestats tests.
+
+- E1: mean abnormal return [0,+1] -0.20%; mean |abnormal| on report days 1.55% vs 1.24% (ratio 1.25).
+- E2 premium [-2,+1]: -0.03%, clustered t -0.26, 4 of 9 years positive: fail.
+- E3 reaction continuation (top minus bottom tercile of the [0,+1] reaction, drift [+2,+21]): +0.98% (top +0.20%, bottom -0.78%, 483 events each), clustered t 2.21, 5 of 9 years: fail (direction as in the literature).
+- E4 ridge long book excluding names with a report in the next 21 bars: net +0.82% (t 2.14, Sharpe 0.75) against the unfiltered +1.07% (t 3.35, Sharpe 1.11); paired -0.25% (t -1.09): fail (the flag uses actual report dates, so any gain would be optimistic).
+- E5 trailing dividend yield quintile long minus universe: -0.52% per period (t -1.87, 2 of 11 years): fail; ridge plus yield features +0.85% (t 2.50), paired -0.22% (t -1.44): fail.
+
+All blocks fail: report timing and dividend yield add nothing to the ridge signal. Reaction-based drift (E3) stays a candidate once more events exist.
+
+### 8.10 Futures open interest with the AlgoPack key (step 29)
+
+`cmd/futoihist`: 25 futures series, snapshots 18:45 and 23:50, FIZ and YUR groups, 126204 rows, history from 2020-01 (the free ISS gave 2023-12 with a 14-day delay). F1 (MX retail net-position change, contrarian position on IMOEX, 5-day non-overlapping, 221 periods from 2022-06): difference vs buy-and-hold +0.06% per period, NW t 0.20, hit rate 48.9%, halves -0.26% / +0.38%: fail (23:50 snapshot t 1.32, hit 48.2%). F2 (stock futures, pooled panel of up to 17 names, abnormal return t..t+5 on the z of the 5-day change in retail net share, 3657 observations): coefficient -0.0004, clustered t -0.52, halves t 0.01 and -0.91: fail. Retail/institutional positioning in FORTS carries no usable 5-day forecast; do not redo with the same features.
+
+### 8.11 Intraday candles, calendar effects and cycles (step 30, 2026-10-19)
+
+Pre-registered (criteria fixed in `docs/plans/20261018-seven-hypotheses.md`, commit `320fffc`). Data: 10-minute ISS TQBR candles 2011-12-15..2026-10-16 for 29 companies (5186545 main-session bars, 100823 ticker-days), S&P 500 (^GSPC) 24814 daily closes since 1927-12-30, IMOEX 7277 days since 1997-09-22. Scripts `scripts/intraday_study.py`, `scripts/calendar_cycles.py`, `scripts/intraday_followup.py`.
+
+**Block I** (t >= 2.6): I1 intraday momentum coefficient -0.016 (t -1.18), strategy -0.103% per day: fail. I2 overnight +0.074% per day (t 7.07), intraday -0.060% (t -3.10), difference +0.133% (t 6.90; halves t 2.21 and 7.04): existence criterion passed, but buy-at-close/sell-at-open nets -0.026% per day (t -2.50) after 0.05% per side: not traded. I3 time of day: slots 16:30 (-0.0096%, t -4.27) and 18:30 (+0.0120%, t +5.83), about 1 bp per bar. I4a signed turnover of the day against the next day's abnormal return: +0.0438% per sigma (t 6.48; halves t 5.13 and 4.00): passed, but with the same-day return controlled the slope falls to +0.0167% (t 2.15) while the daily-return slope is +0.0453% (t 4.39) (most of I4a is daily momentum); long-short on the top and bottom three of F: gross +0.170% per day (t 6.79), -0.030% (t -1.21) after 0.05% per side, -0.430% after 0.15%. I4b first-two-hours turnover to the rest of the day: +0.0024% (t 0.50): fail.
+
+**Block S** (discovery |t| >= 3.0, confirmation |t| >= 2.0; US 1953-1989 / 1990-2026 / IMOEX 1997-2026): no effects found; the classic effects are strong in the discovery period and vanish after 1990: Monday -0.210% (t -7.86) / +0.010% (0.31) / IMOEX +0.087% (1.27); turn of the month +0.130% (5.50) / +0.041% (1.44) / +0.219% (3.11); pre-holiday +0.264% (6.84) / +0.054% (1.06) / +0.118% (0.87); January +0.934% (1.10) / -0.395% (-0.57) / +1.460% (0.77); Halloween +0.980% (2.88) / +0.549% (1.48) / +2.891% (2.60), threshold 3.0 not reached. Descriptive: S&P mean annual log return by cycle year (year % 4 = 0..3) 6.6%, 4.8%, 1.9%, 11.5%; IMOEX monthly means negative May-September (-1.72% in May) and +1.8..+3.2% December-April.
+
+**Block Y**: Y1 periodogram S&P p 0.072 (period 4.8 days), IMOEX p 0.847: fail. Y2 fixed 40/48/108-month cycles: out-of-sample R2 negative in all six pairs (-0.0009 to -0.059): fail. Y3 variance ratios (S&P z over four 25-year subsamples; IMOEX): q = 2 [-1.01, +8.99, +1.20, -3.72], +1.71; q = 21 [+1.00, +3.92, -0.67, -1.72], +0.54; q = 252 [+0.83, +2.76, -0.73, -0.76], +0.48: strong momentum only in 1953-1977, reversed after 2002; no q passes. Y4 12-month time-series momentum: difference of means after a positive versus after a negative result S&P 1928-1989 +0.658% (t 1.33), 1990-2026 +0.689% (t 0.92), IMOEX -0.654% (t -0.52); descriptive 1990-2026 CAGR 8.50% vs 8.96% buy-and-hold, drawdown -20% vs -53%, Sharpe 0.71 vs 0.58. Y5 autocorrelation of absolute returns at lags 1/21/250: S&P 0.32/0.22/0.13, IMOEX 0.38/0.25/0.09.
+
+Verdict: no cycles or seasonality; calendar effects significant before 1990 vanish on confirmation; the overnight premium and next-day signed turnover exist but neither survives 0.05% per side costs. The live model does not change.
+
+### 8.12 Risk-free hurdle (step 21)
+
+Key rate 14% on 2026-10-09 (between 14% and 21% since 2025-04). Compounded daily, 1,000,000 RUB earns 95,947 RUB over 2025-04-01..2025-09-16, 180,378 RUB over 2025-09-17..2026-10-18, 293,632 RUB over 2025-04-01..2026-10-18 and 12,347 RUB over 2026-09-17..10-18. The LQDT money-market fund returned +4.59% over 2026-06-22..2026-10-18 (118 days, about 14% annualised). The realized sums of sections 6 and 8 (single windows of thousands to tens of thousands of RUB on 1M) are an order of magnitude below this carry; the deployed strategy's live sandbox equity change was -25,395 RUB over 2026-09-17..10-18 against +12,347 RUB at the key rate.
+
+## 9. Evidence from live operation
+
+### 9.1 Root cause of the September-October SELL drift (step 9)
+
+Hypotheses P1 (feature extrapolation), P2 (staleness), P3 (base rate) were each rejected by their registered rules (P1 Spearman of weekly mean p with weekly mean mom_63d / dist_ma50_pct / rsi_14 -0.40 / -0.24 / -0.37 with 4-7% of observations above the training 95th percentile; P2 p <= 0.40 share 17.1% deployed vs 32.9% fresh model; P3 training base rate 0.451 vs window 0.487, a 3.6 pp difference). The cause was found afterwards (post hoc, verified on every day in the table): the logged live p equals the model applied to the **unmasked** ingest vector (`news_count` up to 144 against a training mean 0.10 and std 0.70) on every day from 09-20 to 10-09, and equals the model with `news_count` and `news_sentiment` masked to zero from 10-10.
+
+| day | logged live p | model on unmasked vector | model on masked vector |
+|---|---:|---:|---:|
+| 09-30 | 0.2160 | 0.2160 | 0.4556 |
+| 10-02 | 0.1903 | 0.1903 | 0.4759 |
+| 10-08 | 0.1504 | 0.1504 | 0.4094 |
+| 10-09 | 0.1752 | 0.1752 | 0.4191 |
+| 10-10 | 0.4043 | 0.1679 | 0.4519 |
+| 10-17 | 0.4572 | 0.1587 | 0.4572 |
+
+Until 2026-10-09 the running trader evaluated the ensemble with `news_count` and `news_sentiment` the model never trained on (training value 0), because `maskUntrainedFeatures` (commit `f8f64a1`, 2026-10-10) was not in the running build (the ai-box binary is dated 2026-10-06). The growing live news archive pushed the logistic and tree members to SELL: live p was on average 0.18 below the replay p (gap 0.04 on 09-17 growing to 0.28 on 10-02); 81-95% of live decisions were SELL in ISO weeks 39-41 against 17.1% in the masked replay; indicator offsets of the live ingest vectors are worth only -0.007 in mean p. Consequently the September-October "model nearly always bearish while IMOEX rose" was this feed bug, not a model property; the 82 live SELL executions of 09-17..10-09 (against 4 in the replay of the masked model) came from it.
+
+**Post-mortem of the masked model over 2026-07-20..10-18** (step 8, replay with the deployed artifact, gate shape): realized -1820.29 RUB on 117 closed trades (-0.18% of the deposit, max DD 1.05%, no kill switch); by 30-day period -914.60 (43 trades), +3151.92 (35), -3555.03 (23). By ticker PLZL -4508, CHMF -2331, POSI -1367, NVTK -992, ROSN -697, OZON +4952, MGNT +1444, GAZP +886; BUY +839 on 28 trades, SELL -2659 on 89. Beta over the period (IMOEX +22.3%): +3871 component (BUY +8475, SELL -4605), excess -5691: the short-beta explanation is not supported; dividends -14 RUB. Under the registered rule (a cause explains the period if removing it moves realized by at least 50% of its absolute value) only the three worst trades do (PLZL BUY 15 lots -4133, a 22.3% slide while IMOEX rose 6.6%; CHMF SELL -2274; LKOH SELL -1777; removing them gives +6364). The loss is small, idiosyncratic and inside the procedure noise of section 3.6.
+
+### 9.2 Sell-bias diagnostic and the out-of-range guard (2026-10-18)
+
+Data: `trader-sandbox.db` audit events 2026-09-16..10-18, about 38.3k decisions since the news-masking fix. After the fix about 3600-4200 HOLD and 460-1200 SELL per day, 0 BUY; hold reasons: `out_of_range` 50-60%, `model` about 30%, SELL about 14%; probability bins: < 0.40 about 31%, [0.40, 0.60] about 69%, >= 0.60 0.11% (42 decisions, all VTBR).
+
+- **Guard finding.** 100% of post-fix `out_of_range` blocks are `event_dividend` with z = 14..38, although the deployed artifact carries mean 0, std 1, coefficient 0 for all eight event features and both topic signals and no tree uses them. The guard vetoed would-SELL 7138, would-BUY 42 and would-HOLD 14861. A fix (`ae6ffdd`: skip features with logistic coefficient 0 that no tree uses; test `TestEnsembleIgnoresUntrainedEventFeatures`) was written and then reverted (`dcb601d`, see below); the veto behaviour is live.
+- **Reproduction offline.** Replay of the deployed model with the fixed guard over 2026-10-10..10-18 (136 decisions): 95 HOLD / 41 SELL / 0 BUY (SELL share 30.1% against 32.2% live pre-guard): the lean reproduces from data and model, not a serving defect. A fresh model (trained to 2026-09-16) gives 94 / 39 / 3 BUY (BUY share 2.2%): a small staleness component in the BUY tail.
+- **Deployment attempt and correction.** Deploying the guard fix made the preflight gate refuse to start (90-day replay -4859.13 net of borrow, 98 trades, hit 41.8%); the fix was reverted on the belief that the accidental veto acted as a profitable regime filter. That attribution is **not supported**: two `cmd/backtest` builds with and without the guard change give identical replay output to the last digit (window ending 10-18: -2467.25, 117 trades; ending 10-17: +1209.23, 118 trades); the live gate printed the same -4859.13 with and without the fixed binary; the "+602.32 on the same window" was an earlier gate with a window start of 07-19. The gate result is set by the window start, not by new bars (replay ending 10-18, realized net of borrow by start date: 07-13 +20380, 07-14 +14584, 07-15 +11455, 07-16 +9382, 07-17 +9100, 07-18 +3435, 07-19 +1372, 07-20 -2467, 07-21 -5085, 07-22 -5959, 07-23 -2375, 07-24 -3034, 07-25 -3514, 07-26 -5536, 07-27 -784). Whether the live path should veto on `event_dividend` is an open owner decision independent of the gate (`docs/plans/20261018-gate-failure-remediation.md`).
+
+### 9.3 Preflight concentration (2026-10-18)
+
+Gate-shaped replays (90-day rolling, 17 tickers, 1M deposit, costs 0.0005 x 3 plus per-ticker spreads from `trader-sandbox.db`, borrow 0.00005 per day, caps 90000/90000, deployed artifact, no news) give realized gross +9843.33 (till 10-14), +3637.89 (till 10-16), -1990.32 (till 10-18), matching the gate's own decline (+7156 -> +602 -> -4859 net of borrow; the CLI lacks lot quantisation). ISS has no bars for 10-17/10-18, so the decline is the left boundary of the rolling window. Closed trades of the till-10-18 replay by close month: 2026-07 20 trades +414.93; 08 35 +2828.55; 09 37 -4821.86 (mean -130.32); 10 24 -411.94. By ticker: OZON +4952.20 (3), MGNT +1444.44 (1), GAZP +885.65 (10), SBER +594.66 (14), VTBR +237.61 (19), RUAL +78.45 (10), TATN +65.69 (10), T -32.16 (4), MTSS -48.65 (9), LKOH -100.52 (3), GMKN -171.25 (8), ROSN -697.07 (6), NVTK -992.47 (4), POSI -1367.08 (3), CHMF -2331.33 (5), PLZL -4508.49 (7). Positives are month-concentrated (July-August), September is deeply negative, and the rolling sum drifts further negative before stabilising (profitable August days drop out while September losses stay in until December). This is a model-quality problem, not a gate problem: do not loosen the threshold.
+
+### 9.4 Manual retrain candidate (2026-10-18), rejected
+
+Same recipe as the deployed ensemble, fresh export 2024-01-01..2026-10-18 (18 tickers, 14619-record news archive), `ENSEMBLE_TRAIN_TILL=2026-10-17`, embargo 10; both models replayed on the HEAD engine.
+
+| window | deployed realized | candidate realized | deployed trades | candidate trades | deployed max DD | candidate max DD |
+|---|---|---|---:|---:|---:|---:|
+| hold30 (2026-09-17..10-17) | +583.21 | -3281.95 | 32 | 45 | 1.24% | 1.45% |
+| pre90 (2026-07-20..10-17) | +10419.63 | -1508.68 | 137 | 164 | 1.69% | 2.27% |
+
+The candidate fails the gate on both windows; `ensemble_model.json` stays. Retrain again only through the same gate after at least a quarter of new data from 2026-10-17.
+
+### 9.5 Ticker circuit breaker in the gate replay (2026-10-18)
+
+`backtest.Config.Breaker` / `cmd/backtest -breaker` feed the live `risk.TickerBreaker` (3 consecutive losing round trips or cumulative loss of 5% of the 15000 RUB target; a tripped ticker stays blocked). Gate-shaped replays, one run per cell:
+
+| window (90d till) | breaker | closed trades | realized net of borrow | unrealized MTM |
+|---|---|---|---|---|
+| 2026-10-18 | off | 117 | -2455.72 | -2066.01 |
+| 2026-10-18 | on | 96 | -3356.64 | +6139.47 |
+| 2026-07-20 | off | 90 | +34737.78 | +189.38 |
+| 2026-07-20 | on | 85 | +30484.28 | +3086.18 |
+| 2026-04-21 | off | 34 | -3842.92 | +4610.19 |
+| 2026-04-21 | on | 22 | -1183.71 | +3291.07 |
+
+Sum of realized over the three windows: off +28439.15, on +25943.92. The breaker does not rescue the gate. `risk.Gate` rejects every order for a tripped ticker with `ticker_breaker_blocked`, including closing orders, so a tripped ticker's position is frozen (about 8.2k RUB moves from realized to unrealized in the 10-18 window); whether blocking exits is intended is an open owner question.
+
+### 9.6 Nightly candidate gate aligned with the preflight (2026-10-19)
+
+The nightly harness lacked the risk layer of the preflight. Deployed artifact, 17 tickers, 2026-07-20..2026-10-18, same window the preflight rejected with -4694.87:
+
+| variant | flags beyond the old harness | realized | realized net of borrow | net with open | closed | max DD |
+|---|---|---|---|---|---|---|
+| A (old harness with `-news-history`) | none | +10857 | - | -5930 | 137 | 1.72% |
+| B | `-max-net-short 90000 -max-net-long 90000 -borrow-pct-day 0.00005` | -2057 | -2704 | -4843 | 116 | 1.06% |
+| C | B without `-news-history` | -2069 | -2716 | -4855 | 117 | 1.06% |
+| preflight (live log) | spread table from audit DB, macro enricher | - | -4695 | -903 | 99 | 1.12% |
+
+The net-exposure caps and stress borrow rate explain the whole gap between the old harness and the preflight sign. `-news-history` changes the result by 12 RUB (the live path masks news features); the remaining 2000 RUB gap is not decomposed (candidates: the audit-derived spread table, the market enricher). `scripts/daily-retrain-box.sh` now passes the caps and the borrow rate and `cmd/retrainreport` compares realized net of borrow (`TestParseMetricsPrefersRealizedNetOfBorrow`, `TestDailyScriptReplayMatchesPreflightRisk`). Earlier nightly verdicts (10-16, 10-17) were produced without the caps and are not recomputed.
+
+### 9.7 Live sandbox P&L, 2026-09-17..2026-10-18
+
+`cmd/livepnl` over the audit copy (executor events replayed with `internal/pnl`, marked to ISS closes; 148 fills, none between 09-24 and 10-06 or after 10-14):
+
+| period | binary | realized | equity change incl. unrealized | net / gross exposure at end | IMOEX |
+|---|---|---|---|---|---|
+| 09-17..10-09 | no feature mask (bug) | -149 | -14073 | -226922 / 227104 | +6.97% |
+| 10-10..10-18 | mask `f8f64a1` | -1771 | -11464 | -244191 / 244384 | +1.87% |
+| total | | -1920 | -25395 | | +8.9% |
+
+The book was entered as an almost purely short book (17 positions) during the unmasked period and stayed short after the fix because the fixed model mostly returned HOLD (4 BUY fills, all covering shorts). Beta check: -227k net short against +6.97% IMOEX is about -15.8k, the same order as the observed -14.1k, so the unmasked-period loss is market beta of a book the bug built. The masked period lost more than its beta (about -4.6k, observed -11.5k; three covered shorts, one -1650 realized on 10-14). Realized P&L alone hides the loss sitting in 17 open positions. Caveats: last close at or before the boundary, no borrow, dividends or financing; the Mac trader was in `error` after 38 restarts at the audit copy of 2026-10-19.
 
 <!-- shadow-reconciliation:start -->
 
@@ -777,1744 +865,120 @@ rows are available yet at commit time.
 
 <!-- shadow-reconciliation:end -->
 
-## Sandbox/paper execution quality tracking (Task 16)
+### 9.8 Execution-quality tracking (Task 16)
 
-Live tracking of expected (bounded limit) versus actual fill price, broker
-rejection rate under `risk.max_slippage_pct`, and actual short-borrow charges.
-Expected price is the limit price capped by the slippage band; a positive
-slippage in basis points means the fill was better than the cap, a negative
-value means worse. The trader logs each fill in real time and emits a periodic
-digest (every 6 hours) that cross-references observed slippage against the
-Task 12 per-ticker half-spread and observed margin-fee borrow charges against
-the Task 11 0.005%/day stress rate.
+Live tracking of expected (bounded limit) versus actual fill price, broker rejection rate under `risk.max_slippage_pct` and actual short-borrow charges: a positive slippage in basis points means the fill was better than the cap. The trader logs each fill and emits a digest every 6 hours cross-referencing observed slippage against the per-ticker half-spread and margin-fee charges against the 0.005% per day stress rate (`internal/filltracking`, `internal/borrowcost.SumMarginFees`, `executionQualityReporter`). No fill-level numbers have been recorded yet.
 
-| date | window | fills | rejected | rejection rate | mean slippage bps | max adverse bps | max favorable bps | borrow fees | artifact |
-|---|---|---|---|---|---|---|---|---|---|
-| 2026-09-17 | live sandbox (no fills yet at commit time) | - | - | - | - | - | - | - | `internal/filltracking`, `internal/borrowcost.SumMarginFees` |
+## 10. Observability metrics and alerts
 
-The table is populated by the live trader's periodic `executionQualityReporter`
-log once the sandbox produces orders; there are no live fill numbers to record
-at commit time.
-
-## Negotiations/sanctions signal evidence gate (Task 6)
-
-Pre-registered with-vs-without comparison of the two new topic signals. Both
-variants train and backtest on the identical 18-ticker daily dataset
-(`data-28f-full.csv`, absolute-10d label, deadband 0.5%, colsample 0.8,
-thresholds 0.60/0.40, 15000₽/position, 1M deposit, commission 0.05%,
-spread+slippage 0.05%+0.05%, realized P&L). The only difference is the feature
-set: 18 price/flow columns vs 18 + `negotiations_signal` + `sanctions_signal`.
-
-Validation AUC (held-out decision dates 2026-06-18 -> 2026-09-16):
-
-| variant | xgb | lgbm | logreg | ensemble |
-|---|---|---|---|---|
-| 18-feature baseline | 0.4896 | 0.5172 | 0.5080 | 0.5084 |
-| 20-feature (+2 topic) | 0.4920 | 0.5172 | 0.5080 | 0.5098 |
-
-Delta: ensemble +0.0014 — within the ±0.005 AUC noise band recorded in AGENTS.md.
-
-6-quarter walk-forward realized P&L (closed trades, gross - commission), RUB:
-
-| window | 18-feature | 18-feature max DD | 20-feature | 20-feature max DD |
-|---|---|---|---|---|
-| q1 (2025-03-05 -> 2025-06-05) | +5405.91 | 2.85% | +4519.17 | 2.84% |
-| q2 (2025-06-06 -> 2025-09-05) | -1650.63 | 3.52% | -454.51 | 3.55% |
-| q3 (2025-09-06 -> 2025-12-03) | +38813.88 | 0.66% | +39302.95 | 0.64% |
-| q4 (2025-12-04 -> 2026-03-04) | -1828.22 | 1.94% | -2798.89 | 1.79% |
-| w2 (2026-03-05 -> 2026-06-06) | -1639.66 | 2.04% | +2045.18 | 1.67% |
-| w1 (2026-06-07 -> 2026-09-16) | +62145.47 | 1.26% | +61125.45 | 1.26% |
-| total | +101246.75 | 3.52% | +103739.34 | 3.55% |
-
-Delta: 20-feature is +2492.59 RUB (+2.5%) higher, but the sign is window-mixed
-(worse in q1, q4, and w1) and the AUC delta is below the noise threshold.
-
-Verdict: no confident measurable improvement. The available news archive
-covers only 2026-08-14 -> 2026-09-17, so `negotiations_signal` and
-`sanctions_signal` are zero in every training window (9 and 5 non-zero rows,
-all in the final test window). The early-window differences are colsample
-dilution from two extra zero-variance columns, not learned signal value. This
-needs a richer historical news backfill before the comparison can test the
-signals themselves (plan data-availability caveat).
-
-## Backtest metrics: Sortino, Calmar, CAGR, min-trades floor
-
-`internal/backtest.Result` (`engine.go`) now also reports `Sortino`, `Calmar`,
-and `CAGR`, and exposes `Result.StatisticallySignificant()` /
-`MinTradesForSignificance = 30`. `Result.Markdown()` prints all three plus a
-`⚠ N closed trades < 30 — metrics are not statistically significant` warning
-line when the run has fewer than 30 closed trades.
-
-Two Sharpe conventions coexist in this codebase and are **not** directly
-comparable:
-
-- `internal/backtest.curveStats` (engine) computes an **annualized** Sharpe
-  and Sortino from daily equity-curve returns, using **sample standard
-  deviation** (N-1, via `meanStd`) times `sqrt(252)`. This changed from
-  population std (N) to sample std (N-1) so it agrees with the estimator
-  below; the shift moves historical backtest Sharpe values by a few tenths
-  of a percent, not their sign or order of magnitude.
-- `internal/strategyvalidation.SharpeRatio` (used by PSR/DSR/Harvey-Liu/PBO
-  in the Attempt registry above) is a **per-period, non-annualized** sample
-  Sharpe computed directly on the registry's quarterly return series. It is
-  deliberately left un-annualized because DSR/PSR are calibrated on the same
-  period granularity as the input series.
-
-`Sortino` uses the same sample-std convention, restricted to the downside
-(negative daily returns only), annualized the same way. `CAGR` is computed
-from the first/last equity-curve point and the elapsed calendar days
-(`(final/initial)^(365.25/days) - 1`, in percent). `Calmar = CAGR /
-|MaxDrawdownPct|` (0 when max drawdown is 0).
-
-## HTML tearsheet and an automated walk-forward harness
-
-`internal/tearsheet` renders a self-contained HTML report (`html/template` +
-hand-built inline SVG, no external assets or JS) from a `backtest.Result`:
-key-metrics grid, equity-curve and drawdown SVGs, per-ticker attribution, and
-the full closed-trades table, plus a sibling `<path>.metrics.json` summary.
-Wired into `cmd/backtest` as `-tearsheet <path>`.
-
-`internal/trainrun` is `cmd/trainmodel`'s former `runPipeline` extracted into
-an importable package (`trainrun.Run`) so both `cmd/trainmodel` and the new
-`cmd/walkforward` share one train+OOS-backtest implementation; behavior is
-unchanged (verified by moving the existing end-to-end/leakage tests into
-`internal/trainrun` and rerunning them).
-
-`cmd/walkforward` is a new CLI that actually iterates walk-forward windows
-instead of only recording them for audit (`internal/walkforward` previously
-only persisted a single window's decisions). `internal/walkforward.GenerateWindowSpecs`
-builds rolling or anchored (`-anchored`) `(from, split, till)` windows from
-`-train-days/-test-days/-step-days`; the CLI retrains via `trainrun.Run` on
-each window's `[from, split)`, evaluates OOS on `[split, till)`, and persists
-each window's config/model hash (`walkforward.Save`, unchanged) plus its OOS
-metrics (`walkforward.SaveMetrics`, new: Sharpe/Sortino/Calmar/CAGR/MaxDD/hit
-rate/`StatisticallySignificant`). `internal/walkforward.Aggregate` chains the
-per-window OOS equity curves into one compounding index (each window's
-returns are stitched onto the previous window's ending level, since each
-window is its own fresh-deposit backtest) and reuses the now-exported
-`backtest.CurveStats` / `backtest.ComputeAttribution` to produce a single
-aggregate `backtest.Result`, which gets the same `Markdown()` report and
-`-tearsheet` HTML as a normal backtest.
-
-**PBO was dormant** (see the Task 7 section above: `Registry.Matrices` empty,
-`PBOComputable() == false`). `cmd/walkforward -candidates <file.json>` runs a
-grid of candidate configs (buy/sell thresholds, horizon, deadband) across the
-same window periods, builds a `periods x candidates` matrix of
-`NetPnl/deposit` returns, archives it as JSON (`{"<pbo-key>": matrix}`,
-default path `<wf-dir>/pbo_matrix.json`), and calls the existing
-`strategyvalidation.ProbabilityOfBacktestOverfitting` (CSCV) directly, split
-count via the new `strategyvalidation.DefaultSplits` (largest even value <=
-`min(periods, 16)`). `cmd/strategyvalidation -matrices <path>` loads that
-archive into `Registry.Matrices` so `PBOComputable()` and the printed PBO are
-real instead of the permanent "NOT computable" placeholder — verified
-end-to-end with a synthetic matrix (`PBO[key]: 0.0000 (s=6, 0/20 combinations
-overfit, ...)`) and confirmed the no-`-matrices` default path still prints
-"NOT computable".
-
-No real-market walk-forward/PBO run has been recorded yet (this section adds
-the harness and tooling, not a new go/no-go number); the existing Task 7
-DSR/PBO figures above remain the current evidence and are not superseded.
-
-## News classifier recalibration attempt (2026-09-25) — negative, not deployed
-
-Attempted to recalibrate `news_classifier.json` on current market data: corpus
-`~/dev/fin/finanalys/cache/news_history.jsonl` (1517 headlines, 2026-08-14..
-09-24, 20 tickers), labels = forward excess return over IMOEX from live MOEX
-ISS candles (`cmd/trainnewsmodel`). Results on date splits:
-
-- horizon 3d (current recipe), split 2026-09-05: val AUC 0.568, val acc 0.605
-  vs baseline 0.591. Current deployed classifier (h=3, trained 2026-09-16 on
-  the 48k-sample Telegram backfill) scores **all** corpus headlines inside
-  [-0.22, 0.09] — effectively dead weight, never fires, consistent with its
-  val AUC 0.533 < baseline 0.552.
-- horizon 10d (matches the ensemble's 10d label) looks good on paper —
-  val AUC 0.80-0.89 across splits — but is a **label-imbalance/drift
-  artifact**: 84% of corpus headlines score < -0.3 (model learned "everything
-  negative"). Label diagnostics: h=10 val labels are 43 pos / 91 neg (68%
-  majority), train 87/300; a blanket-negative bias therefore fakes edge.
-  Semantically wrong: `Сбербанк рекордная прибыль` -> -0.625,
-  `АКРА повысило до AA(RU)` -> -0.566.
-- Horizon 5d: val AUC 0.587 — noise.
-
-Conclusion: the news classifier cannot be meaningfully recalibrated on
-1517 rows / 42 days; both the current noise classifier and the horizon-10
-candidate are unusable (dead / degenerate negative bias). This is the
-documented data-scarcity bottleneck (AGENTS.md), not a tuning issue. The
-deployed `news_classifier.json` is kept unchanged; a live AA-upgrade headline
-still scores -0.058 (wrong sign). Retry only after a substantially larger,
-direction-label-balanced news corpus accumulates (the 9171-article Telegram
-backfill archive itself was not retained).
-
-## Alpha-without-beta hedge test (0) — 2026-09-25
-
-Pre-registered protocol: `docs/plans/completed/20260925-alpha-without-beta-test.md`
-(committed `d39da47` BEFORE the run; read-before-numbers gate passed by the
-peer session). Executor: `cmd/alphahedge`. Decision test = does the deployed
-ensemble's daily alpha survive **execution-level** beta-neutralization via a
-synthetic IMOEX overlay (no position sign or size ever changes; per-trade
-alpha is invariant by construction and is NOT an acceptance condition).
-
-Pipeline: rerun of the deployed `ensemble_model.json` on the canonical 18
-tickers (incl. DATA), 2025-04-01 -> 2026-09-17, 1M deposit, 15000 RUB/pos,
-costs 0.0005 comm + 0.0005 spread + 0.0005 slip, kill-switch on. Note: this
-HEAD rerun gives 867 trades / +202640 RUB realized vs the 2026-09-17
-`betaregime-report` (862 / +194293 on an earlier engine state) — same
-structure, ~4% engine-fix drift; all numbers below are the HEAD rerun.
-
-| overlay share | leg P&L | leg costs | daily alpha (cluster t, df=5) | beta1 (eqw) | beta2 (mom) | bootstrap CI {20,40} | leave-one-out sign |
-|---|---|---|---|---|---|---|---|
-| 0.00 (unhedged) | 0 | 0 | +0.000325 (t=3.98) | -0.291 | -0.084 | + / + outside 0 | all + |
-| 0.50 | -68502 | 3744 | +0.000216 (t=3.45) | -0.181 | -0.125 | + / + outside 0 | all + |
-| 1.00 (neutral) | -137004 | 7488 | +0.000101 (t=2.10) | -0.065 | -0.171 | L20 [+0.000017,+0.000190], L40 [+0.000018,+0.000179] | all + |
-
-Block-bootstrap CI(alpha) full grid at share 1.00: L5 [-0.000002, +0.000209]
-(CI touches 0), L10 [+0.000012,+0.000196], L20 [+0.000017,+0.000190],
-L40 [+0.000018,+0.000179], L60 [+0.000030,+0.000179] (stationary, geometric
-blocks, 2000 repl, seed 42).
-
-Quarterly mean daily alpha at share 1.00 (N=487): 2025-Q2 +0.000012,
-2025-Q3 +0.000237, 2025-Q4 +0.000152, 2026-Q1 -0.000102, 2026-Q2 +0.000088,
-2026-Q3 +0.000214.
-
-**Verdict (per pre-registered bar): (A) CI excludes 0 on contiguous {20,40}:
-YES; (B) leave-one-quarter-out keeps alpha positive across all six drops:
-YES. The daily alpha survives full beta-neutral execution.** The structural
-net-short (beta1 = -0.291) contributed ~+137k RUB of the +203k unhedged
-realized P&L; removing it leaves a small but positive daily edge of ~1.0 bp/day
-(~+4.9% on deposit over the 18 months) that is robust to block length >= 10d
-and to dropping any single quarter. Consequences per the protocol's
-bifurcation: path (1) is authorized — an exposure-managed variant
-(inverse-vol per-name sizing and a config'd `max_net_exposure` as SEPARATE,
-independently validated axes; regime-gate stays demoted). Caveats that bound
-the interpretation: the edge does not survive the 5-day block (extremely
-short-memory dissolve), 2026-Q1 is negative post-hedge, per-trade alpha
-remains statistically insignificant (t≈1.47), and the overlay assumes a
-frictionless IMOEX leg (live futures would add basis/roll/financing).
-**Borrow caveat (added 2026-09-25): all (0) numbers above were produced with
-`-borrow-pct-day` not wired (engine default = 0) — the book is structurally
-net-short, so the alpha was computed without short-borrow cost. Re-run with
-`-borrow-pct-day 0.00005` (short-leg notional x 0.00005/day) via the same
-executor: share=0 alpha 0.000316 (t=3.84), share=0.5 alpha 0.000206 (t=3.25),
-share=1.0 **alpha 0.000090 (t=1.85, p=0.124)**, CI {20,40} still excludes 0
-(L10 [+0.000000,+0.000185] touches 0, L20 [+0.000004,+0.000179],
-L40 [+0.000006,+0.000169]), all six LOO drops positive -> pre-registered
-acceptance (A)+(B) still HOLD at the base rate, but the edge is thinner
-(1.0 bp -> 0.9 bp/day) and the shortest block is borderline. At 2x the rate
-(`0.00010`) acceptance **(A) FAILS**: CI {20,40} no longer excludes 0
-(L20 [-0.000008,+0.000170], L40 [-0.000006,+0.000158], only L60 positive;
-LOO (B) still holds). Survival of the alpha is therefore sensitive to the
-actual live short-borrow rate; treat ~0.00005/day as the load-bearing input.
-
-## Real IMOEX-futures overlay: the (0) alpha does NOT survive the actual instrument — 2026-10-02
-
-The (0) test above assumed a **frictionless** IMOEX leg. This run replaces it
-with the tradable instrument. Executor: `cmd/alphahedge -overlay-mode futures`
-(new `cmd/alphahedge/futures.go`). Real MX front-month series fetched from MOEX
-ISS FORTS (contracts MXM5/MXU5/MXZ5/MXH6/MXM6/MXU6, quarterly roll **3 calendar
-days before the last-trade date**), contract notional = `LASTSETTLEPRICE x
-(STEPPRICE/MINSTEP) x LOTVOLUME` = 230000 x 1 x 1 = **230000 RUB** (GO 27464
-RUB ~ 11.9%), fee 15.18 RUB/contract/side, GO financing optional (`-futures-go-
-financing-pct-day`, 0 here = free margin). Everything else identical to (0):
-canonical 18 tickers, 2025-04-01 -> 2026-09-17, 1M deposit, 15000 RUB/pos,
-costs comm/spread/slip 0.0005 each, borrow 0, 2000 bootstrap repl.
-
-HEAD rerun base for this table: 778 closed trades, realized +184077 RUB
-(engine drift vs the 2026-09-25 ledger's +202640; **all rows below are the same
-run**, so the comparison is internally consistent).
-
-| overlay | share | avg contracts | leg P&L | leg costs | avg daily alpha (cluster t, df=5) | beta1 eqw | bootstrap CI {20,40} excludes 0 |
-|---|---|---|---|---|---|---|---|
-| none (unhedged) | 0.00 | - | 0 | 0 | +0.000300 (t=3.68) | -0.287 | YES |
-| synthetic (cash IMOEX) | 0.50 | - | -66079 | 3622 | +0.000193 (t=3.18) | -0.179 | YES |
-| synthetic (cash IMOEX) | 1.00 | - | -132158 | 7244 | +0.000080 (t=1.83) | -0.065 | YES |
-| **real MX, nearest** | 0.50 | 0.03 | -19000 | 1681 | +0.000266 (t=3.12) | -0.284 | YES* |
-| **real MX, nearest** | 1.00 | 0.48 | **-174800** | 16906 | **-0.000036 (t=-0.49)** | -0.053 | **NO** |
-| real MX, fine (unit 0.01) | 1.00 | 46.7 | -144940 | 14314 | +0.000028 (t=0.39) | -0.054 | NO |
-
-\* share 0.50 on the full-size contract "survives" only because the hedge almost
-never fires (avg 0.03 contracts) — it is effectively unhedged, not a hedge.
-
-Findings:
-
-- **One MX contract is 230000 RUB against an average beta-exposure of ~107000
-  RUB** (avg 0.48 contracts at share 1.0, max 1). The hedge is a **bang-bang**
-  0/1 instrument at this book size; the quantization residual (up to +/- half a
-  contract) is comparable to the signal being hedged.
-- At share 1.0 the real hedge **flips the alpha negative and insignificant**
-  (t=-0.49, CI includes 0) and costs 2.3x the synthetic overlay (16906 vs 7244
-  RUB in fees/rolls/notional).
-- **Even with a hypothetical fine-grained instrument** (finely divisible MX,
-  avg 46.7 contracts) the alpha loses significance (t=0.39, CI includes 0):
-  ~12800 RUB of P&L separates it from the synthetic overlay — basis/roll yield
-  and close-vs-index tracking that the frictionless cash-IMOEX leg omitted.
-- LOO/quarter tables: share 1.0 real-MX quarterly alphas are
-  +0.000074/+0.000111/-0.000264/-0.000193/-0.000065/+0.000263 (2 of 6 negative,
-  the trend-down quarters carry it), consistent with the synthetic sign but
-  swamped by the hedge tracking error.
-
-**Verdict:** the "alpha without beta" claim of (0) **does not survive contact
-with the real instrument**. The book's realized P&L is predominantly a net-short
-IMOEX-beta bet (unhedged alpha t=3.68); once beta is actually neutralized with
-available futures, the residual is statistically indistinguishable from zero net
-of realistic basis/roll/fees. This **supersedes the "(0) alpha survives"
-conclusion and closes the beta-neutral income lever at the current ~200k book
-size**; the live 1x unhedged config remains the operating optimum. Reopening
-requires either a much larger book (so one contract is a small fraction of
-exposure) or per-name single-stock futures (finer granularity + exact per-name
-beta) — neither is measured here.
-
-## Market-neutral retraining: excess-to-IMOEX labels improve predictability and neutrality, residual alpha marginal — 2026-10-03
-
-Phase 2 of the beta/regime work (phase 1 = real futures overlay above).
-Question: does the model have residual (market-neutral) signal when trained on
-**excess-to-IMOEX** labels instead of absolute forward return? Pipeline (both
-label modes, otherwise identical):
-
-```
-exportdataset -config config.sandbox.yaml -from 2024-01-01 -till 2026-09-17
-  -split 2026-06-18 -horizon-days 10 -deadband-pct 0.5 -label-mode <absolute|excess>
-  -news-history data/news_history.jsonl -out /tmp/p2_<mode>.csv
-scripts/export_ensemble.py  (18 price/flow columns, 28-name order, colsample 0.8)
-cmd/alphahedge -ensemble-path <model> [-overlay-mode synthetic|futures]
-```
-
-Label balance (13 438 rows): absolute 5398 pos / 6802 neg / 1238 hold; excess
-4116 / 4179 / 5143 hold (excess is balanced but the 0.5%-deadband swallows far
-more rows — an important caveat: fewer directional training labels).
-
-| model | val AUC (2026-06-18..09-16) xgb / lgbm / logreg / ensemble |
-|---|---|
-| absolute | 0.4895 / 0.4922 / 0.4634 / **0.4824** |
-| excess | 0.5447 / 0.5237 / 0.4570 / **0.5226** |
-
-Ensemble AUC gap **+0.040**, far outside the documented +/-0.005 noise band:
-the market-neutral label is materially more predictable.
-
-Book results (alphahedge, 2025-04-01 -> 2026-09-17, 1M, 15000 RUB/pos, costs
-0.0005/0.0005/0.0005, borrow 0 unless noted, 2000 repl). Both models are
-**rebuilt here**, not the deployed artifact, so the comparison is internal.
-
-| model | overlay | trades / realized | leg P&L | avg contracts | alpha/day (cluster t, df=5) | beta1 unhedged/hedged | CI {20,40} excludes 0 |
-|---|---|---|---|---|---|---|---|
-| absolute | none | 789 / +221316 | 0 | - | +0.000363 (t=6.02) | -0.302 / - | YES |
-| absolute | synthetic 1.0 | - | -143051 | - | +0.000130 (t=4.43) | / -0.066 | YES |
-| absolute | real MX nearest 1.0 | - | -189900 | 0.42 | +0.000007 (t=0.12) | / -0.056 | **NO** |
-| absolute | real MX fine 1.0 | - | -165809 | 39.8 | +0.000062 (t=1.21) | / -0.057 | NO |
-| excess | none | 392 / +81881 | 0 | - | +0.000175 (t=2.96) | -0.189 / - | YES |
-| excess | synthetic 1.0 | - | -43117 | - | +0.000108 (t=3.46) | / -0.073 | YES |
-| excess | real MX nearest 1.0 | - | -33100 | 0.10 | +0.000125 (t=2.49, p=0.055) | / -0.029 | YES |
-| excess | real MX fine 1.0 | - | -48030 | 21.7 | +0.000085 (t=2.04, p=0.097) | / -0.079 | **NO** |
-| excess, borrow 5bp/d | synthetic 1.0 | - | -43117 | - | +0.000102 (t=3.17) | / -0.073 | YES |
-
-Findings:
-
-- **Excess labels work as intended**: the unhedged excess book loads beta1
-  **-0.189 vs -0.302** for absolute (roughly halved), and carries a real
-  intercept (alpha +0.000175, t=2.96) rather than a pure net-short beta bet.
-- The excess book's realized P&L is ~2.6x lower (+81881 vs +221316) with ~half
-  the trades — the missing chunk is exactly the beta the absolute model was
-  harvesting.
-- The **"real MX nearest, share 1.0" CI-excludes-0 for excess is an artifact**:
-  at this book's lower beta the coarse 230k contract fires only rarely
-  (avg 0.10 contracts, max 1), so that row is essentially unhedged. It is NOT
-  evidence the alpha survives neutralization.
-- **With a fine, actually-neutralizing hedge** (avg 21.7 contracts, fee 0 to
-  isolate basis) the excess alpha is 0.000085/day (t=2.04, p=0.097, CI touches
-  -0.000006 at L5) — positive and ~2.7x the dead absolute-model residual
-  (0.000062, t=1.21), but **just short of the pre-registered significance bar**.
-  ~0.85 bp/day ~ +4.2% on deposit over 18 months before the (0) borrow caveat.
-- Borrow 5bp/day only shaves the synthetic share-1 excess alpha 0.000108 ->
-  0.000102 (CI still excludes 0); the excess book is less short, so borrow drag
-  is milder than for the absolute book.
-- 2026-Q3 is the only true OOS quarter (model val ends 2026-06-18); its excess
-  alpha is positive, but one quarter is not enough to confirm.
-
-**Verdict: market-neutral retraining is a genuine improvement over the absolute
-recipe (AUC +0.040, beta loading halved, a positive residual alpha that the
-absolute model does not have), but the residual alpha after a realistic fine
-hedge is still only marginal (t~2.0) and does not clear the pre-registered bar.**
-Direction is worth continuing (next: beta-residualized price features and
-regime-balanced validation; and/or a finer hedge instrument or a larger book so
-the hedge actually neutralizes without swamping the signal). It is NOT a
-deployment-ready income source on its own. Do not change the live config.
-
-### Phase 2b: regime-balanced training — MEASURED 2026-10-03, REJECTED
-
-Hypothesis: the excess model overfits the dominant (down) market regime, so
-reweighting training samples to balance market regimes should help. Implemented
-as an env-gated, **inference-neutral** option in `scripts/export_ensemble.py`
-(`ENSEMBLE_REGIME_BALANCE`, `ENSEMBLE_REGIME_WINDOW`, `ENSEMBLE_REGIME_BUCKETS`);
-default off, so the deployed pipeline is byte-for-byte unchanged. Market state at
-the decision date is proxied by the **trailing cross-sectional mean of
-`return_pct`** (recoverable from the dataset itself, so no Go change and no
-look-ahead); training rows are ranked by that trailing return, split into
-equal-size quantile buckets, and weighted inversely to bucket frequency. Same
-excess dataset and 18-feature recipe as phase 2.
-
-| variant | window / buckets | weighted rows | val AUC xgb / lgbm / logreg / ensemble |
-|---|---|---|---|
-| excess unweighted (phase-2 baseline) | - | - | 0.5447 / 0.5237 / 0.4570 / **0.5226** |
-| rb21 b3 | 21 / 3 | 7483 | 0.5075 / 0.5099 / 0.4025 / 0.4964 |
-| rb21 b2 | 21 / 2 | 7483 | 0.5045 / 0.5058 / 0.4055 / 0.4948 |
-| rb63 b3 | 63 / 3 | 7483 | 0.4977 / 0.4886 / 0.4706 / 0.4804 |
-| rb63 b4 | 63 / 4 | 7483 | 0.5028 / 0.5003 / 0.4717 / 0.4887 |
-
-Every balanced variant lands **below** the unweighted excess AUC (0.5226), and
-below the absolute baseline too. Hedged book (real MX fine, share 1.0, fee 0,
-2000 repl) confirms it is not an AUC-only artifact:
-
-| variant | trades / realized | leg P&L | avg contracts | alpha/day (cluster t, df=5) | CI {20,40} excludes 0 |
-|---|---|---|---|---|---|
-| rb21 b3 | 1336 / +24629 | -53186 | 32.65 | -0.000124 (t=-1.574, p=0.176) | NO |
-| rb21 b2 | 1374 / +6051 | -51259 | 32.67 | -0.000165 (t=-1.942, p=0.110) | YES (entirely negative) |
-
-**Verdict: regime-balanced training REJECTED.** It systematically lowers val AUC
-and, after a realistic fine hedge, the residual alpha turns **negative** (rb21b2
-CI excludes 0 on the negative side). The unweighted excess model already handles
-the regime mix; forcing regime parity adds variance without signal. Separately,
-**beta-residualized price features are deferred**: they require the IMOEX series
-inside the live feature path (`internal/orchestrator` ingest -> `internal/features`),
-i.e. a cross-zone change with a live/backtest parity risk, and the label change
-already captures most of the market-neutrality — expected marginal gain is low
-relative to that risk. The live config and `ensemble_model.json` are untouched.
-
-## Managed-beta leverage grid (1) — 2026-09-25
-
-Same executor, canonical 18 tickers, window 2025-04-01 -> 2026-09-17, 1M
-deposit, **`-shares 1` (beta-neutral book)**, costs comm/spread/slip
-0.0005/0.0005/0.0005, **`-borrow-pct-day 0.00005`** (now mandatory per the
-2026-09-25 decision: borrow drag scales with short notional, and leverage
-widens it). "Leverage" here = raising `-target-notional` (bigger positions,
-same 1M deposit) — NO broker margin/borrowed capital. Acceptance: max DD
-<= 3% in all six quarters AND realized net P&L positive at every multiplier
-(judged on realized, not MTM, per the house invariant).
-
-| target notional | realized net of borrow | daily alpha (t, df=5) | CI {20,40} | max quarterly DD | result |
-|---|---|---|---|---|---|
-| 15000 (1x) | +197275 | +0.000090 (t=1.85) | exclude 0 (marginal L10) | 1.11% (2026-Q1) | PASS (baseline) |
-| 30000 (2x) | +395785 | +0.000195 (t=1.92) | exclude 0 | 2.15% (2026-Q1) | **PASS** |
-| 45000 (3x) | +589992 | +0.000293 (t=2.01) | exclude 0 incl. L5 | 2.56% (2025-Q2) | **PASS** |
-| 60000 (4x) | +753632 | +0.000364 (t=1.95) | exclude 0 | **3.55% (2025-Q3)**, 3.39% (2025-Q2), 3.02% (2026-Q1) | **FAIL** |
-
-Verdict: the beta-neutral book supports 2-3x position-notional scaling under
-the 3% drawdown budget: realized P&L scales near-linearly with notional
-(1x->3x roughly triples it), and the 2026-09-16 notional-20000 precedent of
-breaching the 3% cap is confirmed on the hedged book at 4x (~5-7%/yr clean
-alpha on 1M at 2-3x, borrow at base rate). Beyond 3x the 3% risk-gate binds;
-combined with the borrow-rate sensitivity above, the margin of safety at the
-top of the ladder is thin. consequence for the (1) axis: wire
-`risk.target_notional` at **30000-45000** (2-3x) with `max_net_exposure`
-bounded so the per-quarter DD stays under 3%, and re-confirm the live
-short-borrow rate before setting more than 3x.
-
-## `max_net_exposure` on the unhedged book — 2026-09-25, recomputed at HEAD on 2026-09-30
-
-> **Semantics note (2026-10-01):** every row below was produced with the OLD
-> signed-net cap, before it was changed to gross. On this book the two agree for
-> most rows only because the positions happen not to cancel; re-read these
-> numbers as "signed-net cap", not as current `max_net_exposure` behaviour. See
-> "`max_net_exposure` semantics change: signed net → gross — 2026-10-01".
-
-Same executor, canonical 18 tickers, identical window/costs/borrow as the
-grid above, but **`-shares 0` (the actual live book — no futures hedge)**.
-`max_net_exposure` caps |signed aggregate net position notional| at
-OrderPrice-based deltas (lot-aware in live, LotSize=1 in backtest). Combined
-with the unhedged baseline from `docs/reports/dividendstudy-report.md` (2026-09-25:
-unhedged 2x/3x DD 3.71%/4.43% > 3% kill-switch limit).
-
-**All 10 rows below were re-run on 2026-09-30** at HEAD (`88d0958`→`8157903`,
-`cmd/alphahedge -shares 0`) with the same 2025-04-01 → 2026-09-17 window,
-deposit 1000000, costs 0.0005/0.0005/0.0005 and borrow 0.00005/day. The
-original 2026-09-25 numbers are preserved below in the "was" column. Every
-row moved up, and the live 1x baseline rose from +179045 to +197275, so the
-2026-09-25 figures predate the 2026-09-17 feature fixes. Conclusions are
-unchanged; the cliff is now measured, not inferred.
-
-| target notional | max_net_exposure | realized net of borrow | closed trades | max quarterly DD | result | was (2026-09-25) |
-|---|---|---|---|---|---|---|
-| 15000 (1x, live) | 0 | +197275 | 871 | 1.96% (2026-Q1) | **PASS** | +179045 / 781 / 2.05% |
-| 15000 (1x) | 90000 | +87861 | 341 | 1.71% (2026-Q1) | PASS (income cut 55% by cap) | +78592 / 295 / 1.59% |
-| 30000 (2x) | 0 | +395785 | 1012 | **3.57% (2026-Q1)** | FAIL | +361018 / 914 / 3.76% |
-| 30000 (2x) | 60000 | +81730 | 234 | 2.21% (2026-Q1) | PASS, wide margin | +72545 / 124 / 2.21% |
-| 30000 (2x) | 60000, borrow 0.0001 (2x-stress) | +74033 | 234 | 2.31% (2026-Q1) | PASS | +64833 / 125 / 2.30% |
-| 30000 (2x) | 75000 | −6555 | 50 | 2.52% (2025-Q3) | **FAIL (income turned negative)** | +84341 / 246 / 3.46% |
-| 30000 (2x) | 90000 | +144058 | 249 | 1.94% (2026-Q3) | PASS | +96699 / 249 / 2.91% |
-| 45000 (3x) | 0 | +589992 | 1050 | **4.26% (2026-Q1)** | FAIL | +526517 / 939 / 4.66% |
-| 45000 (3x) | 90000 | −19338 | 74 | **4.95% (2026-Q3)** | **FAIL (income and DD both worse)** | +84165 / 205 / 4.00% |
-| 45000 (3x) | 120000 | +127923 | 188 | **3.85% (2026-Q1)** | FAIL | +106789 / 220 / 3.99% |
-
-Verdict: `max_net_exposure` does **not** turn 2-3x on the unhedged book into a
-safe income upgrade. The only cap-level that keeps every quarter <= 3% (2x +
-60k, DD 2.21%, 2.31% under 2x-borrow stress) earns +81730 over the window —
-**less than half the current live 1x (+197275, DD 1.96%)**. 3x fails at every
-cap, and at 90k the cap now makes results *worse on both axes at once*:
-realized −19338 and DD 4.95% (vs 4.00% uncapped), the only row in the grid that
-is worse than its own uncapped control. The cap is discontinuous and its
-cliff is non-monotonic: 60k→75k at 2x turns +81730 into −6555 (trade count
-collapsing 234 → 50 as the cap empties the book), while 90k recovers to
-+144058 — so the profitable region is non-contiguous and cannot be tuned
-into. Root cause: the unhedged book's income IS its market beta, and an
-aggregate cap barrels away the cross-name diversification the strategy
-depends on (234-341 trades vs 871-1050 uncapped). Consequences: (i) stay at
-`target_notional 15000` (1x) unhedged — it is the operating optimum of the
-live book; (ii) the real 2-3x income lever is the futures hedge ([0] path),
-not a net-exposure cap; (iii) `max_net_exposure` ships and stays available as
-a defense-in-depth fail-closed guardrail only, not as the sizing mechanism.
-
-## News classifier rebuild from a fresh 9596-article backfill (2026-09-29) — negative, NOT deployed
-
-Second, larger attempt at the news sentiment classifier, prompted by the live
-trader's own `news_classifier.json` (2026-09-16) scoring **below the majority
-class baseline** (val acc 0.529 vs baseline 0.552, val AUC 0.533). The
-2026-09-25 attempt used only 1517 finanalys headlines; this one rebuilt a
-9596-article archive from scratch (the 9171-article 2026-09-17 backfill was
-never retained — see the section above).
-
-Archive: `cmd/newsfetch -out data/news_history.jsonl` — RSS/Google/CBR/MOEX at
-`-since-days 30` (2315 records) plus `-retro-from 2026-04-01` Telegram retro
-(7281 records), 2026-04-01..09-29, 42 tickers. Labels: forward excess return
-over IMOEX from live MOEX ISS candles, `cmd/trainnewsmodel`, horizon 3d.
-
-| variant | articles | train_n | val_n | train AUC | val AUC | val acc | baseline | Δ acc |
-|---|---|---|---|---|---|---|---|---|
-| deployed 2026-09-16 | 48294 (Telegram) | 48294 | 2364 | 0.690 | 0.533 | 0.529 | 0.552 | −0.023 |
-| A all tickers, split 08-15 | 9596 | 2855 | 1349 | 0.840 | 0.531 | 0.538 | 0.570 | −0.032 |
-| B config tickers only, split 08-15 | 3415 | 759 | 497 | 0.950 | **0.493** | 0.469 | 0.511 | −0.042 |
-| C all tickers, split 09-01 | 9596 | 3115 | 1089 | 0.830 | 0.527 | 0.534 | 0.576 | −0.042 |
-| D all tickers, `-max-tickers-per-article 1` | 6858 | 2125 | 970 | 0.880 | **0.540** | 0.535 | 0.580 | −0.045 |
-
-**Every variant is below the majority-class baseline on accuracy**, and the
-train→val AUC gap (0.31–0.46) is severe overfitting. With ~1000 validation
-samples the standard error on AUC is ≈0.016, so the 0.527–0.540 spread across
-variants is noise — none of them is distinguishable from the deployed model,
-and none beats chance direction.
-
-Sample loss is the mechanism: 9596 articles yield only 2855 train samples
-because `BuildNewsLabels` drops tickers whose `source.History` fails
-(`internal/model/newsclassifier.go:246`) and truncates the tail where
-`exitIdx >= len(candles)`. The 2026-09-16 classifier had 48294 train samples;
-today's rebuild has 2855 — a 17x reduction that no longer reaches the
-original archive depth (Telegram retro reaches 2 channels only, RSS has no
-history API).
-
-**The decisive finding is behavioural, not the AUC.** Scoring 800 unique
-archive headlines through each model (`cmd/newsscore -method model`):
-
-| model | score range | mean | share \|score\|>0.1 | share < 0 |
-|---|---|---|---|---|
-| deployed `news_classifier.json` | [−0.247, +0.266] | −0.039 | 7.8% | 83.0% |
-| A | [−0.699, +0.796] | −0.061 | 63.5% | 66.9% |
-| D | [−0.807, +0.691] | −0.076 | 63.6% | 66.4% |
-| B | [−0.925, +0.966] | −0.090 | 67.1% | 70.6% |
-
-The deployed classifier is **dead** — 92% of its scores sit inside ±0.1, so
-`news_sentiment` contributes ~0 to the live feature vector. The freshly trained
-variants are **alive**: they fire with confident values on ~64% of headlines.
-Since their accuracy is below the majority baseline, deploying them would swap
-a currently-harmless near-zero feature for an actively wrong one. The dead
-deployed model is the safer of the two, and no change is justified.
-
-Conclusion: confirms and strengthens the 2026-09-25 verdict on 6x more data.
-The blocker is the unrecoverable archive depth, not tuning. `news_classifier.json`
-stays at the 2026-09-16 artifact. Retry only when a substantially larger,
-direction-label-balanced corpus accumulates (i.e. after months of live
-`cmd/newsfetch` appends, not a one-off backfill).
-
-ToS note: this training set intentionally includes the 2 Telegram channels and
-17 per-ticker Google News feeds, per the user's explicit decision recorded in
-AGENTS.md. These numbers are therefore measured on ToS-restricted sources and
-must not be quoted as if the corpus were clean.
-
-## `max_net_exposure` semantics change: signed net → gross — 2026-10-01
-
-Decision (user, final): the cap now bounds **GROSS** exposure — the sum over
-tickers of `|signed position notional|` — instead of `|signed aggregate net|`.
-The flag, config key (`max_net_exposure`) and `risk.Config.MaxNetExposure` keep
-their names; only the meaning changed. Implemented as `risk.ExposureReader`
-(`ExposureByTicker`), with `NetExposureReader` kept only as a fallback for
-readers that do not expose per-ticker legs.
-
-Why: the net cap is blind to gross risk. A long 500k in SBER and a short 500k
-in OZON net to **zero** and sail past a 60k cap while carrying **1M** of gross
-risk, purely because the two legs happened to match in size. Net also made
-*which* names got filled depend on how much opposing exposure happened to be
-booked first. Gross removes that order dependence. For defence-in-depth this
-matters more than income — every income lever on the unhedged book is already
-closed by evidence, and the cap ships as a guardrail, not a lever.
-
-Two implementation details that are load-bearing:
-
-- **Projection is per ticker, not book-wide addition.** The order replaces only
-  its own ticker's leg; what is tested is `|other names| + |this name after|`.
-  Treating every order as purely additive to gross makes the cap block the very
-  orders that *reduce* risk (closing/trimming), which strands open positions.
-- **`Signal.TargetLots` is not the delta.** In the target-position path it is
-  the absolute target that `recordFill` reconciles to, while exposure must be
-  projected from the change the order makes. Reading the target as a delta
-  double-counts the position already held. `risk.Request.ExposureDeltaLots`
-  now carries the signed delta explicitly; nil means "TargetLots is the order
-  size" (the live `EnsembleSignalSource` path, which is incremental).
-
-This also fixed a latent bug: the target-position path used to hand the gate an
-absolute target that the gate read as a delta, double-counting every existing
-position in the cap projection.
-
-### Regression check: 100% short grid unchanged
-
-Per the acceptance criterion, the 2026-09-30 all-short grid was re-run after the
-change. On that book no positions cancel by sign, so net ≡ gross and every
-number must be identical. All five rows reproduce **exactly** (realized net of
-borrow, closed trades and max DD):
-
-| cap | realized net of borrow | closed trades | max DD | vs 8157903 |
-|---|---|---|---|---|
-| 0 | +51381.3719969013531337807737386387384896435 | 1581 | 5.83% | identical |
-| 30000 | +4981.29619215 | 2 | 0.86% | identical |
-| 45000 | +5863.689259878 | 3 | 1.04% | identical |
-| 60000 | +8830.730678178 | 4 | 0.87% | identical |
-| 90000 | +11483.628720054 | 6 | 1.68% | identical |
-
-An intermediate implementation that added `|delta|` to book-wide gross passed
-this check on cap 0 but collapsed the capped rows to **0 closed trades** at an
-unchanged drawdown — i.e. it silently blocked the final flatten-to-flat order
-and left the whole result as open-position MTM. That is why the grid was re-run
-rather than trusted, and why the per-ticker projection and the regression test
-`TestHardenedGateMaxExposureAllowsReducingOrder` exist.
-
-Live is unaffected: `config.sandbox.yaml` keeps `max_net_exposure: 0` (cap
-disabled), so no live behavior changed with this commit.
-
-## Where the 9596 news articles are actually lost — 2026-10-01
-
-Measurement, not opinion. Re-audited the 2026-09-29 archive
-(`data/news_history.jsonl`, 9596 records, `cmd/trainnewsmodel` defaults
-horizon 3d, split 2026-08-15) with an instrumented replica of
-`BuildNewsLabels` that counts every drop point and **asserts it produces the
-same sample count as the real function**. Reproduce with:
-
-```
-MOEX_TRADER_NEWS_AUDIT_ARCHIVE=$PWD/data/news_history.jsonl \
-  go test ./internal/model/ -run TestNewsLabelsDropAudit -v
-```
-
-| stage | articles lost | note |
-|---|---|---|
-| input archive | 9596 | 42 tickers |
-| dropped: empty ticker/date | 0 | |
-| **(a)** ticker dropped, `source.History` error | **0** | no ticker fails lookup |
-| **(a)** ticker dropped, `< horizon+2` candles | **0** | no ticker is short of history |
-| **(b)** article `pubIdx < 0` | **0** | no article predates its last candle |
-| **(c)** article `exitIdx >= len(candles)` | 385 | genuine tail, expected |
-| (d) entry/exit price <= 0 | 0 | |
-| **(e)** IMOEX entry candle missing | **2757** | **not one of the three suspected points** |
-| **(f)** IMOEX exit candle missing | **2055** | **not one of the three suspected points** |
-| samples produced | **4399** | train 2855 / val 1544 at the 2026-08-15 split |
-
-`train = 2855` reproduces the documented figure exactly, confirming the audit
-matches the original run.
-
-**The hypothesis was wrong: (a) and (b) cost nothing.** The entire loss is
-the IMOEX benchmark lookup at (e)/(f), which kills 4812 of the 9596 pairs —
-more than the 5197 "lost" headline implies, because those drops happen after
-(c). Cause: **96.5% of the missing index dates are weekends** (Sat 2347 + Sun
-2300 of 4812; only 165 are Fridays). Verified directly against MOEX ISS:
-
-- `SBER` returns **real weekend bars** — 15 bars for 2026-06-01..06-15, 4 of
-  them weekend, with genuine OHLC (Sat 06-06 open 322.21 close 322.45).
-- `IMOEX` returns **no weekend bars** — 10 bars for the same window, 0 weekend.
-
-So MOEX publishes weekend sessions for equities while the index is not
-calculated then. A stock's `entryIdx`/`exitIdx` lands on a Saturday/Sunday bar,
-`indexByDate[dateKey(...)]` misses, and the pair is dropped. This is a
-**calendar-alignment bug, not a ticker-mapping problem** — worth fixing on its
-own merits, and it is cheap: dropping weekend bars before the loop would
-recover up to ~4647 samples, roughly doubling the corpus.
-
-### Same root cause reaches the PRICE model — MEASURED 2026-10-02
-
-`internal/model/dataset.go` builds price labels with `candles[d+1+horizonDays]`
-— bar-index arithmetic on the same unfiltered ISS series. It was measured with
-the env-gated `TestHorizonAudit` / `TestHorizonModeLabelDiff`
-(`MOEX_TRADER_HORIZON_AUDIT=1`), 18 deployed tickers, 2024-01-01..2026-10-01.
-**Both earlier hypotheses were wrong:**
-
-1. **The weekend bars are real sessions, not phantom.** `SBER` Sat
-   2026-06-06 carries volume 1 373 638 and 55 intra-day 10-min bars; Sun
-   2026-06-07 volume 930 144; `OZON`/`YDEX` likewise (10-26k). So MOEX trades
-   equities 7 days/week while IMOEX is not calculated on weekends.
-2. **There is no live/backtest parity gap.** Live's `marketHoursExecutor`
-   (cmd/trader/main.go:1030) asks the broker `TradingStatus`
-   (internal/broker/tinkoff/sandbox.go:168) — in a weekend session it returns
-   open, so live trades exactly the bars backtest does. The `+179k`/`+197k`
-   track record is **not** invalidated by this mechanism.
-
-What *is* real: a fixed **10-bar** window spans a different **calendar** time
-per ticker because weekend-session participation differs. Pooled over 14 041
-labels: effective **weekday** horizon 7-11 (mean **9.31**); only **9.3%** of
-labels get exactly 10 weekday sessions. Mean **calendar** span per ticker ranges
-**11.33 d** (DATA) to **13.69 d** (OZON) with within-ticker ranges 10-63 d —
-i.e. "abs-10d" actually measures an **11.3-13.7-day** window, and it is
-**not constant across tickers** (~+21% OZON vs DATA). This is the label-timing
-inconsistency, and it is a real candidate for the AUC~0.50-0.52 ceiling.
-
-Rebuilding through the real `BuildSamples` with `HorizonModeCalendarDays`
-(the new `-horizon-mode calendar_days` option, `internal/model/dataset.go`
-`forwardExitIndex`, default unchanged = bars): bars emits 12 926 labels,
-calendar 12 819; of 12 328 common `(ticker, decision-day)` keys **667 (5.41%)**
-change sign, plus 598 only-bars and 491 only-calendar status changes.
-
-The bars-vs-calendar comparison ran on the deployed ensemble pipeline:
-`exportdataset -news-history data/news_history.jsonl` (18 tickers, 2024-01-01..
-2026-09-17, split 2026-06-18, horizon 10, absolute, deadband 0.5%) →
-`scripts/export_ensemble.py` (18 price/flow columns, colsample 0.8) →
-`cmd/backtest -signal-source ensemble`. Identical holdout 2026-06-19..
-2026-09-17, 1M deposit, 15 000₽/position, commission 0.05%, spread+slippage
-0.05%+0.05%, `-lookback-days 0`:
-
-| horizon unit | val AUC (2026-06-18..09-16) | realized | closed trades | max DD |
-|---|---|---|---|---|
-| bars (deployed) | 0.4610 | +53 786.79 | 204 | 1.58% |
-| calendar_days | 0.4635 | +40 355.35 | 217 | 1.97% |
-
-The bars baseline reproduces the documented news-aware holdout realized
-(+56 379 @ 277ebf7) to ~5%, validating the pipeline. Calendar mode moves AUC by
-**+0.0025** (inside the ±0.005 noise band) while realized P&L drops **−25%** and
-max DD rises **1.58% → 1.97%**. **The label-timing inconsistency is real, but it
-is not the AUC ceiling, and redefining the horizon to calendar days is worse** —
-the deployed bars recipe stays. Caveat: this is a single 3-month holdout (204-217
-trades); a 6-quarter walk-forward would strengthen it but is not run because the
-AUC signal — the quantity the hypothesis is actually about — is flat.
-
-## `max_net_exposure` on a 100% short book — 2026-09-30
-
-Trigger: the live book failed on 2026-09-30 with 17 short positions, net
-≈ −210k RUB against a gross of ≈ +210k RUB, and realized P&L of −4.53 RUB
-over 60 closed trades. The question this grid answers is what a
-`max_net_exposure` cap would have cost **that** structure — not whether it
-would have saved it.
-
-Method: synthetic forced-short via `-signal-source csvprob`, SELL on every bar
-and BUY on the final bar (2026-09-17) so the result is realized rather than
-open-position MTM. The CSV date set was taken from MOEX ISS and verified
-identical to the engine's candle set (8674 rows == the ensemble control's
-`Decisions: 8674`). Protocol otherwise identical to `abe614d`: canonical 18
-tickers, 2025-04-01 → 2026-09-17, deposit 1000000, `target_notional` 15000,
-`max_lots` 1000, commission 0.0005, spread 0.0005, slippage 0.0005, borrow
-0.00005/day, kill-switch on, `-lookback-days 0`, realized net of borrow.
-
-| max_net_exposure | realized net of borrow | income hit vs all-short cap 0 | closed trades | max DD | names in book |
-|---|---|---|---|---|---|
-| 0 (all-short control) | +51381 | — | 1581 | 5.83% | 18 |
-| 30000 | +4981 | **−46400 (−90.3%)** | 2 | 0.86% | 2 (YDEX, OZON) |
-| 45000 | +5864 | **−45518 (−88.6%)** | 3 | 1.04% | 3 (+ SBER) |
-| 60000 | +8831 | **−42551 (−82.8%)** | 4 | 0.87% | 4 (+ LKOH) |
-| 90000 | +11484 | **−39898 (−77.7%)** | 6 | 1.68% | 6 (+ GAZP, GMKN) |
-
-Verdict: **rejected.** A cap costs 78–90% of the directional book's realized
-income and is not a risk knob for it. The mechanism is not gradual
-de-risking — `risk.Gate` is an order-level fail-closed check
-(`internal/risk/gate.go:227-257`) that never resizes an existing position.
-Against a constant SELL every bar, the first N tickers to fill the cap
-consume it, every later order is rejected, and the book freezes for the
-remaining 18 months: closed trades collapse 1581 → 2/3/4/6, and only the
-final close-out ever books. So the capped rows are **not** a scaled version of
-the same book but an arbitrary subset picked by ticker iteration order.
-
-Two caveats that cut against over-reading this table:
-
-- The income hits are therefore a **lower bound** on the cap's true cost. The
-  rows measure a frozen arbitrary subset, whereas a real concentrated book
-  rebalances; the comparable rebalancing variant is worse, not better. Name
-  selection here is not reproducible as a strategy.
-- The uncapped all-short control breaches the 3% kill-switch DD limit on its
-  own (DD 5.83%, 39 daily-loss blocked days) before any cap is applied. That
-  is a property of holding 18×15000 short simultaneously, not of the cap —
-  and it means the live loss was **not** caused by a missing
-  `max_net_exposure`.
-
-Baseline drift, recorded for honesty: rerunning the `abe614d` protocol
-unchanged at HEAD (ensemble source, 18 tickers, same window/costs/borrow)
-gives realized **+197275 net of borrow / 871 closed trades / DD 2.63%**,
-not the +179045 / 781 / 2.05% recorded in the `abe614d` table above — that row
-predates the 2026-09-17 feature fixes. Every income hit in *this* table is
-therefore computed against the fresh all-short cap-0 control measured in the
-same run, never against the stale ledger number.
-
-This strengthens rather than revises the 2026-09-25 verdict: `max_net_exposure`
-ships as defence-in-depth only. Live stays 1x, `target_notional` 15000, cap 0.
-
-## Observability metrics and alerts (Task 6)
-
-Live-trader Prometheus metrics added in `internal/metrics/metrics.go`, wired
-through `internal/orchestrator` and `cmd/trader`. The old
-`llm_inference_duration_seconds` was renamed to
-`moex_trader_inference_duration_seconds` (the pipeline is a model, not an LLM).
-
-Metrics exposed on the trader's `/metrics` endpoint:
+Prometheus metrics of the live trader (`internal/metrics/metrics.go`, wired through `internal/orchestrator` and `cmd/trader`; `moex_trader_inference_duration_seconds` was renamed from `llm_inference_duration_seconds` because the pipeline is a model, not an LLM):
 
 | metric | type | labels | source |
 |---|---|---|---|
-| `moex_trader_inference_duration_seconds` | histogram | — | orchestrator signal generation |
-| `signals_generated_total` | counter | — | orchestrator |
+| `moex_trader_inference_duration_seconds` | histogram | - | orchestrator signal generation |
+| `signals_generated_total` | counter | - | orchestrator |
 | `risk_rejections_total` | counter | `reason` | risk gate decision |
 | `executor_skips_total` | counter | `reason` | approved decisions the executor skipped |
-| `signal_probability` | histogram | — | model probability per poll |
+| `signal_probability` | histogram | - | model probability per poll |
 | `candle_age_seconds` | gauge | `ticker` | newest ingested candle age |
 | `feature_psi` | gauge | `feature` | drift monitor warnings |
 | `position_notional` | gauge | `ticker` | signed exposure per ticker (RUB) |
-| `gross_exposure` | gauge | — | sum of absolute per-ticker notionals (RUB) |
-| `lease_held` | gauge | — | 1 while this process holds the trading lease |
-| `var_95` | gauge | — | 1-day 95% VaR of the current book (RUB) |
-| `var_99` | gauge | — | 1-day 99% VaR of the current book (RUB) |
-| `es_95` | gauge | — | 1-day 95% expected shortfall (RUB) |
-| `es_99` | gauge | — | 1-day 99% expected shortfall (RUB) |
+| `gross_exposure` | gauge | - | sum of absolute per-ticker notionals (RUB) |
+| `lease_held` | gauge | - | 1 while this process holds the trading lease |
+| `var_95`, `var_99`, `es_95`, `es_99` | gauge | - | 1-day historical VaR/ES of the current book (RUB), 250-day trailing returns (`internal/risk/var.go`), monitoring only, also one line in the daily Telegram digest |
 | `incident_shorts_total` | counter | `ticker` | SELL decisions emitted by the news gate during an incident (not every one becomes a fill) |
-| `news_exit_total` | counter | `ticker`, `reason` | First exit decision for a news-opened position (`stop_loss`, `take_profit`, `time_exit`); each also writes an `audit_events` row, stage `news_exit`, with entry/peak/result for the parameter fit in `docs/plans/20261010-news-exit-tuning-and-buy-side.md` |
+| `news_exit_total` | counter | `ticker`, `reason` | first exit decision for a news-opened position (`stop_loss`, `take_profit`, `time_exit`); each also writes an `audit_events` row, stage `news_exit`, with entry, peak and result for the parameter fit in `docs/plans/20261010-news-exit-tuning-and-buy-side.md` |
 
-The `var_95`/`var_99`/`es_95`/`es_99` gauges are Task 12 monitoring only (not a
-risk gate): historical 1-day book VaR/ES from 250-day trailing returns in
-`internal/risk/var.go`, also reported as one line in the daily Telegram digest.
-
-Telegram alerts (`internal/alert/telegram/watch.go`), each gated by a cooldown:
+Telegram alerts (`internal/alert/telegram/watch.go`), each with a cooldown:
 
 | alert | trigger | default threshold | default cooldown |
 |---|---|---|---|
-| probability collapse | more than 90% of the last N probabilities inside [0.45, 0.55] | N = 20, fraction 0.9, band 0.45–0.55 | 1h |
+| probability collapse | more than 90% of the last N probabilities inside [0.45, 0.55] | N = 20, fraction 0.9, band 0.45-0.55 | 1h |
 | stale candles | candle age above threshold during the trading session | 24h (daily candle pipeline) | 1h |
-| PSI breach | drift monitor warning above the configured PSI threshold | drift_psi_threshold 0.2 | 1h |
+| PSI breach | drift monitor warning above the configured PSI threshold | `drift_psi_threshold` 0.2 | 1h |
 
-Defaults come from `config.alerts` (`probability_collapse_window`,
-`stale_candle_age`, `cooldown`); negative values are rejected. Nothing here
-changes the live recipe: all new config keys default to the values above and
-the alert senders are no-ops unless Telegram credentials are configured.
+Defaults come from `config.alerts` (`probability_collapse_window`, `stale_candle_age`, `cooldown`); negative values are rejected, and the senders are no-ops without Telegram credentials.
 
-## Horizon sweep 9–40d and news-set features (2026-10-08)
+## 11. Synthesis
 
-Question: does a longer label horizon, or news aggregated over a window per
-ticker instead of per headline, lift validation AUC toward 0.7? Verdict: no.
-Nothing deploys; the live recipe (absolute 10d, 18 price/flow columns) is
-unchanged. Research only, no repo code changed: one-off scripts, not committed.
-
-Pipeline: `exportdataset -config config.sandbox.yaml -from 2024-01-01
--till 2026-10-07 -split 2026-06-18 -horizon-days <h> -deadband-pct 0.5
--label-mode absolute -news-history data/news_history.jsonl`, run on the ai-box
-(`~/moex-research`, separate from the deploy dir). FX tickers excluded.
-Evaluation: expanding-window purged walk-forward, 9 test folds of 63 days from
-2025-04-01, training rows limited to `label_date < fold start` (embargo equals
-the horizon), 15 price/flow columns, LightGBM + logistic average.
-
-| horizon (days) | mean fold AUC | pooled AUC |
+| question | result | section |
 |---|---|---|
-| 9 | 0.5292 | 0.5038 |
-| 10 | 0.5311 | 0.4974 |
-| 12 | 0.5204 | 0.4875 |
-| 15 | 0.5018 | 0.4799 |
-| 20 | 0.4864 | 0.4646 |
-| 25 | 0.4818 | 0.4695 |
-| 30 | 0.4730 | 0.4734 |
-| 40 | 0.4617 | 0.4678 |
-
-AUC falls monotonically with horizon and is below 0.5 from 15d. Per-fold AUC
-ranges 0.33–0.64, so the result is regime-dependent. Horizon 10d is the best of
-the sweep and is already deployed.
-
-News-set features: rolling 5/10/20-day windows per ticker, lagged one day —
-log article count, surge vs 60-day mean, negative-minus-positive keyword
-balance, 8 TF-IDF/SVD topic means, distinct sources, market-wide news count
-(`mkt10`). The news archive spans only 2026-04-01..2026-09-29 (9596 records),
-so evaluation uses 21-day folds from 2026-06-01 (4–5 folds, 300+ training rows
-minimum). "Within-day" AUC ranks tickers inside each day, removing market
-timing; CI is a bootstrap over days and is too narrow because 10–20 day labels
-overlap.
-
-| horizon | features | pooled AUC | within-day AUC [95% CI] |
-|---|---|---|---|
-| 10 | price | 0.404 | 0.353 [0.306, 0.402] |
-| 10 | news, all | 0.604 | 0.556 [0.504, 0.612] |
-| 10 | news without `mkt10` | 0.541 | 0.547 [0.489, 0.607] |
-| 10 | `mkt10` only | 0.579 | 0.500 |
-| 20 | price | 0.389 | 0.388 [0.339, 0.439] |
-| 20 | news, all | 0.565 | 0.569 [0.517, 0.620] |
-| 20 | news without `mkt10` | 0.525 | 0.570 [0.512, 0.627] |
-| 20 | `mkt10` only | 0.606 | 0.500 |
-
-Reading:
-- The pooled news gain is market timing: the single market-wide count `mkt10`
-  matches the full news model (0.58–0.61).
-- The cross-sectional news signal is 0.55–0.57; at 10d the CI includes 0.5, at
-  20d the lower bound is 0.51–0.52 before correcting for label overlap. Not
-  significant.
-- Price features are anti-predictive across tickers in 2026-06..09 (within-day
-  0.35–0.39, CI excludes 0.5). Flipping them would be fitting a known regime
-  and is not a candidate.
-- AUC above 0.7 was not reached by any variant; the best is about 0.57.
-
-Revisit news-set features only after months of live `cmd/newsfetch` appends.
-
-## Event causal study: sanctions / negotiations / incident (2026-10-09)
-
-Protocol (fixed before the first run): `docs/plans/completed/20261009-event-causal-study.md`. Tool: `cmd/eventstudy`
-(`go build ./cmd/eventstudy && ./eventstudy -ar-mode beta|excess`). Panel: 17 `config.sandbox.yaml` tickers x
-140 trading days (2026-04-01..2026-10-09), 10213 archive records, abnormal return vs IMOEX (market-model beta
-fitted on 2025-10-01..2026-03-31; `excess` mode as robustness), 2000 date-bootstrap and 1000 placebo draws, seed 42.
-No P&L is involved: nothing here is realized or MTM, all numbers are market-adjusted returns around news days.
-
-| topic | events / dates | stacked DiD CAR[0,+1] [95% CI] | AIPW ATT CAR[0,+1] (t) | placebo p | Holm p | MDE | verdict |
-|---|---|---|---|---|---|---|---|
-| sanctions | 71 / 45 | -0.0018 [-0.0094, +0.0045] | +0.0011 (0.35) | 0.675 | 0.675 | 0.0100 | not supported |
-| negotiations | 58 / 37 | -0.0051 [-0.0124, +0.0015] | -0.0002 (-0.05) | 0.337 | 0.673 | 0.0098 | not supported |
-| incident | 12 / 9 | -0.0230 [-0.0662, +0.0074] | -0.0238 (-1.42) | 0.026 | 0.078 | 0.0518 | underpowered |
-
-Reading:
-- **sanctions and negotiations: no detectable causal effect.** Both estimators straddle 0 on CAR[0,+1] and
-  CAR[+1,+5] (e.g. negotiations drift CAR[+1,+5] -0.0084 [-0.0163, -0.0001] is the raw event-study only; the
-  DiD [-0.0219, +0.0031] and AIPW -0.0023 (t -0.58) both include 0). With 58-71 events the minimum detectable
-  effect is about 1.0% over two days, so effects below that are not excluded. Consistent with the 2026-09-18
-  AUC rejection of `negotiations_signal`/`sanctions_signal`; this does not reopen them.
-- **incident: direction matches the live BUY veto, evidence insufficient.** Raw CAR[0,+1] is -2.6% [-6.7%, -0.2%]
-  and the unadjusted placebo p is 0.026, but stacked DiD and AIPW (t -1.42) include 0, Holm p is 0.078, and
-  N=12 on 9 dates fails the protocol power floor (MDE 5.2%). The veto stays as defence-in-depth; this study
-  neither confirms nor refutes its P&L value. Revisit when live `incident` triggers reach >= 30 events.
-- **Pre-trend is clean** for all three (CAR[-5,-1] CIs include 0), so no leakage artefact explains the nulls.
-- **TWFE vs stacked DiD agree in sign and size for sanctions/negotiations** (k=0 coefficients -0.0013 and -0.0021,
-  SE ~0.002-0.003, all |t| < 1), so staggered-timing bias is not what drives the null here. The `mna` TWFE row
-  (1 event) is degenerate and must be ignored.
-- Exploratory (not gated): dividend and report topics also show no effect; `dividend` market-level IMOEX
-  2-day difference -0.0101 [-0.0181, -0.0022] on 16 top-decile days is a single unadjusted contrast across 7
-  topics and is not evidence of tradable drift (consistent with the 2026-09-25 dividend-capture rejection).
-- `excess` mode reproduces every verdict (sanctions DiD -0.0004, negotiations -0.0060, incident -0.0235;
-  Holm p 0.933 / 0.517 / 0.090).
-- Limits: 6 months, one regime; ticker attribution of generic news biases effects toward 0 (VKCO is 41% of
-  records); timestamps can lag the first reaction, so [0,+1] is partly pre-news. IV was not run (no valid
-  instrument). Doubly robust SEs ignore nuisance-model estimation error.
-
-## Macro and dividend-yield features (2026-10-10)
-
-Question: does adding trailing dividend yield and daily macro series (IMOEX, CNY/RUB, Brent, key rate) lift
-walk-forward AUC? Protocol pre-registered in `docs/plans/completed/20261010-macro-fundamental-features.md` section 8
-before the first run. Verdict: no. Nothing deploys; the live recipe (absolute 10d, price/flow columns) is
-unchanged and the success criterion was not met by any arm, so the P&L backtest step was not run.
-
-Pipeline: `exportdataset -config config.sandbox.yaml -from 2024-01-01 -till 2026-10-09 -split 2026-06-18
--horizon-days 10 -deadband-pct 0.5 -label-mode absolute -macro-dir data/macro` (commit 4a49b9d), run on the
-ai-box; 12540 labelled rows, 44.4% positive, FX tickers excluded, no news history. Evaluation: `evalh.py wf()`,
-expanding-window purged walk-forward, 9 test folds of 63 days from 2025-04-01, LightGBM + logistic average.
-
-| arm | columns | mean fold AUC | pooled AUC | folds > 0.5 |
-|---|---|---|---|---|
-| A base | 15 price/flow | 0.5320 | 0.4976 | 6/9 |
-| B +div | A + `div_yield_ttm_pct` | 0.5270 | 0.4963 | 6/9 |
-| C +macro | A + 9 macro | 0.4912 | 0.4175 | 3/9 |
-| D +both | A + B + C | 0.4853 | 0.4178 | 4/9 |
-
-- Arm A reproduces the 2026-10-08 horizon-sweep baseline (0.5311 / 0.4974) to within 0.002, so the harness is unchanged.
-- Dividend yield is neutral to slightly negative (-0.005 mean fold, -0.001 pooled). Macro columns are clearly
-  harmful (-0.041 mean fold, -0.080 pooled): they are identical for every ticker on a given day, so the trees
-  can only use them to memorise the date/regime, which does not transfer to the next fold.
-- Criterion (>= +0.010 pooled AUC over A and a majority of folds > 0.5): met by no arm.
-- Limits: one regime, 9 folds, 17 tickers; macro could still help as a regime filter in the risk gate rather
-  than as a model input; fundamentals other than dividend yield were not tested (no point-in-time source).
-
-## Level-crossing event study: stops and take-profits (H20, 2026-10-15)
-
-Question: does the price behave differently after crossing a level where stop-loss and take-profit orders plausibly
-cluster (recent extremes, round numbers) than after crossing an ordinary level at the same distance? Criteria, levels
-and placebo were fixed in `docs/plans/20261015-hypotheses-from-llm-review.md` (H20) before the run. Verdict: not
-tradable as a signal; the one statistically positive primary test is far below the cost hurdle and is produced by the
-placebo, not by the real level.
-
-Code: `newssent/cmd/levelstudy` (the `newssent` repo has no git, so the code is not versioned; the result is also in
-`newssent/data/experiments.jsonl`, kind `level_study_H20`). Data: 10-minute ISS bars for the 16 `BasketTickers`,
-2024-11-15..2026-10-11, main session only, forward window inside the same day, gaps through a level excluded,
-levels from closes (the cache has Open and Close only). 12213 events: 5784 real, 6429 placebo (extreme 1368 / 1989,
-round 4416 / 4440 at the 1h horizon).
-
-Outcome: signed abnormal return against the basket (beta over the full sample) divided by the hour-of-day robust sigma;
-positive = continuation, negative = reversal. Difference = real level minus placebo level, 97.5% day-bootstrap CI
-(2 primary tests), 2000 draws.
-
-| level | placebo | horizon | real signed z | placebo signed z | diff (CI97.5) | real mean bps |
-|---|---|---|---:|---:|---|---:|
-| 20-day extreme | 4th extreme | 10m | +0.164 | -0.026 | +0.190 [-0.014, +0.410] | +1.8 |
-| 20-day extreme | 4th extreme | **1h (primary)** | +0.048 | -0.125 | **+0.173 [+0.034, +0.317]** | +1.3 |
-| 20-day extreme | 4th extreme | 4h | +0.024 | -0.010 | +0.034 [-0.103, +0.163] | +1.2 |
-| round number | half-step grid | 10m | -0.019 | +0.109 | -0.127 [-0.281, +0.008] | -0.4 |
-| round number | half-step grid | **1h (primary)** | -0.063 | -0.054 | **-0.009 [-0.105, +0.080]** | -1.4 |
-| round number | half-step grid | 4h | -0.047 | -0.040 | -0.008 [-0.086, +0.068] | -1.8 |
-
-- Primary (extreme, 1h): the CI excludes zero, both halves of the period have the same sign (first +0.179 [-0.024,
-  +0.390], second +0.167 [-0.037, +0.357]), 1368 real events on 424 dates, so the statistical criterion is met.
-- Economic criterion (mean signed return above 30 bp round trip): not met. The real extreme earns +1.3 bp at 1h; the
-  difference comes from the placebo level reversing (-2.8 bp), which is ordinary range behaviour, not a stop run.
-- Primary (round number, 1h): no effect (-0.009, CI spans zero), 4416 real events on 586 dates.
-- Share of crossings that return through the level within 30 minutes: extreme 0.471 real vs 0.473 placebo (CI95 of the
-  difference [-0.038, +0.034]); round 0.490 vs 0.473 ([-0.003, +0.039]). No stop-run signature.
-- By direction, extremes broken downward at 1h: diff +0.187 [+0.004, +0.388]; upward +0.165 [-0.020, +0.344]. Descriptive
-  only (not primary tests).
-- Limits: no order book or order history, only a price trace; liquid basket only (mid caps could show more, but the
-  spread removes it); closes instead of High/Low; round step is 1-10% of price, finer rounding was not tested; gap
-  crossings excluded; the 200-day moving average level was not tested (history too short).
-- Use: do not build an entry signal from this. No evidence that placing our own stops or entries next to round numbers
-  or 20-day extremes costs anything on this basket, so the planned protective filter is not justified by this data.
-
-### H20 extension: fine rounding, 200-day average, illiquid names, news reversal (2026-10-15)
-
-Family of six primary tests fixed in the plan before the run, 99.2% day-bootstrap CI (Bonferroni over six), same event,
-outcome and placebo definitions as above, signed z at 1h, difference = real minus placebo. Result: no test rejects the
-null and none reaches the economic hurdle (30 bp, 100 bp for illiquid names). Code `newssent/cmd/levelstudy`
-(`-universe`, `-sets`, `-maxgap`) and `newssent/cmd/newsreversal`, result also in `newssent/data/experiments.jsonl`
-(kind `level_study_H20_extension`). The first run of `levelstudy` after the refactor reproduces the earlier numbers
-exactly (12213 events, extreme 1h diff +0.173).
-
-| universe | level (real vs placebo) | n real / placebo | diff (CI99.2) | real mean bp | dates real |
-|---|---|---|---|---:|---:|
-| basket 16 | fine round (0.1-1% step) vs half-step grid | 36277 / 36235 | -0.005 [-0.023, +0.012] | -0.5 | 595 |
-| basket 16 | SMA200 vs SMA173 | 326 / 336 | +0.062 [-0.260, +0.379] | -2.6 | 231 |
-| illiquid 38 | 20-day extreme vs 4th extreme | 2129 / 3451 | +0.101 [-0.080, +0.297] | -13.1 | 504 |
-| illiquid 38 | round 1-10% step vs half-step grid | 10184 / 10215 | -0.027 [-0.099, +0.046] | -17.2 | 591 |
-| illiquid 38 | fine round vs half-step grid | 72434 / 71283 | +0.011 [-0.005, +0.026] | -13.0 | 595 |
-| news, 1203 events | extreme crossed in the first hour vs not, 1h->4h continuation | 93 crossed / 1110 | +0.100 [-0.816, +1.010] | +0.8 | 84 |
-
-- Descriptive: SMA50 vs SMA37 at 1h: -0.183 [-0.441, +0.039], n 555 / 732. SMA200 halves have opposite signs (first
-  +0.177, second -0.055); the sample is small (231 dates), the test is underpowered, but any effect inside its CI is at
-  most a few bp, far below the cost hurdle.
-- Illiquid universe: 38 of 115 eligible shares outside the basket (>= 300 trading days), top tercile by share of zero-return
-  10-minute bars (0.198..0.350); crossings require consecutive bars within 20 minutes. After a crossing both arms
-  reverse by about -13 to -17 bp at 1h (signed z -0.27..-0.33). It is the same for real and placebo levels, so it is not
-  level specific; it is far below 100 bp and is most likely last-trade price noise (bid-ask bounce) in illiquid names,
-  which a spread would eat. The share of crossings that return through the level within 30 minutes is 0.510 vs 0.521
-  at fine round numbers (diff -0.011, CI95 [-0.014, -0.008]), and 0.493 vs 0.520 at extremes (diff -0.028, CI95
-  [-0.053, -0.003]): statistically visible, practically negligible.
-- News reversal: first news of a ticker within 24h, 2025-01-01 onward, `|z1h| >= 2`: 5378 kept, 1223 significant, 1203
-  usable. The criterion needed >= 100 crossed events; there are 93, so the test is not conclusive (CI is wide). Without
-  conditioning, continuation after the first hour is -0.053 z (-1.8 bp, n 1203): essentially zero, no systematic
-  reversal at the 1h->4h scale. Secondary: crossing a round number 1h->4h +0.097 [-0.371, +0.560] (410 crossed); extreme
-  crossed, 1h->24h +0.189 [-0.476, +0.858].
-- Not tested: order book and order history. `MOEX_TRADER_ALGOPACK_TOKEN` is not set, public ISS has only a current
-  snapshot, the broker book is a live stream without history. Needs an AlgoPack subscription (`obstats`, `orderstats`)
-  or our own snapshot collector.
-
-## H22: news burst as a risk regime for model decisions (2026-10-17)
-
-Pre-registered in `docs/plans/20261015-hypotheses-from-llm-review.md` (commit d42ef3e) before the run. Tool: `newssent/cmd/newsburst` (not under git). Decisions: BUY and SELL from the six `wf-volscale` walk-forward windows since 2026-04-01 (the first month with dense `data/news_history.jsonl` coverage), 1492 decisions, all with price data and a 10-trading-day forward. Burst: at least 3 articles on the ticker in the 24 hours ending 10:00 MSK of the decision date. Outcome 1: signed return close-to-close over 10 trading days. Outcome 2: worst signed daily close within those 10 days (a lower bound of the adverse excursion, no intraday High/Low). Bootstrap by ISO week, 2000 draws, Bonferroni for two primary tests (CI 97.5%).
-
-| test | burst n (dates) | burst mean | rest n | rest mean | difference | CI 97.5% |
-|---|---|---:|---:|---:|---:|---|
-| outcome 1, signed 10d return | 304 (113) | +0.34% | 1188 | +0.75% | -0.41% | [-2.20%, +1.33%] |
-| outcome 2, worst close in 10d | 304 (113) | -4.15% | 1188 | -3.78% | -0.37% | [-1.71%, +0.92%] |
-
-Both intervals contain zero, so the pre-registered criterion is not met (the sample requirement of 200 decisions and 40 dates is met). Descriptive splits (CI 95%, not part of the criterion): thresholds 1, 2 and 5 articles give outcome-1 differences -0.62%, -0.30%, -0.08% and outcome-2 differences -0.46%, -0.29%, -0.20%, every interval contains zero; BUY only (191 burst decisions) -0.05% and -0.71%; SELL only (113 burst decisions) -1.23% and +0.05%, intervals contain zero. The point estimates lean toward a worse outcome after a burst but are far inside the noise; no news-based filter is justified by this data. Window: 5.5 months, one market regime; news carry no sentiment sign, only a count.
-
-## Data depth, step 1: training-history length (2026-10-18)
-
-Pre-registered in `docs/plans/20261018-data-depth-and-open-problems.md` (commits ae62a19, 878c3ae) before the run. Data: `exportdataset -from 2015-01-01 -till 2026-10-07 -horizon-days {10,20} -deadband-pct 0.5 -label-mode absolute`, 17 trading tickers, FX excluded, no news or macro, 15 price columns, 54017 rows per horizon. Protocol: `evalh.py` `wf()` unchanged (expanding purged walk-forward, 9 folds of 63 days from 2025-04-01, LightGBM + logistic average). Test rows are identical across arms (8064 at h10, 8177 at h20); only the training start differs. Run on the ai-box (`~/moex-research`), scripts `depth_eval.py`, `depth_boot.py`.
-
-| h | arm | train rows | pooled AUC | mean fold AUC | folds > 0.5 | Brier | ECE |
-|---|---|---:|---:|---:|---:|---:|---:|
-| 10 | A from 2024 | 4762 | 0.5005 | 0.5371 | 6/9 | 0.2564 | 0.0792 |
-| 10 | B from 2021 | 15490 | 0.4958 | 0.5102 | 6/9 | 0.2503 | 0.0410 |
-| 10 | C from 2018 | 24745 | 0.4921 | 0.5076 | 5/9 | 0.2519 | 0.0654 |
-| 10 | D from 2015 | 33548 | 0.5199 | 0.5287 | 6/9 | 0.2511 | 0.0734 |
-| 10 | E from 2015 excl. 2022-02-24..12-31 | 30542 | 0.5331 | 0.5378 | 6/9 | 0.2511 | 0.0809 |
-| 20 | A from 2024 | 4740 | 0.4696 | 0.4963 | 5/9 | 0.2645 | 0.1211 |
-| 20 | B from 2021 | 15752 | 0.4558 | 0.4754 | 5/9 | 0.2553 | 0.0759 |
-| 20 | C from 2018 | 25268 | 0.4539 | 0.4901 | 5/9 | 0.2561 | 0.0981 |
-| 20 | D from 2015 | 34331 | 0.4883 | 0.5111 | 5/9 | 0.2551 | 0.0919 |
-| 20 | E from 2015 excl. 2022-02-24..12-31 | 31284 | 0.4985 | 0.5025 | 5/9 | 0.2559 | 0.0977 |
-
-D minus A, pooled AUC, block bootstrap over trading dates (2000 repeats, seed 42): h10 +0.0194, CI95 [-0.0062, +0.0457], D beats A in 3 of 9 folds; h20 +0.0188, CI95 [-0.0037, +0.0420], 5 of 9 folds.
-
-Verdict against the pre-registered criteria:
-- Primary (D beats A by >= +0.010 pooled AUC on both horizons and more than half of folds > 0.5): met on the point estimates (+0.0194, +0.0188; 6/9 and 5/9 folds). It is not a swap decision: both intervals contain zero, and the pooled gain at h10 comes with a lower mean fold AUC (0.5287 vs 0.5371) and 3 of 9 fold wins.
-- Secondary (weak positive effect: lower CI bound > -0.002 and D beats A in >= 7 of 9 folds, per horizon): not met on either horizon (lower bounds -0.0062 and -0.0037; fold wins 3 and 5).
-- Monotonicity A, B, C, D is absent (B and C are below A in pooled AUC at both horizons); the gain appears only at 2015, which looks like the effect of more regimes, not of steady accumulation.
-- Absolute level stays at noise: best pooled AUC 0.5199 at h10 (arm D) and 0.4883 at h20, below 0.5. Deeper history does not make the 15 price features predictive on its own.
-- Calibration improves with depth: Brier falls 0.2564 -> 0.2511 (h10) and 0.2645 -> 0.2551 (h20), ECE 0.0792 -> 0.0734 and 0.1211 -> 0.0919 (arm B has the lowest ECE at both horizons). This matters for step 3, not as an alpha claim.
-- Arm E (without 2022) vs D: +0.0132 (h10) and +0.0102 (h20) pooled AUC, descriptive only; 2022 may be a regime that hurts a stationary model.
-
-Consequence: no model swap and no change to `ensemble_model.json`. Depth is recorded as "no reliable AUC effect, some calibration effect"; steps 3-5 may use the deep history for calibration, but the window question for the live model is open until a purged walk-forward through `cmd/backtest` with costs.
-
-## Data depth, step 2: news classifier trained on the 2021-2024 archive (2026-10-18)
-
-Pre-registered in `docs/plans/20261018-data-depth-and-open-problems.md` (commit 5705414) before the run. Training: `Kasymkhan/RussianFinancialNews` through `cmd/newsimport` (alias match on tags + title, 18 trading tickers), records dated before 2025-01-01: 18957 pairs, 18375 labeled samples (the previous archive gave 2855). Validation: `data/news_history.jsonl`, 17 config tickers, records from 2026-04-01 (7129 pairs). `cmd/trainnewsmodel` unchanged (bag-of-words logistic, vocab 3000, min doc freq 3, label = excess return vs IMOEX > 0, entry at the next trading day's open), split 2026-04-01. Per-sample scores from the new read-only `cmd/newsvalidate`; CI is a date-block bootstrap (2000 repeats, seed 42).
-
-| horizon (trading days) | train samples | val samples | val dates | train AUC | val AUC | CI95 | val accuracy | majority baseline |
-|---:|---:|---:|---:|---:|---:|---|---:|---:|
-| 10 (primary) | 18375 | 2866 | 110 | 0.689 | 0.528 | [0.479, 0.574] | 0.540 | 0.547 |
-| 5 | 18375 | 4019 | 105 | 0.699 | 0.486 | [0.425, 0.538] | 0.519 | 0.543 |
-| 1 | 18375 | 4488 | 135 | 0.682 | 0.516 | [0.448, 0.579] | 0.548 | 0.571 |
-
-Slices at the primary horizon: articles mapped to at most 3 tickers, n 2781, AUC 0.533, CI95 [0.483, 0.579]; sources other than Telegram and Google News, n 157 (25 dates), AUC 0.432, CI95 [0.340, 0.533] (too few to read; at h5 and h1 the same slice is 0.558 and 0.563 with CIs from 0.36 to 0.72).
-
-Verdict against the pre-registered criterion (val AUC >= 0.530 at 10 days with the lower CI bound above 0.500, at least 1000 samples and 40 dates): NOT met. AUC 0.528, lower bound 0.479; the sample requirement is met. Six times more training data (18375 vs 2855) moved validation AUC from 0.49-0.53 to 0.49-0.53: the train-validation gap (0.69 vs 0.53) is overfitting to vocabulary, not a data-volume problem. Recorded as "the Russian 2021-2024 archive does not give a directional headline signal on 2026"; the news feature is not added to the price model on this step, and the second stage of step 2 is not run.
-
-Post-hoc observation (not part of the criterion, not a result): at h10 the lowest score quintile has mean excess return -1.04% and positive share 0.406, while the other four quintiles sit at -0.09..-0.22% and 0.452-0.485. A one-sided negative-news effect would match the literature note in `docs/plans/20261015-hypotheses-from-llm-review.md` (H4); it needs its own pre-registration (short-side only, tail of the score) before any use.
-
-## Data depth, step 3: calibration across horizons and regimes (2026-10-18)
-
-Pre-registered in `docs/plans/20261018-data-depth-and-open-problems.md` (commit 68e79fa) before the run. Same datasets and folds as step 1 (9 purged folds of 63 days from 2025-04-01, 15 price columns, LightGBM + logistic average), horizons 5, 10, 20; training windows A (from 2024) and D (from 2015). Per fold the model is fit on the first 80% of training rows by date and the calibrator (Platt on the logit, or isotonic) on the last 20%, both strictly before the fold start. Run on the ai-box, script `calib_eval.py`. Pooled over the 9 folds.
-
-| h | window | method | ECE | Brier | AUC | folds with lower ECE than raw |
-|---:|---|---|---:|---:|---:|---:|
-| 5 | A | raw | 0.0439 | 0.2492 | 0.5512 | - |
-| 5 | A | Platt | 0.0866 | 0.2601 | 0.4392 | 2/9 |
-| 5 | A | isotonic | 0.0932 | 0.2615 | 0.4455 | 2/9 |
-| 5 | D | raw | 0.0649 | 0.2518 | 0.5271 | - |
-| 5 | D | Platt | 0.0194 | 0.2498 | 0.4542 | 4/9 |
-| 5 | D | isotonic | 0.0207 | 0.2526 | 0.4543 | 4/9 |
-| 10 | A | raw | 0.0514 | 0.2473 | 0.5549 | - |
-| 10 | A | Platt | 0.1488 | 0.2702 | 0.3988 | 3/9 |
-| 10 | A | isotonic | 0.1628 | 0.2725 | 0.4205 | 2/9 |
-| 10 | D | raw | 0.0896 | 0.2518 | 0.5465 | - |
-| 10 | D | Platt | 0.0416 | 0.2503 | 0.4130 | 5/9 |
-| 10 | D | isotonic | 0.0430 | 0.2507 | 0.4202 | 5/9 |
-| 20 | A | raw | 0.0701 | 0.2489 | 0.5512 | - |
-| 20 | A | Platt | 0.2348 | 0.3039 | 0.3578 | 2/9 |
-| 20 | A | isotonic | 0.2320 | 0.3058 | 0.3544 | 2/9 |
-| 20 | D | raw | 0.1069 | 0.2563 | 0.5190 | - |
-| 20 | D | Platt | 0.0415 | 0.2562 | 0.3250 | 4/9 |
-| 20 | D | isotonic | 0.0545 | 0.2545 | 0.3238 | 5/9 |
-
-Verdict against the pre-registered criterion (best calibrator lowers ECE by at least 20% with Brier not worse and pooled AUC within +-0.005, for all of h5, h10, h20 and both windows): NOT met on any of the six combinations.
-- Window A: both calibrators make ECE and Brier worse at every horizon (ECE x2 to x3.3).
-- Window D: ECE falls by 54-70% and Brier is level or slightly better, but AUC drops by 0.07-0.19. A calibrator that moves AUC from 0.52-0.55 to 0.32-0.45 has inverted the ranking: on the most recent 20% of training dates the base model's score is anti-correlated with the outcome, so the fitted monotone map takes a negative slope. This is a property of the calibration sample (a regime reversal between the last training months and the following test fold), not a coding artifact; the same thing explains why the folds-better count is 2-5 of 9.
-- Regimes: the high/low IMOEX volatility split works and is reported in `calib_result.txt`; the key-rate split is degenerate, the rate did not rise before any of the 9 test folds, so the "rate up" bucket is empty.
-- In this research ensemble the raw probabilities sit close to 0.5 (raw ECE 0.044-0.107), unlike the deployed ensemble whose tails reach 0.07 and 0.93 (Experiment C, ECE 0.21); the miscalibration that matters for the 0.60/0.40 thresholds is not reproduced here and needs the deployed artifact.
-- Sensitivity worth recording: the raw AUC of arm A in this table (0.551-0.555) is far above the same arm in step 1 (0.470-0.501), the only difference being that the last 20% of training rows are held out for the calibrator. A swing of up to 0.08 AUC from dropping the latest training months means every AUC difference of 0.01-0.02 in steps 1-3 is within recipe noise, and arm D is below A here (h10 0.5465 vs 0.5549, h20 0.5190 vs 0.5512). The step 1 "primary criterion met" is therefore not robust.
-
-Consequence: no calibrator is wired into the trader. Calibration stays a diagnostic until it is rerun on the deployed artifact with thresholds recomputed.
-
-## Explainability of signals: feature drivers (2026-10-18)
-
-Pre-registered in `docs/plans/20261018-data-depth-and-open-problems.md` (commit 7d3d42b) before the implementation. Method: occlusion attribution, each trained feature replaced by its training mean (`logistic.mean` in `ensemble_model.json`), driver = change in ensemble probability; the top 3 by absolute change are appended to `Reasoning` as ` drivers=<feature>:<signed percentage points>`. It is not a Shapley decomposition (interactions are not split; the tree artifact has no node covers, so exact TreeSHAP is not available). `news_sentiment` and `news_count` are masked as untrained and never appear.
-
-- Criterion 1 (unit tests, `internal/model/explain_test.go`): for the logistic member the occlusion logit delta equals the exact linear contribution `coef*(x-mean)/std` to 1e-9; the baseline vector yields no drivers for any member; output is deterministic and ordered by absolute change; untrained features are skipped. Met.
-- Criteria 2 and 3 (`cmd/explaincheck`, deployed `ensemble_model.json`, `h10.csv` rows from 2025-04-01, 17 tickers, 10195 rows, seed 42, 20 random draws per row): replacing the 3 top drivers moves the probability by 0.0822 on average against 0.0236 for 3 random trained features, ratio 3.48 (needed 1.5); in the decision zone (p <= 0.40 or p >= 0.60, 3964 rows) the sign of the top driver matches the side of 0.5 in 95.9% of rows (needed 70%). Met.
-- Compatibility: `tailprecision.probabilityFromReasoning` stops at the first space, so ` drivers=...` after `p=` does not change parsing (regression case added); the Telegram decision text strips only the `ensemble:` prefix, so the drivers reach alerts and the audit log without a separate code path.
-- Scope of the claim: this measures how the model's own output depends on its inputs, not whether the features cause returns. Dataset rows overlap the deployed model's training period, which is irrelevant for a faithfulness check but means no outcome claim is made.
-
-## H23 stage 0: VAR-ICA-MGARCHSK portfolio formation, signal-free (2026-10-18)
-
-Pre-registered in `docs/plans/20261018-data-depth-and-open-problems.md` (commits 4010c4c, b7b27ad) before the run. Method after Mikhaylov, Yousif, Sotskov, Khomyakova, Finance: Theory and Practice 2026, 30(4), 19-37 (read in full). Tool: `cmd/icaportfolio` on `internal/icaport` (9 unit tests: Jacobi eigendecomposition, inverse, FastICA source recovery, recursion fit, portfolio moments vs sample moments, CARA gradient vs finite differences, simplex optimizer, metrics, determinism). Universe: config equities with at least 740 of 750 days (16 tickers; YDEX and DATA skipped for short history), ISS daily closes (price return, dividends not included, identical for every rung), 750-day estimation window, rebalance every 21 trading days, 99 rebalances 2019-01-02..2026-10-07, long-only, 0.05% cost on turnover including the initial purchase, weights drift between rebalances. Deviations from the paper, fixed beforehand: least-squares fit of the moment recursions (the paper does not state its estimator), cumulant form of portfolio moments (`k4 = sum a^4 kappa4 + 3 sigma^4`), deterministic multi-start projected gradient instead of the genetic algorithm, moment forecast averaged over the 21-day holding period. 0 of 99 fits failed. Statistics: stationary block bootstrap (block 20, 2000 repeats, seed 42), paired daily returns.
-
-| rung | ann. return | ann. vol | CVaR95 (daily) | max drawdown | Sharpe | turnover per rebalance |
-|---|---:|---:|---:|---:|---:|---:|
-| R0 equal weight (control) | 0.65% | 24.99% | 3.785% | 53.81% | 0.15 | 0.070 |
-| R1 inverse volatility 63d | 0.55% | 24.19% | 3.675% | 53.24% | 0.15 | 0.125 |
-| R2 minimum variance, sample covariance | -2.68% | 23.58% | 3.529% | 63.28% | 0.00 | 0.116 |
-| R3 VAR-ICA-GARCH, variance only | 0.30% | 26.17% | 3.834% | 59.35% | 0.14 | 1.010 |
-| R4 full VAR-ICA-MGARCHSK, rho 1 | -5.76% | 26.84% | 3.952% | 74.28% | -0.09 | 0.851 |
-| R4 with rho 5 (descriptive) | -1.31% | 28.19% | 4.276% | 65.82% | 0.10 | 1.398 |
-| R4 with mu 0 (descriptive) | -8.46% | 23.66% | 3.672% | 77.21% | -0.25 | 0.239 |
-| R3 with mu 0 (post-hoc, not pre-registered) | -3.92% | 22.57% | 3.530% | 66.00% | -0.06 | 0.252 |
-
-| pair (strategy / control) | CVaR95 ratio [CI95] | max drawdown ratio [CI95] | annual return difference |
-|---|---|---|---:|
-| R1 / R0 | 0.971 [0.961, 0.979] | 0.989 [0.940, 1.040] | -0.11pp |
-| R2 / R0 | 0.932 [0.884, 0.984] | 1.176 [0.818, 1.374] | -3.34pp |
-| R3 / R0 | 1.013 [0.955, 1.076] | 1.103 [0.744, 1.402] | -0.35pp |
-| R4 / R0 | 1.044 [0.976, 1.121] | 1.380 [0.852, 1.739] | -6.41pp |
-| R4 / R3 | 1.031 [0.983, 1.089] | 1.251 [0.919, 1.556] | -6.06pp |
-| R4 / R2 | 1.120 [1.064, 1.180] | 1.174 [0.884, 1.520] | -3.07pp |
-| R4 (rho 5) / R0 | 1.130 [1.060, 1.227] | 1.223 [0.789, 1.723] | -1.96pp |
-| R4 (mu 0) / R0 | 0.970 [0.909, 1.039] | 1.435 [0.927, 1.736] | -9.12pp |
-| R3 (mu 0, post-hoc) / R0 | 0.933 [0.884, 0.988] | 1.226 [0.834, 1.423] | -4.57pp |
-| R3 (mu 0, post-hoc) / R2 | 1.000 [0.979, 1.023] | 1.043 [0.933, 1.163] | -1.23pp |
-
-Verdict against the pre-registered criterion (R3 or R4 versus equal weight: CVaR95 at least 15% lower with the upper CI bound below 1.0, maximum drawdown at least 15% lower, annual return not more than 1pp below; R4 must also beat R3 on CVaR by 5% and beat R2): NOT met by R3 or by R4 on any of the three conditions. R3 CVaR ratio 1.013, R4 1.044; drawdown ratios 1.10 and 1.38 (worse); returns -0.35pp and -6.41pp. R4 does not beat R3 (CVaR 1.031) or R2 (1.120). H23 is rejected for this universe; the signal-free stage failing means no replay on the `wf-volscale` artifacts is run and nothing is wired into the trader.
-
-Observations (descriptive):
-- The paper's weights are unstable here as in its own figures 7-8: turnover per rebalance is about 100% for R3 and 85% for R4, against 7% for equal weight, and the cost is already included. With the VAR mean forecast switched off, turnover drops to 25% (R3) and 24% (R4); the noisy VAR(1) mean term in a CARA objective with percent-unit returns and rho 1 dominates the weights.
-- Without the mean term the ICA-GARCH variance forecast is statistically indistinguishable from the plain sample-covariance minimum-variance portfolio (R3 mu0 versus R2: CVaR ratio 1.000, CI [0.979, 1.023]), so the independent-component volatility model adds nothing over the sample covariance on 16 names with 750 observations.
-- Adding skewness and kurtosis makes the tail risk worse (R4 versus R3, CVaR 1.031, drawdown 1.25); the estimated conditional third and fourth moments are too noisy to optimise against at this sample size, which matches the instability visible in the paper's own figures 5-6.
-- The only rungs with a CVaR CI entirely below 1 are R1 (0.971), R2 (0.932) and the post-hoc R3 without mean (0.933); all of them pay with a higher drawdown and lower return than equal weight over the period, so none passes the pre-registered criterion either.
-- Limits: price returns without dividends (the same for every rung), a single path that includes 2020 and 2022 (the 2022 exchange halt is in the data for every rung), 16 names and one estimation window length; max drawdown of equal weight is 53.8%, so differences of 10-20% in drawdown ratio are inside the bootstrap intervals.
-
-## Data depth, step 2b: news domain shift test (2026-10-18)
-
-Pre-registered in `docs/plans/20261018-data-depth-and-open-problems.md` (commit ea43010) before the run. Data: `data/news_history.jsonl`, 2026-04-01 onward, 17 config tickers, 7257 pairs, 203 duplicates (same ticker and normalised title) removed, 7054 kept. Train: records before 2026-08-01 (3023 pairs); 14-day gap (322 pairs dropped); test: records from 2026-08-15 (3709 pairs), none of whose normalised titles occur in train. Arms: A trained on 2026 train only (`-vocab-size 1000`), B the step 2 classifier trained on 2021-2024 only (no 2026 data, control), C trained on 2021-2024 plus 2026 train. Score = headline score, label = excess return over IMOEX > 0 with entry at the next trading day's open. CI: date-block bootstrap (2000 repeats, seed 42) at the Bonferroni level 99.17% (6 checks: arms A and C on 3 horizons).
-
-| horizon | arm | train samples | test samples | test dates | AUC | CI 99.17% | source-clean slice (n, AUC) |
-|---:|---|---:|---:|---:|---:|---|---|
-| 10 | A (2026 only) | 1187 | 1427 | 38 | 0.4396 | [0.371, 0.512] | 155, 0.460 |
-| 10 | B (2021-2024 only, control) | 18375 | 1427 | 38 | 0.6132 | [0.534, 0.678] | 155, 0.424 |
-| 10 | C (2021-2024 + 2026) | 19562 | 1427 | 38 | 0.5823 | [0.514, 0.647] | 155, 0.424 |
-| 5 | A | 1603 | 2168 | 39 | 0.4703 | [0.388, 0.570] | 313, 0.482 |
-| 5 | B | 18375 | 2168 | 39 | 0.4797 | [0.355, 0.590] | 313, 0.552 |
-| 5 | C | 19978 | 2168 | 39 | 0.4693 | [0.352, 0.605] | 313, 0.525 |
-| 1 | A | 1328 | 2817 | 49 | 0.5438 | [0.461, 0.616] | 599, 0.572 |
-| 1 | B | 18375 | 2817 | 49 | 0.5338 | [0.410, 0.646] | 599, 0.557 |
-| 1 | C | 19703 | 2817 | 49 | 0.5424 | [0.421, 0.663] | 599, 0.567 |
-
-Verdict against the pre-registered criterion (arm A or C: AUC >= 0.530 and the lower corrected CI bound above 0.500, with at least 1000 test samples and 40 test dates): no arm qualifies. Arm C at 10 days has AUC 0.5823 and lower bound 0.514, but the test has 38 dates against the required 40, so the condition fails and there is no verdict for it; arms A and C at 5 and 1 days fail on the CI bound. Domain-shift reading under the pre-registered rule: not supported. Training on 2026 Telegram and Google text does not help (A is 0.44 at 10 days, below chance, train AUC 0.87), and the control B, which never saw 2026, scores as high as or higher than C (0.613 vs 0.582).
-
-Descriptive, not pre-registered: the step 2 classifier (B) scored month by month at 10 days gives AUC 0.459 (April), 0.407 (May), 0.579 (June), 0.373 (July), 0.502 (August), 0.614 (September), 0.753 (October); at 5 and 1 days every month stays near 0.4-0.57. The 10-day figure on the August-October test is therefore a window effect (September-October only), the same time instability seen in every other test of this series, not evidence of a stable headline signal. The news classifier stays switched off and direction 2 (news as a directional signal) is closed unless a source-diverse archive several times larger accumulates; the data-depth step 4 and the news direction share the same limit, signal non-stationarity.
-
-## Data depth, step 2c: news classifier on the expanded 260-ticker archive (2026-10-18)
-
-Pre-registered in `docs/plans/20261018-data-depth-and-open-problems.md` (commit fb8f160) before the run. Archive: `data/news_history.jsonl` after the Telegram backfill and cleaning (153151 pairs, 260 tickers; `docs/knowledge/news-and-events.md`). Filters, as registered: source `MOEX сайт-новости` excluded; articles mapped to four or more tickers excluded (`-max-tickers-per-article 3`, and the same rule applied to the test file, which removed 27938 of 72132 test pairs: `newsvalidate` has no such flag, caught and fixed before the first scoring); train = pairs before 2025-01-01 (63581 pairs; 40413 labeled samples after the liquidity filter), test = pairs from 2025-03-01 (31 pairs with a headline seen in train removed), median 20-day turnover at least 10 million RUB on the publication day (`-min-turnover`, new in `BuildNewsLabelsWithOptions`). `cmd/trainnewsmodel` otherwise unchanged (bag-of-words logistic, vocab 3000, min doc freq 3), excess-return label against IMOEX with entry at the next day's open. CI: date-block bootstrap (2000 repeats, seed 42), Bonferroni level 98.33% for three horizons. Scores from `cmd/newsvalidate`, analysis `analyze.py` in the session scratch.
-
-| horizon | test samples | test dates | AUC | CI 98.33% | quarters with AUC >= 0.5 (of 6) | within-date permutation AUC |
-|---:|---:|---:|---:|---|---:|---:|
-| 10 | 19085 | 417 | 0.5234 | [0.5022, 0.5424] | 4 | 0.5021 |
-| 5 | 23095 | 381 | 0.5212 | [0.5007, 0.5421] | 5 | 0.5016 |
-| 1 | 23766 | 471 | 0.4963 | [0.4735, 0.5196] | 4 | 0.4917 |
-
-Quarterly AUC at 10 days: 2025Q2 0.564 (3118 samples), 2025Q3 0.520, 2025Q4 0.477, 2026Q1 0.534, 2026Q2 0.592, 2026Q3 0.488. At 5 days: 0.519, 0.529, 0.491, 0.524, 0.573, 0.506. By source group at 10 days: Telegram 0.5238 (17153), Google 0.5442 (1796), finance sites 0.295 (47), RSS and agencies 0.220 (89); the last two are too small to read. Top 30 tickers by news volume: 0.526 (10 days), 0.524 (5 days), 0.489 (1 day).
-
-Verdict against the pre-registered criterion (AUC >= 0.530 and the lower CI bound above 0.500, at least 1000 samples and 40 dates, AUC >= 0.5 in at least 4 of 6 quarters, permutation control inside [0.48, 0.52]): NOT met at any horizon. The control and the sample requirements pass everywhere; the AUC bar fails (0.5234, 0.5212, 0.4963), and at 1 day there is no effect. 
-
-Descriptive, and the reason this is not the same null as steps 2 and 2b: with 19-24 thousand samples over 380-470 dates the 10-day and 5-day intervals lie entirely above 0.5, which the earlier 1.4-2.8 thousand sample tests could not show. The effect is small (about +0.02 AUC), unstable across quarters (0.48-0.59 at 10 days), carried almost entirely by Telegram posts, and measured on pairs that are not independent (several channels repost the same wire; the bootstrap blocks by date but not across neighbouring days), so the interval is optimistic. No economic claim follows: AUC 0.52 says nothing about returns net of costs. By the registered rule the news direction stays closed as a trading signal; reopening it needs its own pre-registration with a net-of-cost portfolio test (for example a score-ranked long-short of liquid names with the cost model of step 1), not an ad hoc threshold change.
-
-## Data depth, step 2g: news score net of costs (2026-10-18)
-
-`go run ./cmd/newsportfolio -scores scores_h10.csv` on the step 2c scores (classifier trained before 2025-03-01, horizon 10 trading days, turnover ≥ 10M RUB). Pre-registered in `docs/plans/20261018-data-depth-and-open-problems.md` (commit 8a925ef, before the run). Ticker-day score = mean of article scores; per date with ≥ 10 scored tickers (226 dates, 2025-03-17..2026-10-05) long the top quintile, short the bottom quintile, equal weights, 10-day hold, one tranche per date; cost 0.15% per fill (0.30% round trip per leg, 0.60% per tranche), no short borrow; date-block bootstrap, block 10, 5000 reps, seed 20261018.
-
-| quantity | value |
+| Does the deployed recipe predict direction? | No: AUC 0.46-0.55, N95 noise 0.016, tail precision below the base rate | 3.1, 3.6 |
+| Where does its P&L come from? | Mostly short IMOEX beta; alpha vanishes under a real futures hedge | 5.2-5.5 |
+| Can a single change pass the gate? | No variant of A-F, depth, breadth, rank, volatility-unit, open-interest or TimesFM changes | 4, 6 |
+| Is a longer horizon or more history better? | Horizon: no (10 days best). History: small paired gain at the noise floor, no PnL benefit | 6.1, 6.3, 6.6 |
+| Does news carry a tradable signal? | AUC about 0.52 at best, net spread +0.263% with CI spanning zero, short leg only | 7.3-7.6 |
+| Do LLM headline directions help? | No (AUC 0.511-0.526) | 7.7 |
+| Do events, levels, bursts matter? | No tradable effect found | 7.8-7.10 |
+| Are there calendar or cycle effects? | None after 1990 / after costs | 8.11 |
+| Is there any cross-sectional edge? | Ridge long-minus-universe passes the registered rule; long-short needs borrow below about 5% per year; gate-candidate pass rate 59% | 8.6, 8.8 |
+| What caused the autumn SELL drift? | Unmasked news features in the running build, not the model | 9.1 |
+| What beats the hurdle? | Nothing recorded exceeds the 14% key-rate carry | 8.12 |
+
+Open items: the real short-borrow rate (Task 11 cannot measure it from account history); the forward track of the ridge and C2 books (recorder running since 2026-10-19, first evaluation after at least 12 rebalancings); the `event_dividend` veto decision; whether the ticker breaker should block exits; a second fundamentals experiment after at least 120 daily snapshots.
+
+## Appendix A. Concordance with the former section names
+
+| former section (commit `82a124b`) | now |
 |---|---|
-| gross long-short spread per tranche | +0.863% |
-| break-even cost per side | 0.216% |
-| net at 0.15%/side (primary) | +0.263%, CI95 [-0.305, +0.930], pass = false |
-| net at 0.10%/side | +0.463%, CI95 [-0.105, +1.130] |
-| net at 0.20%/side | +0.063%, CI95 [-0.505, +0.730] |
-| long-only top quintile, net of 0.30% round trip | +0.045%, CI95 [-0.258, +0.350] |
-| quintile mean 10d excess, low to high score | -0.518, -0.385, -0.012, +0.206, +0.280 (%) |
-| quarterly net (primary cost) | -0.23, +0.48, -0.55, -0.74, -0.23, +2.40, +0.48, -0.25 (%, 7-50 dates each) |
-
-Verdict by the registered rule: criterion not met (lower CI bound below 0 at every cost level). The quintiles are monotone and the point estimate of the net spread is positive, but the interval is wide, 5 of 8 quarters are negative and one quarter (2026Q2, +2.40%) carries the mean. The long-only leg earns nothing after costs; the spread comes from the short leg (bottom quintile -0.52%), which is the part that is not tradable here (no borrow cost modelled, spot shorts not available on the sandbox book). The news branch stays closed as a trading signal; reopening needs an independent period after 2026-10-05.
-
-## Ticker circuit breaker in the gate replay (2026-10-18)
-
-Pre-registered in `docs/plans/20261018-ticker-breaker-parity.md` (commit 0144c6e, before the run). `backtest.Config.Breaker` and `cmd/backtest -breaker` feed the live `risk.TickerBreaker` (defaults: 3 consecutive losing round trips or cumulative loss 5% of target_notional 15000; a tripped ticker stays blocked) from every replay fill. Gate-shaped replays (17 tickers, 90 days, 1M deposit, costs 0.0005×3 + per-ticker spreads, borrow 0.00005/day, caps 90000/90000, deployed `ensemble_model.json`, no news), one run per cell, no tuning. The breaker is NOT wired into the preflight.
-
-| window (90d till) | breaker | closed trades | realized net of borrow | unrealized MTM |
-|---|---|---|---|---|
-| 2026-10-18 | off | 117 | -2455.72 | -2066.01 |
-| 2026-10-18 | on | 96 | -3356.64 | +6139.47 |
-| 2026-07-20 | off | 90 | +34737.78 | +189.38 |
-| 2026-07-20 | on | 85 | +30484.28 | +3086.18 |
-| 2026-04-21 | off | 34 | -3842.92 | +4610.19 |
-| 2026-04-21 | on | 22 | -1183.71 | +3291.07 |
-
-Sum of realized net of borrow over the three windows: off +28439.15, on +25943.92.
-
-Verdict by the registered rule: criterion not met on both parts (the gate window with the breaker is -3356.64, below the 1 RUB threshold; the three-window sum is lower with the breaker). The breaker does not rescue the gate. Side finding: `risk.Gate` rejects every order for a tripped ticker with `ticker_breaker_blocked`, including orders that would close the position, so a tripped ticker's open position is frozen. In the 10-18 window this moves roughly 8.2k RUB from realized to unrealized (MTM -2066 → +6139) and the realized figure, which is what the gate measures, gets worse. Whether blocking exits is intended for live is an open owner question; it is not changed here.
-
-## Seven hypotheses, step 2: news score decay by horizon and liquidity/sign split (H1, H4; 2026-10-18)
-
-Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (commit 1c43147 and the step 2 commit that follows it, before the run). `go run ./cmd/newsdecay -classifier news_classifier_h10.json -news <archive without "MOEX сайт-новости">`. Classifier retrained with the step 2c flags (`-split 2025-01-01 -horizon-days 10 -vocab-size 3000 -min-doc-freq 3 -max-tickers-per-article 3 -min-turnover 10000000`; train_samples 40413 as in 2c, val AUC 0.518). Test pairs 2025-03-01..2026-09-30: 40270 after the filters (25 seen in train removed), 13175 ticker-days with 20-day median turnover >= 10M RUB, 132 tickers, 575 dates (435 with >= 10 scored tickers). Rank-weighted cross-sectional portfolio per date (weights = demeaned rank, absolute weights sum to 1), gross of costs, entry at the next trading-day open after the MSK publication date, exit at the close h trading days later, excess over IMOEX; date-block bootstrap (block 10, 5000 repeats, seed 20261018). Bars on days without an IMOEX bar are dropped (weekend sessions), so counts differ from step 2c.
-
-| h (trading days) | dates | gross spread, % per tranche | CI95 | per day, % |
-|---:|---:|---:|---|---:|
-| 1 | 435 | +0.0944 | [+0.0210, +0.1706] | +0.0944 |
-| 2 | 435 | +0.1131 | [+0.0123, +0.2141] | +0.0565 |
-| 5 | 435 | +0.2116 | [+0.0700, +0.3603] | +0.0423 |
-| 10 | 435 | +0.4258 | [+0.2117, +0.6627] | +0.0426 |
-| 20 | 435 | +0.5401 | [+0.2352, +0.8645] | +0.0270 |
-
-- Primary criterion (H1: gross spread at h = 5 > 0, lower CI bound > 0, >= 100 dates): MET (+0.2116, [+0.0700, +0.3603], 435 dates). It is a gross figure; step 2g already showed that the 0.60% per tranche cost level removes it at h = 10 (gross 0.86% there on the older set), here h = 10 gross is +0.4258%, below 0.60%.
-- Decay: the per-day spread at h = 1 is 2.2 times the h = 10 one (+0.0944 vs +0.0426), which matches the registered "more than twice" descriptive wording, but the difference (+0.0518 per day) has CI95 [-0.0270, +0.1308], so front-loading is not established. The spread keeps growing with the horizon (0.09 -> 0.43 -> 0.54), so the effect does not vanish by day 5 or 10.
-- H4 liquidity: terciles by ticker median turnover, h = 10. Least liquid tercile +1.2117 [-0.2371, +3.1680] on only 33 dates (the filter leaves too few small names per date), middle +0.3495 [+0.0017, +0.6955] (339 dates), most liquid +0.3774 [+0.1508, +0.6342] (499 dates). Low minus high +0.8343 CI95 [-0.6336, +2.7335]: not significant, H4 liquidity part not supported.
-- H4 sign (h = 10): bottom score quintile mean excess -0.9441 [-1.5271, -0.4061], top quintile +0.2120 [-0.1156, +0.5333]; asymmetry |bottom| minus top +0.7321 CI95 [+0.0924, +1.3906]: significant, the negative-news side carries the effect, as in step 2g (short leg). Spot shorts are not available on the sandbook, so the long side is the tradable one and it is not distinguishable from zero.
-
-Verdict: H1 gross criterion met, H4 sign part supported, H4 liquidity part not supported. No trading conclusion: net of costs the step 2g result stands, and the tradable (long) leg is not significant.
-
-## Seven hypotheses, step 5: variance of the evaluation procedure (2026-10-18)
-
-Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (commit "step 5 pre-registration", before the run). Harness: `scripts/procvar.py` (copy of `evalh.py` `wf()`/`fit_predict()` logic with the seed, first-test date, fold length and training start as parameters), run on the ai-box over `~/moex-research/depth/h10.csv` (17 tickers, 15 price columns, horizon 10, 8064 test rows from 2025-04-01). 75 configurations of recipe A (5 seeds x 3 first-test shifts {0, 27, 54 days} x 5 training starts), 15 of recipe D (training from 2015-01-01, 5 seeds x 3 shifts), 3 fold lengths.
-
-| quantity | value |
-|---|---|
-| recipe A pooled AUC over the 75 configurations: mean / SD / min / max | 0.4829 / 0.0108 / 0.4605 / 0.5009 |
-| SD over seed (others fixed) | 0.0019 |
-| SD over training start (others fixed) | 0.0059 |
-| SD over first-test shift (others fixed) | 0.0116 |
-| N95: 95th percentile of the absolute pooled-AUC difference between A configurations with the same shift (900 pairs; median 0.0055) | 0.0160 |
-| recipe A (start 2024-01-01) pooled AUC by shift 0 / 27 / 54 | 0.4959 / 0.4765 / 0.4901 |
-| recipe D pooled AUC by shift 0 / 27 / 54 | 0.5199 / 0.4917 / 0.5117 |
-| D minus A, 15 paired configurations: mean / SD / min / max / positive | +0.0203 / 0.0052 / +0.0112 / +0.0272 / 15 of 15 |
-| fold length 42 / 63 / 84 days (seed 42, shift 0, same 8064 rows): pooled AUC | 0.4933 / 0.5005 / 0.5140 |
-| SD of mean-fold AUC over the 75 A configurations | 0.0145 |
-
-Interpretation under the registered rule: N95 = 0.0160 > 0.010, so every earlier comparison with |ΔAUC| below 0.016 that was judged on a single configuration (depth steps 1-3, experiments A-E of 2026-10-04 by AUC, macro and dividend features) is inconclusive, and new comparisons must be paired over at least 15 configurations. The dominant source is where the fold boundaries fall (SD 0.0116), not the seed (0.0019).
-
-What survives: a paired depth comparison. D beats A in all 15 paired configurations (+0.0112 .. +0.0272, mean +0.0203; per shift +0.024, +0.015, +0.022), so the +0.019 of depth step 1 is not a one-configuration accident. It is still a small gain from a level at the noise floor: recipe A's pooled AUC averages 0.483, below 0.5, and D reaches 0.492-0.520. Absolute predictability on the 2025-04..2026-10 test rows is not demonstrated for either recipe.
-
-Side observations, single seed each and not registered as criteria: lengthening the refit interval from 42 to 84 days raised pooled AUC from 0.493 to 0.514 on identical test rows; the pooled AUC below 0.5 for recipe A agrees with the autumn losses and is the subject of the planned post-mortem of September-October 2026.
-
-## Seven hypotheses, step 6: IMOEX regime mask on new BUY decisions (H11; 2026-10-18)
-
-Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (commit "step 6 pre-registration", before the run). `cmd/regimemask` rewrites the persisted probabilities of the six purged walk-forward windows (`wf-volscale`, 2025-03-05..2026-09-16, 7689 decisions) into a `csvprob` file; BUY decisions (p >= 0.60) on risk-off dates are removed. Replays: `cmd/backtest -signal-source csvprob -csv-buy-pct 0.60 -csv-sell-pct 0.40`, 17 tickers, deposit 1M, `-max-lots 1000 -target-notional 15000 -lookback-days 0`, commission/spread/slippage 0.0005 each, kill switch on, no borrow, no news.
-
-Reproduction check (registered: within +-10% of the Task 5 control +59829.47): unmasked csvprob sum of realized = +59539.41 (-0.5%), passed.
-
-| variant | risk-off dates / suppressed BUY | realized per window q1 q2 q3 q4 w2 w1 | sum realized | worst window max DD |
-|---|---|---|---:|---:|
-| none (control) | 0 / 0 | 4002, 53, 34089, -12339, 2676, 31057 | +59539.41 | 3.56% (q1, kill switch tripped) |
-| R1: IMOEX 1-day <= -2.0% | 27 / 168 | 4102, 53, 32505, -12339, 2705, 31645 | +58671.15 (98.5%) | 3.58% |
-| R2: IMOEX 5-day <= -5.0% (secondary) | 27 / 318 | 6942, 53, 28046, -12339, 2676, 50807 | +76184.13 (128%) | 3.49% |
-
-Window max DD, none / R1 / R2: q1 3.56 / 3.58 / 3.10, q2 3.49 / 3.49 / 3.49, q3 0.90 / 0.90 / 0.90, q4 2.46 / 2.46 / 2.46, w2 1.17 / 1.16 / 1.17, w1 3.05 / 2.86 / 1.82.
-
-Verdict on the registered primary criterion (R1; realized >= 0.80 of control, worst-window DD <= 0.90 of control, >= 10 risk-off dates and >= 5 suppressed BUY): NOT met. Realized (98.5%) and informativeness (27 dates, 168 BUY) pass; the worst-window drawdown does not move (3.58% vs 3.56%, ratio 1.006) because the worst window is q1, where R1 removes only 5 trades.
-
-Descriptive, not a verdict: R2 raises realized in two windows (q1 +2940, w1 +19750), lowers it in one (q3 -6043) and leaves three unchanged; w1 max DD falls 3.05% -> 1.82% and the q1 kill switch no longer trips, but the worst-window figure still only moves 3.56% -> 3.49% (ratio 0.98). R2 was not the registered primary and its threshold was not tuned; a gain concentrated in two windows (w1 is 26k of the 28k difference in sum) is not evidence of a stable gate. Any adoption (`internal/risk`) needs its own pre-registration with R2 as the primary and a window not used here.
-
-## Seven hypotheses, step 7: cross-sectional ranking of the OOS ensemble probabilities, net of costs (2026-10-18)
-
-Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (commit "step 7 pre-registration", before the run). `go run ./cmd/rankspread -wf-dir wf-volscale` on the persisted OOS probabilities of the six purged walk-forward windows (2025-03-05..2026-09-16, 17 tickers, 7689 decisions, 458 dates, all with >= 10 tickers). Rank-weighted cross-sectional portfolio per date (absolute weights sum to 1), excess return over IMOEX from the next trading-day open to the close h days later, one tranche per day, date-block bootstrap (block 10, 5000 repeats, seed 20261018). Cost as in step 2g: 0.15% per side, 0.60% per long-short tranche.
-
-| h | dates | gross spread, % | CI95 | net of 0.60% | net CI95 |
-|---:|---:|---:|---|---:|---|
-| 1 | 458 | +0.0143 | [-0.0865, +0.1214] | -0.5857 | [-0.6865, -0.4786] |
-| 5 | 458 | +0.0629 | [-0.1953, +0.3483] | -0.5371 | [-0.7953, -0.2517] |
-| 10 | 458 | -0.0132 | [-0.4230, +0.4238] | -0.6132 | [-1.0230, -0.1762] |
-
-At h = 10: bottom probability quintile mean excess -0.0649 [-0.9010, +0.7262], top quintile -0.4831 [-1.0514, +0.1110] (higher probability, lower excess, not significant); long-only top quintile net of the 0.30% round trip: -0.7831%.
-
-Verdict on the registered primary criterion (net spread at h = 10 > 0 with lower CI bound > 0, >= 100 dates): NOT met, and the gross spread itself is indistinguishable from zero at every horizon. The order of the deployed recipe's probabilities inside a date carries no cross-sectional information, so the cross-sectional direction is closed for this recipe on top of the 2026-09-17 and 2026-10-18 closures. This agrees with the beta decomposition (Task 9): the deployed book earns its realized P&L from the market component and the long/short tilt, not from ranking stocks. No training for a rank objective is justified by this result.
-
-## Seven hypotheses, step 4: deep training history as a walk-forward candidate with costs (2026-10-18)
-
-Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (commit "step 4 pre-registration", before the run). `scripts/depth-candidate.sh` on the ai-box: `export_ensemble.py` (Task 5 copy, embargo 10, 18 features, 28-name order) trained per window on `depth/h10.csv` rows from 2024-01-01 (arm A, fresh same-run control) and from 2015-01-01 (arm D), then replayed with the Task 5 binary and parameters (17 tickers, deposit 1M, `-target-notional 15000`, commission/spread/slippage 0.0005 each, kill switch on, no news history, one window per run, seed 42).
-
-| window | A realized | D realized | A trades | D trades | A max DD | D max DD | A val AUC | D val AUC |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| q1 2025-03-05..06-05 | -8823.41 | +1083.86 | 171 | 8 | 1.53% | 1.07% | 0.4932 | 0.5083 |
-| q2 2025-06-06..09-05 | -8151.57 | +1913.04 | 174 | 5 | 3.17% | 0.07% | 0.4882 | 0.4873 |
-| q3 2025-09-06..12-03 | +28863.29 | 0.00 | 122 | 0 | 0.91% | 0.27% | 0.4354 | 0.4755 |
-| q4 2025-12-04..2026-03-04 | -6022.44 | 0.00 | 94 | 0 | 1.49% | 0.00% | 0.4302 | 0.4770 |
-| w2 2026-03-05..06-06 | -3793.02 | 0.00 | 71 | 0 | 0.97% | 0.10% | 0.4246 | 0.4689 |
-| w1 2026-06-07..09-16 | +38865.30 | +1512.39 | 181 | 39 | 2.66% | 2.58% | 0.4350 | 0.4790 |
-| total / mean | +40938.14 | +4509.29 | 813 | 52 | worst 3.17% | worst 2.58% | 0.4511 | 0.4827 |
-
-No kill switch tripped in either arm. Registered criteria for D against A: (1) sum realized D > A: **FAIL** (+4509 vs +40938); (2) realized D >= A in >= 4 of 6 windows: pass (4 of 6: q1, q2, q4, w2, only because A loses there and D does not trade); (3) worst-window max DD D <= A and no more kill trips: pass (2.58% vs 3.17%, 0 trips both); (4) mean val AUC not lower by more than 0.005: pass (D +0.0316); (5) sum realized D > 0: pass.
-
-Verdict: NOT a candidate (criterion 1). The deeper history raises the validation AUC in every window but the 0.60 / 0.40 thresholds are almost never crossed: 52 closed trades against 813 for A, zero in three of six windows. The deep-history model's probabilities sit closer to 0.5 and the fixed thresholds were set for the narrow-window recipe. Thresholds were not retuned on the test windows (that would be selection on the test); a threshold chosen on training data only (a quantile of the training-period probabilities) would be a separate pre-registered experiment. Context: A here earns +40938 against the Task 5 control +59829 on the same windows (training rows from 2024-01-01 versus the 10.7 thousand-row Task 5 file, stack drift disclosed on 2026-10-18); A's profit is concentrated in q3 and w1, the two windows where the book was short-tilted into falling prices (see Task 9 beta decomposition), which is the income that the better-AUC arm does not reproduce.
-
-## Seven hypotheses, step 8: post-mortem of September-October 2026 (2026-10-18)
-
-Pre-registered questions and the attribution rule: `docs/plans/20261018-seven-hypotheses.md` (commit "step 8 pre-registration", before the results were read). Replay: deployed `ensemble_model.json`, gate shape (17 tickers, deposit 1M, costs 0.0005 x 3 plus per-ticker spreads from `trader-sandbox.db`, borrow 0.00005/day, caps 90000/90000, kill switch, no news), 2026-07-20..2026-10-18. Analysis: a throwaway stdlib Python script over the replay report, the sandbox audit, `data/dividends.jsonl`, `data/news_history.jsonl` and ISS IMOEX candles (not committed; the numbers below are the record).
-
-Size first. The whole 90-day replay is realized -1820.29 RUB on 117 closed trades against a 1M deposit (-0.18%), max drawdown 1.05%, no kill switch. By month of the replay: 07-20..08-19 -914.60 (43 trades), 08-19..09-18 +3151.92 (35), 09-18..10-18 -3555.03 (23). This is a small loss on small positions (15000 RUB target), not a collapse; it sits inside the procedure noise measured in step 5.
-
-| question | result |
-|---|---|
-| Q1 where | by ticker: PLZL -4508, CHMF -2331, POSI -1367, NVTK -992, ROSN -697; OZON +4952, MGNT +1444, GAZP +886. By exit week the single worst is ISO week 38 (-6034, the PLZL close). BUY +839 on 28 trades, SELL -2659 on 89 trades |
-| Q2 beta | IMOEX rose +22.3% (2000.7 -> 2447.7, 07-20..10-17). Beta component of the closed trades (position notional x IMOEX return over each holding period, signed) = +3871 (BUY +8475, SELL -4605); excess component = -5691. The short-beta hypothesis is NOT supported as the cause of the net loss: beta was a net tailwind because the BUY side was larger in beta terms; the shorts did lose to the rally (-4605) |
-| Q3 dividends | cash-dividend adjustment to realized: -14 RUB over 3 trades that spanned an ex-date (T, 08-10). Does not explain anything |
-| Q4 worst trades | worst 3 = PLZL BUY 15 lots 07-22..09-20 -4133 (-22.3% while IMOEX +6.6%; ISS shows a gradual slide 1288 -> 957, not a gap or a data artifact), CHMF SELL 26 lots 07-24..08-03 -2274 (+15.0%), LKOH SELL 3 lots 08-30..09-20 -1777 (+12.6%); sum -8184. The archive has no matching two-source company news at their entries or exits (only forecasts, digest posts and Google News aggregates); no incident or dividend explanation |
-| Q5 signal availability | live share of decisions with p >= 0.60 / p <= 0.40 by ISO week 38 to 42: BUY 0.08, 0.01, 0.00, 0.00, 0.00 percent; SELL 41.3, 80.6, 95.1, 90.2, 26.9 percent (decisions 10k-33k per week). Task 5 test windows: BUY 25.1 percent, SELL 41.6 percent. The live model has been nearly permanently bearish while IMOEX rose |
-| Q6 live vs replay | not comparable on this data: live executions since 09-16 are 66 BUY and 82 SELL (mostly the first three days and opening/closing of inherited positions, 95k `executor_skip` rows because of the net-short cap), the replay closed trades entered since 09-16 are 4 SELL. A like-for-like check needs the live fill prices and the replay open positions; left open |
-
-Verdict under the registered rule (a cause explains the period only if removing it moves realized by at least 50 percent of its absolute value, 910 RUB): the worst three trades do (removing them gives +6364, a change of 8184), beta does not (removing it makes the result worse, -5691), dividends do not (14). So the September-October minus is three idiosyncratic losers, one of them a 25 percent slide in PLZL that the BUY signal bought into, plus a structural fact (Q5): the deployed model has stopped producing BUY signals and mostly says SELL, so in a +22 percent IMOEX quarter its tradable signal is a short book that the rally punishes. Open questions that need other data: why p drifted below 0.4 on 80-95 percent of live decisions (staleness of the 2026-09 training window versus a regime shift; the offline replay on 10-10..10-18 showed p max 0.597), and the live fill-level P&L of the sandbox account.
-
-## Seven hypotheses, step 1 (INTERIM): zero-shot direction of qwen3.8 on Russian headlines (H2; 2026-10-18)
-
-Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (commit 1c43147, before the run). `cmd/llmdirection` (qwen3.8, digest 3f181bb5737e, temperature 0, no thinking, JSON answer direction + confidence 1..5, score = signed confidence). INTERIM because the registered sample of 1200 was not reached: the ai-box Ollama became saturated by other workloads (an empty request waited 10-26 s even with this job paused; `AGENTS.md` forbids parallel qwen3.8 jobs), so the job was stopped at 550 of 1200 rows. The rows are the chronologically first 549 of a seed-42 random sample over 2026-04-01..09-30, so they cover roughly April to mid-July only. Sample B (pre-cutoff, H3) has 5 rows, so H3 is NOT evaluated.
-
-Sample A, 549 labeled events on 76 dates, 0 unparsable answers; entry at the next trading-day open, excess over IMOEX, date-block bootstrap (2000 repeats, seed 42):
-
-| h (trading days) | AUC | CI95 | non-neutral only (n = 232) | deadband 0.5% | Spearman with prior 5-day return | AUC inside prior-return terciles |
-|---:|---:|---|---:|---:|---:|---:|
-| 1 | 0.5198 | [0.4810, 0.5610] | 0.5379 | 0.5279 (n 402) | 0.180 | 0.5124 |
-| 5 | 0.5610 | [0.5168, 0.6079] | 0.6223 | 0.5473 (n 474) | 0.180 | 0.5567 |
-| 10 | 0.5482 | [0.4985, 0.5973] | 0.5950 | 0.5528 (n 503) | 0.180 | 0.5415 |
-
-Against the registered criteria (AUC >= 0.55 and lower CI bound > 0.500, >= 200 events and >= 40 dates): h = 1 NOT met (0.5198), h = 10 NOT met (0.5482 is below 0.55 and the lower bound 0.4985 is below 0.5). h = 5 clears both numbers (0.5610, [0.5168, 0.6079]) but it was not a registered primary horizon and three horizons were read, so it is a hypothesis for the completed sample, not a pass. The momentum-extrapolation control is clean (|rho| = 0.18 < 0.3); the AUC barely moves inside prior-return terciles. Descriptive: the 232 non-neutral answers carry the signal (0.595 at h = 10, 0.622 at h = 5).
-
-Status: the registered primary verdicts are negative, but at h = 10 only by 0.002 AUC and by 0.0015 on the interval bound on a truncated, chronologically biased sample, so this is neither a closure nor an opening of H2. Consequences: H6 (LLM factor scores as ensemble features) and H9 stay unstarted; no LLM use on the trading path changes. To finish: resume `llmdirection` (appends by `ticker|article_id`) when the Ollama queue is free, complete A to 1200 and B to 1200, then rerun `-mode analyze -a A.csv -b B.csv`.
-
-## Seven hypotheses, step 9: why the live probabilities fell below 0.40 (2026-10-18)
-
-Pre-registered hypotheses P1-P3 in `docs/plans/20261018-seven-hypotheses.md` (commit "step 9 pre-registration", before the run). Window 2026-09-16..10-07 for P2/P3, 2026-07-20..10-07 for P1. Replays: deployed `ensemble_model.json` and a fresh recipe-A model (`train_till` 2026-09-16, `scripts/depth-candidate.sh` pipeline), `cmd/backtest -wf-dir`, 17 tickers. Diagnostic tool: `cmd/featureparity`.
-
-| hypothesis | measure | result | verdict |
-|---|---|---|---|
-| P1 feature extrapolation | Spearman of weekly mean p with weekly cross-sectional mean of mom_63d / dist_ma50_pct / rsi_14 (12 weeks): -0.40 / -0.24 / -0.37; share of window observations above the training 95th percentile: 4% / 6% / 7% (mom_21d: rho +0.08, 12%) | needs |rho| >= 0.6 and >= 25% outside | NOT accepted |
-| P2 staleness | p <= 0.40 share, 374 decisions: deployed 17.1%, fresh model 32.9% | needs fresh <= half of deployed | NOT accepted (the fresh model is more bearish) |
-| P3 base rate | share of rises over 10 days: training 0.451, window 0.487 (193 labels) | needs difference >= 15 pp | NOT accepted (3.6 pp) |
-
-None of the three explains the drift. What explains it was found afterwards (post-hoc, labeled as such, but checked on every day in the table):
-
-- The offline replay of the same model gives p <= 0.40 on 17.1% of decisions in 2026-09-16..10-07; the live audit gave 81-95% in ISO weeks 39-41. The live logged p was lower than the replay p by 0.18 on average (ticker-days 09-17..10-07, 357 pairs), and the gap grew from 0.04 (09-17) to 0.28 (10-02).
-- The live ingest vectors (audit stage `ingest`) differ from the dataset only in small constant indicator offsets (rsi_14 -3.0, realized_vol_21d_annualized -1.85, stoch_k_14 -2.3), worth -0.007 in mean p. Feature-level swaps in `cmd/featureparity` move p by at most 0.006.
-- The logged live p equals the model applied to the UNMASKED ingest vector (news_count up to 144 against a training mean 0.10 and std 0.70, news_sentiment against std 0.021) on every day from 09-20 to 10-09, and equals the model with `news_count`/`news_sentiment` masked to zero from 10-10 on:
-
-| day | logged live p | model on unmasked vector | model on masked vector |
-|---|---:|---:|---:|
-| 09-30 | 0.2160 | 0.2160 | 0.4556 |
-| 10-02 | 0.1903 | 0.1903 | 0.4759 |
-| 10-05 | 0.1901 | 0.1901 | 0.4696 |
-| 10-08 | 0.1504 | 0.1504 | 0.4094 |
-| 10-09 | 0.1752 | 0.1752 | 0.4191 |
-| 10-10 | 0.4043 | 0.1679 | 0.4519 |
-| 10-13 | 0.4651 | 0.1751 | 0.4651 |
-| 10-17 | 0.4572 | 0.1587 | 0.4572 |
-
-Cause: until 2026-10-09 the running trader evaluated the ensemble with `news_count` and `news_sentiment` that the model never trained on (training value 0), because the masking (`maskUntrainedFeatures`, commit f8f64a1, 2026-10-10) was not in the running build. The live news archive grew in volume, so the fed `news_count` grew and the logistic and tree members were pushed to SELL. From 10-10 the logged p is the masked one (0.41-0.48, almost no signals either way). The ai-box `trader` binary is dated 2026-10-06 16:31 UTC, before that fix.
-
-Revision of step 8: the "model nearly always bearish while IMOEX rose" in Q5 was this feed bug, not a property of the model. The live SELL executions of 09-17..10-09 (82 SELL executions against 4 in the replay of the masked model) came from the unmasked news features; step 8's replay (masked) is the better description of what the model alone would have done: -1820 RUB over 90 days, three idiosyncratic losers. The live sandbox P&L of 09-17..10-09 is the P&L of the model plus the news leak and has not been computed here.
-
-## Seven hypotheses, step 10: R2 mask on four unseen windows (2026-10-18)
-
-Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (commit "step 10 pre-registration", before the run). `scripts/regime-fresh.sh` on the ai-box trains one model per window from `depth/h10.csv` rows since 2021-01-01 (`train_till` = day before each window, embargo 10, seed 42), replays it (`-wf-dir`), then `cmd/regimemask` + `csvprob` replays as in step 6 (17 tickers, deposit 1M, costs 0.0005 x 3, target notional 15000, kill switch on).
-
-| window | ensemble replay realized | csvprob none | csvprob R1 | csvprob R2 | max DD (none) | kill (none) |
-|---|---:|---:|---:|---:|---:|---|
-| p1 2024-03-05..06-05 | -1062.31 | -1062 | -1062 | -1062 | 0.73% | no |
-| p2 2024-06-06..09-05 | -2786.11 | -2786 | -2781 | -2786 | 1.23% | no |
-| p3 2024-09-06..12-03 | -885.12 | -885 | -885 | -885 | 1.86% | no |
-| p4 2024-12-04..2025-03-04 | -1347.74 | -2359 | -2359 | -2359 | 8.74% | yes |
-
-Registered reproduction check (csvprob none within 10% of the ensemble replay on the same window): p1, p2, p3 pass; p4 fails (-2359 against -1347.74, kill switch tripped in both with DD 8.87% against 8.74%), so p4 is excluded from the verdict. Risk-off dates in the four windows: R1 21, R2 17; suppressed BUY decisions: R1 7, R2 1.
-
-Verdict on the registered criterion (R2: realized >= 0.80 of control, worst-window DD <= 0.90 of control, >= 10 risk-off dates and >= 5 suppressed BUY): NOT evaluable. Condition 3 fails (1 suppressed BUY across the three valid windows), and with one removed decision the realized sum (-4733.5) and the worst DD (1.86%) are identical to the control. The 2024 models also lose money in every window (sum of realized of the ensemble replay -6081 over four windows), so there is little long exposure to protect. The step 6 lead for R2 is therefore neither confirmed nor refuted by independent data; it stays a single-window-set observation. The combined ten-window figure (descriptive): six step-6 windows control +59539 and R2 +76184, three valid new windows control -4733.5 and R2 -4733.5.
-
-Consequence: no `internal/risk` pre-registration for an IMOEX regime gate. Reopening needs windows with a long-biased, active book (the 2025-2026 windows are the only ones that had one), i.e. new data after 2026-10 or a longer deep-history recipe that actually trades.
-
-## Live sandbox P&L, 2026-09-17..2026-10-18 (cmd/livepnl, audit copy, fills through 2026-10-14)
-
-Source: `executor` audit events of the sandbox database replayed with `internal/pnl`, marked to ISS closes of the day before each boundary. 148 fills in total; the trader placed none between 2026-09-24 and 2026-10-06 and none after 2026-10-14.
-
-| Period | Binary | Realized, RUB | Equity change incl. unrealized, RUB | Net / gross exposure at end, RUB | IMOEX |
-|---|---|---|---|---|---|
-| 09-17 .. 10-09 | no feature mask (bug) | -149 | -14073 | -226922 / 227104 | +6.97% |
-| 10-10 .. 10-18 | mask f8f64a1 | -1771 | -11464 | -244191 / 244384 | +1.87% |
-| total | | -1920 | -25395 | | +8.9% |
-
-- The book was entered as an almost purely short book (17 positions, net exposure equal to gross) during the unmasked period, when 81-95% of decisions were SELL, and it stayed short after the fix because the fixed model mostly returned HOLD (4 BUY fills in total, all covering shorts).
-- Beta check: -227k net short against +6.97% IMOEX is about -15.8k; the observed -14.1k is the same order, so the unmasked-period loss is market beta of a book the bug built, not stock selection.
-- The masked period lost more than its beta (-244k against +1.87% is about -4.6k, observed -11.5k); three covered shorts, one of them -1650 realized on 10-14, account for the realized part. Not decomposed further.
-- Realized P&L alone (-1920) hides this: the loss sits in 17 open positions that were never closed.
-- Caveat: unrealized uses the last close at or before the boundary, no borrow cost, dividends or financing; the audit copy was taken 2026-10-19 and the Mac trader was in `error` after 38 restarts at that time, so there are no fills after 10-14 to analyse.
-
-## Nightly candidate gate aligned with the preflight (2026-10-19)
-
-The nightly harness replayed the candidate and the deployed model without the risk layer the trader's preflight applies, so its realized P&L was not the quantity the live gate checks. Deployed `ensemble_model.json`, 17 tickers, 2026-07-20..2026-10-18, deposit 1M, 15000 RUB per position, costs 0.0005 x3, kill switch on (`cmd/backtest`, same window the preflight rejected on 2026-10-18 with -4694.87):
-
-| Variant | Flags beyond the old harness | Realized, RUB | Realized net of borrow, RUB | Net with open, RUB | Closed | Max DD |
-|---|---|---|---|---|---|---|
-| A (old harness, with `-news-history`) | none | +10857 | not computed | -5930 | 137 | 1.72% |
-| B | `-max-net-short 90000 -max-net-long 90000 -borrow-pct-day 0.00005` | -2057 | -2704 | -4843 | 116 | 1.06% |
-| C | B without `-news-history` | -2069 | -2716 | -4855 | 117 | 1.06% |
-| preflight (live log) | spread table from the audit DB, macro enricher | n/a | -4695 | -903 | 99 | 1.12% |
-
-- The net exposure caps (config `risk.max_net_short/max_net_long` 90000) and the stress borrow rate account for the whole gap between the harness (+10857) and the preflight sign; with them the replay is already negative, as the preflight is.
-- `-news-history` changes the result by 12 RUB: the live path masks `news_count`/`news_sentiment`, so the harness news input is inert for the model. The remaining 2000 RUB gap to the preflight is not decomposed; candidates are the per-ticker spread table derived from the trader audit DB (`-spread-db`, not available on the ai-box) and the market enricher.
-- `scripts/daily-retrain-box.sh` now passes the caps (read from `config.sandbox.yaml`) and the borrow rate, and `cmd/retrainreport` compares and thresholds the realized P&L net of borrow when the report has it. Regression tests: `TestParseMetricsPrefersRealizedNetOfBorrow`, `TestDailyScriptReplayMatchesPreflightRisk` (script rate equals `borrowcost.StressRatePerDay`).
-- Earlier nightly verdicts (2026-10-16, 2026-10-17) were produced without the caps; the 10-16 gate failure (candidate -1660 vs deployed +614 on hold30) is not recomputed here. The next nightly run (data to 2026-10-19) is the first on the aligned harness.
-
-## Seven hypotheses, part B, steps 11-13 (2026-10-19)
-
-Protocol from `docs/plans/20261018-seven-hypotheses.md` part B (commit 9811d0e, before running). Code: `scripts/hypo_wf.py`, `scripts/hypo-replay.sh`, `cmd/pricehist`. Data on the ai-box: `exportdataset` 2024-01-01..2026-10-19 with deadband 0 (18 tickers, FX excluded), prices from ISS; 13211 labelled rows after the 0.5% deadband filter, agreement of the rebuilt direction label with the dataset label 100%. 15 configurations (5 seeds x shifts 0/27/54, 63-day test folds from 2025-04-01 + shift, 6403 test rows per configuration), purged on `label_date`.
-
-A bug found and fixed before any result was recorded: the first run computed the per-date ranks among rows that survived the deadband filter, which depends on the future return. The ranks are now computed over all rows of the date before the filter; the first-run numbers (+0.0245) are not used.
-
-| Step | Variant | Base pooled AUC | Variant pooled AUC | Mean paired d | Positive pairs | Spearman p vs forward return (base / variant) |
-|---|---|---|---|---|---|---|
-| 11 | per-date ranks of the 15 price features + 3 momentum-minus-IMOEX features | 0.4905 | 0.5161 | +0.0256 (range 0.0156..0.0315) | 15/15 | -0.019 / +0.024 |
-| 12 | labels in volatility units (+/-0.5 sigma20*sqrt(10)), scored on the original label | 0.4905 | 0.5019 | +0.0114 (range 0.0057..0.0156) | 15/15 | -0.019 / +0.003 |
-| 13 | meta-model filter, top 30% of rows | n/a | n/a | AUC d -0.0004 | 4/15 | mean signed forward return of top 30%: base 0.2276%, meta 0.2654% (d +0.038 pp, positive in 6/15) |
-
-- Stage 1 verdict by the registered rule (mean d >= +0.005 and >= 12/15 positive): step 11 PASS, step 12 PASS, step 13 FAIL (needs +0.10 pp and 12/15).
-- The base recipe scores 0.4905 on these 15 configurations (range 0.479..0.498), i.e. at or below chance for the 2025-04..2026-10 period. Out-of-range share of test rows (|z| > 12 against the training fold) is 0.015% for both, so the serve-time range violation was not the mechanism of the step 11 gain in this evaluation.
-- The 15 configurations share the same data (shifts of 27 days overlap), so the positive-pairs counts overstate independence; the SD of the paired difference is 0.0043 (step 11) and 0.0025 (step 12).
-
-Stage 2 (csvprob replay of the walk-forward probabilities, windows q1..w1 of Task 5, seed 42, 0.60/0.40, 17 tickers, 1M deposit, 15000 RUB per position, costs 0.0005 x3, net caps 90000 and stress borrow as in the preflight, kill switch on), realized net of borrow in RUB:
-
-| Window | base | rank (11) | sigma (12) |
-|---|---|---|---|
-| q1 2025-03-05..06-05 | -10968 | -8035 | -7451 |
-| q2 2025-06-06..09-05 | -4057 | -6344 | -6168 |
-| q3 2025-09-06..12-03 | +2982 | +8685 | +12633 |
-| q4 2025-12-04..2026-03-04 | -11438 | -18071 | -7866 |
-| w2 2026-03-05..06-06 | -9831 | -2392 | -8606 |
-| w1 2026-06-07..09-16 | +37654 | +7198 | +29069 |
-| sum | +4342 | -18959 | +11611 |
-| worst max drawdown | 1.82% | 2.55% | 1.99% |
-| kill switch tripped | 0 | 0 | 0 |
-
-- Registered stage 2 rule (realized not below base and worst drawdown not above base + 0.5 pp = 2.32%): step 11 FAIL on both (sum -18959, drawdown 2.55%), step 12 PASS (sum +11611, drawdown 1.99%; better than base in 4 of 6 windows).
-- Reading: the rank features raise the rank correlation but lose money at 0.60/0.40; the volatility-unit labels give a small AUC gain and a better realized sum, but every figure is within replay noise (one seed, six windows, 2 of 6 windows positive for all three arms) and the absolute AUC of step 12 is 0.502. Passing grants the right to pre-register an integration; it does not replace `ensemble_model.json`.
-- Not tested: combining 11 and 12, other thresholds for the rank variant, more seeds in the replay.
-
-## Seven hypotheses, part B, steps 14-16 (2026-10-19)
-
-Same protocol, data and 15 configurations as steps 11-13 (`scripts/hypo_wf.py`, `cmd/futoifetch`, `scripts/timesfm_features.py`).
-
-| Step | Variant | Rows / tickers | Base pooled AUC | Variant pooled AUC | Mean paired d | Positive pairs | Verdict |
-|---|---|---|---|---|---|---|---|
-| 14 | FORTS open interest of individuals (`futoi`, FIZ): own-futures 5-day change and level for 9 shares with a stock future (YDEX, SBER, LKOH, GAZP, GMKN, ROSN, TATN, MGNT, VTBR) + MX index future 5-day change and level, data of days before the decision day | 5223 / 9 | 0.4749 | 0.4825 | +0.0076 | 11/15 | FAIL (needs 12/15) |
-| 14b | same, data lagged 14 calendar days | 5213 / 9 | 0.4760 | 0.4471 | -0.0289 | 0/15 | FAIL, harmful |
-| 15 | fundamentals of company cards | not run | | | | | not verifiable here, see below |
-| 16a | TimesFM 2.5 (200M, zero-shot, context 512 closes before the decision day, horizon 11) median forecast return as the score | 8252 test rows (shift 0) | 0.5 | 0.5220 (shift 27: 0.5200, shift 54: 0.5253), Spearman with forward return 0.033 / 0.030 / 0.042 | | | FAIL: date-block bootstrap 95% CI of the AUC at shift 0 is [0.487, 0.553], includes 0.5 |
-| 16b | base + TimesFM forecast return, interquartile width, position of the last close in the interval | 11273 / 18 | 0.4905 | 0.4927 | +0.0022 | 14/15 | FAIL (needs +0.005) |
-
-- Step 14: `iss.moex.com/iss/analyticalproducts/futoi` is open without a token with history from 2023-12, but the free tier returns an error for the last 14 days ("Free users can't receive data for the last 14 days"). A live model on the free tier would therefore see data older than 14 days, which is the 14b arm and it is worse than base; the registered arm (previous day) would need the paid feed and it also does not pass. Series NV (Novatek) and MT (MTS) return only 21 and 13 points and were dropped; TN starts 2025-10, YD 2024-07 (NaN rows dropped before both arms). Fetch mapping of stock futures to shares (SR, LK, GZ, GK, RN, TN, MG, VB, YD) is by the ISS ticker list and not verified against a specification page; MX is the index future.
-- Step 15 (superseded by the follow-up below): the repository SDK (`invest-api-go-sdk` v1.4.6) has no fundamentals method, and no token is available in the process environment, so no call to T-Invest was made. From the documented API semantics, `GetAssetFundamentals` returns current trailing-twelve-month and multiple values at request time and `GetAssetReports` returns report dates, i.e. a snapshot, not a dated history; if that holds, historical joins would leak the future. This is documentation-based and was not confirmed by a call. The only leak-free route is to record the snapshot daily from now on and use it after a history has accumulated.
-- Step 16a: the zero-shot point estimate is 0.52 at all three fold shifts, the first estimate above 0.5 in this programme for a model with no fitted parameters, but with 8252 overlapping-horizon rows the interval includes 0.5. The registered 12/15 clause is not applicable to a model without seeds; the three shifts were all >= 0.52.
-- The TimesFM environment is a separate venv `~/moex-timesfm` on the ai-box (CPU torch, `timesfm` 3.0.2, weights `google/timesfm-2.5-200m-pytorch` from the Hugging Face hub); `~/moex-venv` and its pins are unchanged. Extraction of 14545 forecasts took 2432 s.
-
-## Step 15 follow-up: fundamentals snapshot recorder (2026-10-19)
-
-The T-Invest REST call was made with the sandbox token (the production `T_TOKEN` in `.env` is empty): `InstrumentsService/GetAssetFundamentals` returned 18 of 18 tickers, `GetAssetReports` 18 of 18. The response is a current snapshot: about 60 numeric fields (market cap, P/E TTM, P/B, ROE, EPS TTM, dividend yield, `exDividendDate`, etc.) with no as-of date, and many fields are 0.0 when the vendor has no value (for SBER EBITDA, free cash flow, debt ratios). `GetAssetReports` gives report dates with a `createdAt` timestamp, i.e. the calendar is dated by when it became known (SBER Q3 2026 report 2026-10-28, created 2026-10-18). This confirms the step 15 conclusion: no historical join is possible from this API; only a daily snapshot recorder yields leak-free history.
-- Recorder: `cmd/fundsnap` (append-only `data/fundamentals.jsonl`, one JSON line per ticker and day, idempotent per day), `scripts/fundsnap-daily.sh`, launchd agent `com.oleg.moex-trader.fundsnap` at 07:30 daily on the Mac. First snapshot 2026-10-19. A fundamentals experiment is not registered before at least 120 daily snapshots exist (about 2027-02), and the horizon would then be limited to those months.
-
-## Step 17: volatility-unit labels across seeds and a hold-out window (2026-10-19)
-
-Pre-registered in commit 83f1f2e before running. 98 csvprob replays (arms base and sigma at k = 0.5, seeds 0..4, windows q1 q2 q3 q4 w2 w1 and the hold-out h = 2026-09-17..10-17, plus seed 42 for k = 0.25 / 0.5 / 0.75 and base), same replay settings as step 12. Code: `scripts/hypo_wf.py probs`, `scripts/hypo-replay.sh`. Window h has probabilities only for decisions with a known 10-day label (up to about the start of October); later days are HOLD.
-
-Realized net of borrow, RUB, sum over the six Task 5 windows; worst-window max drawdown; window h:
-
-| Seed | base sum | sigma sum | base h | sigma h |
-|---|---|---|---|---|
-| 0 | -10218 | +11542 | -611 | -624 |
-| 1 | +7988 | +22722 | -584 | -705 |
-| 2 | -13842 | +1613 | -612 | -627 |
-| 3 | +7015 | +4569 | -646 | -633 |
-| 4 | +17461 | +17338 | -563 | -1820 |
-| mean | +1681 | +11557 | -603 | -882 |
-
-Per-window mean over seeds, base / sigma: q1 -13306 / -13975, q2 -9480 / -5604, q3 +6975 / +13189, q4 -11795 / -8207, w2 -7103 / -8694, w1 +36389 / +34849. Worst drawdown over all runs: base 2.36%, sigma 2.27%. Number of windows (of six) where sigma beat base, by seed 0..4: 4, 4, 4, 3, 4.
-
-Registered criteria:
-1. mean six-window sum higher for sigma (11557 > 1681) AND sigma above base in at least 4 of 5 seeds: sigma above base in 3 of 5 (seeds 0, 1, 2) -> FAIL;
-2. worst drawdown sigma <= base + 0.5 pp (2.27 <= 2.86) -> PASS;
-3. hold-out window h mean sigma >= base (-882 against -603) -> FAIL;
-4. mean six-window sum of sigma positive -> PASS.
-Verdict: the vol-unit label result of step 12 is NOT confirmed (two of four criteria fail); no candidate-training pre-registration is opened.
-
-Descriptive, not part of the criterion (seed 42): k = 0.25 / 0.5 / 0.75 give six-window sums of +768 / +11611 / +33464, drawdowns 2.24% / 1.99% / 1.69% and hold-out -595 / -3058 / -5308 against base +4340, 1.82%, -664; non-monotonic across k and the largest hold-out loss at the largest k, so no k is selected from this. The seed-to-seed range of the base six-window sum is -13842..+17461, larger than any base-sigma difference above, which is the main reason a single-seed replay (step 12) cannot rank these arms.
-
-## Seven hypotheses, step 1 (FINAL): zero-shot direction of qwen3.8 on Russian headlines (H2, H3; 2026-10-19)
-
-Pre-registration unchanged (`docs/plans/20261018-seven-hypotheses.md`, step 1). Samples: A (clean) 1200 articles over 157 dates, 2026-04-01..09-30; B (pre-cutoff) 1114 articles over 399 dates, 2023-01-01..2024-06-30; 0 unparsable answers in both. Model digest `3f181bb5737e`, temperature 0, no thinking. Label: sign of excess return over IMOEX, entry at the next open after publication.
-
-| Sample | h | AUC | 95% CI (date-block bootstrap) | AUC without neutral (n) | Spearman with prior 5-day return | AUC within prior-return terciles |
-|---|---|---|---|---|---|---|
-| A | 1 | 0.5111 | [0.4793, 0.5407] | 0.5325 (520) | 0.263 | 0.5009 |
-| A | 5 | 0.5272 | [0.4941, 0.5597] | 0.5598 (520) | 0.263 | 0.5198 |
-| A | 10 | 0.5260 | [0.4921, 0.5605] | 0.5519 (520) | 0.263 | 0.5156 |
-| B | 1 | 0.5290 | [0.4987, 0.5599] | 0.5525 (398) | 0.123 | 0.5283 |
-| B | 5 | 0.5465 | [0.5170, 0.5765] | 0.5996 (398) | 0.123 | 0.5427 |
-| B | 10 | 0.5524 | [0.5232, 0.5821] | 0.6060 (398) | 0.123 | 0.5469 |
-
-- H2 verdict (registered threshold AUC >= 0.55 with CI lower bound > 0.5): h = 1 0.511 and h = 10 0.526 on sample A, both fail; "zero-shot direction of the LLM on Russian headlines is not better than random" is recorded, H6 and H9 are closed without a run.
-- H3 (lookahead): B minus A at h = 10 is +0.0264, CI [-0.0175, +0.0695]; the registered leakage rule (difference >= +0.030 with the lower bound above zero) is not met, so no lookahead is detected. Sample B alone is above 0.5 at h = 5 and 10 (CI lower bounds 0.517 and 0.523), which is not part of the registered rule; the old archive is not cleared for calibration use on the strength of this.
-- The score correlates with the previous 5-day return on sample A (rho 0.263, below the 0.3 limit): part of the above-0.5 signal is trailing momentum, the tercile-aligned AUC on A is 0.50-0.52.
-
-## Seven hypotheses, part C, steps 18-21 (2026-10-19)
-
-Pre-registered in commit 1421331 before running. Code: `scripts/factors_wide.py`, `cmd/pricehist` (133 tickers of the TQBR board by traded value today, ISS daily bars from 2014-01-01, 285067 rows), runs on the ai-box. Costs 0.15% per side, borrow 0.005% per day on the short leg, entry at the next open, the 2022-02-25..2022-03-24 trading halt excluded. Splits are removed by treating one-day moves below -45% or above +80% as zero return. Caveat that applies to every row below: the universe is today's TQBR list, so delisted names are absent (survivorship bias, direction unknown for a long-short book and upward for long-only).
-
-### Step 18: cross-sectional factors on the wide universe (monthly = 21 bars, 103 periods 2016-2026; ML variants 79 periods from 2019-01)
-
-| Variant | Net mean per period | NW t (net) | Net Sharpe | Years positive | Post 2022-06 mean (43 periods) | Pre-2022 mean | Gross t | Verdict |
-|---|---|---|---|---|---|---|---|---|
-| V1 composite long-short quintile | +0.66% | 1.48 | 0.49 | 6/9 | +1.40% | +0.13% (60) | 2.50 | FAIL (t 2.5, Sharpe 0.5) |
-| V2 composite long minus universe | +0.43% | 1.94 | 0.61 | 8/9 | +0.64% | +0.29% (60) | 2.62 | FAIL (t 2.5 only) |
-| V3 LightGBM long-short | +0.71% | 1.63 | 0.61 | 6/7 | +1.22% | +0.11% (36) | 2.85 | FAIL (t 2.5) |
-| V4 LightGBM long minus universe | +0.34% | 1.20 | 0.49 | 5/7 | +0.70% | -0.08% (36) | 1.85 | FAIL |
-| V1 at 10-bar rebalancing | +0.41% | 1.70 | 0.51 | 6/9 | +0.41% | | 2.88 | descriptive |
-| V2 at 10-bar rebalancing | +0.18% | 1.34 | 0.44 | 5/9 | +0.21% | | 2.18 | descriptive |
-
-- Registered rule (four variants, Bonferroni t >= 2.5, plus Sharpe >= 0.5, >= 60% positive years, positive after 2022-06): none passes. V2 misses by t only (1.94). The composite has no fitted parameters (five textbook signals, equal weights), so its results are out-of-sample in the sense of no tuning on this data, but the five signals were chosen from the literature before looking.
-- The gain sits almost entirely after 2022: V1 +0.13% per period before the halt (60 periods, indistinguishable from zero) against +1.40% after (43 periods). Annual net sums of V1: 2017 -3.7%, 2018 +31.9%, 2019 -13.7%, 2020 +4.3%, 2021 -10.8%, 2023 +16.1%, 2024 +6.4%, 2025 +16.8%, 2026 (to October) +21.0%. A regime-dependent effect from 43 post-2022 periods is a lead, not a result.
-- Turnover per rebalance is about 100% of the long leg for the composite (125% for the LightGBM variants); the gross t-statistics (2.5-2.9) lose about one point to costs.
-
-### Step 19: preferred-common pairs (6 pairs with both legs >= 1000 bars: MTLR, PMSB, RTKM, SBER, SNGS, TATN; 2016-2026)
-
-Portfolio (equal capital per pair): net mean +0.0058% per day, NW t 0.77, Sharpe 0.24, positive in 8 of 11 years, max drawdown -25.8%, total +14.8%. Per pair t-statistics: MTLR 0.12, PMSB 1.23, RTKM 0.29, SBER 0.31, SNGS -0.39, TATN 1.32. Registered rule (t >= 2.0, Sharpe >= 0.7): FAIL. The spread converges too slowly for the 0.6% round-trip cost over 4 legs.
-
-### Step 20: overnight against intraday (equal-weight liquid universe)
-
-Overnight (previous close to open) mean +0.082% per day, NW t 10.0; intraday (open to close) -0.036% per day, t -1.6. By year (overnight / intraday, % per day): 2016 0.039/0.138, 2017 0.052/-0.065, 2019 0.041/0.021, 2021 0.110/-0.058, 2023 0.188/-0.028, 2024 0.106/-0.151, 2025 0.129/-0.151, 2026 0.093/-0.189. The overnight return is positive in every year; the intraday return has been negative since 2024. A buy-the-close/sell-the-open strategy needs a gross daily mean of at least 0.30%; it is 0.08% (best year 0.19%): not tradable at these costs (registered rule). Not verified: whether the ISS daily candle open/close definition (main session only, evening session in the overnight leg) explains part of the asymmetry.
-
-### Step 21: risk-free hurdle
-
-Key rate (`data/macro/keyrate.csv`): 14% on 2026-10-09; between 14% and 21% since 2025-04. Compounded daily at the key rate, 1,000,000 RUB earns 95,947 RUB over 2025-04-01..2025-09-16, 180,378 RUB over 2025-09-17..2026-10-18, 293,632 RUB over 2025-04-01..2026-10-18 and 12,347 RUB over the last month 2026-09-17..10-18. The LQDT money-market fund returned +4.59% over 2026-06-22..2026-10-18 (118 days, about 14% annualised; ISS history for the current series starts 2026-06-22). The realized sums in parts B and C (single windows of a few thousand to tens of thousands RUB on 1M) are an order of magnitude below this carry; the deployed strategy's live sandbox equity change was -25,395 RUB over 2026-09-17..2026-10-18 against +12,347 RUB at the key rate over the same month.
-
-## Part C corrections and final results, steps 18b / 20 / 23 (2026-10-19, supersedes the price-return and survivor-universe numbers of the "steps 18-21" section above)
-
-Three corrections were made to the analysis after the first run, each found by inspection before any decision was taken on the results: (1) dividends added to returns (step 18b, pre-registered in 671a696): T-Invest calendar for 2152 events (the ISS dividends endpoint is not available); (2) an availability look-ahead removed: names without an exit price (suspended or delisted) were dropped from the period by future information, they now carry the last close (effect on the survivor panel was below 0.01 pp); (3) the universe changed from today's 133 most liquid TQBR names (survivorship and look-back liquidity bias) to a point-in-time universe built from the daily TQBR snapshots of all 719 securities that traded on the board 2014-2026, including delisted ones (`cmd/tqbrsnap`, 881385 rows), with eligibility = 252 bars of history and 60-day median traded value >= 30 million RUB on the date (57.6 names per period on average). Known gaps: T-Invest cannot resolve 401 of 587 old tickers, so dividends are missing for most delisted names; dividend amounts above 35% of the previous close are dropped as unit mismatches (VTBR is quoted pre-consolidation in ISS and post-consolidation in the calendar). Prices are not corrected for corporate actions other than one-day moves below -45% or above +80%.
-
-### Step 18 on the point-in-time universe, total return (monthly = 21 bars, 128 periods 2016-2026; ML from 2019)
-
-| Variant | Net mean per period | NW t (net) | Net Sharpe | Years positive | Post 2022-06 mean (52 periods) | Max drawdown | Verdict |
-|---|---|---|---|---|---|---|---|
-| V1 composite long-short | +0.01% | 0.01 | 0.00 | 7/11 | +1.23% | -72% | FAIL |
-| V2 composite long minus universe | +0.40% | 1.54 | 0.47 | 6/11 | +0.89% | -22% | FAIL |
-| V3 LightGBM long-short | +0.68% | 1.27 | 0.42 | 6/8 | +1.20% | -39% | FAIL |
-| V4 LightGBM long minus universe | +0.58% | 1.94 | 0.64 | 6/8 | +0.82% | -17% | FAIL (t only) |
-| V1 at 10-bar rebalancing | +0.12% | 0.48 | 0.15 | 7/11 | +0.40% | -52% | descriptive |
-| V2 at 10-bar rebalancing | +0.14% | 0.99 | 0.32 | 6/11 | +0.25% | -38% | descriptive |
-
-None passes the registered rule (t >= 2.5 plus Sharpe, years, post-2022). For comparison the same variants on the survivor-only 133-name panel with total return gave V3 t 2.29 and V4 t 2.25 (V1 1.78, V2 1.69); the point-in-time universe lowers every t-statistic.
-
-Descriptive attribution (long-short quintile, net, full sample, point-in-time): mom_12_1 +1.24% per period (t 2.17), high52 +1.77% (t 2.99), low_vol -0.32% (t -0.55), low_max -0.85% (t -1.88), rev_1m -2.69% (t -5.18, zero positive years of 11): one-month returns continue rather than reverse on MOEX, so the registered composite, which treats rev_1m as a reversal signal with positive weight, was working against the strongest signal in the data. In the survivor panel the sign of rev_1m was the same (t -3.83).
-
-### Step 23 (sequential test), point-in-time universe
-
-Rule fixed in 81b2112: composite C2 = mean of z(mom_12_1), z(1-month momentum = -rev_1m), z(high52); signs and the drop of low_vol and low_max chosen on 2016-2021 data of the survivor panel; test period 2022-06-01..2026-10-18.
-
-| Arm | Test net mean per period (n = 52) | NW t | Sharpe | Net sum by year | Verdict on registered rule |
-|---|---|---|---|---|---|
-| C2 long-short | +1.17% | 1.42 | 0.56 | 2022 (Jun-) -27.7%, 2023 +0.2%, 2024 +47.4%, 2025 +15.2%, 2026 +26.0% | FAIL (t >= 2.0 not met; Sharpe and 3-of-4-years met) |
-| C2 long minus universe | +0.83% | 1.94 | 0.77 | 2022 -4.8%, 2023 +1.7%, 2024 +25.3%, 2025 +15.7%, 2026 +5.0% | descriptive |
-
-- On the survivor panel the same rule gave test t 3.67 (+2.74% per period, 43 periods starting after the halt); that result was a product of the universe (periods of H2 2022 had too few eligible names there) and the correct reading is the point-in-time row above.
-- Reference period 2016-2021 on the point-in-time universe (74 periods, the period in which the signs were chosen, not an out-of-sample figure): C2 long-short +2.49% per period, t 3.10, Sharpe 1.31, 6 of 6 years positive.
-- Net-of-cost figures use 0.15% per side and 0.005% per day borrow on the short leg; no capacity, short-availability or margin constraints are modelled, and the long-short leg needs about 12 shorts of mid-cap names.
-
-### Step 20 (point-in-time, total return): overnight +0.102% per day (NW t 12.1), intraday -0.058% (t -2.36); by year overnight stays positive in every year; still below the 0.30% needed, not tradable at these costs.
-
-## Seven hypotheses, step 24 / 24b: breadth of the training panel (2026-10-19)
-
-Pre-registered in 25e331d and ea28d47. Code: `scripts/breadth_wf.py`, `scripts/breadth-replay.sh`, `scripts/breadth-replay-q.sh`, `scripts/quantile_probs.py`, `scripts/make_candles_csv.py`, `exportdataset -candles-csv`. Data: 172 securities that ever passed the liquidity threshold on the TQBR board 2014-2026 including delisted ones, the project's own 15 price features computed by `exportdataset` from split-adjusted snapshot candles, 376553 labelled rows (43395 for the 18 trading tickers). Test: the 18 trading tickers, the 15 configurations of steps 11-13.
-
-Stage 1 (pooled AUC on the original label, mean over 15 configurations): base18 0.4786 (Spearman with forward return -0.030), wide 0.4957 (+0.018), wide2020 (training from 2020) 0.5051 (+0.035). Paired difference to base18: wide +0.0171 (14/15 positive, range -0.0002..+0.0316), wide2020 +0.0265 (15/15, +0.0082..+0.0395). Registered stage-1 rule (>= +0.005 and >= 12/15): PASS for both, but the absolute AUC of wide is below 0.5 and wide2020 is 0.505.
-
-Stage 2 at the fixed 0.60/0.40 thresholds (105 replays, seeds 0-4, windows q1..w1 and h): the wide models cross the thresholds almost never (4-5 closed trades over six windows for wide, 11-17 for wide2020, about 490 for base18), so the formal pass (mean six-window sum +1352 for wide against -8856 for base18, better in 4 of 5 seeds) is not informative and is not accepted as a result.
-
-Step 24b (quantile thresholds: BUY above the 80th and SELL below the 20th percentile of the model's own probabilities over the previous 60 calendar days; about 580 closed trades per arm and seed). Realized net of borrow, sum of the six Task 5 windows by seed 0..4 and mean:
-
-| Arm | Seed sums | Mean | Better than base18 | Worst drawdown | Hold-out h mean |
-|---|---|---|---|---|---|
-| base18 | -28053, -32124, -30521, -27037, -20835 | -27714 | | 2.37% | +384 |
-| wide | -12376, -14832, +139, -7442, -17370 | -10376 | 5 of 5 | 2.06% | -623 |
-| wide2020 | -2853, -24862, -14365, -10516, +662 | -10387 | 5 of 5 | 1.83% | -1391 |
-
-Registered rule (all five): sum higher in >= 4 of 5 seeds PASS; drawdown PASS; hold-out h not worse FAIL (wide -623 and wide2020 -1391 against +384); sum positive FAIL (-10376, -10387); at least 150 trades PASS. Verdict: breadth reduces the loss of the recipe by about 17000 RUB over six windows but does not make it profitable; the signal of the daily 10-day direction recipe on these names is at chance level (AUC 0.48-0.505) with 15 features, with or without 2014-2026 training breadth.
-
-## Part C addendum: robustness of the factor results (2026-10-19)
-
-- Funds (instruments with `INSTRID` IF*) excluded from the point-in-time universe: every figure of the descriptive attribution is unchanged (funds do not pass the 252-bar history rule in the snapshot).
-- Absolute view of the long-only top quintile (net of 0.15% per side, total return, 21-bar rebalancing), compounded by year, against the equal-weight universe; key-rate carry from the macro file exists only from 2022-09: high52 top quintile 2024 +4.4% (universe -16.7%, key-rate carry +19.1%), 2025 +8.2% (-6.7%, +20.9%), 2026 to October -7.0% (-20.8%, +11.5%); composite C2 top quintile 2024 +9.5%, 2025 +9.9%, 2026 -14.8%. The long-only factor books beat the universe but not the key-rate carry in 2024-2026; only the long-short books (C2 long-short net by year 2024 +47.4%, 2025 +15.2%, 2026 +26.0% on one leg's capital) exceed carry.
-- Short-borrow sensitivity of C2 long-short on the point-in-time universe (net, 21-bar periods, no other change): borrow 0.005% per day (1.8% p.a., the project's stress rate) full sample +1.98% per period (t 3.47), 2016-2021 +2.49% (t 3.10), after 2022-06 +1.17% (t 1.42, Sharpe 0.56); borrow 0.03% per day (10.9% p.a.) +1.22% (t 2.14), +1.72% (t 2.15), +0.42% (t 0.51, Sharpe 0.20); borrow 0.06% per day (21.9% p.a.) +0.30% (t 0.53), +0.80% (t 1.00), -0.49% (t -0.59). The real borrow cost of the broker was never measured (Task 11); the long-short result needs it below about 5% p.a. to be positive after 2022.
-- The forward recorder for C2 and the high52 long-only track runs on the ai-box from 2026-10-19 (cron 16:30 UTC); first evaluation not before 12 rebalancings, the criteria are in the plan (step 22).
-
-## Step 25: ridge and MLP against LightGBM on the point-in-time panel (2026-10-19)
-
-Pre-registered in the plan before the run (commit "step 25 pre-registration"). Same data, features (five signals and their cross-sectional ranks), target (cross-sectional rank of the next 21-bar return), expanding window from 2019-01 with refits every 63 days, 92 monthly periods to October 2026, costs and universe as in step 18, total return. Family of six models, registered threshold t >= 2.6.
-
-| Model | Plan arm | Net mean per period | NW t (net) | Net Sharpe | Years positive | Post 2022-06 mean | Max drawdown | Gross t |
-|---|---|---|---|---|---|---|---|---|
-| ridge (alpha 10) | long-short quintile | +1.73% | 2.54 | 0.88 | 7/8 | +1.74% | -38% | 3.16 |
-| ridge | long minus universe | +1.07% | 3.35 | 1.11 | 6/8 | +1.19% | -16% | 3.81 |
-| MLP (32-16, five seeds) | long-short quintile | +0.49% | 1.05 | 0.35 | 5/8 | +0.82% | -22% | 2.20 |
-| MLP | long minus universe | +0.42% | 1.49 | 0.54 | 6/8 | +0.71% | -14% | 2.17 |
-| LightGBM (step 18, V3/V4 on the same period) | long-short / long minus universe | +0.68% / +0.58% | 1.27 / 1.94 | 0.42 / 0.64 | 6/8 | | | |
-
-Registered rule (t >= 2.6, Sharpe >= 0.5, >= 60% positive years, positive after 2022-06): ridge long-minus-universe PASSES all four; ridge long-short misses on t (2.54); both MLP variants fail; LightGBM failed in step 18. The linear model with weights learned only from past data beats the tree and the network, consistent with the small, noisy panel; it learns the positive weight on one-month momentum that the hand-set composite V1 had with the wrong sign. The first test period is 2019 and the weights use only data available at each refit, so the result has no look-ahead in the weights; the family of models and the signal list were decided before the run, but the existence of the inverted one-month signal was known from the step 18 attribution.
-
-Net sum by calendar year, ridge long minus universe: 2019 +4.6%, 2020 -1.6%, 2021 +26.5%, 2022 (Jun-) -6.0%, 2023 +18.7%, 2024 +20.9%, 2025 +18.4%, 2026 to October +16.7%; ridge long-short: 2019 +3.0%, 2020 +3.0%, 2021 +45.3%, 2022 -25.4%, 2023 +31.9%, 2024 +49.9%, 2025 +16.2%, 2026 +35.5%.
-
-Descriptive, computed after seeing the result (not part of the registered rule):
-- Absolute return of the ridge top quintile (long only, net of 0.15% per side, compounded by year) against the equal-weight universe and the key-rate carry: 2019 +35.9% (universe +29.8%), 2020 +8.5% (+12.1%), 2021 +32.2% (+2.3%), 2022 -27.5% (-23.6%), 2023 +73.5% (+43.7%), 2024 +4.6% (-16.7%, carry 19.1%), 2025 +13.3% (-6.6%, carry 20.9%), 2026 to October -3.8% (-20.8%, carry 11.5%); compounded 2019-2026 +180% against +1% for the universe. In 2024-2026 the long-only book beat the universe by 20 points a year but earned less than the key rate.
-- Long book minus the IMOEX price-index return over the same entry/exit dates (a short IMOEX future with no basis, roll or contract-size effects): mean +1.36% per period, NW t 3.99, Sharpe 1.32, positive in every year (2019 +5.7%, 2020 +7.2%, 2021 +27.1%, 2022 +8.6%, 2023 +21.1%, 2024 +15.2%, 2025 +27.8%, 2026 +12.5% in sums of period excess), post-2022-06 mean +1.33% (t 2.84). The real hedge would add the futures basis and cost, and the earlier project test (docs/metrics.md, "Real IMOEX-futures overlay") found that whole-contract sizing (one MX contract about 230000 RUB) and beta mismatch destroyed the alpha of the daily model on a 1M account.
-- Ridge long-short under a higher short-borrow cost: 0.005% per day t 2.54 (post-2022 1.65), 0.03% per day (10.9% p.a.) t 1.42 (post 0.94), 0.06% per day t 0.07: the market-neutral short leg needs a borrow cost below about 5% p.a.; the broker's rate was never measured.
-- Long turnover 93% of the long leg per month; about 65 eligible names per month, 13 in the top quintile. Capacity, liquidity of the mid-cap preferred shares in the top quintile and execution at the open are not modelled.
-- The ridge track was added to the forward recorder (`~/moex-shadow`) as a fourth track before its first rebalancing record; the registered forward criterion is in the plan (step 22 addenda).
-
-## Step 26 — universe model: decomposition, lead-lag, regimes, macro-conditioned signal (2026-10-19)
-
-Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (step 26 and its addendum). Code `scripts/world_model.py`, data `scripts/world_fetch.py` (ISS indices, USDRUB/CNYRUB, CBR key rate, FRED Brent/SPX/VIX/UST10/DXY). Same point-in-time panel and costs as step 25. First run of M1/M2 had a data defect (USDRUB_TOM stops 2024-06-11; fx factor was zeros afterwards, 2025 missing in M2); replaced by the rerun below (fx = USDRUB to 2024-06-11, CNYRUB after).
-
-M1, descriptive. Walk-forward by year (504 training days, test calendar year 2019..2026), pooled out-of-sample R² of daily ticker returns, about 150-220 tickers per year:
-
-| Model | R² 2019-2026 | R² 2023-2026 |
-|---|---|---|
-| A: market (IMOEX) | 0.116 | 0.107 |
-| B: A + 5 statistical factors (PCA of residuals) | 0.245 | 0.283 |
-| C: A + macro (USDRUB/CNYRUB, Brent, VIX, UST10, RVI, key-rate change, SPX lag 1) | 0.091 | 0.092 |
-| D: B + C | 0.223 | 0.271 |
-
-Macro adds nothing out of sample: incremental R² over the market model is negative in every year (-0.005 to -0.083, unregularised least squares on 504 days). The market explains 11-12% of daily ticker variance, the common structure about 28% in recent years, the remaining roughly 72% is idiosyncratic. The five statistical factors do not map stably to named sectors: the best-matching MOEX sector index changes from year to year (oil and gas, utilities, consumer, chemicals, transport, metals) with |corr| 0.1-0.6.
-
-M2, lead-lag of external drivers on IMOEX next-day return (1947 test days, 2019-01..2026-10): R² vs expanding mean -1.0% (criterion >0: FAIL); sign hit rate 53.4%, one-sided binomial p 0.0016 (criterion >=53% and p<0.01: pass); t NW(5) of the net excess over buy-and-hold 1.76 (criterion >=2.6: FAIL); post-2022-06 mean excess positive (+0.05% per day, t 1.35; criterion 4 positive: pass); long share 52%, Sharpe 0.07 against buy-and-hold -0.50 (IMOEX price index vs key-rate carry, 2022 crash included), max drawdown -29.5% vs -70.5%. Feature weight order: 5-day IMOEX trend, VIX, 21-day trend, RVI, 21-day volatility, DXY, SPX. Without SPX: t 1.60, hit 52.6% (p 0.012). Verdict: FAIL (2 of 4 criteria). Per-year excess over buy-and-hold: 2019 -8.9%, 2020 +5.5%, 2021 +13.4%, 2022 +63.9%, 2023 -16.3%, 2024 +21.7%, 2025 +20.5%, 2026 +10.4%; 2022 dominates.
-
-M3, two-state Markov-switching variance model, filtered probabilities, hold IMOEX when P(high variance) < 0.5 else key-rate carry, costs 0.03% per unit: Sharpe 2019-2026 -0.34 vs buy-and-hold -0.51 (difference +0.17, criterion >=0.2: FAIL); max drawdown -48.9% vs -71.6% (ratio 0.68, criterion <=0.75: pass); post-2022-06 Sharpe -0.76 vs -0.63 (difference -0.12, criterion >0: FAIL); in market 85% of days. Verdict: FAIL.
-
-M4, macro-conditioned stock signal (beta x factor volatility x 63-day factor trend for USDRUB/CNYRUB, Brent, VIX, UST10, added to the step 25 ridge features), long top quintile minus universe, 91 periods: ridge baseline reproduces step 25 (net +1.07%, t 3.35); ridge + macro net +1.04%, t 3.26, Sharpe 1.10, positive in 8/8 years, post-2022 +0.98% (criteria 1, 3, 4 pass); paired difference vs baseline mean -0.011%, t NW -0.04 (criterion >=2.0: FAIL). Macro features alone: net -0.52% per period, t -1.71, 2/8 positive years. Verdict: FAIL (adds nothing to ridge).
-
-M5, descriptive (added after seeing M1-M4): 2021-2024, 134 tickers with news coverage, 102642 ticker-days. Idiosyncratic residual z (model B, scaled by trailing 250-day sigma): base rate of a news item on the ticker-day 21.3%; on days with |z| > 3 (2032 events) 40.2%; on quiet days (|z| < 1) 19.6%; mean |z| 0.85 on news days vs 0.63 without. 59.8% of the large idiosyncratic moves have no item in the archive that day (the archive is a crawl of a few publishers, so absence is not evidence of no cause).
-
-Step 26 verdict: no tested model of the universe predicts out of sample beyond the existing ridge (M2, M3, M4 FAIL); the measurable result is the explanatory decomposition (M1/M5): market 12%, common statistical structure up to 28%, macro drivers 0 out of sample, about 72% idiosyncratic of which 40% coincides with ticker news.
-
-## Step 27 — gate-passing candidate search (2026-10-19)
-
-Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (steps 27, 27b, 27c). Replay: 17 tickers, 1M deposit, 15000 RUB per position, costs 0.0005x3, net caps 90000, borrow 0.00005 per day, thresholds 0.60/0.40, csvprob; ridge scores from `scripts/ridge_probs.py` (step 25 model, walk-forward, percentile r in the full eligible universe, p = 0.5 + (r - 0.5)/3, held 21 bars).
-
-Step 27, ridge ls on the six windows plus G (gate window 2026-07-20..2026-10-18), realized net of borrow, RUB: q1 -2, q2 +1136, q3 +407, q4 +2113, w2 -274, w1 -2697, G +3916 (81 closed). Criteria: G > 1 pass; six-window sum +684 pass; positive windows 3 of 6 (needs 4) FAIL; worst -2697 pass. Controls: bias variant G +2077; flip (inverted sign) G -4491, six-window sum negative. Verdict: FAIL on criterion 3, with tiny P&L (0.2% of the deposit per window).
-
-Step 27b, project recipe (base, 5 seeds, trained on 18 tickers from 2024-01-01) with and without the ridge agreement filter, mean over seeds: base six-window sum +1681 (seeds -13842..+17461), G -11884 (all five seeds negative, -19440..-4291); filtered six-window sum -6688, G -3303 (all negative). The recipe fails the gate window for every seed (consistent with the Mac preflight error); the filter cuts the loss but does not turn it positive. Verdict: FAIL (criteria 1, 2, 5).
-
-Step 27c, rolling 90-day windows every 15 days, 2025-03-05..2026-07-13 starts (34 windows, overlapping), gate rule realized > 1 and >= 1 closed trade: ridge ls passes 20 of 34 (59%), sum +10171 RUB, min -4125, max +3324; flip passes 5 of 34 (15%), sum -31076. Windows starting 2025-05..2026-01 are positive, windows starting 2026-05-14..2026-06-28 are negative (-1366, -3615, -4125, -2677), the window starting 2026-07-13 +198. Criterion (pass share >= 70%, positive sum, flip lower by >= 20 points): share 59% FAIL, sum pass, flip gap pass. Verdict: FAIL.
-
-Reading: the ridge signal has a real sign (flip loses systematically) and passes the current gate window, but at 15000 RUB per position and monthly turnover its P&L is of the order of the gate's +1 RUB threshold with a pass rate near 60%, so a green gate on any given day is close to a coin flip with a positive tilt. No candidate meets the registered bar; `ensemble_model.json`, the gate and the config are unchanged.
-
-## Step 28 — report events and dividend history from T-Invest (2026-10-19)
-
-Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (step 28). Data: `cmd/reportsfetch` with the read-only T-Invest token and instrument uid. History starts 2014-03. Of 719 point-in-time tickers only 289 resolve in T-Invest (the rest are delisted, so event studies are survivor-biased); 158 tickers match the panel, 3811 report dates, 1811 dividend records; after eligibility (listed 252 days, turnover >= 30M), 2016+, excluding 30 days around the 2022 halt: 1448 events. Abnormal return = stock minus equal-weight eligible universe, total return. AlgoPack token rejected by the server (`iss_permissions=0`, "available only to subscribers"), so no order-book or tradestats tests. T-Invest fundamentals ratios remain snapshot-only.
-
-E1 (descriptive): mean abnormal return [0,+1] -0.20%; mean |abnormal| on the report day 1.55% vs 1.24% on a typical day (ratio 1.25).
-E2 premium [-2,+1]: mean -0.03%, date-clustered bootstrap t -0.26, positive in 4 of 9 years (2017-2025). Criterion t >= 2.6 and >= 6/9 years: FAIL.
-E3 reaction continuation: top tercile of day [0,+1] reaction minus bottom tercile, drift [+2,+21]: +0.98% (top +0.20%, bottom -0.78%, 483 events each), clustered t 2.21, positive in 5 of 9 years. Criterion t >= 2.6 and >= 6/9: FAIL (direction as in the literature, not significant).
-E4 ridge long book excluding names with a report in the next 21 bars (19.2% of the top quintile flagged): net +0.82% per period, NW t 2.14, Sharpe 0.75 against the unfiltered ridge +1.07%, t 3.35, Sharpe 1.11; paired difference -0.25%, t -1.09. Criterion: FAIL (filtering hurts). The flag uses actual report dates (not the schedule known at the time), so any gain would have been optimistic.
-E5 trailing dividend yield quintile long minus universe: net -0.52% per period, t -1.87, Sharpe -0.63, positive in 2 of 11 years: FAIL. Ridge plus yield features: net +0.85%, t 2.50, Sharpe 0.92; paired difference vs ridge -0.22%, t -1.44: FAIL.
-
-Step 28 verdict: all four blocks FAIL; report timing and dividend yield add nothing to the ridge signal on this panel. The best direction is reaction-based drift (E3), which stays a candidate once more events exist.
-
-## Step 29 — FUTOI with the AlgoPack key, 2020-2026 (2026-10-19)
-
-Pre-registered in the plan (step 29). Data: `cmd/futoihist`, 25 futures series, snapshots 18:45 and 23:50, FIZ and YUR groups, 126204 rows, 0 failed requests, history from 2020-01 (the free ISS gave 2023-12 with 14 days of delay). `datashop/algopack/*` (tradestats, obstats, hi2) is still "subscribers only" for this key.
-F1 (index, MX futures retail net-position change, contrarian position on IMOEX, 5-day non-overlapping, 221 periods from 2022-06): mean difference vs buy-and-hold +0.06% per period, NW t 0.20, hit rate 48.9%, halves -0.26% / +0.38%. Criterion t >= 2.6, hit >= 54%, both halves positive: FAIL. The 23:50 snapshot (descriptive): t 1.32, hit 48.2%, halves -0.38% / +1.19%.
-F2 (stock futures, pooled panel of up to 17 names, abnormal return t..t+5 on z of the 5-day change in retail net share, 3657 observations): coefficient -0.0004, date-clustered t -0.52; halves 2020-23 t 0.01, 2024-26 t -0.91. Criterion |t| >= 2.6 with the same negative sign in both halves: FAIL. The 23:50 snapshot: t -1.04.
-Verdict: FAIL on both blocks; retail/institutional positioning in FORTS carries no usable forecast of the index or of single names at a 5-day horizon on this sample. Not redo with the same features.
-
-## Step 30. Intraday candles, calendar effects, cycles (2026-10-19, criteria fixed in docs/plans/20261018-seven-hypotheses.md before the run, commit 320fffc)
-
-Data: 10-minute ISS TQBR candles 2011-12-15..2026-10-16, 29 companies (YNDX and YDEX merged), 5 186 545 main-session bars, 100 823 ticker-days after the completeness filter; S&P 500 (^GSPC, Yahoo) 24 814 daily closes since 1927-12-30; IMOEX 7 277 days since 1997-09-22. Scripts: `scripts/intraday_study.py`, `scripts/calendar_cycles.py`, `scripts/intraday_followup.py` (after the run).
-
-Block I (threshold t >= 2.6):
-- I1 intraday momentum: coefficient -0.016, t -1.18 (halves +0.007 and -0.033); net mean of the strategy -0.103% per day. Failed.
-- I2 overnight versus intraday: overnight +0.074% per day (t 7.07), intraday -0.060% (t -3.10), difference +0.133% (t 6.90; halves +0.055, t 2.21 and +0.201, t 7.04). The existence criterion passed. Tradable form (buy at the close, sell at the open, 0.05% per side): net -0.026% per day (t -2.50). Not traded.
-- I3 time of day: slots that passed the |t| >= 3.5 criterion with the same sign in both halves: 16:30 (-0.0096%, t -4.27) and 18:30 (+0.0120%, t +5.83). Magnitudes of about 1 bp per bar, no trading value.
-- I4a signed turnover of the day against the abnormal return of the next day: mean slope +0.0438% per 1 sigma (t 6.48; halves +0.0605, t 5.13 and +0.0296, t 4.00). Criterion passed.
-- I4b signed turnover of the first two hours against the rest of the day: +0.0024% (t 0.50). Failed.
-
-Post-run addition (not part of the criteria, descriptive): (a) I4a controlling for the same-day return: the signed-turnover slope is +0.0167% (t 2.15; halves t 1.97 and 0.95), the daily-return slope is +0.0453% (t 4.39): most of I4a is explained by continuation of the daily return. (b) Long-short on the top three and bottom three values of F, held to the next close: gross +0.170% per day (t 6.79; halves +0.238 and +0.112), after 0.05% per side (four sides) -0.030% (t -1.21), after 0.15% per side -0.430% (t -17.2). Long of the top three minus the equal-weight universe: gross +0.095% (t 5.50), net at 0.05% per side -0.005%.
-
-Block S (threshold |t| >= 3.0 for discovery, |t| >= 2.0 for confirmation and IMOEX; US 1953-1989 / 1990-2026 / IMOEX 1997-2026). No effects found. The classic effects are strong in the discovery period and vanish after 1990:
-- Monday: -0.210% (t -7.86) / +0.010% (t 0.31) / IMOEX +0.087% (t 1.27); Wednesday +0.094% (t 4.41) / +0.013 / -0.101 (t -1.58); Friday +0.089% (t 4.71) / -0.020 / +0.029;
-- turn of the month: +0.130% (t 5.50) / +0.041% (t 1.44) / IMOEX +0.219% (t 3.11);
-- pre-holiday day: +0.264% (t 6.84) / +0.054% (t 1.06) / IMOEX +0.118% (t 0.87);
-- January: +0.934% (t 1.10) / -0.395% (t -0.57) / IMOEX +1.460% (t 0.77);
-- Halloween (November-April versus May-October, monthly difference): +0.980% (t 2.88) / +0.549% (t 1.48) / IMOEX +2.891% (t 2.60); the discovery threshold 3.0 is not reached;
-- best discovery month (November): +0.984% (t 1.34) / +1.488% (t 2.13) / IMOEX +0.847% (t 0.39).
-Descriptive: mean annual log return of the S&P by cycle year (year % 4 = 0, 1, 2, 3): 6.6%, 4.8%, 1.9%, 11.5% (the third year after an election is the strongest). IMOEX monthly means: May-September are negative (-1.72% in May), December-April are +1.8..+3.2%.
-
-Block Y:
-- Y1 periodogram: S&P g 0.00096, p 0.072, maximum at a period of 4.8 days; IMOEX g 0.00208, p 0.847, period 3.2 days. Failed.
-- Y2 fixed cycles of 40/48/108 months: OOS R^2 is negative in all six pairs (from -0.0009 to -0.059), p from 0.12 to 0.73. Failed.
-- Y3 variance ratios (S&P z over four 25-year subsamples; IMOEX): q=2 [-1.01, +8.99, +1.20, -3.72], IMOEX +1.71; q=5 [-0.72, +6.43, -0.15, -2.68], +1.21; q=21 [+1.00, +3.92, -0.67, -1.72], +0.54; q=252 [+0.83, +2.76, -0.73, -0.76], +0.48. Strong momentum only in 1953-1977, the sign is reversed after 2002. No q passed.
-- Y4 12-month time-series momentum (long if positive, otherwise cash): difference of means after a positive versus after a negative: S&P 1928-1989 +0.658% (t 1.33), 1990-2026 +0.689% (t 0.92), IMOEX -0.654% (t -0.52). The t 2.6 threshold is not reached. Descriptive: over 1990-2026 the strategy CAGR is 8.50% against 8.96% for buy-and-hold, drawdown -20% against -53%, Sharpe 0.71 against 0.58; IMOEX CAGR 8.2% against 14.9%.
-- Y5 (descriptive): autocorrelation of the absolute return at lags 1/21/250: S&P 0.32/0.22/0.13, IMOEX 0.38/0.25/0.09; dominant periods of the volatility component are 1450-3600 days (4-10 years) with no persistence across the series.
-
-Verdict of the step: no cycles or seasonality found; the calendar effects that were significant before 1990 vanished on confirmation; of the intraday hypotheses, the overnight premium (I2) and next-day signed turnover (I4a) were confirmed to exist, but neither survives the 0.05% per side costs, and I4a mostly repeats daily momentum. The live model does not change.
-
-## Short-borrow rate: measurement and ridge ls sensitivity (2026-10-19)
-
-Measurement. There is no real rate data: the real T-Invest accounts (brokerage and investment piggy bank, 2020-2026, 271 and 2354 operations) contain not a single MARGIN_FEE operation and not a single short trade, and margin status is disabled on both accounts (GetMarginAttributes: code 30051); the sandbox does not charge rollover fees (`cmd/borrowmeasure`, 180 days, 0 operations). The broker's public terms: an intraday short is free, a position carried overnight is charged for every calendar day; a secondary source gives the REPO rate at about 17% per year on average (not confirmed by the account tariff). The project's accepted stress rate of 0.005% per day (1.8% per year) is about ten times below this estimate.
-
-Sensitivity: ridge ls replay (step 27 script, the same 17 stocks, caps 90000), realized P&L net of borrow, RUB.
-
-| rate per day | window G (gate) | sum of six windows q1-w2 | positive windows | worst window |
-|---|---|---|---|---|
-| 0.00005 (1.8% per year) | +3916 | +684 | 3 of 6 | -2697 |
-| 0.00023 (8.4% per year) | +3583 | -1611 | 2 of 6 | -3097 |
-| 0.00047 (17.2% per year) | +3140 | -4672 | 2 of 6 | -3631 |
-| 0.00070 (25.6% per year) | +2715 | -7605 | 2 of 6 | -4143 |
-
-Conclusion: the gate on window G passes at any rate up to 25% per year (+2715), but the sum of the six historical windows at a rate of about 17% per year is negative, and only two of six windows stay positive. If the real rate is close to REPO, the short part of ridge ls is loss-making on average; the decision to keep the shorts depends on the exact rate in the account tariff.
+| Tail-precision falsification (Task 1) | 3.1 |
+| Dividend capture event-study (2) | 7.11 |
+| Process rule (incident E4) | 0.5 |
+| Momentum benchmark (Task 2) | 3.2 |
+| Live/backtest feature parity fix (Task 3) | 2 |
+| Portfolio risk gate in backtest (Task 4) | 2, 3.3 |
+| Preflight hardening (Task 5) | 2, 3.4 |
+| Attempt registry, DSR and PBO (Task 7); Period-return matrices and pre-registered attempts (Task 4) | 3.7 |
+| Purged walk-forward baseline | 3.5 |
+| Experiment A, B, C, D, E | 4.2 |
+| Experiment F | 4.3 |
+| Sell-bias diagnostic | 9.2 |
+| Manual retrain candidate | 9.4 |
+| Preflight-concentration analysis | 9.3 |
+| Deployment decision 2026-10 (Task 13) | 4.1 |
+| Gap-stress test (Task 8) | 5.1 |
+| Beta / regime decomposition (Task 9) | 5.2 |
+| OOS freeze (Task 10) | 5.9 |
+| Short-borrow measurement and stress (Task 11) | 5.8 |
+| Shadow reconciliation (Task 3) | 9.7 (marker block) |
+| Sandbox/paper execution quality tracking (Task 16) | 9.8 |
+| Negotiations/sanctions signal evidence gate (Task 6) | 6.9 |
+| Backtest metrics: Sortino, Calmar, CAGR; HTML tearsheet and walk-forward harness | 0.1, 2 |
+| News classifier recalibration attempt; rebuild from a fresh 9596-article backfill | 7.1 |
+| Alpha-without-beta hedge test (0) | 5.3 |
+| Real IMOEX-futures overlay | 5.4 |
+| Market-neutral retraining; Phase 2b | 5.5 |
+| Managed-beta leverage grid (1) | 5.6 |
+| `max_net_exposure` on the unhedged book / on a 100% short book / semantics change | 5.7 |
+| Where the 9596 news articles are actually lost; Same root cause reaches the PRICE model | 7.2, 6.2 |
+| Observability metrics and alerts (Task 6) | 10 |
+| Horizon sweep 9-40d and news-set features | 6.1 |
+| Event causal study | 7.8 |
+| Macro and dividend-yield features | 6.8 |
+| Level-crossing event study (H20) and extension | 7.9 |
+| H22: news burst | 7.10 |
+| Data depth, step 1 / step 3 | 6.3 / 6.4 |
+| Data depth, step 2 / 2b / 2c / 2g | 7.3 / 7.4 / 7.5 / 7.6 |
+| Explainability of signals | 6.10 |
+| H23 stage 0 | 8.1 |
+| Ticker circuit breaker in the gate replay | 9.5 |
+| Seven hypotheses, step 2 | 7.6 |
+| Seven hypotheses, step 5 | 3.6 |
+| Seven hypotheses, step 6 / step 10 | 8.2 |
+| Seven hypotheses, step 7 | 8.3 |
+| Seven hypotheses, step 4 | 6.6 |
+| Seven hypotheses, step 8 / step 9 | 9.1 |
+| Seven hypotheses, step 1 (INTERIM and FINAL) | 7.7 |
+| Live sandbox P&L | 9.7 |
+| Nightly candidate gate aligned with the preflight | 9.6 |
+| Seven hypotheses, part B, steps 11-13 / 14-16 / Step 15 follow-up / Step 17 | 6.7 |
+| Seven hypotheses, part C, steps 18-21 and corrections, step 23 | 8.4, 8.5, 8.12 |
+| Step 24 / 24b | 6.5 |
+| Part C addendum | 8.5 |
+| Step 25 | 8.6 |
+| Step 26 | 8.7 |
+| Step 27 | 8.8 |
+| Step 28 | 8.9 |
+| Step 29 | 8.10 |
+| Step 30 | 8.11 |
+| Short-borrow rate: measurement and ridge ls sensitivity | 5.8 |

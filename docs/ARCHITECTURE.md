@@ -191,4 +191,4 @@ Artifacts in the repo root: `ensemble_model.json`, `model.json`, `news_classifie
 
 ## 9. Observability
 
-Prometheus `:9090`: inference duration, `signals_generated_total`, `risk_rejections_total{reason}`, `executor_skips_total{reason}`, `signal_probability`, `candle_age_seconds`, `feature_psi`, `position_notional`, `gross_exposure`, `lease_held`, `var_95/99`, `es_95/99`. Catalogue: [metrics.md](metrics.md) "Observability metrics and alerts". Telegram: signal errors, kill switch, executed decisions, cooldown alerts.
+Prometheus `:9090`: inference duration, `signals_generated_total`, `risk_rejections_total{reason}`, `executor_skips_total{reason}`, `signal_probability`, `candle_age_seconds`, `feature_psi`, `position_notional`, `gross_exposure`, `lease_held`, `var_95/99`, `es_95/99`. Catalogue: [metrics.md](metrics.md) section 10 "Observability metrics and alerts". Telegram: signal errors, kill switch, executed decisions, cooldown alerts.

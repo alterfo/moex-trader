@@ -2,10 +2,13 @@ package metricsdoc
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
 const ledgerHeader = "## Metrics ledger"
+
+var ledgerHeaderPattern = regexp.MustCompile(`^## (\d+\. )?Metrics ledger$`)
 
 var requiredColumns = []string{"window", "realized vs MTM", "artifact (commit)", "costs", "date"}
 
@@ -21,7 +24,7 @@ func Lint(content string) []string {
 
 	headerIdx := -1
 	for i, line := range lines {
-		if strings.TrimSpace(line) == ledgerHeader {
+		if ledgerHeaderPattern.MatchString(strings.TrimSpace(line)) {
 			headerIdx = i
 			break
 		}

@@ -27,6 +27,25 @@ func TestLintAcceptsWellFormedDocument(t *testing.T) {
 	}
 }
 
+func TestLintAcceptsNumberedLedgerHeading(t *testing.T) {
+	content := strings.Replace(wellFormedDocument(), "## Metrics ledger", "## 1. Metrics ledger", 1)
+	if issues := Lint(content); len(issues) != 0 {
+		t.Fatalf("Lint() issues = %v, want none", issues)
+	}
+}
+
+func wellFormedDocument() string {
+	return `# Metrics
+
+## Metrics ledger
+
+| window | realized vs MTM | artifact (commit) | costs | date |
+|---|---|---|---|---|
+| a | realized +110742; +79453; +75028; +63212 | x | y | z |
+| b | realized +56379; +40102; +25699 | x | y | z |
+`
+}
+
 func TestLintDetectsMissingSection(t *testing.T) {
 	content := "# Metrics\n\nNo ledger here.\n"
 	issues := Lint(content)
