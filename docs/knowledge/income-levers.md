@@ -17,7 +17,7 @@ accumulate a 2-3-month proving period.
   study window, gap ratio −0.97 (ex-date decline fully priced); primary
   offsets {−2,−3,−5} fail under both tax 0.13/0.00; only offset −1 at tax=0
   excludes 0 (outside the pre-registered subset). Report:
-  `docs/dividendstudy-report.md`; calendar `data/dividends.jsonl`.
+  `docs/reports/dividendstudy-report.md`; calendar `data/dividends.jsonl`.
 - **(1) managed-beta leverage closed on the unhedged book** (commits
   `bc84403`, `abe614d`): `risk.max_net_exposure` built and contains the 3%
   DD only at 2x+60k (+72545 realized, DD≤2.21%), which underperforms live 1x

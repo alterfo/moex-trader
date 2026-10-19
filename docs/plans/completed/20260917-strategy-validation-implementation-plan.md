@@ -231,7 +231,7 @@ Task 18.
 ### Task 11: Short-borrow measurement and stress
 
 - [x] Measure real short-borrow terms (rate, holding limits) for all 18 names in the
-      T-Bank sandbox — live run of `cmd/borrowmeasure` (docs/borrow-report.md):
+      T-Bank sandbox — live run of `cmd/borrowmeasure` (docs/reports/borrow-report.md):
       17/18 short-enabled, DATA not shortable, short risk rates captured
 - [x] If it cannot be measured, apply a 0.005%/day stress on short-leg notional instead
       — the API exposes no borrow fee rate and the account has 0 margin-fee ops, so the

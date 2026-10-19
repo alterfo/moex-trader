@@ -95,7 +95,7 @@ under both tax conventions. Only offset -1 excludes 0 (and only at tax 0.00)
 — outside the pre-registered subset, a single lucky offset decides nothing by
 protocol. Dividend capture is not deployable as the (2) income bet; the income
 lever reverts to (1) at 2-3x notional under a `max_net_exposure` cap. Detail:
-`docs/dividendstudy-report.md`.
+`docs/reports/dividendstudy-report.md`.
 
 ## Process rule (incident E4, two-session race)
 
@@ -749,10 +749,10 @@ operations were observed in the account history, so the pre-registered
 
 | date | short-enabled names | margin-fee ops | measured rate | applied rate | artifact |
 |---|---|---|---|---|---|
-| 2026-09-17 | 17 of 18 (DATA not shortable) | 0 (0 RUB) | unmeasurable | 0.005%/day stress | docs/borrow-report.md |
+| 2026-09-17 | 17 of 18 (DATA not shortable) | 0 (0 RUB) | unmeasurable | 0.005%/day stress | docs/reports/borrow-report.md |
 
 Per-ticker short risk rates (Dshort = minimal-margin short risk rate,
-DshortMin = initial-margin short risk rate) are in `docs/borrow-report.md`.
+DshortMin = initial-margin short risk rate) are in `docs/reports/borrow-report.md`.
 DATA reports short-enabled=false with zero short risk rates, so a SELL signal
 on DATA cannot open a short in the sandbox. The engine now supports
 `-borrow-pct-day` (`backtest.Config.BorrowPctPerDay`), charging the rate daily
@@ -1217,7 +1217,7 @@ Same executor, canonical 18 tickers, identical window/costs/borrow as the
 grid above, but **`-shares 0` (the actual live book — no futures hedge)**.
 `max_net_exposure` caps |signed aggregate net position notional| at
 OrderPrice-based deltas (lot-aware in live, LotSize=1 in backtest). Combined
-with the unhedged baseline from `docs/dividendstudy-report.md` (2026-09-25:
+with the unhedged baseline from `docs/reports/dividendstudy-report.md` (2026-09-25:
 unhedged 2x/3x DD 3.71%/4.43% > 3% kill-switch limit).
 
 **All 10 rows below were re-run on 2026-09-30** at HEAD (`88d0958`→`8157903`,

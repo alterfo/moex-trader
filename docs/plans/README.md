@@ -27,7 +27,7 @@
 
 ## Перенос в `completed/` (выполнен 2026-10-18)
 
-Девять выполненных планов из таблицы выше перенесены в `completed/` (`git mv`) одним коммитом вместе с заменой путей `docs/plans/<имя>` на `docs/plans/completed/<имя>` в `docs/metrics.md`, `docs/knowledge/*`, `docs/dividendstudy-report.md` и в самих планах; заодно исправлена старая битая ссылка на `completed/20261004-model-quality-and-robustness.md`. Правило: новый выполненный план переносится в `completed/` в том же коммите, где его итог попадает в `docs/metrics.md`, с правкой ссылок.
+Девять выполненных планов из таблицы выше перенесены в `completed/` (`git mv`) одним коммитом вместе с заменой путей `docs/plans/<имя>` на `docs/plans/completed/<имя>` в `docs/metrics.md`, `docs/knowledge/*`, `docs/reports/dividendstudy-report.md` и в самих планах; заодно исправлена старая битая ссылка на `completed/20261004-model-quality-and-robustness.md`. Правило: новый выполненный план переносится в `completed/` в том же коммите, где его итог попадает в `docs/metrics.md`, с правкой ссылок.
 
 ## Замечание
 

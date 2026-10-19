@@ -6,13 +6,13 @@ fixed below BEFORE the first run; this document is the read-before-numbers
 gate for both sessions (reviewed by the peer session before results are
 reported).
 
-RESULT (2026-09-25): see `docs/alphahedge-report.md` and the metrics.md
+RESULT (2026-09-25): see `docs/reports/alphahedge-report.md` and the metrics.md
 section "Alpha-without-beta hedge test (0)". Acceptance A and B both PASSED at
 share=1.0; bifurcation consequence (1) is authorized.
 
 ## 1. Context (non-goal framing)
 
-`docs/betaregime-report.md` shows the deployed ensemble's 18-month realized
+`docs/reports/betaregime-report.md` shows the deployed ensemble's 18-month realized
 P&L is dominated by IMOEX beta: +194293 RUB total, +129322 RUB beta
 component, +64971 RUB excess; per-trade alpha t=1.469 (p=0.16, df=17),
 portfolio structural beta1 (equal-weight bench) t=-6.186. The strategy today
@@ -27,7 +27,7 @@ binary for the (0)->bifurcation gate.
 ## 2. Reproducible inputs (fixed)
 
 - Artifact: `ensemble_model.json` @ HEAD (deployed abs-10d recipe).
-- Tickers: the 18 from `docs/betaregime-report.md` (YDEX..POSI).
+- Tickers: the 18 from `docs/reports/betaregime-report.md` (YDEX..POSI).
 - Window: 2025-04-01 -> 2026-09-17, single continuous backtest (no per-window
   retraining — no seed drift), deposit 1000000, target notional 15000,
   max_lots 1000, warmup standard, kill-switch on.
