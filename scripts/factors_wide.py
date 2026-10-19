@@ -169,7 +169,36 @@ def portfolio(score, elig, adj_op, adj_cl, cl, idx, positions, mode, step=REBAL)
     return pd.DataFrame(rows, columns=["date", "gross", "net", "tn_long", "tn_short", "n", "r_top", "r_bot", "r_all", "cal_days"]).set_index("date")
 
 
-def ml_scores(feats, target, idx, positions, step=REBAL):
+class MlpEnsemble:
+    def __init__(self, n=5):
+        from sklearn.neural_network import MLPRegressor
+        from sklearn.preprocessing import StandardScaler
+        self.scaler = StandardScaler()
+        self.members = [MLPRegressor(hidden_layer_sizes=(32, 16), alpha=1e-3, early_stopping=True, n_iter_no_change=5, max_iter=60, random_state=i) for i in range(n)]
+
+    def fit(self, X, y):
+        Xs = self.scaler.fit_transform(X)
+        for m in self.members:
+            m.fit(Xs, y)
+        return self
+
+    def predict(self, X):
+        Xs = self.scaler.transform(X)
+        return np.mean([m.predict(Xs) for m in self.members], axis=0)
+
+
+def fit_model(kind, X, y):
+    if kind == "ridge":
+        from sklearn.linear_model import Ridge
+        from sklearn.pipeline import make_pipeline
+        from sklearn.preprocessing import StandardScaler
+        return make_pipeline(StandardScaler(), Ridge(alpha=10.0)).fit(X, y)
+    if kind == "mlp":
+        return MlpEnsemble().fit(X, y)
+    return lgb.LGBMRegressor(n_estimators=300, learning_rate=0.03, num_leaves=15, colsample_bytree=0.8, subsample=0.8, subsample_freq=1, random_state=42, verbose=-1, n_jobs=6).fit(X, y)
+
+
+def ml_scores(feats, target, idx, positions, step=REBAL, kind="lgb"):
     out = pd.DataFrame(np.nan, index=feats[list(feats)[0]].index, columns=feats[list(feats)[0]].columns)
     names = list(feats)
     last_fit = None
@@ -189,7 +218,7 @@ def ml_scores(feats, target, idx, positions, step=REBAL):
                 X.append(f[m].to_numpy(float))
                 y.append(t[m].to_numpy(float))
             X, y = np.vstack(X), np.concatenate(y)
-            model = lgb.LGBMRegressor(n_estimators=300, learning_rate=0.03, num_leaves=15, colsample_bytree=0.8, subsample=0.8, subsample_freq=1, random_state=42, verbose=-1, n_jobs=6).fit(X, y)
+            model = fit_model(kind, X, y)
             last_fit = p
         f = pd.concat([feats[n].iloc[p] for n in names], axis=1)
         m = f.notna().all(axis=1)
@@ -388,6 +417,34 @@ def run_absolute(path, outpath, divpath=None):
         print("compounded total top_net %.2f universe %.2f carry %.2f" % ((1 + rows.top_net).prod() - 1, (1 + rows.universe).prod() - 1, (1 + rows.carry.fillna(0)).prod() - 1))
 
 
+def run_models(path, outpath, divpath=None):
+    op, cl, vo = load(path)
+    idx = cl.index
+    adj_op, adj_cl, ret = adjust(op, cl, dividends_matrix(divpath, idx, cl.columns))
+    s, elig = signals(adj_cl, cl, vo, ret)
+    cols = [c for c in cl.columns if c != "IMOEX"]
+    elig = elig.reindex(columns=cols).fillna(False)
+    z = {k: zscore_rows(v[cols].where(elig)) for k, v in s.items()}
+    feats = {}
+    for k, v in z.items():
+        feats[k] = v
+        feats[k + "_rk"] = v.rank(axis=1, pct=True)
+    fwd = (adj_cl.shift(-REBAL) / adj_op.shift(-1) - 1)[cols].where(elig)
+    target = fwd.rank(axis=1, pct=True)
+    positions = periods(idx, REBAL)
+    res = {}
+    for kind in os.environ.get("FW_KINDS", "ridge,mlp").split(","):
+        ml = ml_scores(feats, target, idx, positions, kind=kind)
+        for suffix, mode in (("ls", "ls"), ("lo", "lo")):
+            pf = portfolio(ml, elig, adj_op[cols], adj_cl[cols], cl[cols], idx, positions, mode)
+            pf.to_csv(outpath + "." + kind + "_" + suffix + ".csv")
+            t = summarize(pf["net"], pf.index, 252 / REBAL, 3)
+            g = summarize(pf["gross"], pf.index, 252 / REBAL, 3)
+            res[kind + "_" + suffix] = dict(net=t, gross=g)
+            print(kind, suffix, "net mean %.4f t=%.2f sharpe=%.2f yrs %d/%d post %.4f maxdd %.2f | gross t=%.2f" % (t["mean"], t["t_nw"], t["sharpe"], t["pos_years"], t["years"], t["post_mean"], t["maxdd"], g["t_nw"]), flush=True)
+    json.dump(res, open(outpath + ".json", "w"), indent=1, default=float)
+
+
 def run_sequential(path, outpath, divpath=None):
     op, cl, vo = load(path)
     idx = cl.index
@@ -417,4 +474,4 @@ if __name__ == "__main__":
     if mode == "pairs":
         run_pairs(path, out)
     else:
-        {"factors": run_factors, "overnight": run_overnight, "sequential": run_sequential, "attrib": run_attrib, "absolute": run_absolute}[mode](path, out, divpath)
+        {"factors": run_factors, "overnight": run_overnight, "sequential": run_sequential, "attrib": run_attrib, "absolute": run_absolute, "models": run_models}[mode](path, out, divpath)

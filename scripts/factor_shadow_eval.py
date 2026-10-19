@@ -15,7 +15,7 @@ def main():
     adj_op, adj_cl, ret = fw.adjust(op, cl, fw.dividends_matrix(divs, idx, cl.columns))
     ff = adj_cl.ffill()
     rows = []
-    prev_l, prev_s, prev_h = set(), set(), set()
+    prev_l, prev_s, prev_h, prev_r = set(), set(), set(), set()
     for r in reb:
         d = pd.Timestamp(r["date"])
         p = idx.get_loc(d)
@@ -31,14 +31,18 @@ def main():
         ts = 1.0 if not prev_s else len(S ^ prev_s) / len(S)
         prev_l, prev_s = L, S
         days = (idx[p + fw.REBAL] - idx[p]).days
+        R = set(r.get("long_ridge", []))
+        rr = float(fwd.reindex(list(R)).mean()) if R else float("nan")
+        tr_ = 1.0 if not prev_r else len(R ^ prev_r) / len(R)
+        prev_r = R
         H = set(r.get("long_h52", []))
         rh = float(fwd.reindex(list(H)).mean()) if H else float("nan")
         th = 1.0 if not prev_h else len(H ^ prev_h) / len(H)
         prev_h = H
-        rows.append(dict(date=d, ls_net=rl - rs - fw.COST * (tl + ts) - fw.BORROW * days, lo_net=rl - univ - fw.COST * tl, h52_lo_net=rh - univ - fw.COST * th))
+        rows.append(dict(date=d, ls_net=rl - rs - fw.COST * (tl + ts) - fw.BORROW * days, lo_net=rl - univ - fw.COST * tl, h52_lo_net=rh - univ - fw.COST * th, ridge_lo_net=rr - univ - fw.COST * tr_))
     df = pd.DataFrame(rows).set_index("date")
     print(df)
-    for c in ("ls_net", "lo_net", "h52_lo_net"):
+    for c in ("ls_net", "lo_net", "h52_lo_net", "ridge_lo_net"):
         print(c, "periods", len(df), "mean", round(df[c].mean(), 4), "t_nw", round(fw.nw_t(df[c].values, 3), 2))
 
 
