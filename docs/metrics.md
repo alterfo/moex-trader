@@ -2463,3 +2463,10 @@ E4 ridge long book excluding names with a report in the next 21 bars (19.2% of t
 E5 trailing dividend yield quintile long minus universe: net -0.52% per period, t -1.87, Sharpe -0.63, positive in 2 of 11 years: FAIL. Ridge plus yield features: net +0.85%, t 2.50, Sharpe 0.92; paired difference vs ridge -0.22%, t -1.44: FAIL.
 
 Step 28 verdict: all four blocks FAIL; report timing and dividend yield add nothing to the ridge signal on this panel. The best direction is reaction-based drift (E3), which stays a candidate once more events exist.
+
+## Step 29 — FUTOI with the AlgoPack key, 2020-2026 (2026-10-19)
+
+Pre-registered in the plan (step 29). Data: `cmd/futoihist`, 25 futures series, snapshots 18:45 and 23:50, FIZ and YUR groups, 126204 rows, 0 failed requests, history from 2020-01 (the free ISS gave 2023-12 with 14 days of delay). `datashop/algopack/*` (tradestats, obstats, hi2) is still "subscribers only" for this key.
+F1 (index, MX futures retail net-position change, contrarian position on IMOEX, 5-day non-overlapping, 221 periods from 2022-06): mean difference vs buy-and-hold +0.06% per period, NW t 0.20, hit rate 48.9%, halves -0.26% / +0.38%. Criterion t >= 2.6, hit >= 54%, both halves positive: FAIL. The 23:50 snapshot (descriptive): t 1.32, hit 48.2%, halves -0.38% / +1.19%.
+F2 (stock futures, pooled panel of up to 17 names, abnormal return t..t+5 on z of the 5-day change in retail net share, 3657 observations): coefficient -0.0004, date-clustered t -0.52; halves 2020-23 t 0.01, 2024-26 t -0.91. Criterion |t| >= 2.6 with the same negative sign in both halves: FAIL. The 23:50 snapshot: t -1.04.
+Verdict: FAIL on both blocks; retail/institutional positioning in FORTS carries no usable forecast of the index or of single names at a 5-day horizon on this sample. Not redo with the same features.
