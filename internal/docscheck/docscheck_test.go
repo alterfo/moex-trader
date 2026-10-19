@@ -40,6 +40,10 @@ func isRussian(path string) bool {
 	return strings.HasSuffix(path, ".ru.md")
 }
 
+func isPlan(path string) bool {
+	return strings.Contains(filepath.ToSlash(path), "docs/plans/")
+}
+
 func TestEveryDocHasBothLanguages(t *testing.T) {
 	for _, path := range markdownFiles(t) {
 		if isRussian(path) {
@@ -47,6 +51,9 @@ func TestEveryDocHasBothLanguages(t *testing.T) {
 			if _, err := os.Stat(english); err != nil {
 				t.Errorf("%s has no English original %s", path, english)
 			}
+			continue
+		}
+		if isPlan(path) {
 			continue
 		}
 		russian := strings.TrimSuffix(path, ".md") + ".ru.md"

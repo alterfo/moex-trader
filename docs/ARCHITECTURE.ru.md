@@ -140,7 +140,7 @@ Mac (основной) и ai-box (резервный) никогда не тор
 | `cmd/newsfetch`, `cmd/newsimport`, `cmd/newsclean`, `cmd/newsrematch`, `cmd/tgarchive` | архив новостей: загрузка, импорт, очистка, перепривязка, архив Telegram |
 | `cmd/newsscore` | оценка новостей лексиконом/regex/моделью |
 
-Исследовательские работы (не на торговом пути): `cmd/eventstudy` (событийное исследование новостей), `cmd/dividendstudy` (дивидендный дрейф), `cmd/newsdecay` (затухание реакции по горизонтам), `cmd/newsvalidate` и `cmd/newsportfolio` (валидация новостного классификатора и портфель), `cmd/llmdirection` (zero-shot направление LLM по заголовкам, только офлайн), `cmd/leadlag` (lead-lag между тикерами), `cmd/rankspread` и `cmd/xsecrank` (кросс-секционное ранжирование по сохранённым OOS-вероятностям), `cmd/regimemask` (режимный фильтр IMOEX поверх сохранённых вероятностей walk-forward), `cmd/icaportfolio` (портфель VAR-ICA-MGARCH). Результаты и вердикты: [metrics.md](metrics.md) и [plans/](plans/README.md).
+Исследовательские работы (не на торговом пути): `cmd/gapattrib` и `internal/gapattrib` (атрибуция разрыва между исследованием и live для книги ridge, H-R9; читает перцентили всей вселенной, которые пишет `scripts/ridge_full_dump.py`), `cmd/eventstudy` (событийное исследование новостей), `cmd/dividendstudy` (дивидендный дрейф), `cmd/newsdecay` (затухание реакции по горизонтам), `cmd/newsvalidate` и `cmd/newsportfolio` (валидация новостного классификатора и портфель), `cmd/llmdirection` (zero-shot направление LLM по заголовкам, только офлайн), `cmd/leadlag` (lead-lag между тикерами), `cmd/rankspread` и `cmd/xsecrank` (кросс-секционное ранжирование по сохранённым OOS-вероятностям), `cmd/regimemask` (режимный фильтр IMOEX поверх сохранённых вероятностей walk-forward), `cmd/icaportfolio` (портфель VAR-ICA-MGARCH). Результаты и вердикты: [metrics.md](metrics.md) и [plans/](plans/README.md).
 
 ## 6. Карта пакетов: `internal/*`
 
@@ -178,7 +178,7 @@ Mac (основной) и ai-box (резервный) никогда не тор
 | `deploy-failover.sh`, `sync-aibox.sh` | деплой отказоустойчивости, синхронизация ai-box | Mac |
 | `export_ensemble.py`, `compare_models.py`, `combos.py`, `dump_parity_fixture.py` | обучение/экспорт ансамбля, сравнение, фикстура паритета | Mac / ai-box |
 | `daily-retrain.sh`, `daily-retrain-box.sh`, `recent-window-experiment.sh` | ежедневное переобучение КАНДИДАТА (только отчёт) | Mac / ai-box cron |
-| `ridge_probs.py`, `factors_wide.py`, `ridge-scores-pull.sh`, `factor_shadow*.py`, `quantile_probs.py` | таблица оценок ridge и исследование факторов | ai-box → Mac |
+| `ridge_probs.py`, `ridge_full_dump.py`, `factors_wide.py`, `ridge-scores-pull.sh`, `factor_shadow*.py`, `quantile_probs.py` | таблица оценок ridge и исследование факторов | ai-box → Mac |
 | `breadth*.sh/py`, `hypo*.sh/py`, `depth-candidate.sh`, `calendar_cycles.py`, `intraday_*.py`, `futoi_study.py`, `events_study.py`, `procvar.py`, `world_*.py`, `timesfm_features.py`, `make_candles_csv.py` | исследования гипотез | ai-box |
 | `news-daily.sh`, `rebuild-news-archive.sh`, `score_news.py`, `tgarchive-live.sh`, `fundsnap-daily.sh`, `regime-fresh.sh`, `trades-record-deploy.sh` | cron сбора данных | Mac / ai-box |
 | `launchd/` | юниты launchd для macOS | Mac |

@@ -771,6 +771,51 @@ Verdict: no cycles or seasonality; calendar effects significant before 1990 vani
 
 Key rate 14% on 2026-10-09 (between 14% and 21% since 2025-04). Compounded daily, 1,000,000 RUB earns 95,947 RUB over 2025-04-01..2025-09-16, 180,378 RUB over 2025-09-17..2026-10-18, 293,632 RUB over 2025-04-01..2026-10-18 and 12,347 RUB over 2026-09-17..10-18. The LQDT money-market fund returned +4.59% over 2026-06-22..2026-10-18 (118 days, about 14% annualised). The realized sums of sections 6 and 8 (single windows of thousands to tens of thousands of RUB on 1M) are an order of magnitude below this carry; the deployed strategy's live sandbox equity change was -25,395 RUB over 2026-09-17..10-18 against +12,347 RUB at the key rate.
 
+### 8.13 Research-to-live gap attribution (H-R9, 2026-10-19)
+
+Plan: `docs/plans/20261019-research-to-live-gap-hypotheses.md`. Tool: `cmd/gapattrib` (Go port of the step-25 portfolio on `internal/gapattrib`), inputs: the ai-box snapshot `tqbr_snap.csv` (881384 rows), `dividends_pit.jsonl` and the full-universe ridge percentiles written by `scripts/ridge_full_dump.py` (94 rebalance dates). Same rules as section 8.6: quintiles of the eligible universe (60-day median turnover >= 30M RUB, 252 bars of history), 21-bar hold from the next open, cost 0.0015 per unit of turnover, borrow 0.00005 per day. Carry is the actual key rate (`data/macro/keyrate.csv`) lagged one day, accrued on deployed capital. Rungs: R0 research quintiles; R1 quintiles inside the 17 live tickers; R1b the live thresholds r >= 0.8 / r <= 0.2 on the 17 tickers with equal weight per leg (two changes against R1 at once: selection by absolute threshold and an unbalanced book); R2 the same with equal weight per name; R3 R2 at 15000 RUB per name. Validation: R0 reproduces step 25 exactly (92 periods, net mean +1.733% per period, NW t 2.54).
+
+| rung | periods | mean longs / shorts | mean net per period (R2 per name-unit, not comparable with the other rungs) | NW t of net per deployed capital | net per deployed capital | carry per deployed capital | excess per deployed capital |
+|---|---|---|---|---|---|---|---|
+| R0, 2019-01..2026-10 | 92 | 12.6 / 12.6 | +1.733% | 2.54 | +0.87% | +0.66% | +0.21% |
+| R1, 2019-01..2026-10 | 92 | 2.3 / 2.3 | +1.320% | 1.84 | +0.66% | +0.66% | +0.00% |
+| R1b, 2019-01..2026-10 | 92 | 3.6 / 1.7 | +1.075% | 1.18 | +0.61% | +0.59% | +0.01% |
+| R2, 2019-01..2026-10 | 92 | 3.6 / 1.7 | +0.108% per name-unit | 0.41 | +0.02% | +0.68% | -0.66% |
+| R0, 2025-03..2026-10 | 19 | 16.4 / 16.4 | +3.096% | 3.08 | +1.55% | +1.39% | +0.16% |
+| R1, 2025-03..2026-10 | 19 | 2.6 / 2.6 | +3.500% | 2.86 | +1.75% | +1.39% | +0.36% |
+| R1b, 2025-03..2026-10 | 19 | 4.2 / 1.0 | +4.202% | 2.16 | +2.49% | +1.36% | +1.13% |
+| R2, 2025-03..2026-10 | 19 | 4.2 / 1.0 | +2.125% per name-unit | 0.82 | +0.41% | +1.38% | -0.97% |
+
+R3 (15000 RUB per name, mean deployed capital 78424 RUB of the 1M deposit): +16 RUB per period, +1485 RUB over 92 periods; on 2025-03..2026-10 +319 RUB per period, +6056 RUB over 19 periods, the same order as the replay sums of step 27c (section 8.8). All per-capital columns are capital-weighted (sum of net over sum of deployed capital); an earlier draft averaged per-period ratios, which inflated R2, whose capital varies from 1 to 10 name-units, and is not used. Gross return per unit of leg capital over 2019-2026, capital-weighted: R1b long +1.12%, short +0.41%; R2 long +0.78%, short -1.10%, before costs and borrow.
+
+Reading, descriptive and not a registered criterion. Restricting the universe to the 17 live tickers costs about a quarter of the net (R0 to R1: +1.73% to +1.32%, t 2.54 to 1.84). Moving from quintiles to the absolute live thresholds with an unbalanced book (3.6 long against 1.7 short names, R1b) leaves the net per deployed capital at the level of carry (+0.61% against +0.59%) with t 1.18. Weighting every name equally instead of every leg (R2) takes gross per deployed capital from +0.80% to +0.19% at the same cost per ruble (0.20% against 0.17%), so the costs of rebalancing do not explain the step. R1b and R2 hold the same positions; they differ only in how periods and names are weighted, so the step R1b to R2 says that the periods with many simultaneous signals (large books of 8-10 names) earn little per ruble and the periods with one or two names earn much, a heavy-tailed pattern on a small sample, not a defect proven in the live rule. The conclusion is therefore limited: the 15000 RUB scale does not explain the gap (R3 earns the same per ruble as R2) and the cost per ruble is flat across R1b and R2, while the composition of the live book (selection by absolute thresholds, balance and weighting) is where the gross return is lost. In the full sample every live-form rung is at or below the key-rate carry per deployed capital; in 2025-03..2026-10 R1 and R1b are above it and R2 below, on 19 periods. Limitations: R1b and R2 differ from the live replay (no 21-bar hold bookkeeping, deadband, caps, kill switch, partial fills); the rungs are cumulative, so the order of the steps matters for how the loss is split, and the step R1 to R1b mixes two changes (selection and balance); the step from 719 to the eligible universe is not in this table (R0 already uses the eligible universe of about 65 names); the Go port differs from `scripts/factors_wide.py` only in that it has no 2016 cut-off inside the portfolio (the window is set by `-from`) and computes forward returns for all columns, never using names outside the eligible set; 19 periods are about 6 independent 90-day windows.
+
+Rungs 4 and 5 through the replay engine (`cmd/backtest`, signal source `csvprob` on `data/ridge_scores.csv`, thresholds 0.60 / 0.40, 17 tickers, 1M deposit, `target_notional` 15000, costs 0.0005 x 3, borrow 0.00005 per day, kill switch on). The base reproduces the step-27 gate window: 2026-07-20..2026-10-18 realized net of borrow +3916.09, 81 closed trades, maximum drawdown 0.89%. Realized net of borrow in RUB over the six non-overlapping 90-day windows from 2025-03-05 and over the whole of W2 (2025-03-05..2026-10-18):
+
+| variant | w1 | w2 | w3 | w4 | w5 | w6 | sum of 6 | trades in 6 | W2 net | W2 trades | worst window | max drawdown |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| base: caps 90000, deadband 0.05 | 0 | +1101 | +765 | +2269 | -216 | -3579 | +340 | 239 | -2788 | 205 | -3579 | 3.15% |
+| no caps | -855 | +1089 | +440 | +2331 | -277 | -3951 | -1224 | 328 | +7472 | 300 | -3951 | 5.60% |
+| deadband 0 or 0.3 (either, caps 90000) | 0 | +1101 | +765 | +2269 | -216 | -3579 | +340 | 239 | -2788 | 205 | -3579 | 3.15% |
+
+The deadband (`risk.rebalance_min_deviation_pct`) has no effect in the replay: the variants with 0 and 0.3 are identical to the base to the rouble, because the deadband lives in `internal/executor/target_position.go` and the replay makes one decision per day, so rung 4 cannot be measured on the replay engine and is not measured here. The caps (rung 5) change the result in both directions: removing them raises the whole-W2 result from -2788 to +7472 and the trades from 205 to 300, but lowers the sum of the six non-overlapping windows from +340 to -1224 and takes the maximum drawdown from 3.15% to 5.60%, above the 3% budget; the two readings disagree because positions held across window boundaries are counted differently, which is a limit of six windows and not a verdict on the caps. No variant is positive in the last window (-3579, -3951).
+
+H-R45 (short-threshold ladder) and H-R7 (position age limit) on the same replay and windows. Realized net of borrow in RUB; the "realized net of borrow" line is absent from the replay report when no short was opened, then the realized figure of closed trades is used. Short threshold in `r` (`p <= 0.40`, 0.3667, 0.35 and none), borrow 0.00005 and 0.00047 per day:
+
+| arm | borrow per day | six windows w1..w6 | sum of 6 | W2 net | closed trades in 6 / W2 | worst window | max drawdown |
+|---|---|---|---|---|---|---|---|
+| r <= 0.20 (live base) | 0.00005 | 0, +1101, +765, +2269, -216, -3579 | +340 | -2788 | 239 / 205 | -3579 | 3.15% |
+| r <= 0.20 | 0.00047 | -549, +780, -233, +1031, -1427, -4308 | -4706 | -11953 | 239 / 205 | -4308 | 3.49% |
+| r <= 0.10 | 0.00005 | +24, +1148, +213, +3206, +43, +14 | +4649 | +2695 | 162 / 92 | +14 | 3.39% |
+| r <= 0.10 | 0.00047 | +24, +1013, -466, +2158, +43, +14 | +2786 | -2542 | 162 / 92 | -466 | 3.79% |
+| r <= 0.05 | 0.00005 | +24, +1186, -48, +2732, +43, +14 | +3951 | +1764 | 145 / 42 | -48 | 4.00% |
+| r <= 0.05 | 0.00047 | +24, +1186, -48, +2448, +43, +14 | +3668 | +61 | 145 / 42 | -48 | 4.11% |
+| no short book | either | +24, +1186, -48, +2854, +43, +14 | +4073 | +2142 | 135 / 48 | -48 | 3.87% |
+
+Position age limit (`-max-hold-bars`) on the live base at borrow 0.00005: 21 bars gives windows -7925, +4892, -3768, +11694, -159, -4729 (sum +5, W2 -10837, 393 closed trades in 6 windows, maximum drawdown 2.76%); 42 bars gives -5630, +2724, -3467, +11139, -4048, -11997 (sum -11279, W2 -1588, 308 trades, 2.43%). Both fail the H-R7 criterion (sum above base +340 with fewer trades): the trade count rises.
+
+Reading, descriptive: the loss of the base is in the short leg. Every arm that shortens less is better than the base at both borrow rates over the six windows and over W2, and the last window turns from -3579 to between -48 and +14. At the REPO-estimate borrow (0.00047) the base loses 4706 over the six windows while the arms with no or a rare short are unaffected or barely affected. Caveats: realized P&L only (open positions at the cutoff are not included, so the long-only arms, which hold longer, understate their final result); the maximum drawdown of the fewer-short arms is 3.4-4.1%, above the 3% budget in this replay, so no arm satisfies the full criterion of the plan; the arm `r <= 0.05` has far fewer than 30 short entries per window, so by the plan's rule it is "untested". Nothing is changed in the config.
+
 ## 9. Evidence from live operation
 
 ### 9.1 Root cause of the September-October SELL drift (step 9)
@@ -985,4 +1030,5 @@ Open items: the real short-borrow rate (Task 11 cannot measure it from account h
 | Step 28 | 8.9 |
 | Step 29 | 8.10 |
 | Step 30 | 8.11 |
+| H-R9, research-to-live gap attribution | 8.13 |
 | Short-borrow rate: measurement and ridge ls sensitivity | 5.8 |

@@ -35,7 +35,7 @@ Question: where does the roughly 20% a year of step 25 go on the way to the live
 
 Method: take the stored step-25 ridge scores of the full universe and restrict them without refitting. Rungs, in order: (1) 719 securities to the liquid point-in-time set of `cmd/tqbrsnap` (turnover >= 10M RUB per day, no survivors of today's list); (2) that set to the 17 live tickers; (3) full equal-weight deployment to a fixed 15000 RUB per ticker; (4) monthly rebalance at the bar close to the live rule with deadband 0.05; (5) no caps to caps of 90000. At each rung the report gives net return, excess over carry per ruble of deployed capital, closed trades and the share of the previous gap removed.
 
-Result (2026-10-19): `docs/metrics.md` section 8.13; tool `cmd/gapattrib`. Rungs 1-3 are done in research form; rungs 4-5 (deadband, caps through the backtest engine) are still open.
+Result (2026-10-19): `docs/metrics.md` section 8.13; tool `cmd/gapattrib`. Rungs 1-3 are done in research form; rung 5 (caps) is measured on the replay engine; rung 4 (deadband) cannot be measured there because the deadband lives in the executor and the replay decides once a day, so it needs an intraday replay or live shadow data and stays open.
 
 Criterion: an attribution table, no pass or fail. A rung that removes more than half of the gap is the target of the next hypothesis. If rung (3) explains the gap, the loss is scale and not signal, and H-R3 moves ahead of H-R2 and H-R45. A gap not explained by truncation opens H-R6.
 

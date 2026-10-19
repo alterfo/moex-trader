@@ -31,6 +31,7 @@ Two agent sessions share this repo. Zone boundaries:
 ## Documentation
 
 - Every Markdown document exists twice: `X.md` is English and canonical, `X.ru.md` is its Russian translation for people (first line: a link to the original and a note that the English text wins). Agents read and edit only the English files; the `.ru.md` twin is updated in the same commit, translating only the changed sections. Code identifiers, paths, config keys, numbers and tables stay verbatim.
+- Plans in `docs/plans/` are English-only (owner decision 2026-10-19): a new plan has no `.ru.md` twin, and `internal/docscheck` does not require one there. Older plans keep their twins.
 - **Architecture law:** any commit that adds, removes or renames a `cmd/*` or `internal/*` package, or changes the live loop, the data flow, config keys or an external integration, updates `docs/ARCHITECTURE.md` and `docs/ARCHITECTURE.ru.md` in that same commit. `internal/docscheck` enforces package coverage, the language twins, English-only canonical files and link integrity inside `make check`.
 - `docs/metrics.md` stays the single source of numbers; `docs/metrics.ru.md` is only its translation.
 
