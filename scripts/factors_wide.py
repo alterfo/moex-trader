@@ -165,8 +165,8 @@ def portfolio(score, elig, adj_op, adj_cl, cl, idx, positions, mode, step=REBAL)
         else:
             gross = r_top - r_all
             cost = COST * tn_long
-        rows.append((d, gross, gross - cost, tn_long, tn_short, len(names)))
-    return pd.DataFrame(rows, columns=["date", "gross", "net", "tn_long", "tn_short", "n"]).set_index("date")
+        rows.append((d, gross, gross - cost, tn_long, tn_short, len(names), r_top, r_bot, r_all, cal_days))
+    return pd.DataFrame(rows, columns=["date", "gross", "net", "tn_long", "tn_short", "n", "r_top", "r_bot", "r_all", "cal_days"]).set_index("date")
 
 
 def ml_scores(feats, target, idx, positions, step=REBAL):
@@ -362,6 +362,32 @@ def run_attrib(path, outpath, divpath=None):
             print(k, mode, "all %.4f t=%.2f sh=%.2f yrs %d/%d | pre %.4f t=%.2f n=%d | post %.4f t=%.2f n=%d | names %.1f" % (t["mean"], t["t_nw"], t["sharpe"], t["pos_years"], t["years"], a.mean(), nw_t(a.values, 3), len(a), b.mean(), nw_t(b.values, 3), len(b), pf["n"].mean()))
 
 
+def run_absolute(path, outpath, divpath=None):
+    op, cl, vo = load(path)
+    idx = cl.index
+    adj_op, adj_cl, ret = adjust(op, cl, dividends_matrix(divpath, idx, cl.columns))
+    s, elig = signals(adj_cl, cl, vo, ret)
+    cols = [c for c in cl.columns if c != "IMOEX"]
+    elig = elig.reindex(columns=cols).fillna(False)
+    z = {k: zscore_rows(v[cols].where(elig)) for k, v in s.items()}
+    combos = {"high52": z["high52"], "C2": (z["mom_12_1"] - z["rev_1m"] + z["high52"]) / 3, "mom_12_1": z["mom_12_1"]}
+    positions = periods(idx, REBAL)
+    kr = pd.read_csv("keyrate.csv", parse_dates=[0], header=0)
+    kr.columns = ["date", "rate"]
+    kr = kr.set_index("date")["rate"].sort_index()
+    for k, v in combos.items():
+        pf = portfolio(v, elig, adj_op[cols], adj_cl[cols], cl[cols], idx, positions, "lo")
+        pf = pf[~((pf.index >= HALT_FROM) & (pf.index <= HALT_TO))]
+        top = pf["r_top"] - COST * pf["tn_long"]
+        uni = pf["r_all"]
+        carry = pd.Series([float(kr[:d].iloc[-1]) / 100 / 365 * c if len(kr[:d]) else np.nan for d, c in zip(pf.index, pf["cal_days"])], index=pf.index)
+        rows = pd.DataFrame({"top_net": top, "universe": uni, "carry": carry})
+        yr = rows.groupby(rows.index.year).apply(lambda g: pd.Series({"top_net": (1 + g.top_net).prod() - 1, "universe": (1 + g.universe).prod() - 1, "carry": (1 + g.carry.fillna(0)).prod() - 1, "n": len(g)}))
+        print(k)
+        print(yr.round(3).to_string())
+        print("compounded total top_net %.2f universe %.2f carry %.2f" % ((1 + rows.top_net).prod() - 1, (1 + rows.universe).prod() - 1, (1 + rows.carry.fillna(0)).prod() - 1))
+
+
 def run_sequential(path, outpath, divpath=None):
     op, cl, vo = load(path)
     idx = cl.index
@@ -391,4 +417,4 @@ if __name__ == "__main__":
     if mode == "pairs":
         run_pairs(path, out)
     else:
-        {"factors": run_factors, "overnight": run_overnight, "sequential": run_sequential, "attrib": run_attrib}[mode](path, out, divpath)
+        {"factors": run_factors, "overnight": run_overnight, "sequential": run_sequential, "attrib": run_attrib, "absolute": run_absolute}[mode](path, out, divpath)

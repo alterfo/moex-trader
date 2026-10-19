@@ -2366,3 +2366,28 @@ Rule fixed in 81b2112: composite C2 = mean of z(mom_12_1), z(1-month momentum = 
 - Net-of-cost figures use 0.15% per side and 0.005% per day borrow on the short leg; no capacity, short-availability or margin constraints are modelled, and the long-short leg needs about 12 shorts of mid-cap names.
 
 ### Step 20 (point-in-time, total return): overnight +0.102% per day (NW t 12.1), intraday -0.058% (t -2.36); by year overnight stays positive in every year; still below the 0.30% needed, not tradable at these costs.
+
+## Seven hypotheses, step 24 / 24b: breadth of the training panel (2026-10-19)
+
+Pre-registered in 25e331d and ea28d47. Code: `scripts/breadth_wf.py`, `scripts/breadth-replay.sh`, `scripts/breadth-replay-q.sh`, `scripts/quantile_probs.py`, `scripts/make_candles_csv.py`, `exportdataset -candles-csv`. Data: 172 securities that ever passed the liquidity threshold on the TQBR board 2014-2026 including delisted ones, the project's own 15 price features computed by `exportdataset` from split-adjusted snapshot candles, 376553 labelled rows (43395 for the 18 trading tickers). Test: the 18 trading tickers, the 15 configurations of steps 11-13.
+
+Stage 1 (pooled AUC on the original label, mean over 15 configurations): base18 0.4786 (Spearman with forward return -0.030), wide 0.4957 (+0.018), wide2020 (training from 2020) 0.5051 (+0.035). Paired difference to base18: wide +0.0171 (14/15 positive, range -0.0002..+0.0316), wide2020 +0.0265 (15/15, +0.0082..+0.0395). Registered stage-1 rule (>= +0.005 and >= 12/15): PASS for both, but the absolute AUC of wide is below 0.5 and wide2020 is 0.505.
+
+Stage 2 at the fixed 0.60/0.40 thresholds (105 replays, seeds 0-4, windows q1..w1 and h): the wide models cross the thresholds almost never (4-5 closed trades over six windows for wide, 11-17 for wide2020, about 490 for base18), so the formal pass (mean six-window sum +1352 for wide against -8856 for base18, better in 4 of 5 seeds) is not informative and is not accepted as a result.
+
+Step 24b (quantile thresholds: BUY above the 80th and SELL below the 20th percentile of the model's own probabilities over the previous 60 calendar days; about 580 closed trades per arm and seed). Realized net of borrow, sum of the six Task 5 windows by seed 0..4 and mean:
+
+| Arm | Seed sums | Mean | Better than base18 | Worst drawdown | Hold-out h mean |
+|---|---|---|---|---|---|
+| base18 | -28053, -32124, -30521, -27037, -20835 | -27714 | | 2.37% | +384 |
+| wide | -12376, -14832, +139, -7442, -17370 | -10376 | 5 of 5 | 2.06% | -623 |
+| wide2020 | -2853, -24862, -14365, -10516, +662 | -10387 | 5 of 5 | 1.83% | -1391 |
+
+Registered rule (all five): sum higher in >= 4 of 5 seeds PASS; drawdown PASS; hold-out h not worse FAIL (wide -623 and wide2020 -1391 against +384); sum positive FAIL (-10376, -10387); at least 150 trades PASS. Verdict: breadth reduces the loss of the recipe by about 17000 RUB over six windows but does not make it profitable; the signal of the daily 10-day direction recipe on these names is at chance level (AUC 0.48-0.505) with 15 features, with or without 2014-2026 training breadth.
+
+## Part C addendum: robustness of the factor results (2026-10-19)
+
+- Funds (instruments with `INSTRID` IF*) excluded from the point-in-time universe: every figure of the descriptive attribution is unchanged (funds do not pass the 252-bar history rule in the snapshot).
+- Absolute view of the long-only top quintile (net of 0.15% per side, total return, 21-bar rebalancing), compounded by year, against the equal-weight universe; key-rate carry from the macro file exists only from 2022-09: high52 top quintile 2024 +4.4% (universe -16.7%, key-rate carry +19.1%), 2025 +8.2% (-6.7%, +20.9%), 2026 to October -7.0% (-20.8%, +11.5%); composite C2 top quintile 2024 +9.5%, 2025 +9.9%, 2026 -14.8%. The long-only factor books beat the universe but not the key-rate carry in 2024-2026; only the long-short books (C2 long-short net by year 2024 +47.4%, 2025 +15.2%, 2026 +26.0% on one leg's capital) exceed carry.
+- Short-borrow sensitivity of C2 long-short on the point-in-time universe (net, 21-bar periods, no other change): borrow 0.005% per day (1.8% p.a., the project's stress rate) full sample +1.98% per period (t 3.47), 2016-2021 +2.49% (t 3.10), after 2022-06 +1.17% (t 1.42, Sharpe 0.56); borrow 0.03% per day (10.9% p.a.) +1.22% (t 2.14), +1.72% (t 2.15), +0.42% (t 0.51, Sharpe 0.20); borrow 0.06% per day (21.9% p.a.) +0.30% (t 0.53), +0.80% (t 1.00), -0.49% (t -0.59). The real borrow cost of the broker was never measured (Task 11); the long-short result needs it below about 5% p.a. to be positive after 2022.
+- The forward recorder for C2 and the high52 long-only track runs on the ai-box from 2026-10-19 (cron 16:30 UTC); first evaluation not before 12 rebalancings, the criteria are in the plan (step 22).
