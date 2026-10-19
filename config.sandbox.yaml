@@ -30,6 +30,11 @@ model:
   # +56379р/253 trades vs +40102р/205 trades, DD 1.60% vs 1.09%. 90-day
   # no-news preflight check (matches live startup gate) +25699р. See AGENTS.md.
   ensemble_path: "ensemble_model.json"
+  # 2026-10-19 owner-approved swap: signals come from the ridge score table
+  # (docs/plans/20261018-seven-hypotheses.md steps 25-27, data/ridge_scores.csv
+  # produced by scripts/ridge_probs.py). While score_table_path is set the
+  # ensemble is not used for trading; delete this line to revert.
+  score_table_path: "data/ridge_scores.csv"
 moex_iss_base_url: "https://iss.moex.com/iss"
 algopack_base_url: "https://apim.moex.com/iss/datashop"
 storage:
