@@ -2414,3 +2414,28 @@ Descriptive, computed after seeing the result (not part of the registered rule):
 - Ridge long-short under a higher short-borrow cost: 0.005% per day t 2.54 (post-2022 1.65), 0.03% per day (10.9% p.a.) t 1.42 (post 0.94), 0.06% per day t 0.07: the market-neutral short leg needs a borrow cost below about 5% p.a.; the broker's rate was never measured.
 - Long turnover 93% of the long leg per month; about 65 eligible names per month, 13 in the top quintile. Capacity, liquidity of the mid-cap preferred shares in the top quintile and execution at the open are not modelled.
 - The ridge track was added to the forward recorder (`~/moex-shadow`) as a fourth track before its first rebalancing record; the registered forward criterion is in the plan (step 22 addenda).
+
+## Step 26 — universe model: decomposition, lead-lag, regimes, macro-conditioned signal (2026-10-19)
+
+Pre-registered in `docs/plans/20261018-seven-hypotheses.md` (step 26 and its addendum). Code `scripts/world_model.py`, data `scripts/world_fetch.py` (ISS indices, USDRUB/CNYRUB, CBR key rate, FRED Brent/SPX/VIX/UST10/DXY). Same point-in-time panel and costs as step 25. First run of M1/M2 had a data defect (USDRUB_TOM stops 2024-06-11; fx factor was zeros afterwards, 2025 missing in M2); replaced by the rerun below (fx = USDRUB to 2024-06-11, CNYRUB after).
+
+M1, descriptive. Walk-forward by year (504 training days, test calendar year 2019..2026), pooled out-of-sample R² of daily ticker returns, about 150-220 tickers per year:
+
+| Model | R² 2019-2026 | R² 2023-2026 |
+|---|---|---|
+| A: market (IMOEX) | 0.116 | 0.107 |
+| B: A + 5 statistical factors (PCA of residuals) | 0.245 | 0.283 |
+| C: A + macro (USDRUB/CNYRUB, Brent, VIX, UST10, RVI, key-rate change, SPX lag 1) | 0.091 | 0.092 |
+| D: B + C | 0.223 | 0.271 |
+
+Macro adds nothing out of sample: incremental R² over the market model is negative in every year (-0.005 to -0.083, unregularised least squares on 504 days). The market explains 11-12% of daily ticker variance, the common structure about 28% in recent years, the remaining roughly 72% is idiosyncratic. The five statistical factors do not map stably to named sectors: the best-matching MOEX sector index changes from year to year (oil and gas, utilities, consumer, chemicals, transport, metals) with |corr| 0.1-0.6.
+
+M2, lead-lag of external drivers on IMOEX next-day return (1947 test days, 2019-01..2026-10): R² vs expanding mean -1.0% (criterion >0: FAIL); sign hit rate 53.4%, one-sided binomial p 0.0016 (criterion >=53% and p<0.01: pass); t NW(5) of the net excess over buy-and-hold 1.76 (criterion >=2.6: FAIL); post-2022-06 t 1.35 (positive mean, but the registered check was the sum, positive; formal t not required) ; long share 52%, Sharpe 0.07 against buy-and-hold -0.50 (IMOEX price index vs key-rate carry, 2022 crash included), max drawdown -29.5% vs -70.5%. Feature weight order: 5-day IMOEX trend, VIX, 21-day trend, RVI, 21-day volatility, DXY, SPX. Without SPX: t 1.60, hit 52.6% (p 0.012). Verdict: FAIL (2 of 4 criteria). Per-year excess over buy-and-hold: 2019 -8.9%, 2020 +5.5%, 2021 +13.4%, 2022 +63.9%, 2023 -16.3%, 2024 +21.7%, 2025 +20.5%, 2026 +10.4%; 2022 dominates.
+
+M3, two-state Markov-switching variance model, filtered probabilities, hold IMOEX when P(high variance) < 0.5 else key-rate carry, costs 0.03% per unit: Sharpe 2019-2026 -0.34 vs buy-and-hold -0.51 (difference +0.17, criterion >=0.2: FAIL); max drawdown -48.9% vs -71.6% (ratio 0.68, criterion <=0.75: pass); post-2022-06 Sharpe -0.76 vs -0.63 (difference -0.12, criterion >0: FAIL); in market 85% of days. Verdict: FAIL.
+
+M4, macro-conditioned stock signal (beta x factor volatility x 63-day factor trend for USDRUB/CNYRUB, Brent, VIX, UST10, added to the step 25 ridge features), long top quintile minus universe, 91 periods: ridge baseline reproduces step 25 (net +1.07%, t 3.35); ridge + macro net +1.04%, t 3.26, Sharpe 1.10, positive in 8/8 years, post-2022 +0.98% (criteria 1, 3, 4 pass); paired difference vs baseline mean -0.011%, t NW -0.04 (criterion >=2.0: FAIL). Macro features alone: net -0.52% per period, t -1.71, 2/8 positive years. Verdict: FAIL (adds nothing to ridge).
+
+M5, descriptive (added after seeing M1-M4): 2021-2024, 134 tickers with news coverage, 102642 ticker-days. Idiosyncratic residual z (model B, scaled by trailing 250-day sigma): base rate of a news item on the ticker-day 21.3%; on days with |z| > 3 (2032 events) 40.2%; on quiet days (|z| < 1) 19.6%; mean |z| 0.85 on news days vs 0.63 without. 59.8% of the large idiosyncratic moves have no item in the archive that day (the archive is a crawl of a few publishers, so absence is not evidence of no cause).
+
+Step 26 verdict: no tested model of the universe predicts out of sample beyond the existing ridge (M2, M3, M4 FAIL); the measurable result is the explanatory decomposition (M1/M5): market 12%, common statistical structure up to 28%, macro drivers 0 out of sample, about 72% idiosyncratic of which 40% coincides with ticker news.

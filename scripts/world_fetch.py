@@ -35,6 +35,12 @@ def usdrub():
     return df[["date", "close"]].rename(columns={"close": "USDRUB"})
 
 
+def cnyrub():
+    df = iss_pages("https://iss.moex.com/iss/engines/currency/markets/selt/boards/CETS/securities/CNYRUB_TOM/candles.json?from=2013-01-01&till=2026-10-19&interval=24", "candles", None)
+    df["date"] = df["begin"].str[:10]
+    return df[["date", "close"]].rename(columns={"close": "CNYRUB"})
+
+
 def keyrate():
     html = get("https://www.cbr.ru/hd_base/KeyRate/?UniDbQuery.Posted=True&UniDbQuery.From=01.01.2013&UniDbQuery.To=19.10.2026")
     rows = re.findall(r"<td>(\d\d\.\d\d\.\d{4})</td>\s*<td>([\d,]+)</td>", html)
@@ -59,6 +65,7 @@ for s in ["IMOEX", "RTSI", "MOEXOG", "MOEXFN", "MOEXMM", "MOEXTL", "MOEXCN", "MO
     except Exception as e:
         print(s, "fail", e, flush=True)
 parts.append(usdrub())
+parts.append(cnyrub())
 parts.append(keyrate())
 for sid, nm in [("DCOILBRENTEU", "BRENT"), ("SP500", "SPX"), ("VIXCLS", "VIX"), ("DGS10", "UST10"), ("DTWEXBGS", "DXY"), ("DEXUSEU", "EURUSD"), ("DHHNGSP", "HENRY")]:
     parts.append(fred(sid, nm))
