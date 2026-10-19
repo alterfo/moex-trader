@@ -833,6 +833,13 @@ func newModelSignalSource(cfg *config.Config) (orchestrator.SignalSource, error)
 	if cfg == nil {
 		return nil, fmt.Errorf("load model: config is nil")
 	}
+	if strings.TrimSpace(cfg.Model.ScoreTablePath) != "" {
+		table, err := model.LoadScoreTable(cfg.Model.ScoreTablePath, cfg.Risk.MaxLots, cfg.Risk.TargetNotional)
+		if err != nil {
+			return nil, fmt.Errorf("load score table: %w", err)
+		}
+		return table, nil
+	}
 	if strings.TrimSpace(cfg.Model.EnsemblePath) != "" {
 		m, err := model.LoadEnsembleModel(cfg.Model.EnsemblePath)
 		if err != nil {
@@ -880,7 +887,7 @@ func loadNewsPolarity(cfg *config.Config, logger *log.Logger) func(string) decim
 // features and order_book_imbalance fall into this group), avoiding spurious
 // drift warnings on placeholder columns.
 func newDriftMonitor(cfg *config.Config, logger *log.Logger) (*drift.Monitor, error) {
-	if cfg == nil || strings.TrimSpace(cfg.Model.EnsemblePath) == "" {
+	if cfg == nil || strings.TrimSpace(cfg.Model.EnsemblePath) == "" || strings.TrimSpace(cfg.Model.ScoreTablePath) != "" {
 		return nil, nil
 	}
 	m, err := model.LoadEnsembleModel(cfg.Model.EnsemblePath)
@@ -1626,10 +1633,11 @@ func (p *preflight) withSpreadPcts(table map[string]decimal.Decimal) *preflight 
 
 func preflightConfigHash(cfg *config.Config) string {
 	h := sha256.New()
-	fmt.Fprintf(h, "tickers=%v|model=%s|ensemble=%s|preflight_days=%d|deposit=%s|min_net_pnl=%s|min_closed_trades=%d|spread=%s|slippage=%s|borrow_pct_per_day=%s|max_lots=%d|max_net_exposure=%s|max_net_short=%s|max_net_long=%s|macro_dir=%s|target_notional=%s|commission=%s|vol_scale=%t/%s/%s|sector_caps=%s|sectors=%s",
+	fmt.Fprintf(h, "tickers=%v|model=%s|ensemble=%s|scoretable=%s|preflight_days=%d|deposit=%s|min_net_pnl=%s|min_closed_trades=%d|spread=%s|slippage=%s|borrow_pct_per_day=%s|max_lots=%d|max_net_exposure=%s|max_net_short=%s|max_net_long=%s|macro_dir=%s|target_notional=%s|commission=%s|vol_scale=%t/%s/%s|sector_caps=%s|sectors=%s",
 		cfg.Tickers,
 		cfg.Model.Path,
 		cfg.Model.EnsemblePath,
+		cfg.Model.ScoreTablePath,
 		cfg.Preflight.Days,
 		cfg.Preflight.Deposit.String(),
 		cfg.Preflight.MinNetPnL.String(),

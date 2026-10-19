@@ -38,6 +38,8 @@ def main(snap, divpath, outpath):
         rows.append(d)
     out = pd.concat(rows)
     out.to_csv(outpath, index=False)
+    table = out[["ticker", "date", "p_ridge_ls"]].rename(columns={"p_ridge_ls": "p"})
+    table.to_csv(outpath.replace(".csv", "_table.csv"), index=False)
     print(out.groupby("ticker").size().describe()[["min", "max"]].to_dict(), out["date"].min(), out["date"].max(), "rebalances", len(rb[rb.index >= "2025-03-01"]))
     print("share buy/sell", float((out["p_ridge_ls"] >= 0.6).mean()), float((out["p_ridge_ls"] <= 0.4).mean()))
 
