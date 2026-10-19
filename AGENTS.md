@@ -1,5 +1,7 @@
 # Project rules
 
+Russian translation: [AGENTS.ru.md](AGENTS.ru.md). This file is canonical.
+
 **Source of truth and direction: `docs/VISION.md` (project "Approximate").** Read it first; the hard invariants below still take precedence over any plan.
 
 ## Multi-session ownership (agreed 2026-09-16)
@@ -26,12 +28,20 @@ Two agent sessions share this repo. Zone boundaries:
 - A node that fails to start its trader `trader.max_failures` times releases the lease and stays in `error` (not `standby`) while its `post_failure_cooldown` lasts — otherwise the peer sees a healthy-looking standby and never takes over. The cooldown (30 min) is deliberate anti-ping-pong for a globally broken model.
 - The watchdog on the Mac runs `./trader` from the repo root; `scripts/deploy-failover.sh mac` rebuilds it. The ai-box runs its own linux/amd64 build with `SSL_CERT_FILE=certs/ca-bundle.pem` (system CAs + Russian Trusted Root/Sub CA, needed because T-Bank uses the Russian CA chain and Ubuntu does not ship it).
 
+## Documentation
+
+- Every Markdown document exists twice: `X.md` is English and canonical, `X.ru.md` is its Russian translation for people (first line: a link to the original and a note that the English text wins). Agents read and edit only the English files; the `.ru.md` twin is updated in the same commit, translating only the changed sections. Code identifiers, paths, config keys, numbers and tables stay verbatim.
+- **Architecture law:** any commit that adds, removes or renames a `cmd/*` or `internal/*` package, or changes the live loop, the data flow, config keys or an external integration, updates `docs/ARCHITECTURE.md` and `docs/ARCHITECTURE.ru.md` in that same commit. `internal/docscheck` enforces package coverage, the language twins, English-only canonical files and link integrity inside `make check`.
+- `docs/metrics.md` stays the single source of numbers; `docs/metrics.ru.md` is only its translation.
+
 ## Knowledge index (read the file BEFORE touching the area)
 
 Detailed history, measured results and rejected ideas live in `docs/knowledge/`. They were moved verbatim out of this file on 2026-10-09 so the always-loaded rules stay short; the invariants above still take precedence. Numbers live only in `docs/metrics.md`.
 
 | Before you touch... | Read |
 |---|---|
+| package layout, live loop, signal-source chain, scripts, deploy topology | `docs/ARCHITECTURE.md` |
+| commands, config keys, backtest flags, recipes | `docs/DEVELOPMENT.md` |
 | feature order, `ToVector`, XGBoost/LGBM export, Go inference | `docs/knowledge/feature-pipeline-and-inference.md` |
 | news ingestion, news classifier, event/incident detectors, news gate | `docs/knowledge/news-and-events.md` |
 | new features, labels, horizons, thresholds, sizing, retraining | `docs/knowledge/model-quality-history.md` |
