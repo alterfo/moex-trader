@@ -33,6 +33,7 @@ Every document exists in two languages: `X.md` (English, canonical, the only one
 | [docs/metrics.md](docs/metrics.md) | the single source of every backtest and analysis number (format linted by `internal/metricsdoc`) |
 | [docs/knowledge/](docs/knowledge/) | decision history and rejected ideas by area |
 | [docs/reports/](docs/reports/) | standalone study reports |
+| [docs/research/](docs/research/) | research papers (data, method, studies, results), e.g. the core rerun on refreshed data |
 | [docs/plans/](docs/plans/README.md) | pre-registered plans and hypothesis registries (`completed/` for finished ones) |
 
 ## License

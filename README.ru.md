@@ -35,6 +35,7 @@ go run ./cmd/backtest -signal-source=ensemble -ensemble-path ensemble_model.json
 | [docs/metrics.md](docs/metrics.md) | единственный источник каждого числа бэктестов и анализа (формат проверяет линтер `internal/metricsdoc`) |
 | [docs/knowledge/](docs/knowledge/) | история решений и отвергнутые идеи по областям |
 | [docs/reports/](docs/reports/) | отдельные отчёты исследований |
+| [docs/research/](docs/research/) | научные работы (данные, методика, исследования, результаты), например перепрогон ядра на обновлённых данных |
 | [docs/plans/](docs/plans/README.md) | предварительно зарегистрированные планы и реестры гипотез (`completed/` для завершённых) |
 
 ## Лицензия
