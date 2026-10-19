@@ -85,3 +85,16 @@ Plan `docs/plans/20261018-seven-hypotheses.md` part B, numbers in `docs/metrics.
 - Fundamentals: no verified dated history; not tested. Record a daily snapshot if this is to be revisited.
 - The harness (`scripts/hypo_wf.py`) calculates ranks over all rows of a date before the deadband filter; ranking after the filter leaks the future return magnitude.
 - Step 17 (2026-10-19): the vol-unit label result above is NOT confirmed across five seeds and a hold-out window (sigma above base in 3 of 5 seeds, hold-out -882 against -603); the base six-window replay sum ranges -13842..+17461 across seeds, so single-seed replays cannot rank recipes. Treat the vol-unit labels as rejected.
+
+## Part C and breadth (2026-10-19): wide universe, factors, pairs, breadth of training
+
+Plan steps 18-24b, numbers in `docs/metrics.md` ("part C corrections", "step 24 / 24b", "part C addendum"). Read before reopening factors, pairs or training breadth.
+
+- Point-in-time universe (all 719 TQBR securities 2014-2026 incl. delisted, 57.6 eligible names per month) lowers every t-statistic of the survivor-only panel; always use `cmd/tqbrsnap` snapshots for cross-sectional work, never today's liquid list.
+- Registered composite of five textbook signals and its LightGBM version: no variant reaches t >= 2.5 (best long-minus-universe LightGBM t 1.94, composite long-short t 0.01). On MOEX the one-month return continues (strongest single signal with an inverted sign: long-short -2.69% per month, t -5.18), 52-week-high (t 2.99 long-short, 3.59 long-only) and 12-1 momentum work, low volatility and low max-return do not.
+- Sequential test (signs chosen on 2016-2021 survivor data, tested after 2022-06 on the point-in-time universe): C2 composite long-short +1.17% per month, t 1.42, Sharpe 0.56, 2022 H2 -27.7%: FAIL. In the long-short form the result is destroyed by a short-borrow cost of 11% p.a. or more (post-2022 t 0.51); borrow was never measured.
+- Long-only factor books beat the equal-weight universe by 15-20 points a year in 2024-2025 but earned less than the key-rate carry (19-21% a year); a MOEX long-only equity book has to be judged against the key rate, not against zero.
+- Preferred-common pairs: t 0.77, Sharpe 0.24, fail. Overnight return is +0.10% a day (t 12) and intraday -0.06% (t -2.4) but below the 0.30% needed per day at 0.15% a side.
+- Training breadth: 172 securities from 2014 lifts the recipe from AUC 0.479 to 0.496 (0.505 from 2020 on) and cuts the six-window replay loss with quantile thresholds from -27.7k to -10.4k RUB, but stays negative; at 0.60/0.40 the wide models almost never trade.
+- LLM direction (qwen3.8, zero-shot) is not better than random on clean data (AUC 0.511-0.526); no lookahead detected.
+- Forward test running: `~/moex-shadow` on the ai-box records the C2 and high52 books daily from 2026-10-19 (criteria in the plan, step 22); `data/fundamentals.jsonl` accumulates T-Invest fundamentals from the same date. `GetAssetReports` accepts only near-term windows (code 3 for 2017-2025), so there is no history of report dates for an earnings-announcement study.
