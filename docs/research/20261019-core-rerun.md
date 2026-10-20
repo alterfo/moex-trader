@@ -6,7 +6,7 @@ Status: in progress, first version 2026-10-20. Plan and pre-registered rules: [.
 
 ## Abstract
 
-The key core of the research programme is rerun on data refreshed to the freeze date D = 2026-10-16. The first finding concerns the data, not the models: most of the original core studies already used data up to 2026-10-16 (price snapshots, ridge table) or 2026-10-18 (news), so refreshing adds seven trading days to the depth studies and 33 news pairs, nothing to the cross-sectional studies. R1 (variance of the evaluation procedure) reproduces the original numbers exactly on the original file and, on the refreshed file, gives the same conclusions: the procedure noise N95 is 0.0148 AUC (original 0.0160), recipe A pooled AUC averages 0.4839 (below chance, original 0.4829), and the deep-history recipe D beats A in 15 of 15 paired configurations (+0.0173, original +0.0203). R2-R6 are pending.
+The key core of the research programme is rerun on data refreshed to the freeze date D = 2026-10-16. The first finding concerns the data, not the models: most of the original core studies already used data up to 2026-10-16 (price snapshots, ridge table) or 2026-10-18 (news), so refreshing adds seven trading days to the depth studies and 33 news pairs, nothing to the cross-sectional studies. R1 (variance of the evaluation procedure) reproduces the original numbers exactly on the original file and, on the refreshed file, gives the same conclusions: the procedure noise N95 is 0.0148 AUC (original 0.0160), recipe A pooled AUC averages 0.4839 (below chance, original 0.4829), and the deep-history recipe D beats A in 15 of 15 paired configurations (+0.0173, original +0.0203). R2 (deployment gate) again passes nothing and removes the earlier C-logistic lead against a fresh control (+66494.64 against +68449.25 on the original six windows). R3-R6 are pending.
 
 ## 1. Data
 
@@ -45,12 +45,30 @@ The engine, cost model, windows, noise conventions and bootstrap settings are th
 
 Reproduction: every statistic on the original file equals the recorded value, so the pipeline and environment are unchanged. Refreshed: the differences are small and inside the measured noise (all |differences| of the means are below the original N95 of 0.016). The three claims of section 3.6 are all confirmed on the refreshed data: the procedure noise is of the order of 0.015 AUC, dominated by where the fold boundaries fall (SD over shift 0.0128 against 0.0017 over seed); recipe A is below chance on average; D beats A in every paired configuration (stable across both data versions, so a stable-pass under rule 8 for the paired depth comparison and a stable-fail for absolute predictability of A). The test sets are smaller on the refreshed file (7362 against 7652 median rows) because DATA and the FX series are no longer in it; this is a universe difference, not a data-quality one.
 
-### 3.2 R2-R6
+### 3.2 R2: deployment gate on control, C-logistic and F
 
-Not yet run. Because refreshing adds only seven trading days to the depth data and nothing to the price snapshots and the ridge table, R3-R5 are reproduction checks of the original code and numbers rather than tests on new information; R2 gains seven trading days at the end of window w1. The forward window starts empty and accrues daily.
+Run by `scripts/rerun-r2.sh` at D = 2026-10-16 (datasets exported with `exportdataset` from 2024-09-01, news archive of 153565 records, purged walk-forward with embargo 10, seed as in the original script). The six original windows are rerun, and a seventh window x (train to 2026-09-16, test 2026-09-17..2026-10-16) is added; this is where the refresh gives new out-of-sample days. The full per-window table is in `docs/metrics.md` section 4.4.
+
+| quantity | original (section 4.1 / 4.3) | refreshed |
+|---|---|---|
+| control total realized, six windows | +67815.78 (4.3) | +68449.25 |
+| control total realized, seven windows | - | +65973.38 |
+| C-logistic total realized, six windows | +81382.67 (4.1, against control +59829.47) | +66494.64 |
+| C-logistic total realized, seven windows | - | +65817.78 |
+| F total realized, six windows | +9669.22 (4.3) | +1910.64 |
+| F total realized, seven windows | - | -2437.13 |
+| mean validation AUC, control / C-logistic member / F (seven windows) | 0.5170 / - / 0.4830 (six windows, 4.3) | 0.5105 / 0.5269 / 0.4859 |
+| worst max drawdown, control / C-logistic / F | 3.57% / 3.69% / 2.35% | 3.52% / 4.35% (kill trip) / 2.24% |
+| windows at or above control, C-logistic / F | 4 of 6 / 1 of 6 | 3 of 7 / 2 of 7 |
+
+Verdict by the inherited gate: nothing passes, as in the original. C-logistic fails criteria 1 (by 155.60 RUB), 2 and 3; F fails 1, 2 and 4. Two readings. First, the control reproduces within 1% in total (per-window differences up to 6000 RUB come from the larger news archive and library drift, as recorded in section 4.3), and F's loss pattern is the same. Second, the earlier C-logistic lead (+36% over control) vanishes against a fresh same-run control and the member now also trips the kill switch in w1: under rule 8 the lead was not structurally stable, and the pre-registered reading is that the original result was inside evaluation noise (single-window and single-total comparisons, N95 of R1). The new window x adds 21 trading days, too few to change any verdict.
+
+### 3.3 R3-R6
+
+Not yet run. Because refreshing adds nothing to the price snapshots and the ridge table, R3-R5 are reproduction checks of the original code and numbers rather than tests on new information. The forward window starts empty and accrues daily.
 
 ## 4. Limitations and deviations
 
 - Summary statistics of R1 were computed with an inline script that was not committed (research tooling, not a project component); the definitions are those of section 3.6.
 - The refreshed dataset has 17 tickers, the original 21 (DATA and three FX series present). Test-row counts differ accordingly; comparisons of AUC use the same procedure on both and the original file is reproduced exactly.
-- Only R1 has been run so far.
+- Only R1 and R2 have been run so far. In R2, criteria 5 (PBO) and 6 (preflight) were not evaluated, and the B and E variants were not rerun (lower priority in the plan).

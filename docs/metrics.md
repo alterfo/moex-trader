@@ -221,6 +221,26 @@ Protocol `docs/plans/completed/20261018-excess-label-walkforward.md`, committed 
 
 Gate: total realized FAIL (+9669.22 vs +67815.78); windows >= control 1/6 FAIL; drawdown PASS (F max 2.35%, no kill; the control itself prints 3.07-3.68% day-close DD without kill trips); mean val AUC 0.4830 vs 0.5170 (-0.034) FAIL; PBO {control, F} = 0.1242 (degenerate at two candidates); preflight not run. **Rejected.** The 2026-10-03 single-window AUC advantage (+0.040, section 5.5) does not transfer to the purged walk-forward on the current stack; the excess book has the expected lower-beta profile (max DD at most 2.35%) because the label removes most of the beta income by design.
 
+### 4.4 Rerun of the gate on refreshed data (2026-10-20)
+
+Core rerun study R2 (`docs/research/20261019-core-rerun.md`, plan `docs/plans/20261019-core-rerun.md`): `scripts/rerun-r2.sh` on the ai-box, data frozen at D = 2026-10-16, the six windows of section 4.1 plus a new window x (train to 2026-09-16, test 2026-09-17..2026-10-16), fresh same-run control, C-logistic (logistic member of the control models) and F (excess labels). Costs, embargo 10 and sizing as in section 4.1.
+
+| window | control realized | C-logistic realized | F realized | control trades | C-logistic trades | F trades |
+|---|---:|---:|---:|---:|---:|---:|
+| q1 | +2607.26 | +1797.63 | +13050.18 | 237 | 193 | 203 |
+| q2 | -650.70 | -1132.66 | -6211.63 | 212 | 212 | 182 |
+| q3 | +36768.40 | +44663.60 | -11808.39 | 157 | 117 | 94 |
+| q4 | -12043.88 | -6176.50 | -3403.71 | 182 | 187 | 38 |
+| w2 | +17530.66 | +15832.40 | -3604.79 | 113 | 56 | 33 |
+| w1 | +24237.51 | +11510.17 | +13888.98 | 226 | 48 | 178 |
+| x (new) | -2475.87 | -676.86 | -4347.77 | 55 | 41 | 19 |
+| total, six original windows | +68449.25 | +66494.64 | +1910.64 | 1127 | 813 | 728 |
+| total, seven windows | +65973.38 | +65817.78 | -2437.13 | 1182 | 854 | 747 |
+
+Worst max drawdown over seven windows: control 3.52%, C-logistic 4.35% (kill switch trips in w1), F 2.24%; mean validation AUC over seven windows: control 0.5105, C-logistic member 0.5269, F 0.4859. Windows at or above control: C-logistic 3 of 7, F 2 of 7.
+
+Gate (criteria 1-4 of section 4.1; 5 and 6 not run): C-logistic fails 1 (-155.60), 2 and 3; F fails 1, 2 and 4 (-0.0246). **Nothing passes**, as in the original run. Reproduction against section 4.3: the control's six-window total is +68449.25 against +67815.78 (within 1%), per-window values differ by up to 6000 RUB (q1 +2607.26 against +858.10, w1 +24237.51 against +27846.13) because the news archive grew and libraries drifted; F's six-window total is +1910.64 against +9669.22, same sign pattern (F loses in q3, q4, w2 in both). The C-logistic lead of section 4.1 (+81382.67 against +59829.47) does not reproduce: on the same fresh control it is level (-0.2% over seven windows). The new window x is a small out-of-sample extension, below the noise of single-window comparisons.
+
 ## 5. Market exposure, hedging and borrow
 
 ### 5.1 Overnight gap stress (generation 1)

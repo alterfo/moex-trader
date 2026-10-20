@@ -138,7 +138,7 @@ Data collection:
 | `cmd/newsfetch`, `cmd/newsimport`, `cmd/newsclean`, `cmd/newsrematch`, `cmd/tgarchive` | news archive: fetch, import, clean, re-match, Telegram archive |
 | `cmd/newsscore` | score news with lexicon/regex/model |
 
-Research studies (not in the trading path): `cmd/gapattrib` and `internal/gapattrib` (attribution of the research-to-live gap of the ridge book, H-R9; reads the full-universe percentiles written by `scripts/ridge_full_dump.py`), `cmd/eventstudy` (news event study), `cmd/dividendstudy` (dividend drift), `cmd/newsdecay` (reaction decay by horizon), `cmd/newsvalidate` and `cmd/newsportfolio` (news classifier validation and portfolio), `cmd/llmdirection` (zero-shot LLM direction on headlines, offline only), `cmd/leadlag` (lead-lag between tickers), `cmd/rankspread` and `cmd/xsecrank` (cross-sectional ranking on persisted OOS probabilities), `cmd/regimemask` (IMOEX regime filter over persisted walk-forward probabilities), `cmd/icaportfolio` (VAR-ICA-MGARCH portfolio). Results and verdicts: [metrics.md](metrics.md) and [plans/](plans/README.md).
+Research studies (not in the trading path): (placebo check of the score table: `cmd/placebocheck` and `internal/placebo`, H-R8, replays cyclic-shift and per-date permuted tables through the backtest engine) and `cmd/gapattrib` and `internal/gapattrib` (attribution of the research-to-live gap of the ridge book, H-R9; reads the full-universe percentiles written by `scripts/ridge_full_dump.py`), `cmd/eventstudy` (news event study), `cmd/dividendstudy` (dividend drift), `cmd/newsdecay` (reaction decay by horizon), `cmd/newsvalidate` and `cmd/newsportfolio` (news classifier validation and portfolio), `cmd/llmdirection` (zero-shot LLM direction on headlines, offline only), `cmd/leadlag` (lead-lag between tickers), `cmd/rankspread` and `cmd/xsecrank` (cross-sectional ranking on persisted OOS probabilities), `cmd/regimemask` (IMOEX regime filter over persisted walk-forward probabilities), `cmd/icaportfolio` (VAR-ICA-MGARCH portfolio). Results and verdicts: [metrics.md](metrics.md) and [plans/](plans/README.md).
 
 ## 6. Package map: `internal/*`
 
@@ -177,7 +177,7 @@ Research studies (not in the trading path): `cmd/gapattrib` and `internal/gapatt
 | `export_ensemble.py`, `compare_models.py`, `combos.py`, `dump_parity_fixture.py` | ensemble training/export, comparison, parity fixture | Mac / ai-box |
 | `daily-retrain.sh`, `daily-retrain-box.sh`, `recent-window-experiment.sh` | daily CANDIDATE retrain (report only) | Mac / ai-box cron |
 | `ridge_probs.py`, `ridge_full_dump.py`, `factors_wide.py`, `ridge-scores-pull.sh`, `factor_shadow*.py`, `quantile_probs.py` | ridge score table and factor research | ai-box → Mac |
-| `breadth*.sh/py`, `hypo*.sh/py`, `depth-candidate.sh`, `calendar_cycles.py`, `intraday_*.py`, `futoi_study.py`, `events_study.py`, `procvar.py`, `world_*.py`, `timesfm_features.py`, `make_candles_csv.py` | hypothesis studies | ai-box |
+| `breadth*.sh/py`, `hypo*.sh/py`, `depth-candidate.sh`, `rerun-r2.sh`, `calendar_cycles.py`, `intraday_*.py`, `futoi_study.py`, `events_study.py`, `procvar.py`, `world_*.py`, `timesfm_features.py`, `make_candles_csv.py` | hypothesis studies | ai-box |
 | `news-daily.sh`, `rebuild-news-archive.sh`, `score_news.py`, `tgarchive-live.sh`, `fundsnap-daily.sh`, `regime-fresh.sh`, `trades-record-deploy.sh` | data collection cron | Mac / ai-box |
 | `launchd/` | macOS launchd units | Mac |
 
