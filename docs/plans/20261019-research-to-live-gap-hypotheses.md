@@ -45,6 +45,8 @@ One axis: the short threshold in `r`. Arms `r <= 0.20` (live base), `0.10`, `0.0
 
 Criterion, on the non-overlapping windows and on W2, at the worse of the two borrow rates: (a) at 17% a year an arm is not worse than the base in sum and in the worst window; (b) the 0.20 arm at 17% is not worse than the base at 1.8%; (c) only the direction "less short is better" is tested. Bonferroni on three comparisons (CI 98.33%). An arm with fewer than 30 short entries per window is "untested", not "failed". Outcome "short is partly working" is a result; nothing goes to the config without a separate owner decision.
 
+Result (2026-10-20): `docs/metrics.md` section 8.13. Every arm with a smaller short book beats the base in sum at both borrow rates, and the worst window moves from -3579 to between -48 and +14 RUB. No arm meets the 3% drawdown budget (3.4-4.1%). The `r <= 0.05` arm has far fewer than 30 short entries per window and is "untested". Realized P&L only; open positions are excluded.
+
 ## H-R2. Execution for a 21-bar signal
 
 Two interventions, a 2x2 ablation: entry at the next bar open instead of the decision-bar close; exit when the score leaves the top or bottom third in addition to the 0.60/0.40 rule. The deadband 0.05 is the current base; 0.3 and 0.5 are separate single runs outside the ablation, with no joint verdict.
@@ -62,6 +64,8 @@ Only if H-R9 leaves a gap that truncation does not explain. The step-25 ladder (
 ## H-R7. Exit by decision, not only by threshold
 
 `ScoreTableSource` returns HOLD for `0.40 < p < 0.60` and for a stale row (`scoreTableMaxStale` 7 days), and a held position is not recomputed on HOLD. Arms: a position age limit of 21 and of 42 bars; a stale-guard that flattens a position whose row is stale. Criterion on the non-overlapping windows: the realized sum is above the base, drawdown not higher, closed trades not more. Otherwise "the flip is a fact about the signal, not about execution".
+
+Result (2026-10-20): `docs/metrics.md` section 8.13. Age limits of 21 and 42 bars raise closed trades (393 and 308 against 239) and lower the realized sum (+5 and -11279 RUB against +340); both fail. The stale-guard arm is not testable on the replay.
 
 ## Closed, not to be repeated
 

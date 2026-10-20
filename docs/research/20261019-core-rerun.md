@@ -63,7 +63,11 @@ Run by `scripts/rerun-r2.sh` at D = 2026-10-16 (datasets exported with `exportda
 
 Verdict by the inherited gate: nothing passes, as in the original. C-logistic fails criteria 1 (by 155.60 RUB), 2 and 3; F fails 1, 2 and 4. Two readings. First, the control reproduces within 1% in total (per-window differences up to 6000 RUB come from the larger news archive and library drift, as recorded in section 4.3), and F's loss pattern is the same. Second, the earlier C-logistic lead (+36% over control) vanishes against a fresh same-run control and the member now also trips the kill switch in w1: under rule 8 the lead was not structurally stable, and the pre-registered reading is that the original result was inside evaluation noise (single-window and single-total comparisons, N95 of R1). The new window x adds 21 trading days, too few to change any verdict.
 
-### 3.3 R3-R6
+### 3.3 Forward window (accruing)
+
+`scripts/rerun-forward.sh` runs on the ai-box cron (`# moex-rerun-forward`, Mon-Fri 17:20 UTC, after the session and the ridge job). Models of the control, C-logistic member and F are trained once on data up to D = 2026-10-16 (`~/moex-rerun/forward/ens-abs.json`, `ens-exc.json`) and never retrained; each run replays rows from 2026-10-17 to the run date with the section 4.1 costs and appends cumulative realized, net MTM, trades and max drawdown per variant to `~/moex-rerun/forward/forward.csv`. First check, 2026-10-17..2026-10-19 (one trading day, 2026-10-19): control -0.77 RUB realized (1 trade), C-logistic 0 (no trades), F +4.88 (2 trades). Nothing is concluded from this; the forward results enter the paper and `docs/metrics.md` only after at least 60 trading days.
+
+### 3.4 R3-R6
 
 Not yet run. Because refreshing adds nothing to the price snapshots and the ridge table, R3-R5 are reproduction checks of the original code and numbers rather than tests on new information. The forward window starts empty and accrues daily.
 
