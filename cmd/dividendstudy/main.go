@@ -60,7 +60,8 @@ func main() {
 
 func run() error {
 	var configPath, calendarPath, outPath, fromStr, tillStr string
-	var offsetsStr, lotsStr string
+	var offsetsStr, lotsStr, studyFromStr, studyTillStr, skipFromStr, skipTillStr string
+	var maxMove float64
 	var seed int64
 	var repl int
 	var taxRate float64
@@ -74,6 +75,11 @@ func run() error {
 	flag.Float64Var(&taxRate, "tax", 0.13, "withholding tax on dividend received")
 	flag.Int64Var(&seed, "seed", 42, "RNG seed for bootstrap")
 	flag.IntVar(&repl, "repl", 2000, "bootstrap replicates")
+	flag.StringVar(&studyFromStr, "study-from", "2024-01-01", "first LastBuyDate in the study YYYY-MM-DD")
+	flag.StringVar(&studyTillStr, "study-till", "2026-12-19", "last LastBuyDate in the study YYYY-MM-DD")
+	flag.StringVar(&skipFromStr, "skip-from", "", "drop events whose entry-to-exit span touches this window start YYYY-MM-DD")
+	flag.StringVar(&skipTillStr, "skip-till", "", "drop events whose entry-to-exit span touches this window end YYYY-MM-DD")
+	flag.Float64Var(&maxMove, "max-move", 0, "drop events with a daily close-to-close move above this fraction in the span (0 = off)")
 	flag.Parse()
 
 	for _, ov := range splitComma(lotsStr) {
@@ -113,8 +119,23 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	studyStart := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	studyEnd := time.Date(2026, 12, 19, 0, 0, 0, 0, time.UTC)
+	studyStart, err := time.Parse("2006-01-02", studyFromStr)
+	if err != nil {
+		return fmt.Errorf("parse -study-from: %w", err)
+	}
+	studyEnd, err := time.Parse("2006-01-02", studyTillStr)
+	if err != nil {
+		return fmt.Errorf("parse -study-till: %w", err)
+	}
+	var skipFrom, skipTill time.Time
+	if skipFromStr != "" && skipTillStr != "" {
+		if skipFrom, err = time.Parse("2006-01-02", skipFromStr); err != nil {
+			return fmt.Errorf("parse -skip-from: %w", err)
+		}
+		if skipTill, err = time.Parse("2006-01-02", skipTillStr); err != nil {
+			return fmt.Errorf("parse -skip-till: %w", err)
+		}
+	}
 
 	moexClient := moex.NewClient(cfg.MOEXISSBaseURL, nil)
 	fetchSource := backtest.NewISSSource(cfg.MOEXISSBaseURL, moexClient)
@@ -195,6 +216,9 @@ func run() error {
 		if idx < 0 || idx+1 >= len(days) {
 			continue
 		}
+		if spanRejected(days, closeBy[ticker], idx, skipFrom, skipTill, maxMove) {
+			continue
+		}
 		events = append(events, event{
 			ticker:   ticker,
 			lastBuy:  lb,
@@ -215,24 +239,24 @@ func run() error {
 
 	var report strings.Builder
 	writef(&report, "# Dividend drift event-study (2) — %s\n\n", time.Now().Format("2006-01-02"))
-	writef(&report, "- Calendar: %s (%d records), study window 2024-01-01 -> 2026-12-19\n", calendarPath, len(records))
+	writef(&report, "- Calendar: %s (%d records), study window %s -> %s\n", calendarPath, len(records), studyStart.Format("2006-01-02"), studyEnd.Format("2006-01-02"))
 	writef(&report, "- Study events: %d (waves: %s)\n", len(events), waveSummary(events))
 	writef(&report, "- Position: %0.f RUB notional, lot-quantized %v, tax %.0f%%, costs comm/spread/slip %.4f/%.4f/%.4f per leg\n\n",
 		targetNot, lotByTicker, taxRate*100, commission, spread, slippage)
 
 	for _, k := range offsets {
-		rets, imoexRets, gaps := eventReturns(events, k, dayIdx, closeBy, openBy, imoexClose, taxRate)
+		rets, imoexRets, gaps, kept := eventReturns(events, k, dayIdx, closeBy, openBy, imoexClose, taxRate)
 		excess := make([]float64, len(rets))
 		for i := range rets {
 			excess[i] = rets[i] - imoexRets[i]
 		}
 		meanRaw := mean(rets)
 		meanEx := mean(excess)
-		ci := waveClusterCI(events, excess, repl, rand.New(rand.NewSource(seed)))
-		looTicker := leaveOneOut(events, excess, func(e event) string { return e.ticker })
-		looSeason := leaveOneOut(events, excess, func(e event) string { return fmt.Sprintf("%d-%d", e.year, e.season) })
-		looYear := leaveOneOut(events, excess, func(e event) string { return fmt.Sprintf("%d", e.year) })
-		looWave := leaveOneOut(events, excess, func(e event) string { return fmt.Sprintf("%d-%s", e.year, e.wave) })
+		ci := waveClusterCI(kept, excess, repl, rand.New(rand.NewSource(seed)))
+		looTicker := leaveOneOut(kept, excess, func(e event) string { return e.ticker })
+		looSeason := leaveOneOut(kept, excess, func(e event) string { return fmt.Sprintf("%d-%d", e.year, e.season) })
+		looYear := leaveOneOut(kept, excess, func(e event) string { return fmt.Sprintf("%d", e.year) })
+		looWave := leaveOneOut(kept, excess, func(e event) string { return fmt.Sprintf("%d-%s", e.year, e.wave) })
 
 		writef(&report, "## Entry offset %d (entry = close at LastBuyDate %+d TD, exit = ex-date close)\n\n", k, k)
 		writef(&report, "- n=%d: mean raw %.6f, mean IMOEX-adjusted (excess) %.6f, mean gap ratio %.4f\n", len(rets), meanRaw, meanEx, mean(gaps))
@@ -257,7 +281,7 @@ func run() error {
 	return nil
 }
 
-func eventReturns(events []event, k int, dayIdx map[string][]time.Time, closeBy, openBy map[string]map[time.Time]float64, imoexClose map[time.Time]float64, taxRate float64) (rets, imoexRets, gaps []float64) {
+func eventReturns(events []event, k int, dayIdx map[string][]time.Time, closeBy, openBy map[string]map[time.Time]float64, imoexClose map[time.Time]float64, taxRate float64) (rets, imoexRets, gaps []float64, kept []event) {
 	for _, ev := range events {
 		days := dayIdx[ev.ticker]
 		idx := ev.entryIdx
@@ -286,6 +310,7 @@ func eventReturns(events []event, k int, dayIdx map[string][]time.Time, closeBy,
 		divRecv := (1 - taxRate) * ev.divNet * float64(numLots*lot)
 		signed := (sellGross - buyGross + divRecv - costPerLeg*buyGross - costPerLeg*sellGross) / buyGross
 		rets = append(rets, signed)
+		kept = append(kept, ev)
 		ie, ok := imoexClose[entryDay]
 		ix, ok2 := imoexClose[exitDay]
 		if ok && ok2 && ie > 0 {
@@ -299,7 +324,7 @@ func eventReturns(events []event, k int, dayIdx map[string][]time.Time, closeBy,
 			gaps = append(gaps, (exOpen-prevClose)/ev.divNet)
 		}
 	}
-	return rets, imoexRets, gaps
+	return rets, imoexRets, gaps, kept
 }
 
 // waveClusterCI resamples whole wave groups (cluster bootstrap over the wave
@@ -508,4 +533,27 @@ func dropIncompleteTrailing(candles []moex.Candle) []moex.Candle {
 func toFloat(d decimal.Decimal) float64 {
 	f, _ := d.Float64()
 	return f
+}
+
+const spanLeadDays = 10
+
+func spanRejected(days []time.Time, closes map[time.Time]float64, idx int, skipFrom, skipTill time.Time, maxMove float64) bool {
+	lo := idx - spanLeadDays
+	if lo < 0 {
+		lo = 0
+	}
+	hi := idx + 1
+	if !skipFrom.IsZero() && !days[hi].Before(skipFrom) && !days[lo].After(skipTill) {
+		return true
+	}
+	if maxMove <= 0 {
+		return false
+	}
+	for i := lo + 1; i <= hi; i++ {
+		prev, cur := closes[days[i-1]], closes[days[i]]
+		if prev > 0 && cur > 0 && math.Abs(cur/prev-1) > maxMove {
+			return true
+		}
+	}
+	return false
 }

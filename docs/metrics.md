@@ -634,6 +634,18 @@ Pre-registered protocol `docs/plans/completed/20260925-event-driven-dividend-dri
 
 The mean gap ratio is -0.97: the ex-date open sits about one full dividend below the last-buy close, so the drop is almost fully priced. Acceptance needed a contiguous subset containing {-2, -3, -5} with the CI excluding zero and leave-one-out stability under both tax conventions; all fail, and only offset -1 (tax 0.00) excludes zero, outside the registered subset. **Rejected**: dividend capture is not deployable; the income lever reverts to position scaling under an exposure cap, which sections 5.6-5.7 then closed. Detail: `docs/reports/dividendstudy-report.md`.
 
+**Re-test on the wide calendar (2026-10-22, R1 of `docs/plans/20261022-pre-token-recheck.md`), rejected again.** Calendar `dividends_pit.jsonl` (2152 T-Invest records, point-in-time panel), last buy dates 2014-01-01..2026-12-19, 1591 events in 38 waves (65 events, 9 waves before), same protocol and acceptance rule; 2022-02-25..03-28 and daily moves above 45% excluded. Mean excess over IMOEX by offset (trading days before the last buy date):
+
+| offset | excess (tax 0.13) | CI (tax 0.13) | excess (tax 0.00) | CI (tax 0.00) |
+|---|---|---|---|---|
+| -10 | +0.0081 | [+0.0015, +0.0150] | +0.0152 | [+0.0083, +0.0225] |
+| -5 | -0.0026 | [-0.0061, +0.0011] | +0.0044 | [+0.0006, +0.0084] |
+| -3 (primary) | -0.0047 | [-0.0082, -0.0011] | +0.0022 | [-0.0016, +0.0063] |
+| -2 | -0.0050 | [-0.0082, -0.0020] | +0.0019 | [-0.0016, +0.0053] |
+| -1 | -0.0037 | [-0.0065, -0.0010] | +0.0033 | [+0.0000, +0.0062] |
+
+The required subset {-2, -3, -5} has no positive CI under either tax convention, and leave-one-out fails under tax 0.13 for every offset from -5 to -1; at tax 0.13 the offsets -3, -2 and -1 are significantly negative. Split by period at tax 0.13: 2014..2021 (844 events) -3: -0.0037, -2: -0.0044; 2022-04..2026 (740 events) -3: -0.0059, -2: -0.0058, the same sign in both. Only the early entry -10 is positive, outside the registered subset and for ex-dividend runs that the market prices in advance. The reported mean gap ratio (about 20) is dominated by outliers in `dividend_net` and is not interpretable; it was descriptive and did not enter the verdict. Reports: `reports/20261022/recheck/`. Dividend capture is closed for good: the larger sample confirms the rejection.
+
 ## 8. Portfolio construction and cross-sectional signals
 
 ### 8.1 VAR-ICA-MGARCHSK portfolio formation (H23 stage 0, signal-free)
