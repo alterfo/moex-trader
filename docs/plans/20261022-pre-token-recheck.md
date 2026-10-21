@@ -1,7 +1,5 @@
 # Re-check of hypotheses rejected before the AlgoPack and T-Invest tokens
 
-Russian translation: [20261022-pre-token-recheck.ru.md](20261022-pre-token-recheck.ru.md). This file is canonical.
-
 Status: done 2026-10-22; criteria were fixed before the first run. R1 verdict: dividend capture rejected again on 1591 events (`docs/metrics.md` 7.11).
 
 ## What the tokens give (probed 2026-10-22)

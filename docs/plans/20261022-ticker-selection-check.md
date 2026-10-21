@@ -1,7 +1,5 @@
 # Dropping losing tickers: walk-forward and random-drop check, `cmd/tickerselect`
 
-Russian translation: [20261022-ticker-selection-check.ru.md](20261022-ticker-selection-check.ru.md). This file is canonical.
-
 Status: done 2026-10-22; criteria were fixed before the first run. Verdict: indistinguishable from random drops, filter not adopted (`docs/metrics.md` 8.14).
 
 ## Question

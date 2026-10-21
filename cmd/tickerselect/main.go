@@ -274,7 +274,7 @@ func run() error {
 	var notionalStr, depositStr, capStr string
 	flag.StringVar(&configPath, "config", "config.sandbox.yaml", "path to config YAML")
 	flag.StringVar(&tablePath, "score-table", "data/ridge_scores.csv", "ticker,date,p score table")
-	flag.StringVar(&outPath, "out", "", "output path prefix for .json and .md (default: stdout markdown)")
+	flag.StringVar(&outPath, "out", "", "output path prefix for .json and .txt (default: stdout markdown)")
 	flag.StringVar(&borrowList, "borrow", "0.00005,0.00047", "comma-separated daily borrow rates")
 	flag.StringVar(&tickersStr, "tickers", "", "comma-separated tickers (default: config tickers)")
 	flag.StringVar(&from, "from", "2025-03-05", "window start")
@@ -375,5 +375,5 @@ func run() error {
 	if err := os.WriteFile(outPath+".json", data, 0o644); err != nil {
 		return err
 	}
-	return os.WriteFile(outPath+".md", []byte(md), 0o644)
+	return os.WriteFile(outPath+".txt", []byte(md), 0o644)
 }
