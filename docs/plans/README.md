@@ -12,6 +12,7 @@ The index was compiled on 2026-10-18 from the file headings and the sections of 
 | `20261018-seven-hypotheses.md` | Registry of pre-registered steps 1-21 (zero-shot LLM direction, decay of the news reaction, variance of the evaluation procedure, IMOEX regime filter, cross-sectional ranking, parts B and C); the status of each step is in the file and in `docs/metrics.md` |
 | `20261015-hypotheses-from-llm-review.md` | Registry of hypotheses H1-H22 from the LLM forecasting reviews; results of closed hypotheses in `docs/metrics.md` (H20, H22: null) |
 | `20261019-placebo-check.md` | PLANNED: placebo check of the ridge score table (`cmd/placebocheck`); criteria are fixed before implementation and before the first run |
+| `20261022-ticker-selection-check.md` | DONE: walk-forward and random-drop check of dropping losing tickers (`cmd/tickerselect`); verdict: indistinguishable from random, filter not adopted, numbers in `docs/metrics.md` 8.14 |
 | `20261019-research-to-live-gap-hypotheses.md` | PLANNED: H-R2, H-R3, H-R45, H-R6, H-R7, H-R9 (attribution of the research-to-live gap), run order after H-R8; English-only, no twin |
 | `20261018-gate-failure-remediation.md` | Acceptance protocol accepted by the owner on 2026-10-18; nothing run on the live path; the current model stays forbidden to start until a candidate passes the protocol |
 | `20261010-news-exit-tuning-and-buy-side.md` | PLANNED, blocked by data |

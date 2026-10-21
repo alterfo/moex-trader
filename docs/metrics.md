@@ -836,6 +836,17 @@ Position age limit (`-max-hold-bars`) on the live base at borrow 0.00005: 21 bar
 
 Reading, descriptive: the loss of the base is in the short leg. Every arm that shortens less is better than the base at both borrow rates over the six windows and over W2, and the last window turns from -3579 to between -48 and +14. At the REPO-estimate borrow (0.00047) the base loses 4706 over the six windows while the arms with no or a rare short are unaffected or barely affected. Caveats: realized P&L only (open positions at the cutoff are not included, so the long-only arms, which hold longer, understate their final result); the maximum drawdown of the fewer-short arms is 3.4-4.1%, above the 3% budget in this replay, so no arm satisfies the full criterion of the plan; the arm `r <= 0.05` has far fewer than 30 short entries per window, so by the plan's rule it is "untested". Nothing is changed in the config.
 
+### 8.14 Dropping losing tickers: walk-forward vs random drop (2026-10-22)
+
+Plan `docs/plans/20261022-ticker-selection-check.md`, tool `cmd/tickerselect`, report `reports/20261022/tickerselect.{md,json}` (run on the ai-box). Ridge table, 17 tickers, W2 2025-03-05..2026-10-18 cut into 7 blocks of 91 days (block 0 training only, 6 evaluated), K=4 dropped per block, 200 random-drop draws, seed 20261022. Realized net of borrow, RUB, summed over the 6 blocks; positions do not carry across blocks.
+
+| borrow/day | full | walk-forward | in-sample (leak) | random mean (sd) | random q05..q95 | p walk-forward | p in-sample | mean Spearman prev/next block | dropped in next bottom K |
+|---|---|---|---|---|---|---|---|---|---|
+| 0.00005 | +1319 | -843 | +9269 | +1300 (1728) | -1360..+4348 | 0.910 | 0.005 | -0.114 | 0.333 |
+| 0.00047 | -3895 | -4008 | +6230 | -2639 (1876) | -5613..+797 | 0.771 | 0.005 | -0.114 | 0.333 |
+
+Verdict by the pre-registered criterion: dropping losers is indistinguishable from dropping random tickers; the filter is not adopted. Walk-forward is below FULL and below the random mean at both rates. Per-ticker P&L does not persist between blocks (Spearman -0.11; a dropped ticker lands in the next bottom 4 in 33% of cases, the random expectation is 4/17 = 24%). The in-sample arm (+9269) is pure selection bias: the same rule that earns +9269 looking back loses -843 looking forward. Power is low (6 blocks), so the result is "not shown", not "proved useless".
+
 ## 9. Evidence from live operation
 
 ### 9.1 Root cause of the September-October SELL drift (step 9)
