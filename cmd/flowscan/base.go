@@ -94,6 +94,10 @@ const (
 	bImbAC2
 	bProfTilt
 	bImbSlope
+	bProfP2
+	bProfP3
+	bVolEnt
+	bDepEnt
 	nb
 )
 
@@ -345,7 +349,7 @@ func computeBase(w *sessions) *[nb]float32 {
 
 func fillMicro(m *[nMain]bar, set func(int, float64)) {
 	var rets, imb, vals, idx []float64
-	var imbBook []float64
+	var imbBook, depth []float64
 	prev := nan
 	var absVol, totVol float64
 	for s := 0; s <= slotFeat; s++ {
@@ -366,6 +370,11 @@ func fillMicro(m *[nMain]bar, set func(int, float64)) {
 				imbBook = append(imbBook, float64(m[s].f[oImbVal]))
 			} else {
 				imbBook = append(imbBook, nan)
+			}
+			if m[s].has[hasOB] {
+				depth = append(depth, float64(m[s].f[oVolB])+float64(m[s].f[oVolS]))
+			} else {
+				depth = append(depth, nan)
 			}
 		}
 		if c > 0 {
@@ -468,6 +477,50 @@ func fillMicro(m *[nMain]bar, set func(int, float64)) {
 	}
 	if vx > 0 {
 		set(bImbSlope, cc/vx)
+	}
+	if n >= 20 {
+		u0, u1 := idx[0], idx[n-1]
+		if u1 > u0 {
+			var s2, s3, n2, n3 float64
+			for i := range cs {
+				u := 2*(idx[i]-u0)/(u1-u0) - 1
+				p2 := 0.5 * (3*u*u - 1)
+				p3 := 0.5 * (5*u*u*u - 3*u)
+				s2 += cs[i] * p2
+				n2 += p2 * p2
+				s3 += cs[i] * p3
+				n3 += p3 * p3
+			}
+			set(bProfP2, s2/n2)
+			set(bProfP3, s3/n3)
+		}
+	}
+	entropy := func(x []float64) float64 {
+		var t float64
+		k := 0
+		for _, v := range x {
+			if !math.IsNaN(v) && v > 0 {
+				t += v
+				k++
+			}
+		}
+		if k < 20 || t <= 0 {
+			return nan
+		}
+		h := 0.0
+		for _, v := range x {
+			if !math.IsNaN(v) && v > 0 {
+				p := v / t
+				h -= p * math.Log(p)
+			}
+		}
+		return h / math.Log(float64(k))
+	}
+	if e := entropy(vals); !math.IsNaN(e) {
+		set(bVolEnt, e)
+	}
+	if e := entropy(depth); !math.IsNaN(e) {
+		set(bDepEnt, e)
 	}
 }
 

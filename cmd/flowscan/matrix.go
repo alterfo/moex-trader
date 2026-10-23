@@ -99,6 +99,10 @@ var baseNames = []string{
 	"ImbAC2",
 	"ProfTilt",
 	"ImbSlope",
+	"ProfP2",
+	"ProfP3",
+	"VolEnt",
+	"DepEnt",
 }
 
 func (r *run) exportMatrix(path string) {

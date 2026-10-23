@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"encoding/csv"
 	"io"
+	"log"
 	"math"
 	"os"
+	"sort"
 	"strconv"
 )
 
@@ -112,4 +114,43 @@ func bootBlock() int {
 		return horizon
 	}
 	return 10
+}
+
+func compareDumps(basePath, extPath string) {
+	read := func(p string) ([]string, map[string][]float64) {
+		f, err := os.Open(p)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+		r := csv.NewReader(bufio.NewReader(f))
+		hdr, _ := r.Read()
+		var dates []string
+		cols := map[string][]float64{}
+		for {
+			rec, err := r.Read()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Fatal(err)
+			}
+			dates = append(dates, rec[0])
+			for i := 1; i < len(hdr); i++ {
+				cols[hdr[i]] = append(cols[hdr[i]], parseF(rec[i]))
+			}
+		}
+		return dates, cols
+	}
+	bd, bc := read(basePath)
+	ed, ec := read(extPath)
+	if len(bd) != len(ed) {
+		log.Fatal("dump date counts differ")
+	}
+	split := sort.SearchStrings(bd, "2026-01-05")
+	for _, c := range []string{"ic_blend", "ic_a2", "net_gp_blend", "net_d_blend"} {
+		report("base "+c, bc[c], split, 5000)
+		report("extended "+c, ec[c], split, 5000)
+		report("extended minus base "+c, diff(ec[c], bc[c]), split, 5000)
+	}
 }

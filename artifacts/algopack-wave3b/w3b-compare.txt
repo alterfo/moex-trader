@@ -1,0 +1,12 @@
+base ic_blend                mean +0.09571 NW10 t +5.87 boot95 [+0.06933, +0.12943] halves +0.08533 / +0.10915 n 450
+extended ic_blend            mean +0.09732 NW10 t +6.05 boot95 [+0.07160, +0.13110] halves +0.08737 / +0.11020 n 450
+extended minus base ic_blend mean +0.00161 NW10 t +0.81 boot95 [-0.00196, +0.00565] halves +0.00205 / +0.00105 n 450
+base ic_a2                   mean +0.05893 NW10 t +5.61 boot95 [+0.03887, +0.07779] halves +0.04223 / +0.08057 n 450
+extended ic_a2               mean +0.05893 NW10 t +5.61 boot95 [+0.03887, +0.07779] halves +0.04223 / +0.08057 n 450
+extended minus base ic_a2    mean +0.00000 NW10 t +NaN boot95 [+0.00000, +0.00000] halves +0.00000 / +0.00000 n 450
+base net_gp_blend            mean +0.00075 NW10 t +1.71 boot95 [-0.00005, +0.00163] halves +0.00066 / +0.00087 n 457
+extended net_gp_blend        mean +0.00082 NW10 t +1.96 boot95 [+0.00006, +0.00166] halves +0.00074 / +0.00091 n 457
+extended minus base net_gp_blend mean +0.00007 NW10 t +0.74 boot95 [-0.00011, +0.00025] halves +0.00009 / +0.00004 n 457
+base net_d_blend             mean +0.00048 NW10 t +1.03 boot95 [-0.00037, +0.00142] halves +0.00011 / +0.00093 n 457
+extended net_d_blend         mean +0.00062 NW10 t +1.43 boot95 [-0.00016, +0.00151] halves +0.00038 / +0.00092 n 457
+extended minus base net_d_blend mean +0.00014 NW10 t +0.99 boot95 [-0.00013, +0.00044] halves +0.00027 / -0.00001 n 457

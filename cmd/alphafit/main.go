@@ -268,8 +268,19 @@ func main() {
 	hz := flag.Int("horizon", 10, "target horizon in trading days: 10, 20 or 40 (20 and 40 need -ext)")
 	cm := flag.String("cost", "flat", "cost model: flat (0.15% a side), bbo (0.05% plus half the BBO spread), mio (0.05% plus half the 1 mln RUB spread)")
 	em := flag.String("entry", "close", "entry: close (trade at the close of the signal day) or open (change in weights earns the next day intraday return only)")
+	divPath := flag.String("div", "", "dividend calendar: adds DivFlow and the A2PR network column (wave 3b)")
+	aucInc := flag.Bool("aucinc", false, "keep AucA1 as a feature (valid only with next-open entry)")
+	basePath := flag.String("base", "", "compare: baseline dump CSV")
+	extDump := flag.String("extdump", "", "compare: extended dump CSV")
 	fromDate := flag.String("from", "2026-10-21", "forward: first feature date")
 	flag.Parse()
+	if *mode == "compare" {
+		compareDumps(*basePath, *extDump)
+		return
+	}
+	if *aucInc {
+		delete(excludeCols, "AucA1")
+	}
 	ds, err := load(*mat)
 	if err != nil {
 		log.Fatal(err)
@@ -284,6 +295,12 @@ func main() {
 		log.Fatal("horizon other than 10 and open entry need -ext")
 	}
 	ds.derived()
+	if *divPath != "" {
+		ds.addNetwork()
+		if err := ds.addDivFlow(*divPath); err != nil {
+			log.Fatal(err)
+		}
+	}
 	ds.build()
 	if *zero != "" {
 		zeroFeatures(ds, strings.Split(*zero, ","))

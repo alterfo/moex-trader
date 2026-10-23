@@ -145,3 +145,7 @@ Plan `docs/plans/20261024-algopack-meta-wave2.md`, numbers in `docs/metrics.md` 
 ## Realistic costs, horizons and entry timing (2026-10-24)
 
 Plan `docs/plans/20261024-algopack-wave3-costs-horizon.md`, numbers in `docs/metrics.md` 8.23. Replacing the flat 0.15% side cost by the quoted half-spread plus commission raises the composite book from about +0.03% to +0.075% per day (interval [-0.005%, +0.163%], both halves positive, placebo books -0.38%): the primary gate fails by 0.005 percentage points. Longer horizons (20, 40 days) lose gross faster than they save turnover, so the ten-day target stays. The edge exists only at retail order size (an order of one million RUB turns it to -0.026%) and about a fifth of the gross is the overnight gap that a next-open order misses.
+
+## Five ideas from three local models (2026-10-24)
+
+Plan `docs/plans/20261024-algopack-wave3b-model-ideas.md`, numbers in `docs/metrics.md` 8.24. T-pro, Cydonia and Mistral-abliterated produced 75 hypotheses; after triage five were built (ex-dividend flow, A2-correlation PageRank, Legendre shape of the intraday imbalance profile, entropy of the 5-minute traded-value and depth shares, auction imbalance for next-open entry). Composite IC +0.0973 against +0.0957 (difference +0.0016, interval includes 0); the book gate crosses zero only by +0.006% on the same book that missed it by -0.005%, with no significant net difference. Local-model brainstorming yielded about five testable ideas per seventy-five and none improved the forecast.
