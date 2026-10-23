@@ -1,0 +1,19 @@
+I01 eqts n 310 coef +0.03548 t +0.58 p 0.56206 halves t +0.69 / +0.32 coef +0.04658 / +0.03384
+I02 eqts n 306 coef -0.02630 t -0.49 p 0.62286 halves t -1.24 / +0.46 coef -0.07774 / +0.04730
+I03 eqts n 310 coef -0.06049 t -1.15 p 0.25006 halves t -0.01 / -1.52 coef -0.00070 / -0.12036
+I04 eqts n 310 coef +0.00081 t +0.01 p 0.98966 halves t -1.15 / +0.96 coef -0.09179 / +0.09181
+I05 eqts n 310 coef +0.06715 t +1.08 p 0.28109 halves t +1.10 / +0.35 coef +0.06664 / +0.04428
+I06 eqts n 312 coef +0.01305 t +0.17 p 0.86178 halves t +0.89 / -0.49 coef +0.07490 / -0.06892
+I07 eqts n 310 coef +0.02293 t +0.48 p 0.63115 halves t +0.68 / -0.22 coef +0.04455 / -0.01548
+J01 eqfm n 368 coef +0.05149 t +0.72 p 0.47064 halves t -0.06 / +0.79 coef -0.00287 / +0.10584
+J02 eqfm n 405 coef +0.03280 t +0.82 p 0.41167 halves t +1.08 / +0.21 coef +0.05302 / +0.01307
+J03 eqfm n 53 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+J04 eqfm n 53 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+J05 eqfm n 366 coef +0.07055 t +1.05 p 0.29542 halves t +0.73 / +0.81 coef +0.04482 / +0.09657
+K01 eqagg n 328 coef +0.01664 t +0.67 p 0.50406 halves t -0.40 / +1.30 coef -0.00985 / +0.06476
+K02 eqagg n 292 coef -0.01029 t -0.22 p 0.82736 halves t +0.06 / -0.84 coef +0.00409 / -0.03858
+K03 eqagg n 328 coef +0.02872 t +0.88 p 0.37808 halves t +0.64 / +0.69 coef +0.01759 / +0.03964
+K04 eqagg n 328 coef +0.02563 t +1.07 p 0.28518 halves t +0.62 / +0.99 coef +0.01917 / +0.03510
+
+== Book 2 (spent outcomes, leads only): BH q=0.10 over 16 rows, registered sign required
+Book 2 leads: 0 of 16

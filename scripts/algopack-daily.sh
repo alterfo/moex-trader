@@ -14,6 +14,14 @@ for back in 0 1 2 3; do
   for ds in tradestats obstats orderstats hi2; do
     rm -f "data/algopack/$ds/$d.csv.gz"
   done
+  for m in fo fx; do
+    for ds in tradestats obstats orderstats; do
+      rm -f "data/algopack-$m/$ds/$d.csv.gz"
+    done
+  done
 done
 echo "=== $(date '+%F %T') algopack daily $DAYS"
 bin/algopackfetch -dates "$DAYS" -workers 8 -out data/algopack
+for m in fo fx; do
+  bin/algopackfetch -market "$m" -dates "$DAYS" -workers 8 -out "data/algopack-$m"
+done

@@ -1,0 +1,173 @@
+A01 fm n 344 coef +0.03647 t +1.14 p 0.25519 halves t -0.47 / +2.21 coef -0.02109 / +0.09337 tercile L/S abnormal net@0.03% -0.0940% (halves -0.1930% / +0.0040%), @0.10% -0.3740% (halves -0.4730% / -0.2760%)
+A02 fm n 339 coef +0.03490 t +1.12 p 0.26189 halves t +0.27 / +1.39 coef +0.01226 / +0.05767 tercile L/S abnormal net@0.03% -0.2690% (halves -0.4654% / -0.0714%), @0.10% -0.5490% (halves -0.7454% / -0.3514%)
+A03 fm n 345 coef -0.04936 t -1.56 p 0.11901 halves t -1.94 / -0.29 coef -0.08513 / -0.01379 tercile L/S abnormal net@0.03% -0.2147% (halves -0.3276% / -0.1024%), @0.10% -0.4947% (halves -0.6076% / -0.3824%)
+A04 fm n 340 coef -0.04660 t -1.40 p 0.16265 halves t -0.57 / -1.43 coef -0.02568 / -0.06776 tercile L/S abnormal net@0.03% -0.0744% (halves -0.0944% / -0.0541%), @0.10% -0.3544% (halves -0.3744% / -0.3341%)
+A05 fm n 50 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+A06 fm n 46 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+A07 fm n 50 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+A08 fm n 46 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+A09 fm n 274 coef -0.01477 t -0.45 p 0.65424 halves t -0.89 / +0.47 coef -0.04754 / +0.01753 tercile L/S abnormal net@0.03% -0.1262% (halves -0.1753% / -0.0778%), @0.10% -0.4062% (halves -0.4553% / -0.3578%)
+A10 fm n 269 coef +0.00807 t +0.15 p 0.87900 halves t +0.52 / -0.32 coef +0.03933 / -0.02342 tercile L/S abnormal net@0.03% -0.0539% (halves -0.1770% / +0.0702%), @0.10% -0.3339% (halves -0.4570% / -0.2098%)
+A11 fm n 274 coef +0.05500 t +1.22 p 0.22220 halves t +1.69 / -0.14 coef +0.11812 / -0.00720 tercile L/S abnormal net@0.03% -0.0865% (halves -0.0877% / -0.0853%), @0.10% -0.3665% (halves -0.3677% / -0.3653%)
+A12 fm n 269 coef +0.03210 t +0.57 p 0.57170 halves t +1.05 / -0.41 coef +0.09252 / -0.02878 tercile L/S abnormal net@0.03% +0.2199% (halves +0.1566% / +0.2836%), @0.10% -0.0601% (halves -0.1234% / +0.0036%)
+A13 fm n 275 coef -0.00406 t -0.13 p 0.89394 halves t -0.21 / +0.04 coef -0.00978 / +0.00162 tercile L/S abnormal net@0.03% +0.0077% (halves -0.0491% / +0.0641%), @0.10% -0.2723% (halves -0.3291% / -0.2159%)
+A14 fm n 270 coef +0.04109 t +0.85 p 0.39511 halves t +1.10 / +0.03 coef +0.07989 / +0.00172 tercile L/S abnormal net@0.03% +0.2297% (halves +0.1207% / +0.3403%), @0.10% -0.0503% (halves -0.1593% / +0.0603%)
+A15 fm n 29 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+A16 fm n 25 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+B01 fm n 274 coef -0.00264 t -0.08 p 0.93922 halves t -0.89 / +1.12 coef -0.04876 / +0.04280 tercile L/S abnormal net@0.03% -0.1172% (halves -0.1289% / -0.1057%), @0.10% -0.3972% (halves -0.4089% / -0.3857%)
+B02 fm n 275 coef -0.00109 t -0.03 p 0.97451 halves t -0.40 / +0.48 coef -0.02155 / +0.01923 tercile L/S abnormal net@0.03% -0.1341% (halves -0.1401% / -0.1281%), @0.10% -0.4141% (halves -0.4201% / -0.4081%)
+B03 fm n 274 coef -0.07063 t -1.98 p 0.04812 halves t -2.09 / -0.72 coef -0.10877 / -0.03304 tercile L/S abnormal net@0.03% -0.2151% (halves -0.3527% / -0.0794%), @0.10% -0.4951% (halves -0.6327% / -0.3594%)
+C01 ts n 307 coef +0.11323 t +2.11 p 0.03452 halves t +2.07 / +1.06 coef +0.14718 / +0.08684
+C02 ts n 304 coef -0.09318 t -1.71 p 0.08753 halves t -1.40 / -1.43 coef -0.12855 / -0.07918
+C03 ts n 304 coef +0.03395 t +0.53 p 0.59602 halves t +0.97 / -0.41 coef +0.09539 / -0.02616
+C04 ts n 327 coef +0.04159 t +0.63 p 0.52840 halves t -0.15 / +1.31 coef -0.01742 / +0.10645
+C05 ts n 0 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+C06 ts n 304 coef +0.05136 t +0.91 p 0.36466 halves t +0.39 / +0.85 coef +0.02865 / +0.07650
+C07 ts n 304 coef -0.03365 t -0.59 p 0.55312 halves t -0.09 / -0.60 coef -0.00552 / -0.05363
+C08 ts n 304 coef -0.07960 t -1.63 p 0.10317 halves t -0.93 / -1.47 coef -0.06884 / -0.09780
+C09 ts n 305 coef -0.03152 t -0.54 p 0.58671 halves t -1.20 / +0.26 coef -0.09160 / +0.01933
+C10 ts n 303 coef -0.07248 t -1.18 p 0.23915 halves t -1.57 / -0.16 coef -0.15969 / -0.00948
+C11 ts n 308 coef -0.06993 t -0.97 p 0.33156 halves t +0.45 / -2.13 coef +0.04842 / -0.18325
+C12 ts n 305 coef -0.08764 t -1.42 p 0.15605 halves t -2.61 / +0.60 coef -0.22563 / +0.05271
+C13 ts n 305 coef -0.02897 t -0.62 p 0.53568 halves t -0.01 / -0.39 coef -0.00060 / -0.02531
+C14 ts n 328 coef -0.03902 t -0.61 p 0.54404 halves t -0.56 / -0.20 coef -0.05130 / -0.01819
+C15 ts n 0 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+C16 ts n 305 coef +0.00219 t +0.03 p 0.97741 halves t +0.90 / -0.55 coef +0.08087 / -0.07831
+C17 ts n 305 coef -0.00596 t -0.08 p 0.93412 halves t -0.46 / +0.65 coef -0.04493 / +0.05867
+C18 ts n 305 coef -0.01049 t -0.18 p 0.85689 halves t +0.74 / -1.16 coef +0.06811 / -0.08734
+C19 ts n 306 coef -0.13875 t -2.30 p 0.02117 halves t -1.75 / -1.62 coef -0.15254 / -0.15113
+C20 ts n 304 coef -0.02520 t -0.51 p 0.61222 halves t +0.07 / -0.84 coef +0.00747 / -0.03608
+D01 vol n 312 coef +0.00178 t +0.40 p 0.69216 halves t +0.20 / +0.36 coef +0.00143 / +0.00206 dR2 +0.0056
+D02 vol n 305 coef +0.00226 t +0.54 p 0.59136 halves t +0.37 / +0.39 coef +0.00260 / +0.00199 dR2 +0.0033
+D03 vol n 262 coef -0.00652 t -1.22 p 0.22159 halves t -1.41 / -0.39 coef -0.01053 / -0.00291 dR2 +0.0068
+D04 vol n 255 coef -0.00491 t -0.86 p 0.39067 halves t -0.62 / -0.59 coef -0.00575 / -0.00417 dR2 +0.0039
+D05 vol n 262 coef +0.00201 t +0.37 p 0.71339 halves t +0.68 / -0.13 coef +0.00530 / -0.00095 dR2 +0.0081
+D06 vol n 255 coef -0.00890 t -1.18 p 0.23812 halves t -1.02 / -0.62 coef -0.01247 / -0.00573 dR2 +0.0055
+D07 vol n 50 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000 dR2 +0.0000
+D08 vol n 47 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000 dR2 +0.0000
+D09 vol n 29 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000 dR2 +0.0000
+D10 vol n 26 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000 dR2 +0.0000
+D11 vol n 262 coef -0.01153 t -2.25 p 0.02451 halves t -2.15 / -1.18 coef -0.01483 / -0.00857 dR2 +0.0049
+D12 vol n 255 coef -0.00490 t -0.90 p 0.36749 halves t +0.31 / -1.94 coef +0.00274 / -0.01169 dR2 +0.0030
+E01 basis n 85 coef -0.13237 t -3.57 p 0.00036 halves t +0.00 / -3.89 coef +0.00000 / -0.18476
+E02 basis n 347 coef +0.01810 t +1.32 p 0.18814 halves t -1.62 / +2.02 coef -0.03636 / +0.02500
+E03 basis n 107 coef -0.11682 t -4.43 p 0.00001 halves t -2.07 / -6.57 coef -0.18403 / -0.14992
+F01 fxts n 64 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+F02 fxts n 152 coef -0.04005 t -0.60 p 0.54545 halves t +1.47 / -3.01 coef +0.19820 / -0.20350
+F03 fxts n 0 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+F04 fxts n 64 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+F05 fxts n 152 coef +0.13661 t +1.49 p 0.13582 halves t +1.82 / -0.01 coef +0.28714 / -0.00066
+F06 fxts n 0 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+F07 fxts n 64 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+F08 fxts n 152 coef -0.05014 t -0.61 p 0.54439 halves t +0.23 / -1.41 coef +0.02416 / -0.16602
+F09 fxts n 0 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+F10 fxts n 64 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+F11 fxts n 188 coef +0.01495 t +0.20 p 0.84474 halves t +0.30 / -0.47 coef +0.02183 / -0.05949
+F12 fxts n 0 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+F13 fxvol n 59 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+F14 fxvol n 152 coef -0.01301 t -0.89 p 0.37601 halves t -0.48 / -0.48 coef -0.01771 / -0.00738
+F15 fxvol n 0 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+G01 fut2spot n 56 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+G02 fut2spot n 56 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+G03 fut2spot n 174 coef -0.06004 t -1.23 p 0.21963 halves t -0.70 / -0.68 coef -0.04426 / -0.07212
+G04 fut2spot n 174 coef -0.01674 t -0.23 p 0.82124 halves t -1.08 / +1.06 coef -0.12894 / +0.10061
+G05 fut2spot n 0 coef +0.00000 t +NaN p NaN halves t +0.00 / +0.00 coef +0.00000 / +0.00000
+H01 agg n 305 coef -0.04445 t -1.45 p 0.14770 halves t -2.56 / +0.48 coef -0.12983 / +0.01748
+H02 agg n 301 coef +0.00169 t +0.05 p 0.96224 halves t -0.58 / +0.16 coef -0.02745 / +0.00735
+H03 agg n 304 coef -0.07981 t -1.60 p 0.11044 halves t -1.19 / -1.12 coef -0.09211 / -0.07874
+H04 agg n 299 coef -0.05843 t -0.80 p 0.42632 halves t -1.08 / -0.19 coef -0.11974 / -0.01834
+H05 disp n 304 coef -0.02138 t -1.19 p 0.23274 halves t -0.83 / -0.96 coef -0.02497 / -0.02387
+H06 breadth n 304 coef -0.04115 t -1.39 p 0.16573 halves t -1.43 / -0.35 coef -0.07145 / -0.01251
+M01 ts n 327 coef +0.09372 t +1.13 p 0.26026 halves t +1.14 / +0.69 coef +0.14773 / +0.05374
+M02 ts n 327 coef -0.07072 t -1.51 p 0.13184 halves t -1.91 / +0.09 coef -0.12411 / +0.00557
+M03 ts n 327 coef +0.03164 t +0.50 p 0.61727 halves t +0.99 / -0.33 coef +0.06575 / -0.03984
+M04 ts n 327 coef +0.06455 t +1.12 p 0.26092 halves t +1.40 / +0.49 coef +0.11656 / +0.03119
+M05 ts n 327 coef -0.06384 t -0.93 p 0.35240 halves t -2.30 / +1.48 coef -0.21753 / +0.13484
+
+== Book 1: threshold |t| >= 3.000, registered sign (two-sided rows: either), half coefficients with the registered sign and the pooled sign, BH q=0.05 over 85 rows
+E03 t -4.43 p 0.00001 BH true same-sign true -> STAT-PASS
+E01 t -3.57 p 0.00036 BH true same-sign false -> fail
+C19 t -2.30 p 0.02117 BH false same-sign false -> fail
+D11 t -2.25 p 0.02451 BH false same-sign true dR2 +0.0049 (material at 0.01: false) -> fail
+C01 t +2.11 p 0.03452 BH false same-sign true -> fail
+B03 t -1.98 p 0.04812 BH false same-sign false -> fail
+C02 t -1.71 p 0.08753 BH false same-sign false -> fail
+C08 t -1.63 p 0.10317 BH false same-sign false -> fail
+H03 t -1.60 p 0.11044 BH false same-sign false -> fail
+A03 t -1.56 p 0.11901 BH false same-sign false -> fail
+M02 t -1.51 p 0.13184 BH false same-sign false -> fail
+F05 t +1.49 p 0.13582 BH false same-sign false -> fail
+H01 t -1.45 p 0.14770 BH false same-sign false -> fail
+C12 t -1.42 p 0.15605 BH false same-sign false -> fail
+A04 t -1.40 p 0.16265 BH false same-sign false -> fail
+H06 t -1.39 p 0.16573 BH false same-sign false -> fail
+E02 t +1.32 p 0.18814 BH false same-sign false -> fail
+G03 t -1.23 p 0.21963 BH false same-sign false -> fail
+D03 t -1.22 p 0.22159 BH false same-sign true dR2 +0.0068 (material at 0.01: false) -> fail
+A11 t +1.22 p 0.22220 BH false same-sign false -> fail
+H05 t -1.19 p 0.23274 BH false same-sign true -> fail
+D06 t -1.18 p 0.23812 BH false same-sign true dR2 +0.0055 (material at 0.01: false) -> fail
+C10 t -1.18 p 0.23915 BH false same-sign false -> fail
+A01 t +1.14 p 0.25519 BH false same-sign false -> fail
+M01 t +1.13 p 0.26026 BH false same-sign true -> fail
+M04 t +1.12 p 0.26092 BH false same-sign true -> fail
+A02 t +1.12 p 0.26189 BH false same-sign true -> fail
+C11 t -0.97 p 0.33156 BH false same-sign false -> fail
+M05 t -0.93 p 0.35240 BH false same-sign false -> fail
+C06 t +0.91 p 0.36466 BH false same-sign true -> fail
+D12 t -0.90 p 0.36749 BH false same-sign false dR2 +0.0030 (material at 0.01: false) -> fail
+F14 t -0.89 p 0.37601 BH false same-sign true -> fail
+D04 t -0.86 p 0.39067 BH false same-sign true dR2 +0.0039 (material at 0.01: false) -> fail
+A14 t +0.85 p 0.39511 BH false same-sign true -> fail
+H04 t -0.80 p 0.42632 BH false same-sign false -> fail
+C04 t +0.63 p 0.52840 BH false same-sign false -> fail
+C13 t -0.62 p 0.53568 BH false same-sign false -> fail
+C14 t -0.61 p 0.54404 BH false same-sign false -> fail
+F08 t -0.61 p 0.54439 BH false same-sign false -> fail
+F02 t -0.60 p 0.54545 BH false same-sign false -> fail
+C07 t -0.59 p 0.55312 BH false same-sign false -> fail
+A12 t +0.57 p 0.57170 BH false same-sign false -> fail
+C09 t -0.54 p 0.58671 BH false same-sign false -> fail
+D02 t +0.54 p 0.59136 BH false same-sign true dR2 +0.0033 (material at 0.01: false) -> fail
+C03 t +0.53 p 0.59602 BH false same-sign false -> fail
+C20 t -0.51 p 0.61222 BH false same-sign false -> fail
+M03 t +0.50 p 0.61727 BH false same-sign false -> fail
+A09 t -0.45 p 0.65424 BH false same-sign false -> fail
+D01 t +0.40 p 0.69216 BH false same-sign true dR2 +0.0056 (material at 0.01: false) -> fail
+D05 t +0.37 p 0.71339 BH false same-sign false dR2 +0.0081 (material at 0.01: false) -> fail
+G04 t -0.23 p 0.82124 BH false same-sign false -> fail
+F11 t +0.20 p 0.84474 BH false same-sign false -> fail
+C18 t -0.18 p 0.85689 BH false same-sign false -> fail
+A10 t +0.15 p 0.87900 BH false same-sign false -> fail
+A13 t -0.13 p 0.89394 BH false same-sign false -> fail
+C17 t -0.08 p 0.93412 BH false same-sign false -> fail
+B01 t -0.08 p 0.93922 BH false same-sign false -> fail
+H02 t +0.05 p 0.96224 BH false same-sign false -> fail
+B02 t -0.03 p 0.97451 BH false same-sign false -> fail
+C16 t +0.03 p 0.97741 BH false same-sign false -> fail
+D10 t +NaN p NaN BH false same-sign false dR2 +0.0000 (material at 0.01: false) -> fail
+G05 t +NaN p NaN BH false same-sign false -> fail
+F09 t +NaN p NaN BH false same-sign false -> fail
+F10 t +NaN p NaN BH false same-sign false -> fail
+F06 t +NaN p NaN BH false same-sign false -> fail
+F12 t +NaN p NaN BH false same-sign false -> fail
+F13 t +NaN p NaN BH false same-sign false -> fail
+F04 t +NaN p NaN BH false same-sign false -> fail
+F15 t +NaN p NaN BH false same-sign false -> fail
+G01 t +NaN p NaN BH false same-sign false -> fail
+G02 t +NaN p NaN BH false same-sign false -> fail
+A16 t +NaN p NaN BH false same-sign false -> fail
+F03 t +NaN p NaN BH false same-sign false -> fail
+F07 t +NaN p NaN BH false same-sign false -> fail
+A15 t +NaN p NaN BH false same-sign false -> fail
+F01 t +NaN p NaN BH false same-sign false -> fail
+C05 t +NaN p NaN BH false same-sign false -> fail
+D09 t +NaN p NaN BH false same-sign false dR2 +0.0000 (material at 0.01: false) -> fail
+D08 t +NaN p NaN BH false same-sign false dR2 +0.0000 (material at 0.01: false) -> fail
+D07 t +NaN p NaN BH false same-sign false dR2 +0.0000 (material at 0.01: false) -> fail
+A08 t +NaN p NaN BH false same-sign false -> fail
+A07 t +NaN p NaN BH false same-sign false -> fail
+C15 t +NaN p NaN BH false same-sign false -> fail
+A06 t +NaN p NaN BH false same-sign false -> fail
+A05 t +NaN p NaN BH false same-sign false -> fail
+Book 1: 1 of 85 statistically pass, 0 also pass the net gate

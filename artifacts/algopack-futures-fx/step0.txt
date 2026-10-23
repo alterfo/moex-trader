@@ -1,0 +1,29 @@
+== fo: 1711 dates 2020-01-03..2026-10-20, 215 groups
+  one-day |return| quantiles: p50 0.0093 p90 0.0327 p99 0.0799 p99.9 0.1854 max 0.6165; front changes 2860 of 115649 group-days
+  groups with >=120 usable days in 2023: 66
+  groups with >=120 usable days in 2024: 82
+  groups with >=120 usable days in 2025: 96
+  groups with >=120 usable days in 2026: 115
+  features KS 2024-07-01..2024-12-31 vs 2025-01-03..2025-06-30 (pooled over groups):
+    TI   n 4808 / 7130 distance 0.0377
+    TZ   n 3583 / 5152 distance 0.0527
+  relative spread persistence (rank correlation d vs d+1, realtime, same contract): 0.998
+== fx: 1718 dates 2020-01-03..2026-10-21, 21 groups
+  one-day |return| quantiles: p50 0.0047 p90 0.0183 p99 0.0556 p99.9 0.1151 max 0.2541; front changes 0 of 10877 group-days
+  groups with >=120 usable days in 2023: 8
+  groups with >=120 usable days in 2024: 2
+  groups with >=120 usable days in 2025: 2
+  groups with >=120 usable days in 2026: 10
+  features KS 2024-07-01..2024-12-31 vs 2025-01-03..2025-06-30 (pooled over groups):
+  relative spread persistence (rank correlation d vs d+1, realtime, same contract): 0.987
+== testable dates per feature in 2025-01-03..2026-10-16 (fo, >=20 liquid groups with the feature, and the h1 outcome eligible):
+  BI   dates 365 (2025-04-29..2026-10-16)
+  TI   dates 366 (2025-04-28..2026-10-16)
+  NOF  dates 53 (2026-06-23..2026-10-16)
+  CI   dates 53 (2026-06-23..2026-10-16)
+  DG   dates 291 (2025-05-15..2026-10-16)
+  SR   dates 291 (2025-05-15..2026-10-16)
+  TZ   dates 292 (2025-05-14..2026-10-16)
+  OT   dates 31 (2026-08-19..2026-10-16)
+== liquid fo universe at 2026-10-16 (top 30): [BR BRM CNY CNYRUBTOM COCOA COFFEE ED EURRUBTOM Eu GAZR GL GLDRUBTOM GOLD GOLDM IMOEX LKOH MIX MXI NASD NG PLD PLT RTS SBRF SILV SPYF Si UCNY USDRUBTOM VTBR]
+== fx groups: [AMDRUB_TOM BYNRUB_TMS BYNRUB_TOD BYNRUB_TOM CNY000000TOD CNYRUB_TMS CNYRUB_TOM EURUSD000TOD EURUSD000TOM EUR_RUB__TOD EUR_RUB__TOM GLDRUB_TOM KZTRUB_TOM PLDRUB_TOM PLTRUB_TOM SLVRUB_TOM TRYRUB_TOM USD000000TOD USD000UTSTOM USDCNY_TOD USDCNY_TOM]

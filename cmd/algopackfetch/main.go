@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const base = "https://apim.moex.com/iss/datashop/algopack/eq"
+var base = "https://apim.moex.com/iss/datashop/algopack/eq"
 
 type block struct {
 	Columns []string        `json:"columns"`
@@ -169,7 +169,8 @@ func weekdays(from, till time.Time) []string {
 }
 
 func main() {
-	datasets := flag.String("datasets", "tradestats,obstats,orderstats,hi2", "datashop datasets")
+	market := flag.String("market", "eq", "datashop market: eq, fo or fx")
+	datasets := flag.String("datasets", "", "datashop datasets, default depends on the market")
 	from := flag.String("from", "2020-01-03", "first day")
 	till := flag.String("till", "", "last day, default today")
 	out := flag.String("out", "data/algopack", "output directory")
@@ -177,6 +178,13 @@ func main() {
 	workers := flag.Int("workers", 6, "parallel days")
 	dates := flag.String("dates", "", "explicit comma-separated days, overrides from and till")
 	flag.Parse()
+	base = "https://apim.moex.com/iss/datashop/algopack/" + *market
+	if *datasets == "" {
+		*datasets = "tradestats,obstats,orderstats,hi2"
+		if *market != "eq" {
+			*datasets = "tradestats,obstats,orderstats"
+		}
+	}
 	token := strings.TrimSpace(os.Getenv(*tokenEnv))
 	if token == "" {
 		log.Fatal("algopackfetch: token is empty")
