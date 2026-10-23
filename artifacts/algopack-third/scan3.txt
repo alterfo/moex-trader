@@ -1,0 +1,85 @@
+P01 e2f n 368 coef -0.00047 t -0.01 p 0.99344 halves t -0.12 / +0.02 coef -0.00971 / +0.00152
+P02 e2f n 368 coef +0.00228 t +0.04 p 0.96790 halves t -0.22 / +0.24 coef -0.01748 / +0.01891
+P03 e2f n 368 coef +0.02431 t +0.44 p 0.66282 halves t -0.49 / +0.93 coef -0.03477 / +0.08377
+P04 e2f n 368 coef -0.03535 t -0.80 p 0.42176 halves t -0.80 / +0.11 coef -0.04601 / +0.00794
+P05 e2f n 368 coef +0.01396 t +0.28 p 0.78241 halves t +2.69 / -1.51 coef +0.17883 / -0.12146
+P06 e2f n 368 coef -0.06482 t -1.21 p 0.22730 halves t -2.05 / +0.00 coef -0.13613 / +0.00040
+P07 e2f n 368 coef +0.05561 t +1.07 p 0.28558 halves t +1.41 / +0.25 coef +0.07356 / +0.02608
+P08 e2f n 368 coef -0.05423 t -0.97 p 0.33415 halves t -1.20 / +0.25 coef -0.11525 / +0.01610
+P09 e2f n 365 coef +0.04249 t +0.64 p 0.52006 halves t +0.85 / +0.35 coef +0.07200 / +0.03686
+P10 e2f n 371 coef +0.10758 t +1.89 p 0.05926 halves t +0.44 / +1.87 coef +0.02550 / +0.17781
+P11 e2f n 342 coef -0.06155 t -0.66 p 0.50692 halves t -0.85 / -0.35 coef -0.07876 / -0.05208
+P12 e2f n 342 coef -0.18616 t -1.94 p 0.05278 halves t -1.63 / -0.65 coef -0.25838 / -0.07334
+P13 e2f n 368 coef +0.05165 t +1.02 p 0.30899 halves t +0.71 / +0.61 coef +0.04690 / +0.04794
+P14 e2f n 368 coef -0.03312 t -0.64 p 0.51912 halves t -0.80 / -0.27 coef -0.06530 / -0.01725
+P15 e2f n 368 coef -0.04781 t -0.94 p 0.34930 halves t -0.81 / -0.92 coef -0.05465 / -0.06539
+P16 e2f n 368 coef -0.04837 t -0.93 p 0.35183 halves t -1.05 / -0.37 coef -0.08975 / -0.02285
+P17 e2f n 368 coef -0.07202 t -1.61 p 0.10823 halves t -1.00 / -1.21 coef -0.05958 / -0.07505
+P18 e2f n 368 coef +0.01056 t +0.22 p 0.82353 halves t -0.63 / +0.58 coef -0.04903 / +0.03568
+P19 e2f n 368 coef +0.00177 t +0.03 p 0.97224 halves t +0.06 / -0.20 coef +0.00438 / -0.01349
+P20 e2f n 368 coef +0.01200 t +0.21 p 0.83386 halves t -1.05 / +0.48 coef -0.08290 / +0.03401
+P21 e2f n 368 coef +0.02382 t +0.57 p 0.56994 halves t +1.08 / -0.14 coef +0.06596 / -0.00821
+P22 e2f n 368 coef -0.36487 t -1.69 p 0.09112 halves t -0.44 / -3.43 coef -0.11886 / -0.59336
+P23 e2fx n 201 coef -0.02601 t -0.43 p 0.66862 halves t -1.33 / +0.31 coef -0.13409 / +0.02122
+P24 e2fx n 201 coef -0.02836 t -0.45 p 0.65220 halves t -1.33 / +0.19 coef -0.12979 / +0.01442
+P25 e2fx n 201 coef -0.02796 t -0.41 p 0.68107 halves t -1.13 / -0.06 coef -0.09636 / -0.00523
+P26 e2fx n 201 coef +0.12450 t +2.46 p 0.01403 halves t +0.90 / +2.30 coef +0.06113 / +0.18665
+Q01 hi2ts n 367 coef -0.05335 t -2.11 p 0.03463 halves t -1.57 / -2.21 coef -0.03147 / -0.09194
+Q02 hi2ts n 367 coef -0.05664 t -1.41 p 0.15855 halves t +0.01 / -1.06 coef +0.00063 / -0.06914
+Q03 hi2ts n 367 coef +0.02318 t +0.76 p 0.44642 halves t +1.68 / -0.39 coef +0.04960 / -0.02614
+Q04 hi2ts n 367 coef +0.03616 t +0.99 p 0.32428 halves t +1.54 / +0.11 coef +0.04573 / +0.00899
+Q05 hi2ts n 367 coef +0.06404 t +1.67 p 0.09516 halves t +1.93 / +1.29 coef +0.12427 / +0.06237
+Q06 hi2ts n 367 coef -0.01569 t -0.36 p 0.71548 halves t +0.73 / -0.98 coef +0.04800 / -0.04987
+Q07 hi2fm n 367 coef +0.00803 t +0.34 p 0.73563 halves t +0.62 / -0.09 coef +0.01927 / -0.00327
+Q08 hi2fm n 367 coef +0.02576 t +0.96 p 0.33792 halves t +0.34 / +0.94 coef +0.01134 / +0.04026
+Q09 deferred (not scored)
+Q10 deferred (not scored)
+
+== Book 1 (new predictor-outcome pairs): |t| >= 3.000 with the registered sign, half coefficients with the registered and the pooled sign, BH q=0.05 over 34 rows
+P26 t +2.46 p 0.01403 n 201 BH false same-sign true -> fail
+Q01 t -2.11 p 0.03463 n 367 BH false same-sign true -> fail
+P12 t -1.94 p 0.05278 n 342 BH false same-sign false -> fail
+P10 t +1.89 p 0.05926 n 371 BH false same-sign true -> fail
+P22 t -1.69 p 0.09112 n 368 BH false same-sign false -> fail
+Q05 t +1.67 p 0.09516 n 367 BH false same-sign false -> fail
+P17 t -1.61 p 0.10823 n 368 BH false same-sign false -> fail
+Q02 t -1.41 p 0.15855 n 367 BH false same-sign false -> fail
+P06 t -1.21 p 0.22730 n 368 BH false same-sign false -> fail
+P07 t +1.07 p 0.28558 n 368 BH false same-sign true -> fail
+P13 t +1.02 p 0.30899 n 368 BH false same-sign true -> fail
+Q04 t +0.99 p 0.32428 n 367 BH false same-sign true -> fail
+P08 t -0.97 p 0.33415 n 368 BH false same-sign false -> fail
+Q08 t +0.96 p 0.33792 n 367 BH false same-sign false -> fail
+P15 t -0.94 p 0.34930 n 368 BH false same-sign false -> fail
+P16 t -0.93 p 0.35183 n 368 BH false same-sign false -> fail
+P04 t -0.80 p 0.42176 n 368 BH false same-sign false -> fail
+Q03 t +0.76 p 0.44642 n 367 BH false same-sign false -> fail
+P11 t -0.66 p 0.50692 n 342 BH false same-sign false -> fail
+P14 t -0.64 p 0.51912 n 368 BH false same-sign false -> fail
+P09 t +0.64 p 0.52006 n 365 BH false same-sign true -> fail
+P21 t +0.57 p 0.56994 n 368 BH false same-sign false -> fail
+P24 t -0.45 p 0.65220 n 201 BH false same-sign false -> fail
+P03 t +0.44 p 0.66282 n 368 BH false same-sign false -> fail
+P23 t -0.43 p 0.66862 n 201 BH false same-sign false -> fail
+P25 t -0.41 p 0.68107 n 201 BH false same-sign false -> fail
+Q06 t -0.36 p 0.71548 n 367 BH false same-sign false -> fail
+Q07 t +0.34 p 0.73563 n 367 BH false same-sign false -> fail
+P05 t +0.28 p 0.78241 n 368 BH false same-sign false -> fail
+P18 t +0.22 p 0.82353 n 368 BH false same-sign false -> fail
+P20 t +0.21 p 0.83386 n 368 BH false same-sign false -> fail
+P02 t +0.04 p 0.96790 n 368 BH false same-sign false -> fail
+P19 t +0.03 p 0.97224 n 368 BH false same-sign false -> fail
+P01 t -0.01 p 0.99344 n 368 BH false same-sign false -> fail
+Book 1: 0 of 34 statistically pass
+T01 thin n 453 coef +0.15949 t +7.47 p 0.00000 halves t +6.07 / +4.63 coef +0.18199 / +0.13710
+T02 thin n 451 coef +0.20178 t +5.65 p 0.00000 halves t +6.34 / +2.28 coef +0.28330 / +0.11991
+T03 thin n 451 coef +0.12711 t +2.89 p 0.00384 halves t +4.75 / +0.20 coef +0.23998 / +0.01374
+T04 thin n 453 coef +0.00000 t +NaN p NaN halves t +NaN / +NaN coef +0.00000 / +0.00000
+T05 thin n 453 coef +0.00211 t +0.09 p 0.92474 halves t +0.04 / +0.09 coef +0.00113 / +0.00308
+T06 thin n 451 coef +0.00816 t +0.28 p 0.78304 halves t +0.98 / -0.44 coef +0.03656 / -0.02037
+
+== Book 2 (thin equities, spent outcomes, leads only): BH q=0.10 over 6 rows, registered sign
+LEAD T01 t +7.47 p 0.0000
+LEAD T02 t +5.65 p 0.0000
+LEAD T03 t +2.89 p 0.0038
+Book 2 leads: 3 of 6

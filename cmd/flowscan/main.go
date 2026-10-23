@@ -541,6 +541,9 @@ func main() {
 		}
 	}
 	admN = *universe
+	if *mode == "export" {
+		admN = 300
+	}
 	switch *mode {
 	case "export", "volfc", "spreadfc", "econ", "mkt", "mktprep":
 		secAlias = map[string]string{"YNDX": "YDEX", "TCSG": "T"}

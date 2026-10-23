@@ -33,6 +33,7 @@ type store struct {
 	rollAge  map[string][]int
 	lateTSBy map[string][]float64
 	expCache map[string]int
+	opens    map[string][]float64
 }
 
 func f64(s string) float64 {
@@ -84,7 +85,7 @@ func loadStore(path string, perSecidGroup bool) (*store, error) {
 		all = append(all, x)
 		dset[x.date] = true
 	}
-	s := &store{dIdx: map[string]int{}, byGroup: map[string][]*rec{}, closes: map[string][]float64{}, lastIdx: map[string]int{}, frontSec: map[string][]string{}, rollAge: map[string][]int{}, lateTSBy: map[string][]float64{}, expCache: map[string]int{}}
+	s := &store{dIdx: map[string]int{}, byGroup: map[string][]*rec{}, closes: map[string][]float64{}, lastIdx: map[string]int{}, frontSec: map[string][]string{}, rollAge: map[string][]int{}, lateTSBy: map[string][]float64{}, expCache: map[string]int{}, opens: map[string][]float64{}}
 	for d := range dset {
 		s.dates = append(s.dates, d)
 	}
@@ -107,6 +108,15 @@ func loadStore(path string, perSecidGroup bool) (*store, error) {
 				s.closes[x.secid] = c
 			}
 			c[di] = x.closeMain
+			op := s.opens[x.secid]
+			if op == nil {
+				op = make([]float64, nd)
+				for i := range op {
+					op[i] = nan
+				}
+				s.opens[x.secid] = op
+			}
+			op[di] = x.openMain
 			lt := s.lateTSBy[x.secid]
 			if lt == nil {
 				lt = make([]float64, nd)
@@ -216,4 +226,30 @@ func (s *store) sigma60(g string, d int) float64 {
 		return nan
 	}
 	return stdOf(v)
+}
+
+func (s *store) retOC(g string, d int) float64 {
+	x := s.byGroup[g][d]
+	if x == nil || d+1 >= len(s.dates) || s.excl[d+1] {
+		return nan
+	}
+	op, cl := s.opens[x.secid], s.closes[x.secid]
+	lt := s.lateTSBy[x.secid]
+	a, b := op[d+1], cl[d+1]
+	if !(a > 0) || !(b > 0) || (!allowLate && lt[d+1] > 0.2) {
+		return nan
+	}
+	return b/a - 1
+}
+
+func (s *store) sretOC(g string, d int) float64 {
+	r := s.retOC(g, d)
+	if isNaN(r) || math.Abs(r) > capRet[1] {
+		return nan
+	}
+	sg := s.sigma60(g, d)
+	if isNaN(sg) || sg <= 0 {
+		return nan
+	}
+	return r / sg
 }

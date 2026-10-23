@@ -85,6 +85,7 @@ const (
 	bEvA2
 	bEvSpRatio
 	bEvRet
+	bAucA1
 	nb
 )
 
@@ -329,7 +330,21 @@ func computeBase(w *sessions) *[nb]float32 {
 	}
 	fillMorning(w, b, set)
 	fillEvening(w, b, set)
+	fillAuction(m, set)
 	return b
+}
+
+func fillAuction(m *[nMain]bar, set func(int, float64)) {
+	val, a := 0.0, 0.0
+	for s := 103; s < nMain; s++ {
+		if m[s].has[hasTS] {
+			val += float64(m[s].f[tVal])
+			a += float64(m[s].f[tValB] - m[s].f[tValS])
+		}
+	}
+	if val > 0 {
+		set(bAucA1, a/val)
+	}
 }
 
 func priceAt(m *[nMain]bar, hi int) (float64, int) {

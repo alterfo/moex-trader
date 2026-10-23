@@ -290,6 +290,7 @@ func main() {
 	only := fs.String("only", "", "row id prefix")
 	blockPath := fs.String("block", "work/block.csv", "flowscan export CSV with equity closes")
 	imoexPath := fs.String("imoex", "data/macro/imoex.csv", "IMOEX closes")
+	hi2Path := fs.String("hi2", "work/hi2-fo.csv", "fo hi2 panel CSV")
 	divPath := fs.String("div", "data/dividends.jsonl", "dividend calendar")
 	if err := fs.Parse(os.Args[2:]); err != nil {
 		log.Fatal(err)
@@ -321,6 +322,50 @@ func main() {
 		c.scan2(e)
 	case "dbg":
 		newCtx(*foPath, *fxPath).dbg(fs.Arg(0), fs.Arg(1), fs.Arg(2))
+	case "hi2panel":
+		if err := buildHi2Panel(*dir, *out); err != nil {
+			log.Fatal(err)
+		}
+	case "prep3", "scan3":
+		c := newCtx(*foPath, *fxPath)
+		e, err := loadEquity(*blockPath, *imoexPath, *divPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		eb, err := loadEqBlock(*blockPath, *divPath, e)
+		if err != nil {
+			log.Fatal(err)
+		}
+		hi, err := loadHi2(*hi2Path)
+		if err != nil {
+			log.Fatal(err)
+		}
+		x := newCtx3(c, e, eb, hi)
+		if os.Args[1] == "prep3" {
+			x.prep()
+			x.expcheck("MIX")
+			x.expcheck("Si")
+			x.expcheck("RTS")
+			n := 0
+			for _, v := range eb.band2 {
+				_ = v
+				n++
+			}
+			fmt.Printf("thin universe: %d distinct names ever in rank 101-300 (excluding top 100 and the production 18)\n", n)
+		} else {
+			x.scan(*thr)
+		}
+	case "rows3":
+		for _, sp := range append(append(specs3(), specs4()...), specs5()...) {
+			st := "test"
+			if sp.kind == "deferred" {
+				st = "deferred"
+			}
+			if sp.book == "2" {
+				st = "lead"
+			}
+			fmt.Printf("| %s | %s | %s | %s | %+.0f | h%d | %s |\n", sp.id, st, sp.kind, sp.feat+" "+sp.group, sp.sign, sp.hor, sp.desc)
+		}
 	case "rows":
 		for _, sp := range append(specs(), specs2()...) {
 			st := "test"

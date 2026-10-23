@@ -27,6 +27,8 @@ func blockCols() []blockCol {
 		{"ap_depth_growth", logRatioM(bDepth, 20, 10)},
 		{"ap_ticket_z", zPrev(bTicket, lg)},
 		{"ap_otr_z", zPrev(bPutOverVal, ident)},
+		{"ap_morn_a1", col(bMornA1)},
+		{"ap_auc_a1", col(bAucA1)},
 	}
 }
 
@@ -60,8 +62,10 @@ func (r *run) exportBlock(path string, realtimeFrom string) {
 		}
 		adm := p.admittedAt(d)
 		in100 := map[int]bool{}
-		for _, i := range adm {
-			in100[i] = true
+		for k, i := range adm {
+			if k < 100 {
+				in100[i] = true
+			}
 		}
 		set := map[int]bool{}
 		var ids []int

@@ -138,3 +138,12 @@ Plan `docs/plans/20261023-algopack-futures-fx.md` (rows, protocol, threshold and
 
 Reading: futures and FX AlgoPack order flow gives no forecast improvement above the registered threshold on the realtime data that exists: the 62 tested rows were powered and null, and what is untested (23 of 85 rows: ten orderstats rows deferred, thirteen thin-spot rows below the floor) is limited by data vintage, with the strongest exploration signals (CI to volatility) in the deferred family. The daily job `scripts/algopack-daily.sh` now also accrues `fo` and `fx` for the deferred evaluation.
 
+### 8.19 AlgoPack, third untouched-data plan: equity flow to futures outcomes, futures hi2, thin equities (2026-10-23)
+
+Plan `docs/plans/20261023-algopack-third-untouched.md` (42 rows registered, honest count instead of 100: the powered untouched predictor-outcome pairs were exhausted; a vintage matrix and the global test counter are in the plan), tools `cmd/futscan` (`hi2panel`, `prep3`, `scan3`), `cmd/flowscan -mode export` (adds morning and auction imbalance and the names ranked 101-300), outputs in `artifacts/algopack-third/`. New data: `fo` and `fx` `hi2` (concentration index per contract, realtime throughout the checked period).
+
+- **Book 1 (futures and FX outcomes, 34 scored, T = 3.000, M_eff 17.99 over 19 predictor series): 0 pass.** Largest |t|: 2.46 (equity cancellation intensity to `CNYRUB_TOM`, n = 201), 2.11 (`hi2` `hhi_agressive` of MIX, registered contrarian sign), 1.94, 1.89, 1.69; universe-mean A2 to MIX t -0.01, RTS +1.02, Si -0.64, CNY -0.93, BR -1.61, GOLD +0.03, NG +0.57; the quarterly-expiry-week interaction t -1.69 with the opposite sign in the second half. Two `fx` `hi2` rows deferred.
+- **Book 2 (thin equities ranks 101-300, spent outcomes, 6 rows): 3 leads**, all A2: h1 t +7.47, h5 t +5.65, A2 5-day mean h5 t +2.89; ticket size and spread ratio null; the ex-date-week interaction not testable. No economic claim (costs untested; earlier D2 economics at 200-300 names was below the deposit).
+
+Reading: no new untouched pair forecasts anything above the registered threshold; the only large statistics are the known A2 effect in a less liquid band. Family counts so far: equity-realtime outcomes about 250 tests, futures and FX outcomes 85 + 36 registered.
+
