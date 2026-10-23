@@ -1,0 +1,47 @@
+2026/10/23 15:56:08 alphafit: 163709 rows, 1644 dates, 75 AlgoPack features plus 3 controls
+== descriptive arm: training on realtime rows only (blocks 3-7, 2025-07-01 on)
+IC rt-only blend             mean +0.08464 NW10 t +3.65 boot95 [+0.04800, +0.13254] halves +0.07180 / +0.09323 n 327
+net/day rt-only blend        mean -0.00200 NW10 t -3.66 boot95 [-0.00308, -0.00091] halves -0.00245 / -0.00170 n 334
+IC rt-only a2                mean +0.02986 NW10 t +1.74 boot95 [-0.00416, +0.06055] halves +0.01049 / +0.04281 n 327
+net/day rt-only a2           mean -0.00200 NW10 t -5.02 boot95 [-0.00285, -0.00136] halves -0.00176 / -0.00216 n 334
+verdict: frozen ridge 0.003 en 0.0010 rate 0.33
+== daily IC against the 10-day abnormal rank
+IC ridge                     mean +0.09698 NW10 t +6.02 boot95 [+0.07061, +0.13022] halves +0.08565 / +0.11167 n 450
+IC en                        mean +0.09146 NW10 t +5.64 boot95 [+0.06497, +0.12502] halves +0.08240 / +0.10319 n 450
+IC blend                     mean +0.09571 NW10 t +5.87 boot95 [+0.06933, +0.12943] halves +0.08533 / +0.10915 n 450
+IC a2                        mean +0.05893 NW10 t +5.61 boot95 [+0.03887, +0.07779] halves +0.04223 / +0.08057 n 450
+IC blend minus a2            mean +0.03677 NW10 t +2.51 boot95 [+0.01473, +0.06630] halves +0.04309 / +0.02858 n 450
+IC plc20261023               mean +0.00517 NW10 t +1.14 boot95 [-0.00339, +0.01535] halves +0.00633 / +0.00367 n 450
+IC blend minus plc20261023   mean +0.09053 NW10 t +5.37 boot95 [+0.06197, +0.12490] halves +0.07900 / +0.10548 n 450
+IC plc20261024               mean +0.00007 NW10 t +0.01 boot95 [-0.00879, +0.01054] halves -0.00605 / +0.00799 n 450
+IC blend minus plc20261024   mean +0.09564 NW10 t +5.98 boot95 [+0.06821, +0.12874] halves +0.09138 / +0.10116 n 450
+IC plc20261025               mean +0.00257 NW10 t +0.63 boot95 [-0.00532, +0.01100] halves +0.00101 / +0.00459 n 450
+IC blend minus plc20261025   mean +0.09313 NW10 t +5.76 boot95 [+0.06631, +0.12682] halves +0.08432 / +0.10456 n 450
+IC plc20261026               mean +0.00115 NW10 t +0.23 boot95 [-0.00726, +0.01160] halves -0.00020 / +0.00290 n 450
+IC blend minus plc20261026   mean +0.09456 NW10 t +5.72 boot95 [+0.06661, +0.12832] halves +0.08553 / +0.10626 n 450
+IC plc20261027               mean -0.00417 NW10 t -0.91 boot95 [-0.01328, +0.00456] halves -0.00015 / -0.00938 n 450
+IC blend minus plc20261027   mean +0.09988 NW10 t +5.94 boot95 [+0.07242, +0.13493] halves +0.08548 / +0.11853 n 450
+placebo seeds with blend IC above the placebo: 5 of 5
+== dollar-neutral top-minus-bottom quintile book, inverse-vol legs, 0.15% per side, borrow 17% a year (daily rebalanced)
+net/day blend                mean -0.00065 NW10 t -1.42 boot95 [-0.00149, +0.00027] halves -0.00102 / -0.00018 n 457
+  blend gross +0.28198% turnover/day 1.864 net@25%borrow -0.09676% annualised net -16.4%
+net/day ridge                mean -0.00074 NW10 t -1.75 boot95 [-0.00153, +0.00012] halves -0.00113 / -0.00025 n 457
+  ridge gross +0.28129% turnover/day 1.918 net@25%borrow -0.10563% annualised net -18.6%
+net/day en                   mean -0.00068 NW10 t -1.57 boot95 [-0.00147, +0.00019] halves -0.00085 / -0.00046 n 457
+  en gross +0.27360% turnover/day 1.825 net@25%borrow -0.09928% annualised net -17.0%
+net/day a2                   mean -0.00100 NW10 t -3.18 boot95 [-0.00154, -0.00039] halves -0.00145 / -0.00044 n 457
+  a2 gross +0.21930% turnover/day 1.681 net@25%borrow -0.13198% annualised net -25.3%
+net/day plc20261023          mean -0.00582 NW10 t -20.08 boot95 [-0.00637, -0.00525] halves -0.00612 / -0.00544 n 457
+net/day plc20261024          mean -0.00540 NW10 t -22.35 boot95 [-0.00588, -0.00491] halves -0.00538 / -0.00542 n 457
+net/day plc20261025          mean -0.00599 NW10 t -19.36 boot95 [-0.00660, -0.00540] halves -0.00560 / -0.00648 n 457
+net/day plc20261026          mean -0.00575 NW10 t -20.76 boot95 [-0.00631, -0.00520] halves -0.00546 / -0.00611 n 457
+net/day plc20261027          mean -0.00561 NW10 t -22.20 boot95 [-0.00611, -0.00512] halves -0.00527 / -0.00604 n 457
+== Garleanu-Pedersen style partial adjustment (rate fixed on exploration)
+net/day GP blend             mean +0.00030 NW10 t +0.70 boot95 [-0.00048, +0.00114] halves +0.00024 / +0.00037 n 457
+GP minus daily blend         mean +0.00095 NW10 t +5.28 boot95 [+0.00059, +0.00131] halves +0.00126 / +0.00055 n 457
+  GP blend gross +0.18693% turnover/day 0.629 net@17% +0.02979% net@25% +0.00022% annualised net@17% 7.5% @25% 0.1%
+net/day GP@25% blend         mean +0.00000 NW10 t +0.01 boot95 [-0.00078, +0.00084] halves -0.00005 / +0.00007 n 457
+net/day GP a2                mean -0.00016 NW10 t -0.62 boot95 [-0.00065, +0.00031] halves -0.00043 / +0.00018 n 457
+GP minus daily a2            mean +0.00084 NW10 t +4.27 boot95 [+0.00043, +0.00117] halves +0.00102 / +0.00062 n 457
+  GP a2 gross +0.13530% turnover/day 0.595 net@17% -0.01600% net@25% -0.04520% annualised net@17% -4.0% @25% -11.4%
+net/day GP@25% a2            mean -0.00045 NW10 t -1.75 boot95 [-0.00094, +0.00001] halves -0.00073 / -0.00011 n 457

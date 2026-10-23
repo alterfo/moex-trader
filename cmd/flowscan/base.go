@@ -86,6 +86,14 @@ const (
 	bEvSpRatio
 	bEvRet
 	bAucA1
+	bVPIN
+	bKyle
+	bFlowRet
+	bFlowAC
+	bSkew
+	bImbAC2
+	bProfTilt
+	bImbSlope
 	nb
 )
 
@@ -331,7 +339,136 @@ func computeBase(w *sessions) *[nb]float32 {
 	fillMorning(w, b, set)
 	fillEvening(w, b, set)
 	fillAuction(m, set)
+	fillMicro(m, set)
 	return b
+}
+
+func fillMicro(m *[nMain]bar, set func(int, float64)) {
+	var rets, imb, vals, idx []float64
+	var imbBook []float64
+	prev := nan
+	var absVol, totVol float64
+	for s := 0; s <= slotFeat; s++ {
+		if !m[s].has[hasTS] {
+			continue
+		}
+		c := float64(m[s].f[tClose])
+		v := float64(m[s].f[tVal])
+		vb, vs := float64(m[s].f[tVolB]), float64(m[s].f[tVolS])
+		absVol += math.Abs(vb - vs)
+		totVol += vb + vs
+		if c > 0 && !math.IsNaN(prev) && v > 0 {
+			rets = append(rets, math.Log(c/prev))
+			imb = append(imb, float64(m[s].f[tValB]-m[s].f[tValS])/v)
+			vals = append(vals, v)
+			idx = append(idx, float64(s))
+			if m[s].has[hasOB] {
+				imbBook = append(imbBook, float64(m[s].f[oImbVal]))
+			} else {
+				imbBook = append(imbBook, nan)
+			}
+		}
+		if c > 0 {
+			prev = c
+		}
+	}
+	if totVol > 0 {
+		set(bVPIN, absVol/totVol)
+	}
+	n := len(rets)
+	if n < 20 {
+		return
+	}
+	mi, mr := 0.0, 0.0
+	for i := range imb {
+		mi += imb[i]
+		mr += rets[i]
+	}
+	mi /= float64(n)
+	mr /= float64(n)
+	var cov, vi, vr float64
+	for i := range imb {
+		cov += (imb[i] - mi) * (rets[i] - mr)
+		vi += (imb[i] - mi) * (imb[i] - mi)
+		vr += (rets[i] - mr) * (rets[i] - mr)
+	}
+	if vi > 0 {
+		set(bKyle, cov/vi)
+	}
+	if vi > 0 && vr > 0 {
+		set(bFlowRet, cov/math.Sqrt(vi*vr))
+	}
+	ac := func(x []float64) float64 {
+		var mx float64
+		k := 0
+		for _, v := range x {
+			if !math.IsNaN(v) {
+				mx += v
+				k++
+			}
+		}
+		if k < 20 {
+			return nan
+		}
+		mx /= float64(k)
+		var num, den float64
+		for i := 0; i < len(x); i++ {
+			if math.IsNaN(x[i]) {
+				continue
+			}
+			den += (x[i] - mx) * (x[i] - mx)
+			if i > 0 && !math.IsNaN(x[i-1]) {
+				num += (x[i] - mx) * (x[i-1] - mx)
+			}
+		}
+		if den == 0 {
+			return nan
+		}
+		return num / den
+	}
+	set(bFlowAC, ac(imb))
+	set(bImbAC2, ac(imbBook))
+	var s2, s3 float64
+	for _, r := range rets {
+		s2 += r * r
+		s3 += r * r * r
+	}
+	if s2 > 0 {
+		set(bSkew, s3/math.Pow(s2, 1.5)*math.Sqrt(float64(n)))
+	}
+	var mxIdx, mxv float64
+	for i := range idx {
+		mxIdx += idx[i]
+		mxv += vals[i]
+	}
+	mxIdx /= float64(n)
+	mxv /= float64(n)
+	var cv, vx float64
+	for i := range idx {
+		cv += (idx[i] - mxIdx) * (vals[i] - mxv)
+		vx += (idx[i] - mxIdx) * (idx[i] - mxIdx)
+	}
+	if vx > 0 && mxv > 0 {
+		set(bProfTilt, cv/vx/mxv*float64(slotFeat))
+	}
+	cum := 0.0
+	var cs []float64
+	for _, v := range imb {
+		cum += v
+		cs = append(cs, cum)
+	}
+	var mc float64
+	for _, v := range cs {
+		mc += v
+	}
+	mc /= float64(n)
+	var cc float64
+	for i := range cs {
+		cc += (idx[i] - mxIdx) * (cs[i] - mc)
+	}
+	if vx > 0 {
+		set(bImbSlope, cc/vx)
+	}
 }
 
 func fillAuction(m *[nMain]bar, set func(int, float64)) {

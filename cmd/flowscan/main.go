@@ -520,7 +520,7 @@ func main() {
 		if *from == "" {
 			*from, *till, *evalLo, *evalHi, *split = "2023-08-01", "2024-12-31", "2023-12-01", "2024-12-31", "2024-07-01"
 		}
-	case "export":
+	case "export", "matrix":
 		if *from == "" {
 			*from, *till, *evalLo, *evalHi, *split = "2020-01-03", "2026-10-21", "2020-04-01", "2026-10-16", "2025-01-01"
 			*lag = 30
@@ -545,7 +545,7 @@ func main() {
 		admN = 300
 	}
 	switch *mode {
-	case "export", "volfc", "spreadfc", "econ", "mkt", "mktprep":
+	case "export", "matrix", "volfc", "spreadfc", "econ", "mkt", "mktprep":
 		secAlias = map[string]string{"YNDX": "YDEX", "TCSG": "T"}
 	}
 	days := listDays(*dir, *from, *till)
@@ -599,6 +599,10 @@ func main() {
 				r.addedValue(tg, fcFeatures(), p.dateIndex("2024-10-01"))
 			}
 		}
+		return
+	}
+	if *mode == "matrix" {
+		r.exportMatrix(*out)
 		return
 	}
 	if *mode == "export" {
