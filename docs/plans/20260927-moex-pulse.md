@@ -7,9 +7,7 @@ Russian translation: [20260927-moex-pulse.ru.md](20260927-moex-pulse.ru.md). Thi
 A cloud/distribution layer on top of the existing `moex-trader`: it serves, in realtime over WebSocket,
 a stream of "news → sentiment → ticker" plus BUY/SELL/HOLD trading signals, along with an archive and dashboards.
 
-**The problem it solves.** The main goal is to learn Yandex Cloud in depth and pass the
-*Certified Engineer Associate* certification (6 domains: infrastructure, data, DevOps,
-serverless, security, billing). We build a live highload product that the author uses
+**The problem it solves.** The main goal is to learn Yandex Cloud in depth. We build a live highload product that the author uses
 personally (they trade on MOEX), which is more effective than dry study of the services.
 
 **How it integrates.** Heavy inference stays on the home GPU box `192.168.88.193`
@@ -197,4 +195,4 @@ a separate next plan, see Post-Completion.
 - Data Transfer (YDB↔ClickHouse replication).
 - Load testing (k6 / Yandex Load Testing): thousands of WS connections + high-frequency ingest,
   checking autoscaling and alerts.
-- Goal: cover all 6 certification domains in practice (keep a checklist of services).
+- Goal: cover the main Yandex Cloud domains in practice (infrastructure, data, DevOps, serverless, security, billing).

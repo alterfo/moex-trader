@@ -150,3 +150,33 @@ func (s *ScoreTableSource) lotsFor(feature domain.FeatureContext) int {
 	}
 	return int(lots)
 }
+
+type ScorePoint struct {
+	Date time.Time
+	P    float64
+}
+
+func (s *ScoreTableSource) Series() map[string][]ScorePoint {
+	out := make(map[string][]ScorePoint, len(s.rows))
+	for ticker, series := range s.rows {
+		points := make([]ScorePoint, len(series))
+		for i, row := range series {
+			points[i] = ScorePoint{Date: row.date, P: row.p}
+		}
+		out[ticker] = points
+	}
+	return out
+}
+
+func NewScoreTableSource(series map[string][]ScorePoint, maxLots int, targetNotional decimal.Decimal) *ScoreTableSource {
+	rows := make(map[string][]scoreRow, len(series))
+	for ticker, points := range series {
+		converted := make([]scoreRow, len(points))
+		for i, point := range points {
+			converted[i] = scoreRow{date: point.Date, p: point.P}
+		}
+		sort.Slice(converted, func(i, j int) bool { return converted[i].date.Before(converted[j].date) })
+		rows[strings.ToUpper(strings.TrimSpace(ticker))] = converted
+	}
+	return &ScoreTableSource{rows: rows, MaxLots: maxLots, TargetNotional: targetNotional}
+}

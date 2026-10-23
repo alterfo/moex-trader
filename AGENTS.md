@@ -60,3 +60,7 @@ Detailed history, measured results and rejected ideas live in `docs/knowledge/`.
 - Every incident or post-mortem finding that can be expressed as code behaviour lands as a regression test in the same commit (existing examples: `TestCancelOpenOrdersLeavesForeignOrdersAlone`, the fencing and mtime-clobber tests, the Cyrillic `[а-яё]*` incident detector tests). A lesson that is only prose will be forgotten.
 - Put the prose lesson in the matching `docs/knowledge/` file, not here; only add to this file what must be loaded in every session (ownership, hard invariants, the index).
 - A reviewer or verifier judges independent evidence (committed metrics, test output), never the author's statement that something is done.
+
+## Agent hooks
+
+- **Arnold guard** (`scripts/hooks/arnold-guard.sh`): reminds about structural stability when editing tuned trading parameters (thresholds, sizing, exposure). Read `docs/knowledge/soft-models-and-optimization.md` before optimizing to a peak. Use with `git diff --cached --name-only | xargs ./scripts/hooks/arnold-guard.sh` or point your harness to it as a pre-edit hook.
