@@ -1,6 +1,5 @@
 # Negotiations/Sanctions Signal Feature
 
-Russian translation: [20260917-negotiations-sanctions-signal-feature.ru.md](20260917-negotiations-sanctions-signal-feature.ru.md). This file is canonical.
 
 ## Overview
 

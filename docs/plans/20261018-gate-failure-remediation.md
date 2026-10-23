@@ -1,6 +1,5 @@
 # Pre-start gate failure: what is established and the acceptance protocol (2026-10-18)
 
-Russian translation: [20261018-gate-failure-remediation.ru.md](20261018-gate-failure-remediation.ru.md). This file is canonical.
 
 Status: the acceptance protocol and the corrections to three documents were accepted by the owner on 2026-10-18 ("yes, all three"); nothing was run on the live path, and `config.sandbox.yaml`, `ensemble_model.json` and `./trader` were not changed. All numbers were obtained offline through `cmd/backtest` in a scratch directory and are reproduced by the command below.
 

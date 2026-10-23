@@ -1,6 +1,5 @@
 # Core rerun on refreshed data
 
-Russian translation: [20261019-core-rerun.ru.md](20261019-core-rerun.ru.md). This file is canonical.
 
 Status: in progress, first version 2026-10-20. Plan and pre-registered rules: [../plans/20261019-core-rerun.md](../plans/20261019-core-rerun.md). Original results: [../metrics.md](../metrics.md). The paper is extended study by study; sections for studies not yet run say so.
 

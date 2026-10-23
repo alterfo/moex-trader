@@ -1,6 +1,5 @@
 # Remove LLM From the Live Trading Critical Path
 
-Russian translation: [20260915-remove-llm-critical-path.ru.md](20260915-remove-llm-critical-path.ru.md). This file is canonical.
 
 ## Overview
 

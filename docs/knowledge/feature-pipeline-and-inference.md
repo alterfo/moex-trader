@@ -1,6 +1,5 @@
 # Feature pipeline and model-to-Go inference
 
-Russian translation: [feature-pipeline-and-inference.ru.md](feature-pipeline-and-inference.ru.md). This file is canonical.
 
 Read before touching `internal/model/features.go`, `scripts/export_ensemble.py`, `cmd/exportdataset`, or any XGBoost/LGBM export or Go inference code.
 

@@ -1,6 +1,5 @@
 # Model quality and strategy research history
 
-Russian translation: [model-quality-history.ru.md](model-quality-history.ru.md). This file is canonical.
 
 Read before proposing any new feature, label, horizon, threshold, sizing rule or retrain. Most obvious ideas are already measured and rejected here.
 

@@ -1,6 +1,5 @@
 # Per-ticker circuit breaker in the gate replay (pre-registration, 2026-10-18, before the run)
 
-Russian translation: [20261018-ticker-breaker-parity.ru.md](20261018-ticker-breaker-parity.ru.md). This file is canonical.
 
 ## Facts
 

@@ -1,6 +1,5 @@
 # Soft models, structural stability and parametric optimization (Arnold)
 
-Russian translation: [soft-models-and-optimization.ru.md](soft-models-and-optimization.ru.md). This file is canonical.
 
 Read before tuning thresholds, sizing, horizons or any other parameter to a backtest optimum, before trusting a conclusion drawn from a single hard model, or before adding another layer to the decision path.
 

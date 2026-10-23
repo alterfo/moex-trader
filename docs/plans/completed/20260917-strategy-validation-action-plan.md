@@ -1,6 +1,5 @@
 # Strategy validation plan: consensus of two agent sessions
 
-Russian translation: [20260917-strategy-validation-action-plan.ru.md](20260917-strategy-validation-action-plan.ru.md). This file is canonical.
 
 Date: 2026-09-17. Status: agreed by the left (ensemble/model zone) and right (broker/sandbox zone)
 opencode sessions after two rounds of adversarial review. This is a plan, not an implementation:

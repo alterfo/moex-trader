@@ -1,6 +1,5 @@
 # Commission Accounting and Finam Broker Support
 
-Russian translation: [20260915-commissions-and-finam-broker.ru.md](20260915-commissions-and-finam-broker.ru.md). This file is canonical.
 
 ## Overview
 

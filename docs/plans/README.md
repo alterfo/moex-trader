@@ -1,6 +1,5 @@
 # Plans and pre-registrations
 
-Russian translation: [README.ru.md](README.ru.md). This file is canonical.
 
 The index was compiled on 2026-10-18 from the file headings and the sections of `docs/metrics.md`, and refreshed on 2026-10-19 to cover every plan file. Rules: criteria are written before the run, numbers go into `docs/metrics.md` in the same commit as the result, the outcome of a plan is reflected in its `Status:` heading. Old finished plans live in `completed/`. System structure is described in [../ARCHITECTURE.md](../ARCHITECTURE.md).
 

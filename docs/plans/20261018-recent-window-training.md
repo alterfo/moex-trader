@@ -1,6 +1,5 @@
 # Training on short recent windows: 10/30/90 days (2026-10-18)
 
-Russian translation: [20261018-recent-window-training.ru.md](20261018-recent-window-training.ru.md). This file is canonical.
 
 The owner's question: does training only on recent data (logistic regression and the full ensemble) cure model staleness, with windows of 10, 30 and 90 days.
 

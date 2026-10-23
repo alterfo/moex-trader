@@ -1,6 +1,5 @@
 # Hypotheses to test from the LLM forecasting review (2026-10-15)
 
-Russian translation: [20261015-hypotheses-from-llm-review.ru.md](20261015-hypotheses-from-llm-review.ru.md). This file is canonical.
 
 Source: Shashkov K.A. A review of world experience in applying large language models to financial forecasting // ETAP, 2026, no. 3, pp. 81–96. This is a secondary review: the primary papers (Lopez-Lira & Tang, Chen–Green–Gulen–Zhou, LLMFactor, Quantifying Qualitative Insights, TrustTrade and others) were not read, and the references in the hypotheses must be checked against the originals before work starts.
 

@@ -1,6 +1,5 @@
 # Analysis of the preflight refusal: P&L concentration by day (2026-10-18)
 
-Russian translation: [20261018-preflight-concentration.ru.md](20261018-preflight-concentration.ru.md). This file is canonical.
 
 The owner chose "stop and investigate". The trader is stopped by the gate, the thresholds are not touched. Hypotheses and criteria are fixed before the measurements run.
 

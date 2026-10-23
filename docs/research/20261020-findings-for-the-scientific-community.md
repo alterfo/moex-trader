@@ -1,6 +1,5 @@
 # Findings of interest to the scientific community
 
-Russian translation: [20261020-findings-for-the-scientific-community.ru.md](20261020-findings-for-the-scientific-community.ru.md). This file is canonical.
 
 Status: 2026-10-20. A selection from [../metrics.md](../metrics.md), which stays the single source of every number; section references below point there. Setting: the MOEX Trader research programme, a Russian equity market (MOEX TQBR board), daily and 10-minute data, 2014-2026, costs 0.05% per side per component unless stated. Every result below was judged against criteria fixed before the run; descriptive readings are labelled as such.
 

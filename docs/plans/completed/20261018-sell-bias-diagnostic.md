@@ -1,6 +1,5 @@
 # Diagnosis of the SELL skew of the live ensemble (2026-10-18)
 
-Russian translation: [20261018-sell-bias-diagnostic.ru.md](20261018-sell-bias-diagnostic.ru.md). This file is canonical.
 
 Pre-registration before the checks were run. Item 4 of four, authorized by the owner on 2026-10-18. The original symptom is documented in `docs/knowledge/model-quality-history.md`: 878 SELL / 0 BUY on 1500 fresh vectors (2026-09-17..10-09); after zeroing the news features "the skew remains in the model itself".
 

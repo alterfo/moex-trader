@@ -1,6 +1,5 @@
 # News, events and incident detection
 
-Russian translation: [news-and-events.ru.md](news-and-events.ru.md). This file is canonical.
 
 Read before touching `internal/ingestion/news`, `cmd/newsfetch`, `cmd/trainnewsmodel`, `internal/features/events.go`, `internal/features/incident.go`, or the news gate in `cmd/trader`.
 

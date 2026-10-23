@@ -1,6 +1,5 @@
 # Placebo check of the ridge table: `cmd/placebocheck` (rewritten 2026-10-19 instead of `cmd/synthcheck`)
 
-Russian translation: [20261019-placebo-check.ru.md](20261019-placebo-check.ru.md). This file is canonical.
 
 Status: plan; criteria are fixed before implementation and before the first run. The implementation is carried out by one session (AGENTS.md rule 7: `git status` before editing).
 

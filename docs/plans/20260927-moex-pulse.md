@@ -1,6 +1,5 @@
 # MOEX Pulse — realtime edge→cloud signal layer (Yandex Cloud)
 
-Russian translation: [20260927-moex-pulse.ru.md](20260927-moex-pulse.ru.md). This file is canonical.
 
 ## Overview
 

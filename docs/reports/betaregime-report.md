@@ -1,6 +1,5 @@
 # Beta / regime decomposition (Task 9)
 
-Russian translation: [betaregime-report.ru.md](betaregime-report.ru.md). This file is canonical.
 
 - Window: 2025-04-01 -> 2026-09-17
 - Tickers: 18 (YDEX, OZON, SBER, LKOH, GAZP, GMKN, ROSN, NVTK, TATN, MTSS, MGNT, PLZL, CHMF, DATA, T, VTBR, RUAL, POSI)

@@ -1,6 +1,5 @@
 # Model quality and robustness
 
-Russian translation: [20261004-model-quality-and-robustness.ru.md](20261004-model-quality-and-robustness.ru.md). This file is canonical.
 
 ## Overview
 

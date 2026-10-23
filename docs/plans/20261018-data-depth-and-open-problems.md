@@ -1,6 +1,5 @@
 # More data and five open problems (2026-10-18)
 
-Russian translation: [20261018-data-depth-and-open-problems.ru.md](20261018-data-depth-and-open-problems.ru.md). This file is canonical.
 
 Source of the five problems: the review by Darwish, Hassanien, Eissa (2026), the section on unsolved tasks. Here they are tied to data that was missing before. The constraints from `AGENTS.md` and `docs/plans/20261015-hypotheses-from-llm-review.md` apply unchanged: the LLM stays off the trading path, no automatic replacement of `ensemble_model.json` without separate consent of the owner, metrics go into `docs/metrics.md` in the same commit.
 

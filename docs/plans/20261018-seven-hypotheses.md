@@ -1,6 +1,5 @@
 # Seven hypotheses to improve the forecast (2026-10-18)
 
-Russian translation: [20261018-seven-hypotheses.ru.md](20261018-seven-hypotheses.ru.md). This file is canonical.
 
 Order: 1 H2 (zero-shot LLM direction) and H3 (lookahead), 2 H1/H4 (decay of the reaction to news), 3 H6 (LLM scores as features), 4 history depth and 2021-2024 news in the ensemble, 5 variance of the evaluation procedure itself, 6 IMOEX regime filter, 7 cross-sectional ranking. The criteria of each step are fixed in a separate commit before it is run. The `AGENTS.md` constraints do not change: the LLM is offline only, `ensemble_model.json` is not touched, metrics go into `docs/metrics.md` in the same commit as the code.
 

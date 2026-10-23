@@ -1,6 +1,5 @@
 # Manual retraining of the ensemble (2026-10-18)
 
-Russian translation: [20261018-manual-retrain.ru.md](20261018-manual-retrain.ru.md). This file is canonical.
 
 The owner approved on 2026-10-18 ("go 1 2 3", item 2). Reason: D4 of the SELL-skew diagnosis — a fresh model gives 2.2% BUY against 0% for the deployed one on the same window (staleness of the BUY tail). Auto-replacement is still forbidden; this is a one-off manual retraining with explicit consent.
 

@@ -1,6 +1,5 @@
 # Core rerun on refreshed data (pre-registration)
 
-Russian translation: [20261019-core-rerun.ru.md](20261019-core-rerun.ru.md). This file is canonical.
 
 Status: draft pre-registration, written 2026-10-19 before any rerun. Owner decisions (2026-10-19): the same data sources refreshed up to the run date; the key core only; the result is a separate paper in `docs/research/` (English plus Russian twin), while `docs/metrics.md` stays the registry of numbers and links to it.
 

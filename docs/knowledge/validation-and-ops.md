@@ -1,6 +1,5 @@
 # Validation tooling and live/sandbox operations
 
-Russian translation: [validation-and-ops.ru.md](validation-and-ops.ru.md). This file is canonical.
 
 Read before changing `cmd/strategyvalidation`, walk-forward, the shadow reconciler, metrics/alerts, order execution safeguards, the kill switch, or Telegram wiring.
 
@@ -43,3 +42,16 @@ While the sandbox trader is refused by the preflight gate (90-day realized net -
 First cycle (Sunday 2026-10-18, exchange closed): 17 tickers through ingest, model, risk gate and executor, all HOLD, probabilities 0.355-0.606; several decisions were vetoed by the `out_of_range` guard (MTSS, GMKN, GAZP), the same accidental veto described in the sell-bias diagnostic.
 
 Rule for reading it, fixed before there is any data: no conclusion before 40 trading days and 100 closed trades; then compare realized P&L net of commission and borrow, hit rate and max drawdown against the sandbox preflight replay and against the no-trade baseline. A good forward result is evidence for the owner, not authority: it does not change the gate, and passing the Task 13 criteria remains required for any model swap. To stop it: `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.oleg.moex-trader.paper.plist`. After a code change, rebuild `bin/trader-paper` and `launchctl kickstart -k gui/$(id -u)/com.oleg.moex-trader.paper`.
+
+## Champion/challenger shadow and Pass^k (2026-10-09, moved from AGENTS.md)
+
+- `model.challenger_ensemble_path` (+ `model.challenger_log_path`, default `artifacts/challenger/decisions.jsonl`) makes `cmd/trader` score each live feature vector with a second ensemble and append both signals as JSONL. The challenger never reaches the executor (wrapped around the live model source only, `cmd/trader/challenger.go`, not around the preflight source); its errors are logged, not propagated. Empty path disables it.
+- `cmd/challengercompare` pairs the log with closed ISS bars (10-day forward return), reports agreement, signed return per decision and a date-bootstrap CI for challenger minus champion, and refuses a verdict below 200 pairs / 40 dates. A "challenger better" verdict is evidence only; promotion needs the purged walk-forward gate and explicit sign-off.
+- `cmd/strategyvalidation -consistency <wf-dir> [-min-pass-k 0.5 -pass-horizon 4]` reports realized P&L per walk-forward window, positive-window count, worst window and a Laplace-smoothed Pass^k. Use it next to PBO/DSR.
+
+## Daily candidate retraining and preflight gate details (moved from AGENTS.md)
+
+- Daily retraining of a CANDIDATE is approved (owner, 2026-10-18); the swap is manual. A daily job may export, train, replay and report, writing only to a report directory (e.g. `reports/<date>/candidate.json` on the ai-box). It must not write `ensemble_model.json`, restart `./trader` or run `scripts/deploy-failover.sh`. The swap follows `docs/plans/completed/20261018-manual-retrain.md`. The job keeps its own frozen `news_history.jsonl`; do not copy the 2026-10-18 merged archive into it unless `news_count`/`news_sentiment`/event features are masked in training as at inference (`untrainedFeatures`).
+- The preflight gate must use the same signal source as the live loop and must hard-fail (not "pass") when every replay decision errors out: a feature-count mismatch once made every decision fail and looked like "0 trades, P&L 0, gate passed".
+- Sandbox DB: never choose the authoritative `trader-sandbox.db` by mtime (a fresh empty DB clobbered the real one on 2026-09-16). The source is the node whose trader started last (`trader.last_start_at`); a DB taken from the peer is validated as SQLite first.
+- A node failing `trader.max_failures` starts releases the lease and stays in `error` for `post_failure_cooldown` (30 min, anti ping-pong). The Mac watchdog runs `./trader` from the repo root (`scripts/deploy-failover.sh mac` rebuilds); the ai-box uses its linux/amd64 build with `SSL_CERT_FILE=certs/ca-bundle.pem`.

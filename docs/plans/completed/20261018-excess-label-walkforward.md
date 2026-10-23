@@ -1,6 +1,5 @@
 # Experiment F: excess labels through the Task 13 gate (2026-10-18)
 
-Russian translation: [20261018-excess-label-walkforward.ru.md](20261018-excess-label-walkforward.ru.md). This file is canonical.
 
 Pre-registration before the run. The owner authorized work in the ensemble/model zone on 2026-10-18 ("I give permission, do all 4": this experiment is item 1 of four).
 

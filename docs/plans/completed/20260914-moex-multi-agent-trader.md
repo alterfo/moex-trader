@@ -1,6 +1,5 @@
 # MOEX Multi-Agent Trader
 
-Russian translation: [20260914-moex-multi-agent-trader.ru.md](20260914-moex-multi-agent-trader.ru.md). This file is canonical.
 
 ## Overview
 

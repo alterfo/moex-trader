@@ -44,6 +44,15 @@ func isPlan(path string) bool {
 	return strings.Contains(filepath.ToSlash(path), "docs/plans/")
 }
 
+var coreDocs = map[string]bool{
+	"AGENTS.md":                 true,
+	"README.md":                 true,
+	"docs/VISION.md":            true,
+	"docs/ARCHITECTURE.md":      true,
+	"docs/DEVELOPMENT.md":       true,
+	"docs/GO_LIVE_CHECKLIST.md": true,
+}
+
 func TestEveryDocHasBothLanguages(t *testing.T) {
 	for _, path := range markdownFiles(t) {
 		if isRussian(path) {
@@ -53,7 +62,8 @@ func TestEveryDocHasBothLanguages(t *testing.T) {
 			}
 			continue
 		}
-		if isPlan(path) {
+		rel, err := filepath.Rel(repoRoot, path)
+		if err != nil || !coreDocs[filepath.ToSlash(rel)] {
 			continue
 		}
 		russian := strings.TrimSuffix(path, ".md") + ".ru.md"
