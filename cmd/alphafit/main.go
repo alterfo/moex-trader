@@ -247,6 +247,7 @@ func main() {
 	mat := flag.String("matrix", "work/matrix.csv", "flowscan matrix CSV")
 	frz := flag.String("frozen", "work/alphafit-frozen.json", "frozen hyperparameters")
 	models := flag.String("models", "work/alphafit-models.json", "frozen model coefficients")
+	outPath := flag.String("out", "work/alphafit-series.csv", "dump: daily series CSV")
 	fromDate := flag.String("from", "2026-10-21", "forward: first feature date")
 	flag.Parse()
 	ds, err := load(*mat)
@@ -266,6 +267,8 @@ func main() {
 		probe(pp)
 	case "freeze":
 		freezeModels(pp, *frz, *models)
+	case "dump":
+		dump(pp, *frz, *outPath)
 	case "forward":
 		forward(pp, *models, *fromDate)
 	}
@@ -479,5 +482,39 @@ func probe(pp *pipe) {
 		for i, x := range ds.rows {
 			x.feat = saved[i]
 		}
+	}
+}
+
+func dump(pp *pipe, frzPath, outPath string) {
+	raw, err := os.ReadFile(frzPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var fz frozen
+	json.Unmarshal(raw, &fz)
+	t0 := sort.SearchStrings(pp.ds.dates, "2020-04-01")
+	blocks := [][2]string{{"2025-01-03", "2025-03-31"}, {"2025-04-01", "2025-06-30"}, {"2025-07-01", "2025-09-30"}, {"2025-10-01", "2025-12-31"}, {"2026-01-01", "2026-03-31"}, {"2026-04-01", "2026-06-30"}, {"2026-07-01", "2026-10-16"}}
+	r := newRunner(pp, fz, []string{"blend", "a2"})
+	for _, b := range blocks {
+		lo, hi := pp.dateRange(b[0], b[1])
+		r.block(lo, hi, t0, nil, true)
+	}
+	f, err := os.Create(outPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+	fmt.Fprintln(f, "date,ic_blend,ic_a2,net_gp_blend,net_gp_a2,net_gp25_blend,net_d_blend,u10")
+	lo, _ := pp.dateRange("2025-01-03", "2026-10-16")
+	_, hi := pp.dateRange("2025-01-03", "2026-10-16")
+	for d := lo; d <= hi; d++ {
+		u := nan
+		for _, x := range pp.ds.byDate[d] {
+			if !math.IsNaN(x.u10) {
+				u = x.u10
+				break
+			}
+		}
+		fmt.Fprintf(f, "%s,%g,%g,%g,%g,%g,%g,%g\n", pp.ds.dates[d], r.out.ic["blend"][d], r.out.ic["a2"][d], r.out.netGP["blend"][d], r.out.netGP["a2"][d], r.out.netGP25["blend"][d], r.out.netD["blend"][d], u)
 	}
 }
