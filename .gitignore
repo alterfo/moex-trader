@@ -34,3 +34,6 @@ artifacts/*_paper.*
 data/news_spool_paper.jsonl
 /backtest
 __pycache__/
+
+/data/aibox/
+/data/algopack/
