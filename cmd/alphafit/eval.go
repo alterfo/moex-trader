@@ -80,7 +80,7 @@ func validIdx(series ...[]float64) []int {
 func bootCI(x []float64, draws int, seed int64) (float64, float64) {
 	idx := validIdx(x)
 	n := len(idx)
-	block := 10
+	block := bootBlock()
 	if n < 2*block {
 		return nan, nan
 	}
@@ -179,7 +179,7 @@ func aimWeights(rows []*row, pred []float64) map[string]float64 {
 	return out
 }
 
-type dayPL struct{ gross, cost, short, glong, gshort float64 }
+type dayPL struct{ gross, cost, short, glong, gshort, turn float64 }
 
 func (b *book) step(rows []*row, aim map[string]float64) dayPL {
 	next := map[string]float64{}
@@ -192,20 +192,34 @@ func (b *book) step(rows []*row, aim map[string]float64) dayPL {
 	var pl dayPL
 	turn := 0.0
 	seen := map[string]bool{}
+	costOf := map[string]float64{}
 	for _, r := range rows {
 		seen[r.secid] = true
+		costOf[r.secid] = r.sideCost()
 		w := next[r.secid]
 		if !math.IsNaN(r.f1) {
-			pl.gross += w * r.f1
+			contribution := w * r.f1
+			if entryMode == "open" && !math.IsNaN(r.idy1) {
+				contribution = b.prev[r.secid]*r.f1 + (w-b.prev[r.secid])*r.idy1
+			}
+			pl.gross += contribution
 			if w > 0 {
-				pl.glong += w * r.f1
+				pl.glong += contribution
 			} else {
-				pl.gshort += w * r.f1
+				pl.gshort += contribution
 			}
 		}
 	}
+	costSum := 0.0
+	costFor := func(k string) float64 {
+		if c, ok := costOf[k]; ok {
+			return c
+		}
+		return 0.0015
+	}
 	for k, w := range next {
 		turn += math.Abs(w - b.prev[k])
+		costSum += math.Abs(w-b.prev[k]) * costFor(k)
 		if w < 0 {
 			pl.short += -w
 		}
@@ -213,9 +227,11 @@ func (b *book) step(rows []*row, aim map[string]float64) dayPL {
 	for k, w := range b.prev {
 		if _, ok := next[k]; !ok {
 			turn += math.Abs(w)
+			costSum += math.Abs(w) * costFor(k)
 		}
 	}
-	pl.cost = turn * 0.0015
+	pl.turn = turn
+	pl.cost = costSum
 	b.prev = next
 	for k, w := range b.prev {
 		if math.Abs(w) < 1e-9 {

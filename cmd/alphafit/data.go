@@ -28,6 +28,8 @@ type row struct {
 	y10, y5                  float64
 	sig                      float64
 	rank                     float64
+	spb, sp1                 float64
+	idy1                     float64
 }
 
 type dataset struct {

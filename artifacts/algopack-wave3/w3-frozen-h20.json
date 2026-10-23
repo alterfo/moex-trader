@@ -1,0 +1,6 @@
+{
+  "lambda_ridge": 0.003,
+  "lambda_en": 0.0002,
+  "alpha": 0.5,
+  "trade_rate": 0.5
+}

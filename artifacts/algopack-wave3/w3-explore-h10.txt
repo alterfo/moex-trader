@@ -1,0 +1,21 @@
+2026/10/23 23:42:03 alphafit: 163709 rows, 1644 dates, 75 AlgoPack features plus 3 controls
+explore ridge lambda 0.003 mean IC 0.13280
+explore ridge lambda 0.010 mean IC 0.13250
+explore ridge lambda 0.030 mean IC 0.13104
+explore ridge lambda 0.100 mean IC 0.12797
+explore ridge lambda 0.300 mean IC 0.12354
+explore ridge lambda 1.000 mean IC 0.11668
+explore elastic-net lambda 0.0002 alpha 0.5 mean IC 0.13220
+explore elastic-net lambda 0.0005 alpha 0.5 mean IC 0.13237
+explore elastic-net lambda 0.0010 alpha 0.5 mean IC 0.13255
+explore elastic-net lambda 0.0020 alpha 0.5 mean IC 0.13179
+explore elastic-net lambda 0.0040 alpha 0.5 mean IC 0.12590
+explore chosen ridge lambda 0.003, elastic-net lambda 0.0010
+explore trade rate 1.00: blend net/day 0.15815% (gross 0.38222%), a2 net/day 0.13620%, IC blend 0.13348 a2 0.10874
+explore trade rate 0.50: blend net/day 0.16217% (gross 0.38222%), a2 net/day 0.13844%, IC blend 0.13348 a2 0.10874
+explore trade rate 0.33: blend net/day 0.14885% (gross 0.38222%), a2 net/day 0.12471%, IC blend 0.13348 a2 0.10874
+explore trade rate 0.20: blend net/day 0.12605% (gross 0.38222%), a2 net/day 0.10448%, IC blend 0.13348 a2 0.10874
+explore trade rate 0.10: blend net/day 0.09096% (gross 0.38222%), a2 net/day 0.07646%, IC blend 0.13348 a2 0.10874
+explore trade rate 0.05: blend net/day 0.05851% (gross 0.38222%), a2 net/day 0.04987%, IC blend 0.13348 a2 0.10874
+explore chosen trade rate 0.50
+frozen written work/w3-frozen-h10.json

@@ -196,7 +196,7 @@ func (r *runner) day(d int, preds map[string][]float64) {
 		pl := r.books[n].step(rows, aim)
 		r.out.grossD[n][d] = pl.gross
 		r.out.netD[n][d] = pl.gross - pl.cost - pl.short*borrow17
-		r.out.turnD[n][d] = pl.cost / 0.0015
+		r.out.turnD[n][d] = pl.turn
 		pl25 := r.books25[n].step(rows, aim)
 		r.out.netD25[n][d] = pl25.gross - pl25.cost - pl25.short*borrow25
 		plg := r.booksGP[n].step(rows, aim)
@@ -207,7 +207,7 @@ func (r *runner) day(d int, preds map[string][]float64) {
 			r.out.icT[n][k][d] = icOfRank(rows, pr, float64(k)*33.34, float64(k+1)*33.34)
 		}
 		r.out.grossGP[n][d] = plg.gross
-		r.out.turnGP[n][d] = plg.cost / 0.0015
+		r.out.turnGP[n][d] = plg.turn
 		plg25 := r.booksGP25[n].step(rows, aim)
 		r.out.netGP25[n][d] = plg25.gross - plg25.cost - plg25.short*borrow25
 	}
@@ -215,7 +215,7 @@ func (r *runner) day(d int, preds map[string][]float64) {
 
 func (r *runner) block(lo, hi int, trainFrom int, seeds []int64, withBook bool) {
 	pp := r.pp
-	trainHi := lo - 11
+	trainHi := lo - (horizon + 1)
 	if trainHi <= trainFrom {
 		return
 	}
@@ -264,11 +264,24 @@ func main() {
 	models := flag.String("models", "work/alphafit-models.json", "frozen model coefficients")
 	outPath := flag.String("out", "work/alphafit-series.csv", "dump: daily series CSV")
 	zero := flag.String("zero", "", "comma list of feature names set to the missing value after ranking")
+	extPath := flag.String("ext", "", "flowscan matrix extension CSV (f20, f40, u20, u40, ovn1, idy1)")
+	hz := flag.Int("horizon", 10, "target horizon in trading days: 10, 20 or 40 (20 and 40 need -ext)")
+	cm := flag.String("cost", "flat", "cost model: flat (0.15% a side), bbo (0.05% plus half the BBO spread), mio (0.05% plus half the 1 mln RUB spread)")
+	em := flag.String("entry", "close", "entry: close (trade at the close of the signal day) or open (change in weights earns the next day intraday return only)")
 	fromDate := flag.String("from", "2026-10-21", "forward: first feature date")
 	flag.Parse()
 	ds, err := load(*mat)
 	if err != nil {
 		log.Fatal(err)
+	}
+	horizon, costMode, entryMode = *hz, *cm, *em
+	prepCosts(ds)
+	if *extPath != "" {
+		if err := loadExt(ds, *extPath); err != nil {
+			log.Fatal(err)
+		}
+	} else if horizon != 10 || entryMode == "open" {
+		log.Fatal("horizon other than 10 and open entry need -ext")
 	}
 	ds.derived()
 	ds.build()

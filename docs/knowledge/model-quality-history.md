@@ -141,3 +141,7 @@ Plan `docs/plans/20261024-algopack-meta-variables.md`, numbers in `docs/metrics.
 ## Meta-variables wave 2 (2026-10-24)
 
 Plan `docs/plans/20261024-algopack-meta-wave2.md`, numbers in `docs/metrics.md` 8.22. Nine new state rows (OFZ slope, USDRUB, RTSI) and six sector-exposure interactions: 0 hits; 18 control rows (Saturn, Moon, Kp, Mercury, parity, Bitcoin): 0 hits. The diagnostics of the RVI lead: it is carried by the order-book-shape features (LevAsym, SpLv, NJ), not by the A2 flow imbalance, whose IC is the same in both volatility states (+0.055 / +0.056); the composite with the whole A2 family zeroed has IC +0.0951 against +0.0957. The on-off switch adds only about +0.008% per day to the partial-adjustment book.
+
+## Realistic costs, horizons and entry timing (2026-10-24)
+
+Plan `docs/plans/20261024-algopack-wave3-costs-horizon.md`, numbers in `docs/metrics.md` 8.23. Replacing the flat 0.15% side cost by the quoted half-spread plus commission raises the composite book from about +0.03% to +0.075% per day (interval [-0.005%, +0.163%], both halves positive, placebo books -0.38%): the primary gate fails by 0.005 percentage points. Longer horizons (20, 40 days) lose gross faster than they save turnover, so the ten-day target stays. The edge exists only at retail order size (an order of one million RUB turns it to -0.026%) and about a fifth of the gross is the overnight gap that a next-open order misses.

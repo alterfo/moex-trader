@@ -108,6 +108,14 @@ func (r *run) exportMatrix(path string) {
 		log.Fatalf("flowscan: %v", err)
 	}
 	defer f.Close()
+	fe, err := os.Create(path + ".ext")
+	if err != nil {
+		log.Fatalf("flowscan: %v", err)
+	}
+	defer fe.Close()
+	we := bufio.NewWriter(fe)
+	defer we.Flush()
+	fmt.Fprintln(we, "date,secid,f20,f40,u20,u40,ovn1,idy1")
 	w := bufio.NewWriter(f)
 	defer w.Flush()
 	hdr := []string{"date", "secid", "rank", "t18", "div_drop", "rb1", "rb5", "rb20", "f1", "f5", "f10", "u1", "u5", "u10"}
@@ -149,6 +157,23 @@ func (r *run) exportMatrix(path string) {
 				u[k] = math.NaN()
 			}
 		}
+		var ux [2]float64
+		var uxn [2]int
+		for _, i := range adm {
+			for k, h := range []int{20, 40} {
+				if x := p.ret(i, d, d+h); !math.IsNaN(x) {
+					ux[k] += x
+					uxn[k]++
+				}
+			}
+		}
+		for k := range ux {
+			if uxn[k] >= 40 {
+				ux[k] /= float64(uxn[k])
+			} else {
+				ux[k] = math.NaN()
+			}
+		}
 		for k, i := range adm {
 			if k >= 100 {
 				break
@@ -173,6 +198,14 @@ func (r *run) exportMatrix(path string) {
 			}
 			fmt.Fprintln(w, strings.Join(line, ","))
 			rows++
+			ovn, idy := math.NaN(), math.NaN()
+			if p.spanClean(i, d, d+1) {
+				c0, o1, c1 := p.v(i, d, bCloseDay), p.v(i, d+1, bOpenDay), p.v(i, d+1, bCloseDay)
+				if c0 > 0 && o1 > 0 && c1 > 0 {
+					ovn, idy = math.Log(o1/c0), math.Log(c1/o1)
+				}
+			}
+			fmt.Fprintln(we, strings.Join([]string{p.dates[d], p.tickers[i], fm(p.ret(i, d, d+20)), fm(p.ret(i, d, d+40)), fm(ux[0]), fm(ux[1]), fm(ovn), fm(idy)}, ","))
 		}
 	}
 	log.Printf("flowscan: matrix wrote %d rows to %s", rows, path)
