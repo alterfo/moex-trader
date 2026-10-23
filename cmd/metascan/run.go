@@ -197,6 +197,8 @@ type testRow struct {
 	p, nullSD     float64
 	shifts        int
 	ok            bool
+	thr           float64
+	w2            bool
 }
 
 func diffMeans(s, y []float64) (float64, int, int) {
@@ -367,7 +369,7 @@ func nyholt(series [][]float64) float64 {
 	return 1 + float64(m-1)*(1-v/float64(m))
 }
 
-func run(dir, seriesPath, matrixPath, newsPath string) error {
+func run(dir, seriesPath, matrixPath, newsPath string, wave2 bool, exA2Path string) error {
 	dp, err := loadDump(seriesPath)
 	if err != nil {
 		return err
@@ -394,6 +396,16 @@ func run(dir, seriesPath, matrixPath, newsPath string) error {
 	if err != nil {
 		return err
 	}
+	isW2 := map[string]bool{}
+	nW1 := len(ss.ids)
+	if wave2 {
+		if err := addWave2States(dir, dp.dates, ss, fac); err != nil {
+			return err
+		}
+		for _, id := range ss.ids[nW1:] {
+			isW2[id] = true
+		}
+	}
 	mx, err := loadMatrix(matrixPath)
 	if err != nil {
 		return err
@@ -404,6 +416,13 @@ func run(dir, seriesPath, matrixPath, newsPath string) error {
 	}
 	type pair struct{ id, exp, cond string }
 	pairs := []pair{{"I01", "brent", "brent"}, {"I02", "cny", "cny"}, {"I03", "gold", "gold"}, {"I04", "imoex", "imoex"}, {"I05", "imoex", "rvi"}}
+	nP1 := len(pairs)
+	if wave2 {
+		pairs = append(pairs, pair{"J01", "moexog", "moexog"}, pair{"J02", "moexfn", "moexfn"}, pair{"J03", "moexmm", "moexmm"}, pair{"J04", "moexch", "moexch"}, pair{"J05", "moexeu", "moexeu"}, pair{"J06", "moextl", "moextl"})
+		for _, pr := range pairs[nP1:] {
+			isW2[pr.id] = true
+		}
+	}
 	slopes := map[string][]float64{}
 	zs := map[string][]float64{}
 	for _, pr := range pairs {
@@ -426,15 +445,29 @@ func run(dir, seriesPath, matrixPath, newsPath string) error {
 		slopes[pr.id] = sl
 		zs[pr.id] = z
 	}
-	var meffIn [][]float64
-	for _, id := range ss.ids {
+	var meffIn, meffIn1 [][]float64
+	for i, id := range ss.ids {
 		meffIn = append(meffIn, ss.values[id])
+		if i < nW1 {
+			meffIn1 = append(meffIn1, ss.values[id])
+		}
 	}
-	for _, pr := range pairs {
+	for i, pr := range pairs {
 		meffIn = append(meffIn, zs[pr.id])
+		if i < nP1 {
+			meffIn1 = append(meffIn1, zs[pr.id])
+		}
 	}
+	meff1 := nyholt(meffIn1)
 	meff := nyholt(meffIn)
+	thr1 := 0.05 / meff1
 	thr := 0.05 / meff
+	if wave2 {
+		fmt.Printf("wave 1 M_eff %.2f threshold %.4f; enlarged M_eff %.2f threshold %.4f for wave-2 rows\n", meff1, thr1, meff, thr)
+	} else {
+		thr = thr1
+		meff = meff1
+	}
 	fmt.Printf("realtime dates %d, halves split index %d (%s), M_eff %.2f, threshold p <= %.4f\n", n, split, dp.raw[split], meff, thr)
 
 	outcomes := map[string][]float64{"R": dp.cols["ic_blend"], "S": dp.cols["net_gp_blend"], "T": dp.cols["u10"]}
@@ -444,7 +477,10 @@ func run(dir, seriesPath, matrixPath, newsPath string) error {
 		s := ss.values[id]
 		for _, use := range []string{"R", "S", "T"} {
 			y := outcomes[use]
-			t := testRow{id: id, use: use, kind: "state"}
+			t := testRow{id: id, use: use, kind: "state", thr: thr1, w2: isW2[id]}
+			if t.w2 {
+				t.thr = thr
+			}
 			d, n1, n0 := diffMeans(s, y)
 			t.d, t.n1, t.n0 = d, n1, n0
 			if n1 < 40 || n0 < 40 {
@@ -473,7 +509,10 @@ func run(dir, seriesPath, matrixPath, newsPath string) error {
 	for _, pr := range pairs {
 		z := zs[pr.id]
 		sl := slopes[pr.id]
-		t := testRow{id: pr.id, use: "I", kind: "interaction"}
+		t := testRow{id: pr.id, use: "I", kind: "interaction", thr: thr1, w2: isW2[pr.id]}
+		if t.w2 {
+			t.thr = thr
+		}
 		t.d = slopeXY(z, sl)
 		cnt := 0
 		for i := range z {
@@ -518,8 +557,8 @@ func run(dir, seriesPath, matrixPath, newsPath string) error {
 		flags := ""
 		sameSign := t.d1*t.d > 0 && t.d2*t.d > 0
 		a2ok := math.IsNaN(t.dA) || t.dA*t.d > 0
-		hit := t.p <= thr && sameSign && a2ok
-		if t.p <= thr {
+		hit := t.p <= t.thr && sameSign && a2ok
+		if t.p <= t.thr {
 			flags += " P"
 		}
 		if t.p <= bhCut && bhCut > 0 && t.id[0] != 'C' {
@@ -539,7 +578,7 @@ func run(dir, seriesPath, matrixPath, newsPath string) error {
 		fmt.Printf("%-4s %-2s %5d %5d %+10.5f %+10.5f %+10.5f %+10.5f %8.5f %8.4f %6d %s\n", t.id, t.use, t.n1, t.n0, t.d, t.d1, t.d2, t.dA, t.nullSD, t.p, t.shifts, flags)
 	}
 	for _, t := range rows {
-		if !t.ok || t.id[0] == 'C' || t.use == "I" || t.p > thr {
+		if !t.ok || t.id[0] == 'C' || t.use == "I" || t.p > t.thr {
 			continue
 		}
 		s := ss.values[t.id]
@@ -570,5 +609,8 @@ func run(dir, seriesPath, matrixPath, newsPath string) error {
 		}
 	}
 	fmt.Printf("real hits by use: %v; control hits by use: %v; BH cut %.4f\n", hits, ctlHits, bhCut)
+	if wave2 {
+		return diagnostics(dir, dp, ss, mx, exA2Path)
+	}
 	return nil
 }

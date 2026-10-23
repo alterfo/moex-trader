@@ -164,6 +164,9 @@ func buildFactor(name string, s macro.Series) *factor {
 
 func (f *factor) tenDay(d time.Time) float64 {
 	i := lastBefore(f.series, d)
+	if i >= 0 && d.Sub(f.series[i].Date) > 7*24*time.Hour {
+		return math.NaN()
+	}
 	if i < 10 || f.series[i].Value <= 0 || f.series[i-10].Value <= 0 {
 		return math.NaN()
 	}
@@ -386,4 +389,98 @@ func buildStates(dir, newsPath string, dates []time.Time) (*stateSet, map[string
 		"imoex": buildFactor("imoex", imoex), "rvi": buildFactor("rvi", rvi),
 	}
 	return ss, fac, nil
+}
+
+func addWave2States(dir string, dates []time.Time, ss *stateSet, fac map[string]*factor) error {
+	load := func(n string) (macro.Series, error) { return macro.LoadCSV(dir + "/" + n + ".csv") }
+	long, err := load("rugbitr10y")
+	if err != nil {
+		return err
+	}
+	short, err := load("rugbitr1y")
+	if err != nil {
+		return err
+	}
+	usd, err := load("usdrub")
+	if err != nil {
+		return err
+	}
+	rts, err := load("rtsi")
+	if err != nil {
+		return err
+	}
+	btc, err := load("btc")
+	if err != nil {
+		return err
+	}
+	add := func(id string, f func(d time.Time) float64) {
+		ss.ids = append(ss.ids, id)
+		v := make([]float64, len(dates))
+		for i, d := range dates {
+			v[i] = f(d)
+		}
+		ss.values[id] = v
+	}
+	freshIdx := func(s macro.Series, d time.Time) int {
+		i := lastBefore(s, d)
+		if i >= 0 && d.Sub(s[i].Date) > 7*24*time.Hour {
+			return -1
+		}
+		return i
+	}
+	usdVol := rollVol(logChanges(usd), 10)
+	btcVol := rollVol(logChanges(btc), 10)
+	rtsMA := make([]float64, len(rts))
+	for i := range rts {
+		rtsMA[i] = math.NaN()
+		if i >= 99 {
+			var s float64
+			for k := i - 99; k <= i; k++ {
+				s += rts[k].Value
+			}
+			rtsMA[i] = s / 100
+		}
+	}
+	add("G01", func(d time.Time) float64 {
+		i, j := freshIdx(long, d), freshIdx(short, d)
+		if i < 10 || j < 10 || long[i].Value <= 0 || long[i-10].Value <= 0 || short[j].Value <= 0 || short[j-10].Value <= 0 {
+			return math.NaN()
+		}
+		if math.Log(long[i].Value/long[i-10].Value)-math.Log(short[j].Value/short[j-10].Value) > 0 {
+			return 1
+		}
+		return 0
+	})
+	add("G02", func(d time.Time) float64 { return highFlag(usdVol, freshIdx(usd, d)) })
+	add("G03", func(d time.Time) float64 {
+		i := freshIdx(rts, d)
+		if i < 0 || math.IsNaN(rtsMA[i]) {
+			return math.NaN()
+		}
+		if rts[i].Value > rtsMA[i] {
+			return 1
+		}
+		return 0
+	})
+	add("C04", func(d time.Time) float64 {
+		if mercuryRetrograde(d.AddDate(0, 0, -1).Add(12 * time.Hour)) {
+			return 1
+		}
+		return 0
+	})
+	add("C05", func(d time.Time) float64 {
+		if d.Day()%2 == 0 {
+			return 1
+		}
+		return 0
+	})
+	add("C06", func(d time.Time) float64 { return highFlag(btcVol, freshIdx(btc, d)) })
+	for _, n := range []string{"moexog", "moexfn", "moexmm", "moexch", "moexeu", "moextl"} {
+		s, err := load(n)
+		if err != nil {
+			return err
+		}
+		fac[n] = buildFactor(n, s)
+	}
+	return nil
 }

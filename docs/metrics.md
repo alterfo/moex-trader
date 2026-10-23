@@ -141,6 +141,7 @@ Sections 3-9 live in `docs/metrics/`; numbering is unchanged, so `metrics.md 8.1
 | 8.19 AlgoPack, third untouched-data plan: equity flow to futures outcomes, futures hi2, thin equities (2026-10-23) | s8b-portfolio.md |
 | 8.20 Composite alpha and cost-aware execution, new model class, realtime verdict run once (2026-10-23) | s8b-portfolio.md |
 | 8.21 Meta-variables: macro and exogenous states against the composite (2026-10-24) | s8b-portfolio.md |
+| 8.22 Meta-variables wave 2: new series, controls and the decomposition of the RVI lead (2026-10-24) | s8b-portfolio.md |
 | 9.1 Root cause of the September-October SELL drift (step 9) | s9-live.md |
 | 9.2 Sell-bias diagnostic and the out-of-range guard (2026-10-18) | s9-live.md |
 | 9.3 Preflight concentration (2026-10-18) | s9-live.md |

@@ -67,3 +67,29 @@ func moonAge(t time.Time) float64 {
 	}
 	return age
 }
+
+var mercuryEl = elems{0.38709843, 0.20563661, 7.00559432, 252.25166724, 77.45771895, 48.33961819, 0.0, 0.00002123, -0.00590158, 149472.67486623, 0.15940013, -0.12214182}
+
+func mercuryLongitude(t time.Time) float64 {
+	T := (julian(t) - 2451545.0) / 36525
+	ex, ey, _ := helio(earthEl, T)
+	mx, my, _ := helio(mercuryEl, T)
+	lon := math.Atan2(my-ey, mx-ex) * 180 / math.Pi
+	if lon < 0 {
+		lon += 360
+	}
+	return lon
+}
+
+func mercuryRetrograde(t time.Time) bool {
+	a := mercuryLongitude(t.Add(-12 * time.Hour))
+	b := mercuryLongitude(t.Add(12 * time.Hour))
+	d := b - a
+	if d > 180 {
+		d -= 360
+	}
+	if d < -180 {
+		d += 360
+	}
+	return d < 0
+}

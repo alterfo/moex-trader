@@ -179,7 +179,7 @@ func aimWeights(rows []*row, pred []float64) map[string]float64 {
 	return out
 }
 
-type dayPL struct{ gross, cost, short float64 }
+type dayPL struct{ gross, cost, short, glong, gshort float64 }
 
 func (b *book) step(rows []*row, aim map[string]float64) dayPL {
 	next := map[string]float64{}
@@ -197,6 +197,11 @@ func (b *book) step(rows []*row, aim map[string]float64) dayPL {
 		w := next[r.secid]
 		if !math.IsNaN(r.f1) {
 			pl.gross += w * r.f1
+			if w > 0 {
+				pl.glong += w * r.f1
+			} else {
+				pl.gshort += w * r.f1
+			}
 		}
 	}
 	for k, w := range next {

@@ -27,6 +27,7 @@ type row struct {
 	feat                     []float32
 	y10, y5                  float64
 	sig                      float64
+	rank                     float64
 }
 
 type dataset struct {
@@ -83,7 +84,7 @@ func load(path string) (*dataset, error) {
 		x := &row{date: rec[ix["date"]], secid: rec[ix["secid"]], divDrop: rec[ix["div_drop"]] == "1",
 			rb1: f64(rec[ix["rb1"]]), rb5: f64(rec[ix["rb5"]]), rb20: f64(rec[ix["rb20"]]),
 			f1: f64(rec[ix["f1"]]), f5: f64(rec[ix["f5"]]), f10: f64(rec[ix["f10"]]),
-			u1: f64(rec[ix["u1"]]), u5: f64(rec[ix["u5"]]), u10: f64(rec[ix["u10"]])}
+			u1: f64(rec[ix["u1"]]), u5: f64(rec[ix["u5"]]), u10: f64(rec[ix["u10"]]), rank: f64(rec[ix["rank"]])}
 		x.raw = make([]float64, len(cols))
 		for k, c := range cols {
 			x.raw[k] = f64(rec[c])

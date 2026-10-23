@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"sort"
+	"strings"
 )
 
 type frozen struct {
@@ -99,26 +100,35 @@ func (pp *pipe) fit(gs []*gram, lo, hi int, fz frozen) models {
 }
 
 type outSeries struct {
-	ic      map[string][]float64
-	netD    map[string][]float64
-	grossD  map[string][]float64
-	netGP   map[string][]float64
-	netD25  map[string][]float64
-	turnD   map[string][]float64
-	grossGP map[string][]float64
-	turnGP  map[string][]float64
-	netGP25 map[string][]float64
+	ic       map[string][]float64
+	netD     map[string][]float64
+	grossD   map[string][]float64
+	netGP    map[string][]float64
+	netD25   map[string][]float64
+	turnD    map[string][]float64
+	grossGP  map[string][]float64
+	turnGP   map[string][]float64
+	netGP25  map[string][]float64
+	glongGP  map[string][]float64
+	gshortGP map[string][]float64
+	icT      map[string][][]float64
 }
 
 func newOut(nd int, names []string) *outSeries {
-	o := &outSeries{ic: map[string][]float64{}, netD: map[string][]float64{}, grossD: map[string][]float64{}, netGP: map[string][]float64{}, netD25: map[string][]float64{}, turnD: map[string][]float64{}, grossGP: map[string][]float64{}, turnGP: map[string][]float64{}, netGP25: map[string][]float64{}}
+	o := &outSeries{ic: map[string][]float64{}, netD: map[string][]float64{}, grossD: map[string][]float64{}, netGP: map[string][]float64{}, netD25: map[string][]float64{}, turnD: map[string][]float64{}, grossGP: map[string][]float64{}, turnGP: map[string][]float64{}, netGP25: map[string][]float64{}, glongGP: map[string][]float64{}, gshortGP: map[string][]float64{}, icT: map[string][][]float64{}}
 	for _, n := range names {
-		for _, m := range []map[string][]float64{o.ic, o.netD, o.grossD, o.netGP, o.netD25, o.turnD, o.grossGP, o.turnGP, o.netGP25} {
+		for _, m := range []map[string][]float64{o.ic, o.netD, o.grossD, o.netGP, o.netD25, o.turnD, o.grossGP, o.turnGP, o.netGP25, o.glongGP, o.gshortGP} {
 			v := make([]float64, nd)
 			for i := range v {
 				v[i] = nan
 			}
 			m[n] = v
+		}
+		o.icT[n] = [][]float64{make([]float64, nd), make([]float64, nd), make([]float64, nd)}
+		for k := 0; k < 3; k++ {
+			for i := range o.icT[n][k] {
+				o.icT[n][k][i] = nan
+			}
 		}
 	}
 	return o
@@ -191,6 +201,11 @@ func (r *runner) day(d int, preds map[string][]float64) {
 		r.out.netD25[n][d] = pl25.gross - pl25.cost - pl25.short*borrow25
 		plg := r.booksGP[n].step(rows, aim)
 		r.out.netGP[n][d] = plg.gross - plg.cost - plg.short*borrow17
+		r.out.glongGP[n][d] = plg.glong
+		r.out.gshortGP[n][d] = plg.gshort
+		for k := 0; k < 3; k++ {
+			r.out.icT[n][k][d] = icOfRank(rows, pr, float64(k)*33.34, float64(k+1)*33.34)
+		}
 		r.out.grossGP[n][d] = plg.gross
 		r.out.turnGP[n][d] = plg.cost / 0.0015
 		plg25 := r.booksGP25[n].step(rows, aim)
@@ -248,6 +263,7 @@ func main() {
 	frz := flag.String("frozen", "work/alphafit-frozen.json", "frozen hyperparameters")
 	models := flag.String("models", "work/alphafit-models.json", "frozen model coefficients")
 	outPath := flag.String("out", "work/alphafit-series.csv", "dump: daily series CSV")
+	zero := flag.String("zero", "", "comma list of feature names set to the missing value after ranking")
 	fromDate := flag.String("from", "2026-10-21", "forward: first feature date")
 	flag.Parse()
 	ds, err := load(*mat)
@@ -256,6 +272,9 @@ func main() {
 	}
 	ds.derived()
 	ds.build()
+	if *zero != "" {
+		zeroFeatures(ds, strings.Split(*zero, ","))
+	}
 	pp := newPipe(ds)
 	log.Printf("alphafit: %d rows, %d dates, %d AlgoPack features plus 3 controls", len(ds.rows), len(ds.dates), pp.nf)
 	switch *mode {
@@ -504,7 +523,21 @@ func dump(pp *pipe, frzPath, outPath string) {
 		log.Fatal(err)
 	}
 	defer f.Close()
-	fmt.Fprintln(f, "date,ic_blend,ic_a2,net_gp_blend,net_gp_a2,net_gp25_blend,net_d_blend,u10")
+	vital := []string{"A2", "A2Late", "A2H2", "ImbVol", "LevAsym", "TicketMed", "SpLv", "UnexpA1", "NJ"}
+	vIdx := make([]int, len(vital))
+	for i, v := range vital {
+		vIdx[i] = -1
+		for k, n := range pp.ds.names {
+			if n == v {
+				vIdx[i] = k
+			}
+		}
+	}
+	head := "date,ic_blend,ic_a2,net_gp_blend,net_gp_a2,net_gp25_blend,net_d_blend,u10,glong_gp_blend,gshort_gp_blend,ic_t1,ic_t2,ic_t3"
+	for _, v := range vital {
+		head += ",f_" + v
+	}
+	fmt.Fprintln(f, head)
 	lo, _ := pp.dateRange("2025-01-03", "2026-10-16")
 	_, hi := pp.dateRange("2025-01-03", "2026-10-16")
 	for d := lo; d <= hi; d++ {
@@ -515,6 +548,47 @@ func dump(pp *pipe, frzPath, outPath string) {
 				break
 			}
 		}
-		fmt.Fprintf(f, "%s,%g,%g,%g,%g,%g,%g,%g\n", pp.ds.dates[d], r.out.ic["blend"][d], r.out.ic["a2"][d], r.out.netGP["blend"][d], r.out.netGP["a2"][d], r.out.netGP25["blend"][d], r.out.netD["blend"][d], u)
+		fmt.Fprintf(f, "%s,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g", pp.ds.dates[d], r.out.ic["blend"][d], r.out.ic["a2"][d], r.out.netGP["blend"][d], r.out.netGP["a2"][d], r.out.netGP25["blend"][d], r.out.netD["blend"][d], u, r.out.glongGP["blend"][d], r.out.gshortGP["blend"][d], r.out.icT["blend"][0][d], r.out.icT["blend"][1][d], r.out.icT["blend"][2][d])
+		rows := pp.ds.byDate[d]
+		for _, k := range vIdx {
+			fv := nan
+			if k >= 0 {
+				pr := make([]float64, len(rows))
+				for i, x := range rows {
+					pr[i] = float64(x.feat[k])
+				}
+				fv = icOf(rows, pr)
+			}
+			fmt.Fprintf(f, ",%g", fv)
+		}
+		fmt.Fprintln(f)
+	}
+}
+
+func icOfRank(rows []*row, pred []float64, lo, hi float64) float64 {
+	var sub []*row
+	var p []float64
+	for i, x := range rows {
+		if x.rank > lo && x.rank <= hi {
+			sub = append(sub, x)
+			p = append(p, pred[i])
+		}
+	}
+	return icOf(sub, p)
+}
+
+func zeroFeatures(ds *dataset, names []string) {
+	idx := map[int]bool{}
+	for k, n := range ds.names {
+		for _, z := range names {
+			if n == z {
+				idx[k] = true
+			}
+		}
+	}
+	for _, x := range ds.rows {
+		for k := range idx {
+			x.feat[k] = 0
+		}
 	}
 }

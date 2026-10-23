@@ -207,3 +207,69 @@ func fetchAll(dir string) error {
 	}
 	return nil
 }
+
+func fetchBinance(sym string) (macro.Series, error) {
+	var out macro.Series
+	start := time.Date(2019, 12, 1, 0, 0, 0, 0, time.UTC).UnixMilli()
+	for {
+		b, err := getBody(fmt.Sprintf("https://api.binance.com/api/v3/klines?symbol=%s&interval=1d&startTime=%d&limit=1000", sym, start))
+		if err != nil {
+			return nil, err
+		}
+		var rows [][]interface{}
+		if err := json.Unmarshal(b, &rows); err != nil {
+			return nil, err
+		}
+		if len(rows) == 0 {
+			break
+		}
+		for _, r := range rows {
+			ts := int64(r[0].(float64))
+			c, err := strconv.ParseFloat(r[4].(string), 64)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, macro.Point{Date: time.UnixMilli(ts).UTC().Truncate(24 * time.Hour), Value: c})
+		}
+		start = int64(rows[len(rows)-1][0].(float64)) + 86400000
+		if len(rows) < 1000 {
+			break
+		}
+	}
+	return out.Sorted(), nil
+}
+
+func fetchWave2(dir string) error {
+	idx := func(name string) func() (macro.Series, error) {
+		return func() (macro.Series, error) {
+			return fetchCandles("https://iss.moex.com/iss/engines/stock/markets/index/securities/"+strings.ToUpper(name)+"/candles.json", "2019-12-01")
+		}
+	}
+	jobs := []struct {
+		name string
+		f    func() (macro.Series, error)
+	}{
+		{"rugbitr1y", idx("rugbitr1y")}, {"rugbitr10y", idx("rugbitr10y")}, {"rtsi", idx("rtsi")},
+		{"moexog", idx("moexog")}, {"moexfn", idx("moexfn")}, {"moexmm", idx("moexmm")},
+		{"moexch", idx("moexch")}, {"moexeu", idx("moexeu")}, {"moextl", idx("moextl")},
+		{"usdrub", func() (macro.Series, error) {
+			return fetchCandles("https://iss.moex.com/iss/engines/currency/markets/selt/boards/CETS/securities/USD000UTSTOM/candles.json", "2019-12-01")
+		}},
+		{"btc", func() (macro.Series, error) { return fetchBinance("BTCUSDT") }},
+	}
+	for _, j := range jobs {
+		s, err := j.f()
+		if err != nil {
+			return fmt.Errorf("%s: %w", j.name, err)
+		}
+		if err := macro.SaveCSV(dir+"/"+j.name+".csv", s); err != nil {
+			return err
+		}
+		if len(s) == 0 {
+			fmt.Printf("%-11s EMPTY\n", j.name)
+			continue
+		}
+		fmt.Printf("%-11s %5d points %s .. %s\n", j.name, len(s), s[0].Date.Format("2006-01-02"), s[len(s)-1].Date.Format("2006-01-02"))
+	}
+	return nil
+}
