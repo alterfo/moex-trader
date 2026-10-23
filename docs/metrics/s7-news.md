@@ -107,7 +107,7 @@ H2 (AUC >= 0.55 with lower bound above 0.5): fails on sample A at h = 1 and h = 
 
 ### 7.8 Event causal study: sanctions, negotiations, incidents (2026-10-09)
 
-Protocol `docs/plans/completed/20261009-event-causal-study.md`. Panel: 17 tickers x 140 trading days (2026-04-01..10-09), 10213 archive records, abnormal return against IMOEX (market model beta fitted on 2025-10-01..2026-03-31; `excess` mode as robustness), 2000 date-bootstrap and 1000 placebo draws, seed 42. No P&L is involved.
+Protocol `plan 20261009-event-causal-study (git history)`. Panel: 17 tickers x 140 trading days (2026-04-01..10-09), 10213 archive records, abnormal return against IMOEX (market model beta fitted on 2025-10-01..2026-03-31; `excess` mode as robustness), 2000 date-bootstrap and 1000 placebo draws, seed 42. No P&L is involved.
 
 | topic | events / dates | stacked DiD CAR[0,+1] [95% CI] | AIPW ATT (t) | placebo p | Holm p | MDE | verdict |
 |---|---|---|---|---|---|---|---|
@@ -145,7 +145,7 @@ Both intervals contain zero: criterion not met (the sample requirement is). Thre
 
 ### 7.11 Dividend capture event study (2026-09-25), rejected
 
-Pre-registered protocol `docs/plans/completed/20260925-event-driven-dividend-drift.md`; `cmd/dividendstudy`; calendar `data/dividends.jsonl` (123 events 2021-2027 from T-Invest `GetDividends`, 65 in the study window 2024-01-01..2026-12-19, 9 waves). Position 30000 RUB, costs 0.05% per leg, exit at the ex-date close; mean excess return over IMOEX by entry offset (trading days before the last buy date), bootstrap over whole waves (seed 42, 2000 repeats), holding tax 0.13 (worst case) or 0.00:
+Pre-registered protocol `plan 20260925-event-driven-dividend-drift (git history)`; `cmd/dividendstudy`; calendar `data/dividends.jsonl` (123 events 2021-2027 from T-Invest `GetDividends`, 65 in the study window 2024-01-01..2026-12-19, 9 waves). Position 30000 RUB, costs 0.05% per leg, exit at the ex-date close; mean excess return over IMOEX by entry offset (trading days before the last buy date), bootstrap over whole waves (seed 42, 2000 repeats), holding tax 0.13 (worst case) or 0.00:
 
 | offset | excess (tax 0.13) | CI (tax 0.13) | excess (tax 0.00) | CI (tax 0.00) |
 |---|---|---|---|---|
@@ -157,7 +157,7 @@ Pre-registered protocol `docs/plans/completed/20260925-event-driven-dividend-dri
 
 The mean gap ratio is -0.97: the ex-date open sits about one full dividend below the last-buy close, so the drop is almost fully priced. Acceptance needed a contiguous subset containing {-2, -3, -5} with the CI excluding zero and leave-one-out stability under both tax conventions; all fail, and only offset -1 (tax 0.00) excludes zero, outside the registered subset. **Rejected**: dividend capture is not deployable; the income lever reverts to position scaling under an exposure cap, which sections 5.6-5.7 then closed. Detail: `docs/reports/dividendstudy-report.md`.
 
-**Re-test on the wide calendar (2026-10-22, R1 of `docs/plans/20261022-pre-token-recheck.md`), rejected again.** Calendar `dividends_pit.jsonl` (2152 T-Invest records, point-in-time panel), last buy dates 2014-01-01..2026-12-19, 1591 events in 38 waves (65 events, 9 waves before), same protocol and acceptance rule; 2022-02-25..03-28 and daily moves above 45% excluded. Mean excess over IMOEX by offset (trading days before the last buy date):
+**Re-test on the wide calendar (2026-10-22, R1 of `plan 20261022-pre-token-recheck (git history)`), rejected again.** Calendar `dividends_pit.jsonl` (2152 T-Invest records, point-in-time panel), last buy dates 2014-01-01..2026-12-19, 1591 events in 38 waves (65 events, 9 waves before), same protocol and acceptance rule; 2022-02-25..03-28 and daily moves above 45% excluded. Mean excess over IMOEX by offset (trading days before the last buy date):
 
 | offset | excess (tax 0.13) | CI (tax 0.13) | excess (tax 0.00) | CI (tax 0.00) |
 |---|---|---|---|---|

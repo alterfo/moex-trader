@@ -42,7 +42,7 @@ The logistic member is the best calibrated and earns the most, but every model i
 
 ### 4.3 Experiment F: excess-to-IMOEX labels (2026-10-18)
 
-Protocol `docs/plans/completed/20261018-excess-label-walkforward.md`, committed before the run: the section 3.5 recipe with `-label-mode excess` (F) against a fresh same-run `-label-mode absolute` control, both exported, retrained and replayed at HEAD on the ai-box. The fresh absolute export reproduces the earlier dataset byte-for-byte except one extra tail row per ticker. Library versions had drifted since 2026-10-04 (xgb 3.4.1, lgb 4.7.0, sklearn 1.9.1, pandas 3.0.5, numpy 2.5.3); the archived `ens-emb10-q1.json` replays at HEAD to +4002.28 / 74 trades against the recorded +4301.27 / 66 (about 93%), so every gate comparison here is against the fresh control.
+Protocol `plan 20261018-excess-label-walkforward (git history)`, committed before the run: the section 3.5 recipe with `-label-mode excess` (F) against a fresh same-run `-label-mode absolute` control, both exported, retrained and replayed at HEAD on the ai-box. The fresh absolute export reproduces the earlier dataset byte-for-byte except one extra tail row per ticker. Library versions had drifted since 2026-10-04 (xgb 3.4.1, lgb 4.7.0, sklearn 1.9.1, pandas 3.0.5, numpy 2.5.3); the archived `ens-emb10-q1.json` replays at HEAD to +4002.28 / 74 trades against the recorded +4301.27 / 66 (about 93%), so every gate comparison here is against the fresh control.
 
 | window | control realized | F realized | control trades | F trades | control val AUC | F val AUC |
 |---|---:|---:|---:|---:|---:|---:|

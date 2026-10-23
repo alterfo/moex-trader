@@ -65,7 +65,7 @@ Reading, descriptive: the loss of the base is in the short leg. Every arm that s
 
 ### 8.14 Dropping losing tickers: walk-forward vs random drop (2026-10-22)
 
-Plan `docs/plans/20261022-ticker-selection-check.md`, tool `cmd/tickerselect`, report `reports/20261022/tickerselect.{txt,json}` (run on the ai-box). Ridge table, 17 tickers, W2 2025-03-05..2026-10-18 cut into 7 blocks of 91 days (block 0 training only, 6 evaluated), K=4 dropped per block, 200 random-drop draws, seed 20261022. Realized net of borrow, RUB, summed over the 6 blocks; positions do not carry across blocks.
+Plan `plan 20261022-ticker-selection-check (git history)`, tool `cmd/tickerselect`, report `reports/20261022/tickerselect.{txt,json}` (run on the ai-box). Ridge table, 17 tickers, W2 2025-03-05..2026-10-18 cut into 7 blocks of 91 days (block 0 training only, 6 evaluated), K=4 dropped per block, 200 random-drop draws, seed 20261022. Realized net of borrow, RUB, summed over the 6 blocks; positions do not carry across blocks.
 
 | borrow/day | full | walk-forward | in-sample (leak) | random mean (sd) | random q05..q95 | p walk-forward | p in-sample | mean Spearman prev/next block | dropped in next bottom K |
 |---|---|---|---|---|---|---|---|---|---|

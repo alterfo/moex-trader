@@ -42,7 +42,7 @@ This report follows the six items requested: (1) run what already exists but was
 
 - Deployed: `scripts/export_ensemble.py:111,117` hardcodes `random_state=42`; `internal/model/scoretable.go` reads `data/ridge_scores.csv` produced by ridge with thresholds 0.60/0.40 (documented). `cmd/trainmodel` defaults 0.55/0.45 fallback.
 - Evidence: `docs/metrics.md` §6.5 tested quantile thresholds (80th/20th) on a different recipe — mixed results. §6.7 step 12 varied sigma-label k ∈ {0.25,0.5,0.75} descriptively (non-monotonic). `internal/strategyvalidation/registry.go:45` has `thresholds_065_035` with `Value: 0` (placeholder). No grid around 0.60/0.40 on the deployed score-table/ridge recipe is recorded in `docs/metrics.md`.
-- Plan explicitly warns about selection bias: `docs/plans/20261019-placebo-check.md:33` notes ridge hyperparameters and thresholds chosen after looking at data; `docs/plans/completed/20260917-strategy-validation-action-plan.md:168` says "No tuning of thresholds/notional on the same 6 windows — that is the winner's curse."
+- Plan explicitly warns about selection bias: `docs/plans/20261019-placebo-check.md:33` notes ridge hyperparameters and thresholds chosen after looking at data; `plan 20260917-strategy-validation-action-plan (git history):168` says "No tuning of thresholds/notional on the same 6 windows — that is the winner's curse."
 
 **Conclusion:** The deployed pair (0.60/0.40) has never been systematically perturbed. This is a real gap.
 
