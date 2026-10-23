@@ -14,7 +14,7 @@ Read before looking for new market data. Rows marked (verified) were confirmed b
 | T-Invest fundamentals and report calendar (verified, `cmd/fundsnap`) | `invest-public-api.tbank.ru/rest/...InstrumentsService/GetAssetFundamentals`, `GetAssetReports` | about 60 snapshot fields; report dates with `createdAt` | immediate | snapshot only, no history; recorded daily from 2026-10-19 in `data/fundamentals.jsonl` |
 | MOEX RSS news | `moex.com/export/news.aspx?cat=200` | title, link, date, content | real time | about 7 weeks |
 | Bank of Russia | `cbr.ru/scripts/XML_daily.asp`, `XML_dynamic.asp`, `cbr.ru/hd_base/KeyRate/`, `.../ruonia/` | currency rates, key rate, RUONIA, inflation | T+1 | years back |
-| MOEX AlgoPack | `apim.moex.com` | order-book and tradestats | | 401 without a paid token |
+| MOEX AlgoPack (paid key, verified 2026-10-22, `cmd/algopackfetch`) | `apim.moex.com/iss/datashop/algopack/eq/{tradestats,obstats,orderstats,hi2}.json?date=` | 5-minute bars: trades and buy/sell split, order-book imbalance and spreads, placed and cancelled orders, concentration; all tickers per date, pages of 1000 rows (`limit` ignored) | about 10 seconds after the bar | 2020-01-03 |
 | e-disclosure.ru | | issuer disclosures | | behind a JavaScript anti-bot page, not reachable by scripts |
 | Interfax RSS, fedstat.ru, data.gov.ru, opendata.moex.com, sberbank.com RSS | | | | blocked, timing out or 403 from this network |
 

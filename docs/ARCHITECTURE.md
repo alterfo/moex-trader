@@ -77,7 +77,7 @@ Mac (primary) and ai-box (standby) never trade simultaneously. The witness (`cmd
 
 ## 4. Offline pipeline
 
-Data: `cmd/pricehist`, `cmd/tqbrsnap`, `cmd/intradayfetch`, `cmd/futoifetch`/`futoihist`, `cmd/macrofetch`, `cmd/fundsnap`, `cmd/reportsfetch`, `cmd/dividendscalendar`, `cmd/tradesrecord`, news tools. Sources and limits: [knowledge/data-sources.md](knowledge/data-sources.md).
+Data: `cmd/pricehist`, `cmd/tqbrsnap`, `cmd/intradayfetch`, `cmd/futoifetch`/`futoihist`, `cmd/macrofetch`, `cmd/fundsnap`, `cmd/reportsfetch`, `cmd/dividendscalendar`, `cmd/tradesrecord`, `cmd/algopackfetch`/`algopackcheck`/`orderflowstudy`, news tools. Sources and limits: [knowledge/data-sources.md](knowledge/data-sources.md).
 
 Training: `cmd/exportdataset` (CSV from `model.ToVector`) → `scripts/export_ensemble.py` → `ensemble_model.json`; `cmd/trainmodel` → `model.json`; `cmd/trainnewsmodel` → `news_classifier.json`. Feature order is mirrored in `internal/model/features.go`, `scripts/export_ensemble.py` and `scripts/compare_models.py`; a mismatch is a hard load error (`checkFeatureOrder`) and a preflight failure. Details: [knowledge/feature-pipeline-and-inference.md](knowledge/feature-pipeline-and-inference.md).
 
@@ -100,6 +100,10 @@ Live and operations (in the live or failover path):
 | `cmd/livepnl` | live P&L over a date range from the SQLite audit |
 | `cmd/retrainreport` | Telegram report of the daily candidate retrain (no model swap) |
 | `cmd/tradesrecord` | AlgoPack delayed-trades recorder (ai-box cron) |
+| `cmd/algopackfetch` | AlgoPack Super Candles history (`tradestats`, `obstats`, `orderstats`, `hi2`) into `data/algopack/<dataset>/<date>.csv.gz`, resumable; daily refetch of the last four days by `scripts/algopack-daily.sh` (launchd, 00:20 MSK) |
+| `cmd/algopackcheck` | validation of the downloaded AlgoPack history (calendar, coverage, hi2 metrics, price scale against ISS); no returns |
+| `cmd/orderflowstudy` | pre-registered order-flow study on the AlgoPack history (blocks A-D, `-diag` post-hoc checks), offline, reads `data/algopack` |
+| `cmd/flowscan` | pre-registered scan of 100 AlgoPack hypotheses (plan `20261023-algopack-100-hypotheses`): modes `prep` (outcome-free M_eff, threshold, control lists), `explore`, `verdict`; Fama-MacBeth plus net trading form per row, offline, reads `data/algopack` and `data/dividends.jsonl` |
 | `cmd/tinvestprobe` | futures order probe in the T-Bank sandbox |
 | `cmd/borrowmeasure` | short-borrow rates/limits measurement in the sandbox |
 

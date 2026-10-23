@@ -79,7 +79,7 @@ Mac (основной) и ai-box (резервный) никогда не тор
 
 ## 4. Офлайн-конвейер
 
-Данные: `cmd/pricehist`, `cmd/tqbrsnap`, `cmd/intradayfetch`, `cmd/futoifetch`/`futoihist`, `cmd/macrofetch`, `cmd/fundsnap`, `cmd/reportsfetch`, `cmd/dividendscalendar`, `cmd/tradesrecord`, новостные инструменты. Источники и ограничения: [knowledge/data-sources.md](knowledge/data-sources.md).
+Данные: `cmd/pricehist`, `cmd/tqbrsnap`, `cmd/intradayfetch`, `cmd/futoifetch`/`futoihist`, `cmd/macrofetch`, `cmd/fundsnap`, `cmd/reportsfetch`, `cmd/dividendscalendar`, `cmd/tradesrecord`, `cmd/algopackfetch`/`algopackcheck`/`orderflowstudy`, новостные инструменты. Источники и ограничения: [knowledge/data-sources.md](knowledge/data-sources.md).
 
 Обучение: `cmd/exportdataset` (CSV из `model.ToVector`) → `scripts/export_ensemble.py` → `ensemble_model.json`; `cmd/trainmodel` → `model.json`; `cmd/trainnewsmodel` → `news_classifier.json`. Порядок признаков продублирован в `internal/model/features.go`, `scripts/export_ensemble.py` и `scripts/compare_models.py`; рассинхрон — жёсткая ошибка загрузки (`checkFeatureOrder`) и отказ preflight. Подробности: [knowledge/feature-pipeline-and-inference.md](knowledge/feature-pipeline-and-inference.md).
 
@@ -102,6 +102,10 @@ Mac (основной) и ai-box (резервный) никогда не тор
 | `cmd/livepnl` | живой P&L за диапазон дат из аудита SQLite |
 | `cmd/retrainreport` | Telegram-отчёт о ежедневном переобучении кандидата (без подмены модели) |
 | `cmd/tradesrecord` | регистратор отложенных сделок AlgoPack (cron на ai-box) |
+| `cmd/algopackfetch` | история Super Candles AlgoPack (`tradestats`, `obstats`, `orderstats`, `hi2`) в `data/algopack/<dataset>/<date>.csv.gz`, с возобновлением; ежедневная перезагрузка последних четырёх дней `scripts/algopack-daily.sh` (launchd, 00:20 MSK) |
+| `cmd/algopackcheck` | проверка скачанной истории AlgoPack (календарь, покрытие, метрики hi2, масштаб цен относительно ISS); доходности не считает |
+| `cmd/orderflowstudy` | предварительно зарегистрированное исследование потока ордеров на истории AlgoPack (блоки A-D, послефактумные проверки `-diag`), офлайн, читает `data/algopack` |
+| `cmd/flowscan` | предварительно зарегистрированный скан 100 гипотез на AlgoPack (план `20261023-algopack-100-hypotheses`): режимы `prep` (M_eff, порог и списки контролей без результатов), `explore`, `verdict`; Fama-MacBeth и чистая торговая форма на строку, офлайн, читает `data/algopack` и `data/dividends.jsonl` |
 | `cmd/tinvestprobe` | проба фьючерсных ордеров в песочнице T-Bank |
 | `cmd/borrowmeasure` | измерение ставок/лимитов короткого займа в песочнице |
 

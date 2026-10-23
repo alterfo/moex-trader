@@ -14,7 +14,7 @@
 | Фундаментальные данные и календарь отчётности T-Invest (verified, `cmd/fundsnap`) | `invest-public-api.tbank.ru/rest/...InstrumentsService/GetAssetFundamentals`, `GetAssetReports` | около 60 полей снимка; даты отчётов с `createdAt` | сразу | только снимок, без истории; с 2026-10-19 записывается ежедневно в `data/fundamentals.jsonl` |
 | Новости MOEX RSS | `moex.com/export/news.aspx?cat=200` | заголовок, ссылка, дата, содержимое | реальное время | около 7 недель |
 | Банк России | `cbr.ru/scripts/XML_daily.asp`, `XML_dynamic.asp`, `cbr.ru/hd_base/KeyRate/`, `.../ruonia/` | курсы валют, ключевая ставка, RUONIA, инфляция | T+1 | годы назад |
-| MOEX AlgoPack | `apim.moex.com` | стакан и tradestats | | 401 без платного токена |
+| MOEX AlgoPack (платный ключ, проверено 2026-10-22, `cmd/algopackfetch`) | `apim.moex.com/iss/datashop/algopack/eq/{tradestats,obstats,orderstats,hi2}.json?date=` | 5-минутные бары: сделки и разбивка покупок и продаж, дисбаланс стакана и спреды, выставленные и снятые заявки, концентрация; все тикеры за дату, страницы по 1000 строк (`limit` игнорируется) | около 10 секунд после бара | 2020-01-03 |
 | e-disclosure.ru | | раскрытие информации эмитентами | | за JavaScript-антиботом, скриптами недоступен |
 | Interfax RSS, fedstat.ru, data.gov.ru, opendata.moex.com, sberbank.com RSS | | | | заблокированы, таймаут или 403 из этой сети |
 
