@@ -1,0 +1,22 @@
+2026/10/23 04:05:35 flowscan: spreadfc mode, 561 day files
+2026/10/23 04:05:51 flowscan: loaded 200/561 days
+2026/10/23 04:06:10 flowscan: loaded 400/561 days
+2026/10/23 04:06:29 flowscan: panel 547 days, 503 tickers, 123 dividend events
+C1 logSpread d+1 / A2abs coef -0.00041 NW t -0.80 halves t +0.12 / -1.28 coef +0.00008 / -0.00104 dates 453
+C1 logSpread d+1 / H002 coef -0.00557 NW t -8.95 halves t -7.15 / -5.51 coef -0.00607 / -0.00494 dates 453
+C1 logSpread d+1 / H015 coef +0.00456 NW t +3.94 halves t +1.81 / +4.00 coef +0.00267 / +0.00694 dates 453
+C1 logSpread d+1 / A5 coef -0.00236 NW t -3.48 halves t -2.80 / -2.10 coef -0.00251 / -0.00216 dates 453
+C1 logSpread d+1 / H047 coef -0.00427 NW t -6.34 halves t -7.71 / -1.77 coef -0.00638 / -0.00162 dates 453
+C1 logSpread d+1 / H025 coef -0.00545 NW t -9.29 halves t -5.88 / -7.59 coef -0.00444 / -0.00671 dates 453
+C1 logSpread d+1 / H003abs coef +0.00257 NW t +4.43 halves t +1.86 / +4.73 coef +0.00133 / +0.00413 dates 453
+
+== Family C: pooled |t| >= 3.0, same sign in both halves, BH q=0.05 over 7 tests
+C1 logSpread d+1 / H002 p 0.00000 BH true same-sign true -> PASS
+C1 logSpread d+1 / H025 p 0.00000 BH true same-sign true -> PASS
+C1 logSpread d+1 / H047 p 0.00000 BH true same-sign true -> PASS
+C1 logSpread d+1 / H003abs p 0.00001 BH true same-sign true -> PASS
+C1 logSpread d+1 / H015 p 0.00008 BH true same-sign true -> PASS
+C1 logSpread d+1 / A5 p 0.00050 BH true same-sign true -> PASS
+C1 logSpread d+1 / A2abs p 0.42465 BH false same-sign false -> fail
+family C passed 6 of 7
+added value C1 logSpread d+1: out-of-fold R2 controls only 0.9896, controls+block 0.9899, gain +0.0002 (95% [+0.0002, +0.0003]); halves gain +0.0001 / +0.0003; 453 dates

@@ -1,0 +1,17 @@
+pscore: 42741 rows, 449 dates, folds from 1, seeds [20261023 20261024 20261025 20261026 20261027]
+AUC A   seeds 0.5447,0.5448,0.5445,0.5447,0.5449 mean 0.5447 (context only, labelled rows 38534)
+AUC S   seeds 0.4977,0.4990,0.4980,0.4973,0.4977 mean 0.4979 (context only, labelled rows 38534)
+AUC A2  seeds 0.5242,0.5242,0.5241,0.5242,0.5242 mean 0.5242 (context only, labelled rows 38534)
+AUC corrected A-S mean +0.0468 bootstrap 95% [+0.0300, +0.0624] (context)
+A gate     mean +1.5131% NW10 t +4.55 boot95 [+0.8414%, +2.1484%] halves +1.3405% / +1.7379% dates 449
+A longonly mean +0.2461% NW10 t +1.52 boot95 [-0.0725%, +0.5545%] halves +0.0873% / +0.4531% dates 449
+A legs (descriptive, gross abnormal 10d): top decile +0.5461%, bottom decile -1.2670%; gate if the short leg also pays borrow 17%/yr (0.47% per 10 days): +1.0431%, 25%/yr (0.69%): +0.8231%
+A seeds gate means 0.0148,0.0152,0.0151,0.0146,0.0147 positive 5/5
+S gate     mean -0.2298% NW10 t -1.94 boot95 [-0.4539%, +0.0116%] halves -0.3842% / -0.0287% dates 449
+S longonly mean -0.2753% NW10 t -3.17 boot95 [-0.4414%, -0.1041%] halves -0.3850% / -0.1324% dates 449
+S legs (descriptive, gross abnormal 10d): top decile +0.0247%, bottom decile -0.0455%; gate if the short leg also pays borrow 17%/yr (0.47% per 10 days): -0.6998%, 25%/yr (0.69%): -0.9198%
+S seeds gate means -0.0034,-0.0018,-0.0020,-0.0037,-0.0036 positive 0/5
+A2 gate     mean +1.1217% NW10 t +4.67 boot95 [+0.6464%, +1.5657%] halves +1.0638% / +1.1971% dates 449
+A2 longonly mean +0.1444% NW10 t +1.23 boot95 [-0.1020%, +0.3448%] halves -0.0287% / +0.3700% dates 449
+A2 legs (descriptive, gross abnormal 10d): top decile +0.4444%, bottom decile -0.9773%; gate if the short leg also pays borrow 17%/yr (0.47% per 10 days): +0.6517%, 25%/yr (0.69%): +0.4317%
+A2 seeds gate means 0.0117,0.0110,0.0112,0.0115,0.0115 positive 5/5

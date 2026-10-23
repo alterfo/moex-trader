@@ -505,6 +505,9 @@ func main() {
 	frozenPath := flag.String("frozen", "docs/plans/20261023-algopack-100-hypotheses.frozen.json", "frozen M_eff, threshold and control lists")
 	out := flag.String("out", "", "prep: write the frozen file here")
 	onlyFlag := flag.String("only", "", "comma-separated row ids")
+	universe := flag.Int("universe", 100, "admitted universe size")
+	tm := flag.Float64("tm", 3.0, "mkt: frozen threshold T_M")
+	econKind := flag.String("econ-kind", "h5", "econ mode: h5 or h10")
 	workers := flag.Int("workers", runtime.NumCPU(), "parallel day loaders")
 	flag.Parse()
 
@@ -513,11 +516,34 @@ func main() {
 		if *from == "" {
 			*from, *till, *evalLo, *evalHi, *split = "2020-01-03", "2024-12-31", "2020-04-01", "2024-12-31", "2022-07-01"
 		}
+	case "mktprep":
+		if *from == "" {
+			*from, *till, *evalLo, *evalHi, *split = "2023-08-01", "2024-12-31", "2023-12-01", "2024-12-31", "2024-07-01"
+		}
+	case "export":
+		if *from == "" {
+			*from, *till, *evalLo, *evalHi, *split = "2020-01-03", "2026-10-21", "2020-04-01", "2026-10-16", "2025-01-01"
+			*lag = 30
+		}
+	case "volfc", "spreadfc", "econ", "mkt":
+		if *from == "" {
+			start := "2024-09-01"
+			if *mode == "mkt" {
+				start = "2024-06-01"
+			}
+			*from, *till, *evalLo, *evalHi, *split = start, "2026-10-21", "2025-01-03", "2026-10-16", "2026-01-05"
+			*lag = 30
+		}
 	case "verdict":
 		if *from == "" {
 			*from, *till, *evalLo, *evalHi, *split = "2024-09-01", "2026-10-21", "2025-01-01", "2026-10-16", "2026-01-01"
 			*lag = 30
 		}
+	}
+	admN = *universe
+	switch *mode {
+	case "export", "volfc", "spreadfc", "econ", "mkt", "mktprep":
+		secAlias = map[string]string{"YNDX": "YDEX", "TCSG": "T"}
 	}
 	days := listDays(*dir, *from, *till)
 	if len(days) == 0 {
@@ -535,6 +561,45 @@ func main() {
 	r := &run{p: p, win: win, w: os.Stdout, mode: *mode}
 	if *mode == "prep" {
 		r.prep(*out)
+		return
+	}
+	if *mode == "mktprep" {
+		r.mktPrep()
+		return
+	}
+	if *mode == "mkt" {
+		r.mktRun(*tm)
+		return
+	}
+	if *mode == "econ" {
+		kind := kH5
+		if *econKind == "h10" {
+			kind = kH10
+		}
+		a2 := rowSpec{id: "A2", tier: 2, sign: 1, kind: kind, fn: col(bA2)}
+		X := r.buildX(&a2)
+		e := p.evaluate(X, 1, kind, win, nil, tradeOpts{})
+		fmt.Printf("econ universe %d %s\n", admN, r.line(&a2, e))
+		_, nt := neweyWest(e.netSeries, lagsFor(holdOf(kind)))
+		fmt.Printf("econ net per day %s halves %s / %s, net NW t %+.2f\n", pct(e.netAll), pct(e.net[0]), pct(e.net[1]), nt)
+		return
+	}
+	if *mode == "volfc" || *mode == "spreadfc" {
+		if *mode == "volfc" {
+			r.forecastFamily("B", volTargets(), 0.05)
+			for _, tg := range volTargets() {
+				r.addedValue(tg, fcFeatures(), p.dateIndex("2024-10-01"))
+			}
+		} else {
+			r.forecastFamily("C", spreadTargets(), 0.05)
+			for _, tg := range spreadTargets() {
+				r.addedValue(tg, fcFeatures(), p.dateIndex("2024-10-01"))
+			}
+		}
+		return
+	}
+	if *mode == "export" {
+		r.exportBlock(*out, *lagFrom)
 		return
 	}
 	b, err := os.ReadFile(*frozenPath)

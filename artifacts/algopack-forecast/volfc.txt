@@ -1,0 +1,37 @@
+2026/10/23 04:04:39 flowscan: volfc mode, 561 day files
+2026/10/23 04:04:54 flowscan: loaded 200/561 days
+2026/10/23 04:05:14 flowscan: loaded 400/561 days
+2026/10/23 04:05:32 flowscan: panel 547 days, 503 tickers, 123 dividend events
+B1 logRV d+1 / A2abs coef +0.00169 NW t +0.43 halves t -0.09 / +0.71 coef -0.00045 / +0.00436 dates 454
+B1 logRV d+1 / H002 coef -0.02692 NW t -5.52 halves t -4.13 / -3.70 coef -0.02693 / -0.02691 dates 454
+B1 logRV d+1 / H015 coef +0.02109 NW t +3.94 halves t +2.30 / +3.39 coef +0.01667 / +0.02660 dates 454
+B1 logRV d+1 / A5 coef -0.00449 NW t -1.06 halves t -0.67 / -0.89 coef -0.00401 / -0.00508 dates 454
+B1 logRV d+1 / H047 coef -0.00593 NW t -1.16 halves t -1.57 / +0.07 coef -0.01111 / +0.00053 dates 454
+B1 logRV d+1 / H025 coef -0.00312 NW t -0.72 halves t +0.07 / -1.13 coef +0.00041 / -0.00753 dates 454
+B1 logRV d+1 / H003abs coef +0.03104 NW t +8.13 halves t +6.20 / +5.36 coef +0.03232 / +0.02944 dates 454
+B2 logRV mean d+1..d+5 / A2abs coef +0.00231 NW t +0.46 halves t +0.33 / +0.33 coef +0.00218 / +0.00247 dates 453
+B2 logRV mean d+1..d+5 / H002 coef -0.04003 NW t -6.23 halves t -5.41 / -3.42 coef -0.04506 / -0.03367 dates 453
+B2 logRV mean d+1..d+5 / H015 coef +0.03855 NW t +5.12 halves t +3.32 / +3.99 coef +0.02954 / +0.04995 dates 453
+B2 logRV mean d+1..d+5 / A5 coef -0.01112 NW t -1.78 halves t -0.33 / -2.49 coef -0.00278 / -0.02167 dates 453
+B2 logRV mean d+1..d+5 / H047 coef -0.01091 NW t -1.82 halves t -1.36 / -1.23 coef -0.01064 / -0.01124 dates 453
+B2 logRV mean d+1..d+5 / H025 coef -0.00207 NW t -0.44 halves t +0.20 / -0.89 coef +0.00125 / -0.00629 dates 453
+B2 logRV mean d+1..d+5 / H003abs coef +0.03720 NW t +6.57 halves t +4.60 / +4.83 coef +0.03521 / +0.03971 dates 453
+
+== Family B: pooled |t| >= 3.0, same sign in both halves, BH q=0.05 over 14 tests
+B1 logRV d+1 / H003abs p 0.00000 BH true same-sign true -> PASS
+B2 logRV mean d+1..d+5 / H003abs p 0.00000 BH true same-sign true -> PASS
+B2 logRV mean d+1..d+5 / H002 p 0.00000 BH true same-sign true -> PASS
+B1 logRV d+1 / H002 p 0.00000 BH true same-sign true -> PASS
+B2 logRV mean d+1..d+5 / H015 p 0.00000 BH true same-sign true -> PASS
+B1 logRV d+1 / H015 p 0.00008 BH true same-sign true -> PASS
+B2 logRV mean d+1..d+5 / H047 p 0.06801 BH false same-sign true -> fail
+B2 logRV mean d+1..d+5 / A5 p 0.07471 BH false same-sign true -> fail
+B1 logRV d+1 / H047 p 0.24646 BH false same-sign false -> fail
+B1 logRV d+1 / A5 p 0.28874 BH false same-sign true -> fail
+B1 logRV d+1 / H025 p 0.46852 BH false same-sign false -> fail
+B2 logRV mean d+1..d+5 / A2abs p 0.64305 BH false same-sign true -> fail
+B2 logRV mean d+1..d+5 / H025 p 0.65888 BH false same-sign false -> fail
+B1 logRV d+1 / A2abs p 0.66479 BH false same-sign false -> fail
+family B passed 6 of 14
+added value B1 logRV d+1: out-of-fold R2 controls only 0.4437, controls+block 0.4445, gain +0.0008 (95% [-0.0003, +0.0017]); halves gain +0.0002 / +0.0015; 454 dates
+added value B2 logRV mean d+1..d+5: out-of-fold R2 controls only 0.5716, controls+block 0.5737, gain +0.0021 (95% [+0.0004, +0.0039]); halves gain +0.0014 / +0.0030; 453 dates

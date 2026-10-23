@@ -1,0 +1,24 @@
+score: 7392 test rows, 451 test dates, seeds [20261023 20261024 20261025 20261026 20261027], positives 0.456
+AUC B      seeds 0.4945,0.4928,0.4968,0.4962,0.4948 mean 0.4950
+AUC A      seeds 0.5039,0.5035,0.5030,0.5039,0.5035 mean 0.5035
+AUC S      seeds 0.4976,0.4962,0.4964,0.4970,0.4948 mean 0.4964
+AUC B-lin  seeds 0.4952,0.4952,0.4952,0.4952,0.4952 mean 0.4952
+AUC A-lin  seeds 0.5018,0.5018,0.5018,0.5018,0.5018 mean 0.5018
+AUC S-lin  seeds 0.4944,0.4944,0.4944,0.4944,0.4944 mean 0.4944
+dAUC A-B          full +0.0085 (seeds 0.0094,0.0106,0.0062,0.0077,0.0086, positive 5/5) halves +0.0133 / +0.0015
+dAUC S-B          full +0.0014 (seeds 0.0031,0.0034,-0.0004,0.0007,-0.0000, positive 3/5) halves +0.0043 / -0.0006
+dAUC A-lin - B-lin full +0.0066 (seeds 0.0066,0.0066,0.0066,0.0066,0.0066, positive 5/5) halves +0.0217 / -0.0002
+dAUC S-lin - B-lin full -0.0009 (seeds -0.0009,-0.0009,-0.0009,-0.0009,-0.0009, positive 0/5) halves +0.0010 / -0.0030
+dAUC A-S corrected full +0.0071 (seeds 0.0063,0.0073,0.0066,0.0069,0.0087, positive 5/5) halves +0.0090 / +0.0021
+bootstrap dAUC A-B                              95% [-0.0050, +0.0218] (5000 draws, block 10 dates)
+bootstrap dAUC S-B                              95% [-0.0036, +0.0065] (5000 draws, block 10 dates)
+bootstrap dAUC (A-B)-(S-B) placebo-corrected    95% [-0.0058, +0.0206] (5000 draws, block 10 dates)
+bootstrap dAUC A-lin - B-lin                    95% [-0.0153, +0.0261] (5000 draws, block 10 dates)
+dIC A-B mean +0.0242 NW10 t +1.70 over 447 dates; halves +0.0419 / +0.0014; seeds 0.0207,0.0255,0.0297,0.0253,0.0201 positive 5/5
+dIC S-B mean -0.0073 NW10 t -1.34 over 447 dates; halves -0.0005 / -0.0161; seeds -0.0090,-0.0020,-0.0047,-0.0102,-0.0105 positive 0/5
+dIC A-S mean +0.0315 NW10 t +2.22 over 447 dates; halves +0.0424 / +0.0175; seeds 0.0297,0.0275,0.0343,0.0355,0.0306 positive 5/5
+dIC A-lin-B-lin mean +0.0090 NW10 t +0.47 over 447 dates; halves +0.0135 / +0.0032; seeds 0.0090,0.0090,0.0090,0.0090,0.0090 positive 5/5
+behaviour at 0.60/0.40 (seed mean): B buys 106 sells 392 gross 10d signed +0.138%; A buys 90 sells 515 gross 10d signed +1.128%; dates with a different trade set 287 of 451
+IC B mean -0.0089
+IC A mean +0.0153
+IC S mean -0.0162

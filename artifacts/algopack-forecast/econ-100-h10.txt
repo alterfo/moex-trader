@@ -1,0 +1,2 @@
+econ universe 100 A2 T2 sign +1 h10 n 448 coef +0.01157 t +5.62 halves +3.68/+4.42 gross +0.0423% net +0.0058% / +0.0463% turn 1.25 years 2025:+3.7 2026:+4.4 
+econ net per day +0.0235% halves +0.0058% / +0.0463%, net NW t +2.53

@@ -1,0 +1,21 @@
+
+== Family M: pooled t >= 3.000 (T_M), same sign in both halves, BH q=0.05 over 6 rows, one-sided registered sign + for M, two-sided for V
+M F3 top3 A2 -> ret h1 coef +0.00129 t +1.66 halves t +1.41 / +0.98 p 0.0966 BH false same-sign true n 432 -> fail
+M F1 mean A2 -> ret h1 coef +0.00104 t +1.32 halves t +0.80 / +1.08 p 0.1860 BH false same-sign true n 453 -> fail
+M F3 top3 A2 -> ret h5 coef +0.00264 t +1.23 halves t +1.55 / +0.04 p 0.2199 BH false same-sign true n 432 -> fail
+M F2 breadth -> ret h1 coef +0.00080 t +1.07 halves t +0.39 / +1.10 p 0.2837 BH false same-sign true n 453 -> fail
+M F1 mean A2 -> ret h5 coef +0.00216 t +0.81 halves t +1.37 / +0.14 p 0.4203 BH false same-sign true n 453 -> fail
+M F2 breadth -> ret h5 coef +0.00132 t +0.53 halves t +1.02 / +0.01 p 0.5989 BH false same-sign true n 453 -> fail
+family M passed 0 of 6
+
+== Family V: pooled t >= 3.000 (T_M), same sign in both halves, BH q=0.05 over 9 rows, one-sided registered sign + for M, two-sided for V
+V V3 std A2 -> log RV h5 coef +0.29753 t +3.21 halves t +1.44 / +3.58 p 0.0013 BH true same-sign true n 453 R2 gain +0.0061 (material at 0.01: false) -> PASS
+V V3 std A2 -> log RV h1 coef +0.27501 t +3.01 halves t +1.81 / +2.73 p 0.0027 BH true same-sign true n 452 R2 gain +0.0039 (material at 0.01: false) -> PASS
+V V2 |breadth| -> log RV h5 coef -0.02831 t -2.12 halves t -2.06 / -0.91 p 0.0340 BH false same-sign true n 453 R2 gain +0.0095 (material at 0.01: false) -> fail
+V V2 |breadth| -> log RV h1 coef -0.02473 t -1.82 halves t -1.12 / -1.53 p 0.0682 BH false same-sign true n 452 R2 gain +0.0027 (material at 0.01: false) -> fail
+V V1 mean |A2| -> log RV h1 coef +0.11106 t +1.53 halves t +0.30 / +2.28 p 0.1254 BH false same-sign true n 452 R2 gain -0.0003 (material at 0.01: false) -> fail
+V V3 std A2 -> log dispersion h1 coef +0.16839 t +1.51 halves t +3.61 / -0.11 p 0.1322 BH false same-sign false n 453 R2 gain +0.0015 (material at 0.01: false) -> fail
+V V1 mean |A2| -> log RV h5 coef +0.09263 t +1.27 halves t -0.92 / +3.38 p 0.2026 BH false same-sign false n 453 R2 gain -0.0015 (material at 0.01: false) -> fail
+V V1 mean |A2| -> log dispersion h1 coef +0.05394 t +0.59 halves t +1.23 / +0.02 p 0.5566 BH false same-sign true n 453 R2 gain -0.0027 (material at 0.01: false) -> fail
+V V2 |breadth| -> log dispersion h1 coef -0.00512 t -0.30 halves t +0.18 / -0.37 p 0.7653 BH false same-sign false n 453 R2 gain -0.0025 (material at 0.01: false) -> fail
+family V passed 2 of 9

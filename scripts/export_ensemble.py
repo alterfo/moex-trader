@@ -26,6 +26,7 @@ ORDER = ORDER.split(",") if ORDER else FEATURES
 TRAIN_TILL = os.environ.get("ENSEMBLE_TRAIN_TILL", "")
 EMBARGO_SPLIT = os.environ.get("ENSEMBLE_EMBARGO_SPLIT", TRAIN_TILL)
 EMBARGO_BARS = int(os.environ.get("ENSEMBLE_EMBARGO_BARS", "0") or "0")
+SEED = int(os.environ.get("ENSEMBLE_SEED", "42") or "42")
 REGIME_BALANCE = os.environ.get("ENSEMBLE_REGIME_BALANCE", "")
 REGIME_WINDOW = int(os.environ.get("ENSEMBLE_REGIME_WINDOW", "21"))
 REGIME_BUCKETS = int(os.environ.get("ENSEMBLE_REGIME_BUCKETS", "3"))
@@ -108,13 +109,13 @@ def main():
 
     xgb_model = xgb.XGBClassifier(
         n_estimators=300, learning_rate=0.03, max_depth=3,
-        colsample_bytree=0.8, subsample=0.8, random_state=42,
+        colsample_bytree=0.8, subsample=0.8, random_state=SEED,
         base_score=0.5, eval_metric="logloss",
     ).fit(X, y, sample_weight=sample_weight)
 
     lgb_model = lgb.LGBMClassifier(
         n_estimators=300, learning_rate=0.03, num_leaves=15,
-        colsample_bytree=0.8, subsample=0.8, random_state=42, verbose=-1,
+        colsample_bytree=0.8, subsample=0.8, random_state=SEED, verbose=-1,
     ).fit(X, y, sample_weight=sample_weight)
 
     lr = make_pipeline(StandardScaler(), LogisticRegression(C=1.0, max_iter=2000)).fit(X, y, logisticregression__sample_weight=sample_weight)

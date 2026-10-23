@@ -1,0 +1,23 @@
+score: 7392 test rows, 451 test dates, seeds [20261023 20261024 20261025 20261026 20261027], positives 0.456
+AUC B      seeds 0.4945,0.4928,0.4968,0.4962,0.4948 mean 0.4950
+AUC A      seeds 0.5271,0.5276,0.5254,0.5263,0.5286 mean 0.5270
+AUC S      seeds 0.5085,0.5092,0.5074,0.5073,0.5066 mean 0.5078
+AUC B-lin  seeds 0.4952,0.4952,0.4952,0.4952,0.4952 mean 0.4952
+AUC A-lin  seeds 0.5342,0.5342,0.5342,0.5342,0.5342 mean 0.5342
+AUC S-lin  seeds 0.5144,0.5144,0.5144,0.5144,0.5144 mean 0.5144
+dAUC A-B          full +0.0320 (seeds 0.0326,0.0348,0.0286,0.0300,0.0338, positive 5/5) halves +0.0368 / +0.0288
+dAUC S-B          full +0.0128 (seeds 0.0140,0.0164,0.0106,0.0111,0.0118, positive 5/5) halves +0.0151 / +0.0142
+dAUC A-lin - B-lin full +0.0390 (seeds 0.0390,0.0390,0.0390,0.0390,0.0390, positive 5/5) halves +0.0504 / +0.0471
+dAUC S-lin - B-lin full +0.0192 (seeds 0.0192,0.0192,0.0192,0.0192,0.0192, positive 5/5) halves +0.0242 / +0.0310
+dAUC A-S corrected full +0.0192 (seeds 0.0186,0.0184,0.0180,0.0189,0.0220, positive 5/5) halves +0.0217 / +0.0146
+bootstrap dAUC A-B                              95% [+0.0009, +0.0658] (5000 draws, block 10 dates)
+bootstrap dAUC S-B                              95% [-0.0069, +0.0340] (5000 draws, block 10 dates)
+bootstrap dAUC (A-B)-(S-B) placebo-corrected    95% [-0.0019, +0.0395] (5000 draws, block 10 dates)
+bootstrap dAUC A-lin - B-lin                    95% [-0.0126, +0.0867] (5000 draws, block 10 dates)
+dIC A-B mean +0.0135 NW10 t +0.75 over 447 dates; halves +0.0288 / -0.0062; seeds 0.0094,0.0192,0.0163,0.0112,0.0115 positive 5/5
+dIC S-B mean -0.0034 NW10 t -0.37 over 447 dates; halves -0.0103 / +0.0055; seeds -0.0043,0.0035,-0.0014,-0.0017,-0.0132 positive 1/5
+dIC A-S mean +0.0169 NW10 t +0.92 over 447 dates; halves +0.0391 / -0.0117; seeds 0.0137,0.0157,0.0177,0.0129,0.0247 positive 5/5
+dIC A-lin-B-lin mean -0.0025 NW10 t -0.10 over 447 dates; halves +0.0115 / -0.0205; seeds -0.0025,-0.0025,-0.0025,-0.0025,-0.0025 positive 0/5
+IC B mean -0.0089
+IC A mean +0.0046
+IC S mean -0.0123

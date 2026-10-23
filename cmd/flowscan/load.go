@@ -207,6 +207,15 @@ func cutoffOf(date string, lagDays int) string {
 	return t.AddDate(0, 0, lagDays).Format("2006-01-02")
 }
 
+var secAlias map[string]string
+
+func canonSec(s string) string {
+	if a, ok := secAlias[s]; ok {
+		return a
+	}
+	return s
+}
+
 type loadOpts struct {
 	dir     string
 	lagDays int
@@ -233,7 +242,7 @@ func loadDay(o loadOpts, date string) (dayResult, error) {
 			if kind < 0 {
 				return
 			}
-			sec := f[ix["secid"]]
+			sec := canonSec(f[ix["secid"]])
 			w := works[sec]
 			if w == nil {
 				if !create {
@@ -280,7 +289,7 @@ func loadDay(o loadOpts, date string) (dayResult, error) {
 				return
 			}
 		}
-		sec := f[ix["secid"]]
+		sec := canonSec(f[ix["secid"]])
 		r := res.hi[sec]
 		if r == nil {
 			r = &hiRow{}

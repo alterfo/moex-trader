@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+var admN = 100
+
 const (
 	exclFrom = "2022-02-25"
 	exclTill = "2022-03-28"
@@ -213,8 +215,8 @@ func (p *panel) admittedAt(d int) []int {
 		}
 		return cs[a].i < cs[b].i
 	})
-	if len(cs) > 100 {
-		cs = cs[:100]
+	if len(cs) > admN {
+		cs = cs[:admN]
 	}
 	ids := make([]int, len(cs))
 	for k, c := range cs {
