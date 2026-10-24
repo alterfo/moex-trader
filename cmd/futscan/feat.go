@@ -154,6 +154,8 @@ func medianOf(v []float64) float64 {
 
 var allowLate bool
 
+var minDates = 80
+
 func eligible(x *rec, deps string) bool {
 	if allowLate {
 		return true

@@ -291,11 +291,13 @@ func main() {
 	blockPath := fs.String("block", "work/block.csv", "flowscan export CSV with equity closes")
 	imoexPath := fs.String("imoex", "data/macro/imoex.csv", "IMOEX closes")
 	hi2Path := fs.String("hi2", "work/hi2-fo.csv", "fo hi2 panel CSV")
+	floor := fs.Int("floor", 80, "minimum eligible dates for a row to be scored (80 is the registered floor; lower only for a descriptive early read)")
 	divPath := fs.String("div", "data/dividends.jsonl", "dividend calendar")
 	if err := fs.Parse(os.Args[2:]); err != nil {
 		log.Fatal(err)
 	}
 	allowLate = *late
+	minDates = *floor
 	if *loFlag != "" {
 		winLo = *loFlag
 	}

@@ -343,7 +343,7 @@ func (c *ctx) runFM(sp rowSpec) res {
 		netDays = append(netDays, d)
 	}
 	r := res{n: len(coefs)}
-	if len(coefs) < 80 {
+	if len(coefs) < minDates {
 		r.t, r.p = nan, nan
 		return r
 	}
@@ -463,7 +463,7 @@ func (c *ctx) runVolFM(sp rowSpec) res {
 		dr2 = append(dr2, r2(M1, b1)-r2(M0, b0))
 	}
 	r := res{n: len(coefs)}
-	if len(coefs) < 80 {
+	if len(coefs) < minDates {
 		r.t, r.p = nan, nan
 		return r
 	}
@@ -487,7 +487,7 @@ func tsRun(x, y []float64, ctl [][]float64, days []int, spl, hor int) res {
 		D = append(D, days[i])
 	}
 	r := res{n: len(Y)}
-	if len(Y) < 80 {
+	if len(Y) < minDates {
 		r.t, r.p = nan, nan
 		return r
 	}
