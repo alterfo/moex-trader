@@ -149,3 +149,7 @@ Plan `docs/plans/20261024-algopack-wave3-costs-horizon.md`, numbers in `docs/met
 ## Five ideas from three local models (2026-10-24)
 
 Plan `docs/plans/20261024-algopack-wave3b-model-ideas.md`, numbers in `docs/metrics.md` 8.24. T-pro, Cydonia and Mistral-abliterated produced 75 hypotheses; after triage five were built (ex-dividend flow, A2-correlation PageRank, Legendre shape of the intraday imbalance profile, entropy of the 5-minute traded-value and depth shares, auction imbalance for next-open entry). Composite IC +0.0973 against +0.0957 (difference +0.0016, interval includes 0); the book gate crosses zero only by +0.006% on the same book that missed it by -0.005%, with no significant net difference. Local-model brainstorming yielded about five testable ideas per seventy-five and none improved the forecast.
+
+## Library v2: transforms of the vital features (2026-10-24)
+
+Plan `docs/plans/20261024-algopack-library-v2.md`, numbers in `docs/metrics.md` 8.25. 100 generated rows (16 strongest features times smoothing, standardisation, change, liquidity-neutral rank and lag, plus 20 products and differences) tested for increment over the out-of-fold composite on the realtime window: 0 hits, 0 of 5 placebo controls, smallest p 0.0022 against a threshold of 0.00052. The composite already contains what the transforms can express.

@@ -174,6 +174,7 @@ type runner struct {
 	booksGP   map[string]*book
 	books25   map[string]*book
 	booksGP25 map[string]*book
+	keep      map[int][]float64
 }
 
 func newRunner(pp *pipe, fz frozen, names []string) *runner {
@@ -253,6 +254,9 @@ func (r *runner) block(lo, hi int, trainFrom int, seeds []int64, withBook bool) 
 			for _, nm := range r.names {
 				r.out.ic[nm][d] = icOf(rows, preds[nm])
 			}
+			if r.keep != nil {
+				r.keep[d] = preds["blend"]
+			}
 		}
 	}
 }
@@ -270,6 +274,7 @@ func main() {
 	em := flag.String("entry", "close", "entry: close (trade at the close of the signal day) or open (change in weights earns the next day intraday return only)")
 	divPath := flag.String("div", "", "dividend calendar: adds DivFlow and the A2PR network column (wave 3b)")
 	aucInc := flag.Bool("aucinc", false, "keep AucA1 as a feature (valid only with next-open entry)")
+	libWin := flag.String("libwin", "realtime", "lib2: realtime (the verdict, run once) or explore (debug on the regenerated window, not evidence)")
 	basePath := flag.String("base", "", "compare: baseline dump CSV")
 	extDump := flag.String("extdump", "", "compare: extended dump CSV")
 	fromDate := flag.String("from", "2026-10-21", "forward: first feature date")
@@ -278,6 +283,7 @@ func main() {
 		compareDumps(*basePath, *extDump)
 		return
 	}
+	libWindow = *libWin
 	if *aucInc {
 		delete(excludeCols, "AucA1")
 	}
@@ -316,6 +322,8 @@ func main() {
 		probe(pp)
 	case "freeze":
 		freezeModels(pp, *frz, *models)
+	case "lib2":
+		lib2(pp, *frz)
 	case "dump":
 		dump(pp, *frz, *outPath)
 	case "forward":
