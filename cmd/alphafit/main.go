@@ -324,6 +324,9 @@ func main() {
 		freezeModels(pp, *frz, *models)
 	case "lib2":
 		lib2(pp, *frz)
+	case "lib3":
+		libMode = "lib3"
+		lib2(pp, *frz)
 	case "dump":
 		dump(pp, *frz, *outPath)
 	case "forward":

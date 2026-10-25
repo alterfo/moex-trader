@@ -153,3 +153,7 @@ Plan `docs/plans/20261024-algopack-wave3b-model-ideas.md`, numbers in `docs/metr
 ## Library v2: transforms of the vital features (2026-10-24)
 
 Plan `docs/plans/20261024-algopack-library-v2.md`, numbers in `docs/metrics.md` 8.25. 100 generated rows (16 strongest features times smoothing, standardisation, change, liquidity-neutral rank and lag, plus 20 products and differences) tested for increment over the out-of-fold composite on the realtime window: 0 hits, 0 of 5 placebo controls, smallest p 0.0022 against a threshold of 0.00052. The composite already contains what the transforms can express.
+
+## Library v3: stock-level moderators of the composite (2026-10-25)
+
+Plan `docs/plans/20261025-algopack-library-v3-moderators.md`, numbers in `docs/metrics.md` 8.26. 105 moderators (the 100 library-v2 candidates and five stock characteristics): two nominal hits (LevAsym x A2 and A2H2 x LevAsym, IC difference +0.09) are explained by the composite's own conviction (stratified by the absolute prediction the effect is +0.015); liquidity rank, the prior-guided row, is not significant (p 0.19). Lesson recorded: an IC difference across subgroups defined by the model's own inputs is mechanically inflated by predictor dispersion; use stratification by conviction or a slope comparison.

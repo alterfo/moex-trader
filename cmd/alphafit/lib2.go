@@ -62,6 +62,10 @@ func seqStat(v []float64, lo, hi int) []float64 {
 
 var libWindow = "realtime"
 
+var libMode = "lib2"
+
+var extraModerators = []string{"OwnVol20", "LiquidityRank", "Ret1", "Ret5", "Ret20"}
+
 func lib2(pp *pipe, frzPath string) {
 	ds := pp.ds
 	nf := len(ds.names)
@@ -72,7 +76,12 @@ func lib2(pp *pipe, frzPath string) {
 	cands := lib2Candidates()
 	nc := len(cands)
 	nctl := 5
-	total := nc + nctl
+	nex := 0
+	if libMode == "lib3" {
+		nex = len(extraModerators)
+	}
+	total := nc + nex + nctl
+	ncm := nc + nex
 	nd := len(ds.dates)
 	vals := make([][]float64, len(ds.rows))
 	rowPos := map[*row]int{}
@@ -180,6 +189,14 @@ func lib2(pp *pipe, frzPath string) {
 		}
 		col++
 	}
+	if libMode == "lib3" {
+		for d := 0; d < nd; d++ {
+			for _, x := range ds.byDate[d] {
+				v := vals[rowPos[x]]
+				v[nc], v[nc+1], v[nc+2], v[nc+3], v[nc+4] = x.sig, x.rank, x.rb1, x.rb5, x.rb20
+			}
+		}
+	}
 	ctlSeeds := []int64{20261024, 20261025, 20261026, 20261027, 20261028}
 	for d := 0; d < nd; d++ {
 		rows := ds.byDate[d]
@@ -193,7 +210,7 @@ func lib2(pp *pipe, frzPath string) {
 			rng := rand.New(rand.NewSource(sd*1000003 + int64(d)))
 			perm := rng.Perm(len(who))
 			for j, i := range who {
-				vals[rowPos[rows[i]]][nc+c] = rows[who[perm[j]]].raw[fidx["LevAsym"]]
+				vals[rowPos[rows[i]]][nc+nex+c] = rows[who[perm[j]]].raw[fidx["LevAsym"]]
 			}
 		}
 	}
@@ -312,6 +329,23 @@ func lib2(pp *pipe, frzPath string) {
 				continue
 			}
 			p = rankScale(p)
+			if libMode == "lib3" {
+				cut1, cut2 := thirds(s)
+				var pt, yt, pb, yb []float64
+				for i := range s {
+					if s[i] >= cut2 {
+						pt, yt = append(pt, p[i]), append(yt, y[i])
+					} else if s[i] <= cut1 {
+						pb, yb = append(pb, p[i]), append(yb, y[i])
+					}
+				}
+				if len(pt) >= 15 && len(pb) >= 15 {
+					it, ib := pearson(pt, yt), pearson(pb, yb)
+					icS[c][d-lo] = it
+					bsS[c][d-lo] = it - ib
+				}
+				continue
+			}
 			icS[c][d-lo] = pearson(s, y)
 			my, mp, ms := mean(y), mean(p), mean(s)
 			var spp, sss, sps, spy, ssy float64
@@ -347,10 +381,10 @@ func lib2(pp *pipe, frzPath string) {
 			}
 		}
 	}
-	cm := make([][]float64, nc)
-	for a := 0; a < nc; a++ {
-		cm[a] = make([]float64, nc)
-		for b := 0; b < nc; b++ {
+	cm := make([][]float64, ncm)
+	for a := 0; a < ncm; a++ {
+		cm[a] = make([]float64, ncm)
+		for b := 0; b < ncm; b++ {
 			if a == b {
 				cm[a][b] = 1
 			} else {
@@ -370,15 +404,15 @@ func lib2(pp *pipe, frzPath string) {
 	for _, x := range e {
 		vv += (x - mu) * (x - mu)
 	}
-	vv /= float64(nc - 1)
-	meff := 1 + float64(nc-1)*(1-vv/float64(nc))
+	vv /= float64(ncm - 1)
+	meff := 1 + float64(ncm-1)*(1-vv/float64(ncm))
 	thr := 0.05 / meff
 	maxE, offSum := 0.0, 0.0
 	for _, x := range e {
 		maxE = math.Max(maxE, x)
 	}
-	for a := 0; a < nc; a++ {
-		for b := a + 1; b < nc; b++ {
+	for a := 0; a < ncm; a++ {
+		for b := a + 1; b < ncm; b++ {
 			offSum += math.Abs(cm[a][b])
 		}
 	}
@@ -396,8 +430,11 @@ func lib2(pp *pipe, frzPath string) {
 		}
 	}
 	fmt.Printf("lib2: mean correlation within the 16 feature blocks %.3f (%d pairs), mean absolute correlation between blocks %.3f (%d pairs)\n", wSum/float64(wN), wN, bSum/float64(bN), bN)
-	fmt.Printf("lib2: largest eigenvalue %.2f, mean absolute pairwise correlation %.3f\n", maxE, offSum/float64(nc*(nc-1)/2))
-	fmt.Printf("lib2: %d candidates, %d placebo controls, M_eff %.2f, threshold p <= %.5f on the incremental slope\n", nc, nctl, meff, thr)
+	fmt.Printf("lib2: largest eigenvalue %.2f, mean absolute pairwise correlation %.3f\n", maxE, offSum/float64(ncm*(ncm-1)/2))
+	fmt.Printf("lib2: %d candidates, %d placebo controls, M_eff %.2f, threshold p <= %.5f on the incremental slope\n", ncm, nctl, meff, thr)
+	if libMode == "lib3" {
+		fmt.Println("lib3: statistic = mean daily IC of the composite in the top third of the moderator minus its IC in the bottom third; the IC column is the top-third IC")
+	}
 	fmt.Printf("%-5s %-26s %9s %7s %10s %7s %8s %9s %9s %8s flags\n", "id", "candidate", "IC", "t", "inc.slope", "t", "p", "half1", "half2", "ic_sign")
 	type rowOut struct {
 		c int
@@ -413,22 +450,28 @@ func lib2(pp *pipe, frzPath string) {
 		_, ti := neweyWest(ic, 10)
 		h1, h2 := halves(bsS[c], split)
 		p := normalTwoSided(tb)
-		id, desc := fmt.Sprintf("C%02d", c-nc+1), "placebo LevAsym permuted"
+		id, desc := fmt.Sprintf("C%02d", c-ncm+1), "placebo LevAsym permuted"
 		if c < nc {
 			id, desc = cands[c].id, cands[c].desc
 			ps = append(ps, p)
+		} else if c < ncm {
+			id, desc = fmt.Sprintf("X%02d", c-nc+1), extraModerators[c-nc]
+			ps = append(ps, p)
 		}
 		flags := ""
-		same := h1*mb > 0 && h2*mb > 0 && mi*mb > 0
+		same := h1*mb > 0 && h2*mb > 0 && (libMode == "lib3" || mi*mb > 0)
 		if p <= thr && same {
 			flags += " HIT"
-			if c < nc {
+			if c < ncm {
 				hits++
 			} else {
 				ctlHits++
 			}
 		}
 		fmt.Printf("%-5s %-26s %+9.5f %+7.2f %+10.5f %+7.2f %8.4f %+9.5f %+9.5f %8v%s\n", id, desc, mi, ti, mb, tb, p, h1, h2, mi*mb > 0, flags)
+	}
+	if libMode == "lib3" {
+		diagnoseModerators(ds, crank, r.keep, total, lo, hi, split, []int{82, 91})
 	}
 	sort.Float64s(ps)
 	bh := 0.0
@@ -437,5 +480,119 @@ func lib2(pp *pipe, frzPath string) {
 			bh = p
 		}
 	}
-	fmt.Printf("lib2: hits %d of %d, control hits %d of %d, BH(0.10) cut %.5f\n", hits, nc, ctlHits, nctl, bh)
+	fmt.Printf("lib2: hits %d of %d, control hits %d of %d, BH(0.10) cut %.5f\n", hits, ncm, ctlHits, nctl, bh)
+}
+
+func thirds(s []float64) (float64, float64) {
+	c := append([]float64(nil), s...)
+	sort.Float64s(c)
+	n := len(c)
+	return c[n/3], c[n-1-n/3]
+}
+
+func diagnoseModerators(ds *dataset, crank [][]float64, keep map[int][]float64, total, lo, hi, split int, cols []int) {
+	mech := make([]float64, hi-lo+1)
+	strat := map[int][]float64{}
+	for _, c := range cols {
+		strat[c] = make([]float64, hi-lo+1)
+		for i := range strat[c] {
+			strat[c][i] = nan
+		}
+	}
+	for i := range mech {
+		mech[i] = nan
+	}
+	groupIC := func(p, y []float64, idx []int, s []float64) (float64, bool) {
+		if len(idx) < 12 {
+			return nan, false
+		}
+		cut1, cut2 := thirds(pick(s, idx))
+		var pt, yt, pb, yb []float64
+		for _, i := range idx {
+			if s[i] >= cut2 {
+				pt, yt = append(pt, p[i]), append(yt, y[i])
+			} else if s[i] <= cut1 {
+				pb, yb = append(pb, p[i]), append(yb, y[i])
+			}
+		}
+		if len(pt) < 6 || len(pb) < 6 {
+			return nan, false
+		}
+		return pearson(pt, yt) - pearson(pb, yb), true
+	}
+	for d := lo; d <= hi; d++ {
+		rows := ds.byDate[d]
+		pr := keep[d]
+		if pr == nil {
+			continue
+		}
+		var p, y []float64
+		var who []int
+		for i, x := range rows {
+			if !math.IsNaN(pr[i]) && !math.IsNaN(x.y10) {
+				p = append(p, pr[i])
+				y = append(y, x.y10)
+				who = append(who, i)
+			}
+		}
+		if len(p) < 30 {
+			continue
+		}
+		p = rankScale(p)
+		ext := make([]float64, len(p))
+		for i := range p {
+			ext[i] = math.Abs(p[i])
+		}
+		all := make([]int, len(p))
+		for i := range all {
+			all[i] = i
+		}
+		if v, ok := groupIC(p, y, all, ext); ok {
+			mech[d-lo] = v
+		}
+		order := append([]int(nil), all...)
+		sort.Slice(order, func(a, b int) bool { return ext[order[a]] < ext[order[b]] })
+		for _, c := range cols {
+			s := make([]float64, len(p))
+			okAll := true
+			for j, i := range who {
+				s[j] = crank[d][i*total+c]
+				if math.IsNaN(s[j]) {
+					okAll = false
+				}
+			}
+			if !okAll {
+				continue
+			}
+			var sum float64
+			cnt := 0
+			for k := 0; k < 3; k++ {
+				a, b := k*len(order)/3, (k+1)*len(order)/3
+				if v, ok := groupIC(p, y, order[a:b], s); ok {
+					sum += v
+					cnt++
+				}
+			}
+			if cnt == 3 {
+				strat[c][d-lo] = sum / 3
+			}
+		}
+	}
+	rep := func(name string, v []float64) {
+		m, t := neweyWest(clean(v), 10)
+		h1, h2 := halves(v, split)
+		fmt.Printf("diag %-52s mean %+.5f NW t %+.2f halves %+.5f / %+.5f n %d\n", name, m, t, h1, h2, len(clean(v)))
+	}
+	rep("mechanical control: composite |prediction| as the moderator", mech)
+	for _, c := range cols {
+		rep(fmt.Sprintf("column %d moderator within |prediction| terciles (stratified)", c+1), strat[c])
+	}
+}
+
+func pick(s []float64, idx []int) []float64 {
+	o := make([]float64, len(idx))
+	for k, i := range idx {
+		o[k] = s[i]
+	}
+	return o
 }

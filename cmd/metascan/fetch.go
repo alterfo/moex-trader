@@ -19,7 +19,9 @@ var httpClient = &http.Client{Timeout: 60 * time.Second}
 func getBody(u string) ([]byte, error) {
 	var last error
 	for a := 0; a < 3; a++ {
-		resp, err := httpClient.Get(u)
+		req, _ := http.NewRequest(http.MethodGet, u, nil)
+		req.Header.Set("User-Agent", "Mozilla/5.0")
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			last = err
 			time.Sleep(time.Duration(a+1) * time.Second)
@@ -29,7 +31,7 @@ func getBody(u string) ([]byte, error) {
 		resp.Body.Close()
 		if err != nil || resp.StatusCode != 200 {
 			last = fmt.Errorf("%s: status %d err %v", u, resp.StatusCode, err)
-			time.Sleep(time.Duration(a+1) * time.Second)
+			time.Sleep(time.Duration(a+1) * 3 * time.Second)
 			continue
 		}
 		return b, nil

@@ -22,6 +22,10 @@ func main() {
 		if err := fetchWave2(*macroDir); err != nil {
 			log.Fatal(err)
 		}
+	case "fetch4":
+		if err := fetchWorld(*macroDir); err != nil {
+			log.Fatal(err)
+		}
 	case "run":
 		if err := run(*macroDir, *series, *matrix, *news, false, *exA2); err != nil {
 			log.Fatal(err)
