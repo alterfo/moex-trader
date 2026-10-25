@@ -181,3 +181,7 @@ Plan `docs/plans/20261025-algopack-thin-universe.md`, numbers in `docs/metrics.m
 ## Execution timing (2026-10-25)
 
 Plan `docs/plans/20261025-algopack-execution-timing.md`, numbers in `docs/metrics.md` 8.31. The quoted half-spread at the opening window is 13 bp per side higher than in the predicted-cheapest window for the widest third of tickers (median spread 80 bp), 2 bp for the middle third, 0.25 bp for the tightest; most of the saving is a universal mid-day shape (a control using another ticker's window gives two thirds of it), the personal window adds 0.2 bp overall and 0.5 bp in the widest third; savings are about three times smaller in the second half of the sample. A free rule ("do not trade in the first half hour") captures most of the value; this is not a basis for a paid product on its own.
+
+## News impulse is a reversal (2026-10-25)
+
+Plan `docs/plans/20261025-algopack-news-impulse.md`, numbers in `docs/metrics.md` 8.32. The hypothesis was a continuation (an impulse); the data say the opposite: a news-attention shock on a top-100 ticker is followed by a negative abnormal return (top decile -0.13% the next day, -0.25% over ten days; rank IC -0.025, t -6.3), controls clean, but the effect shrank to about a quarter in 2025-plus. Crude-lexicon sentiment shows nothing (t about +2). Candidate overlay for the composite (exclude names in a news burst from the long leg), not tested.

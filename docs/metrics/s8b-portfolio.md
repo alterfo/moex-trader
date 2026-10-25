@@ -271,3 +271,13 @@ Plan `docs/plans/20261025-algopack-execution-timing.md`, output `artifacts/algop
 
 - **Persistence** of the intraday profile (Spearman of the trailing median profile with the day's): +0.076 (t +22.1), positive in every third.
 - **Reading.** The one robust, sizeable fact is the opening window: trading there instead of in the predicted-cheapest window costs about 13 bp per side in the widest third (80 bp median spread), 2 bp in the middle third and 0.25 bp in the tightest third. The control is positive in every group, so most of the saving is the common mid-day shape (a universal time rule); the personal window adds about 0.2 bp overall and about 0.5 bp in the widest third. The savings halve between the first and second half of the sample. The statement the rows support is "the predicted window quotes a cheaper spread", not "execution costs less".
+
+### 8.32 News impulse: attention and sentiment shocks (2022-01..2026-10, run once, 2026-10-25)
+
+Plan `docs/plans/20261025-algopack-news-impulse.md`, output `artifacts/algopack-news/newsimpulse.txt`, tool `cmd/newsimpulse`. 155,601 ticker-tagged headlines, information cut 18:30 Moscow, count shocks standardised against the ticker's own trailing 20 dates, a fixed Russian stem lexicon for sentiment (crude: three stems are false-positive magnets), daily rank IC against the abnormal return at 1, 5 and 10 days and, for after-close news, against the next open-to-close return; floor |t| 3.0, same sign in both halves, five permutation controls.
+
+- **7 hits of 17, 0 of 5 controls, and the sign is a reversal, not an impulse.** Count shock: mean IC -0.0245 (t -6.3) at 1 day, -0.0214 (t -3.8) at 5, -0.0251 (t -3.6) at 10; trust-weighted the same; sentiment x A2 at 5 days -0.0193 (t -3.4).
+- **Decaying.** The first half (2022-2024) IC is -0.034 / -0.033 / -0.039 at 1 / 5 / 10 days, the second half (2025-plus) -0.009 / -0.003 / -0.003.
+- **Deciles (descriptive, added after the hits):** the top decile of the count shock earns -0.127% (t -5.1) over the next day, -0.209% over 5 days, -0.254% over 10 days against the universe; the bottom decile +0.04% / +0.08% / +0.17%.
+- **Not hits:** lexicon sentiment (IC +0.007 to +0.010, t about +2), count shock x A2, evening count shock; evening sentiment against the next open-to-close return has IC +0.022 (t +5.9) but flips sign between the halves (+0.040, then -0.004).
+- **Reading.** A lead: a news burst on a ticker is followed by a negative abnormal return of about 0.13% the next day for the top decile, shrinking to about a quarter in 2025-plus. As a short it faces the broker carry and spreads; as a filter (do not buy a name in a news burst) it is a candidate overlay on the composite's long leg, a separate step.

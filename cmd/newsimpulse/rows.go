@@ -96,6 +96,7 @@ func runRows(dates []string, byDate map[string][]cell, signals map[string]map[st
 	var results []res
 	for _, r := range rows {
 		var daily []float64
+		var topM, botM []float64
 		var labels []string
 		needA2 := r.sigName == "sentA2" || r.sigName == "zcA2"
 		for i, d := range dates {
@@ -141,6 +142,20 @@ func runRows(dates []string, byDate map[string][]cell, signals map[string]map[st
 				rng := rand.New(rand.NewSource(r.perm*1000003 + int64(i)))
 				rng.Shuffle(len(sv), func(a, b int) { sv[a], sv[b] = sv[b], sv[a] })
 			}
+			if r.sigName == "zc" && r.perm == 0 {
+				idx := make([]int, len(sv))
+				for j := range idx {
+					idx[j] = j
+				}
+				sort.Slice(idx, func(a, b int) bool { return sv[idx[a]] < sv[idx[b]] })
+				k := len(idx) / 10
+				var tp, bt float64
+				for j := 0; j < k; j++ {
+					bt += ov[idx[j]]
+					tp += ov[idx[len(idx)-1-j]]
+				}
+				topM, botM = append(topM, tp/float64(k)), append(botM, bt/float64(k))
+			}
 			ic := pearson(rankAvg(sv), rankAvg(ov))
 			if !math.IsNaN(ic) {
 				daily = append(daily, ic)
@@ -170,6 +185,11 @@ func runRows(dates []string, byDate map[string][]cell, signals map[string]map[st
 		}
 		if len(post) > 0 {
 			qm = mean(post)
+		}
+		if len(topM) > 0 {
+			tm, tt := neweyWest(topM, r.out.h+5)
+			bm, bt2 := neweyWest(botM, r.out.h+5)
+			fmt.Printf("    descriptive deciles of the count shock: top decile abnormal %+.3f%% (t %+.1f), bottom decile %+.3f%% (t %+.1f), top minus bottom %+.3f%%\n", tm*100, tt, bm*100, bt2, (tm-bm)*100)
 		}
 		results = append(results, res{id: r.id, mean: m, t: t, pre: pm, post: qm, isControl: r.perm != 0, sigName: r.sigName})
 		fmt.Printf("%-52s dates %4d  mean IC %+.4f  NW t %+6.2f  first half %+.4f  second half %+.4f\n", r.id, len(daily), m, t, pm, qm)

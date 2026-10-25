@@ -217,4 +217,3 @@ func neweyWest(x []float64, lags int) (float64, float64) {
 	}
 	return m, m / math.Sqrt(variance/float64(n))
 }
-

@@ -1,0 +1,28 @@
+newsimpulse: 1644 matrix dates, 155601 news items
+    descriptive deciles of the count shock: top decile abnormal -0.127% (t -5.1), bottom decile +0.039% (t +1.9), top minus bottom -0.166%
+N01 count shock h1                                   dates 1198  mean IC -0.0245  NW t  -6.29  first half -0.0341  second half -0.0091
+N02 trust-weighted count shock h1                    dates 1198  mean IC -0.0249  NW t  -6.50  first half -0.0338  second half -0.0104
+N03 lexicon sentiment h1                             dates 1192  mean IC +0.0074  NW t  +2.22  first half +0.0012  second half +0.0173
+N04 sentiment x A2 h1                                dates  458  mean IC -0.0012  NW t  -0.22  first half -0.0026  second half +0.0006
+N05 count shock x A2 h1                              dates  458  mean IC +0.0122  NW t  +2.37  first half +0.0079  second half +0.0175
+    descriptive deciles of the count shock: top decile abnormal -0.209% (t -3.8), bottom decile +0.076% (t +1.0), top minus bottom -0.285%
+N01 count shock h5                                   dates 1190  mean IC -0.0214  NW t  -3.76  first half -0.0329  second half -0.0028
+N02 trust-weighted count shock h5                    dates 1190  mean IC -0.0229  NW t  -4.03  first half -0.0332  second half -0.0064
+N03 lexicon sentiment h5                             dates 1183  mean IC +0.0102  NW t  +2.21  first half +0.0050  second half +0.0186
+N04 sentiment x A2 h5                                dates  454  mean IC -0.0193  NW t  -3.37  first half -0.0142  second half -0.0257
+N05 count shock x A2 h5                              dates  454  mean IC -0.0022  NW t  -0.41  first half -0.0044  second half +0.0007
+    descriptive deciles of the count shock: top decile abnormal -0.254% (t -2.7), bottom decile +0.173% (t +1.2), top minus bottom -0.427%
+N01 count shock h10                                  dates 1180  mean IC -0.0251  NW t  -3.60  first half -0.0387  second half -0.0030
+N02 trust-weighted count shock h10                   dates 1180  mean IC -0.0269  NW t  -3.84  first half -0.0394  second half -0.0065
+N03 lexicon sentiment h10                            dates 1174  mean IC +0.0086  NW t  +1.54  first half +0.0040  second half +0.0160
+N04 sentiment x A2 h10                               dates  449  mean IC -0.0123  NW t  -2.12  first half -0.0045  second half -0.0225
+N05 count shock x A2 h10                             dates  449  mean IC -0.0036  NW t  -0.72  first half -0.0095  second half +0.0042
+N06 evening sentiment -> next open-to-close          dates 1113  mean IC +0.0223  NW t  +5.91  first half +0.0404  second half -0.0039
+N07 evening count shock -> next open-to-close        dates 1198  mean IC -0.0045  NW t  -1.10  first half +0.0057  second half -0.0209
+C01 permuted count shock h1                          dates 1198  mean IC -0.0041  NW t  -1.38  first half -0.0023  second half -0.0069
+C02 permuted count shock h1                          dates 1198  mean IC +0.0010  NW t  +0.35  first half -0.0010  second half +0.0042
+C03 permuted count shock h1                          dates 1198  mean IC +0.0032  NW t  +1.09  first half +0.0029  second half +0.0038
+C04 permuted count shock h1                          dates 1198  mean IC -0.0019  NW t  -0.65  first half -0.0036  second half +0.0007
+C05 permuted count shock h1                          dates 1198  mean IC +0.0056  NW t  +2.03  first half +0.0067  second half +0.0038
+
+threshold |t| >= 3.0 (the project floor); hits: 7 of 17 rows; control hits: 0 of 5; [N01 count shock h1 N01 count shock h10 N01 count shock h5 N02 trust-weighted count shock h1 N02 trust-weighted count shock h10 N02 trust-weighted count shock h5 N04 sentiment x A2 h5]

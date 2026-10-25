@@ -1,6 +1,6 @@
 # News impulse: attention and sentiment shocks as short-horizon trend signals (2026-10-25)
 
-Status: REGISTERED 2026-10-25 (English only), before the run. Item 7 of the owner's order of work ("impulse trend models from news"). Continues the earlier news results of `docs/knowledge/model-quality-history.md` (the daily news score: gross rank spread +0.21% at 5 and +0.43% at 10 days, concentrated on the negative side, no net edge after 0.60% tranche cost).
+Status: DONE 2026-10-25 (English only; scored once, a decaying reversal lead after news bursts, not an impulse), registered before the run. Item 7 of the owner's order of work ("impulse trend models from news"). Continues the earlier news results of `docs/knowledge/model-quality-history.md` (the daily news score: gross rank spread +0.21% at 5 and +0.43% at 10 days, concentrated on the negative side, no net edge after 0.60% tranche cost).
 
 ## What is new compared with the earlier news score
 
@@ -43,10 +43,19 @@ Intraday reaction (minutes after publication) is not tested: it is forbidden sca
 2. One run on the ai-box (matrix and side file are there; the news file is copied once).
 3. Numbers into `docs/metrics.md` 8.32 and `docs/knowledge/model-quality-history.md`.
 
+## Result (scored once, 2026-10-25)
+
+Numbers in `docs/metrics.md` 8.32, output `artifacts/algopack-news/newsimpulse.txt`. **7 hits of 17 rows by the registered rule, 0 of 5 controls**, and the sign is the opposite of an impulse: a news-attention shock predicts REVERSAL. Count shock (N01) against the next-day abnormal return: mean IC -0.0245 (Newey-West t -6.3, 1198 dates), h5 -0.0214 (t -3.8), h10 -0.0251 (t -3.6); the trust-weighted version (N02) the same (t -6.5, -4.0, -3.8); both halves negative in every horizon but weaker in 2025-plus (h1 -0.034 then -0.009, h5 -0.033 then -0.003, h10 -0.039 then -0.003). N04 (sentiment x A2) at h5 -0.0193 (t -3.4, halves -0.014 / -0.026) is the seventh hit. Descriptive deciles of the count shock (added after the hits were seen, not a condition): the top decile earns an abnormal return of -0.127% over the next day (t -5.1), -0.209% over 5 days (t -3.8), -0.254% over 10 days (t -2.7); the bottom decile +0.039% / +0.076% / +0.173%; top minus bottom -0.17% / -0.29% / -0.43%. Not hits: lexicon sentiment (N03: IC +0.007 to +0.010, t +2.2, +2.2, +1.5; the lexicon is crude), count shock x A2 (N05: t +2.4, -0.4, -0.7), evening count shock (N07: t -1.1). N06, evening sentiment against the next open-to-close return, has IC +0.0223 (t +5.9) but flips sign between the halves (+0.040 in 2022-2024, -0.004 in 2025-plus), so it fails the registered both-halves condition. Registered reading: **a lead, decaying**: news-driven attention is followed by an abnormal return that is negative on average (reversal of the news burst, about -0.13% the next day for the top decile), strong in 2022-2024 and about a quarter of that size in 2025-plus. Economics are not tested: as a short it faces the broker carry (0.074% per calendar day) and spreads; as an avoid-filter on the long leg of the composite it is a candidate overlay, which would be a separate step.
+
 ## Review log
 
-(pending the Reviewer's pre-run pass)
+Pre-run pass (opencode, 2026-10-25): timestamp assignment, evening bucket, standardisation, A2 product, dividends, duplicates and outcome columns verified; the rule is fair; two amendments and four pins applied (errata).
 
 ## Errata
 
-(none)
+Written 2026-10-25 after the Reviewer's pass, before the run.
+
+1. Lexicon noise: three stems are false-positive magnets: the negative stem for "fall" also matches the Russian words for "West" and "reserves", the negative stem for "loss" also matches "consumer", the positive stem for "growth" also matches "simple". A crude lexicon pushes the sentiment rows toward zero and cannot manufacture a hit; a null sentiment row is therefore evidence about this lexicon, not about sentiment, and a hit that survives it is stronger evidence.
+2. N06 measures a level (the trust-weighted score per headline of the evening bucket) and N07 a shock (the evening count against its trailing 20 dates): they are different hypotheses, not one at two scales. The `sent` rows are also levels, not standardised.
+3. Weekend headlines after Saturday 09:50 fall into Monday's day bucket: the registered semantics, not a leak. The cross-sectional demeaning of the open-to-close outcome is implicit in the rank IC (invariant to a per-date constant); the code uses the raw `idy1`.
+4. N04 and N05 run on about 450 realtime dates, so the same floor needs a larger IC; their halves are cut at 2026-01-05.
