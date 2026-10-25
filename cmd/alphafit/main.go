@@ -304,6 +304,7 @@ func main() {
 	libWin := flag.String("libwin", "realtime", "lib2: realtime (the verdict, run once) or explore (debug on the regenerated window, not evidence)")
 	dsrCol := flag.String("col", "net_gp_blend", "dsr: column of the dump CSV given by -base")
 	neutral := flag.String("neutral", "none", "none or sector: demean the prediction within frozen sector lists before building the book")
+	candPath := flag.String("candfile", "", "libext: CSV date,secid,candidate columns")
 	basePath := flag.String("base", "", "compare: baseline dump CSV")
 	extDump := flag.String("extdump", "", "compare: extended dump CSV")
 	bookKind := flag.String("book", "longshort", "longshort or longonly (top quintile long only, abnormal against the equal-weight universe mean, no carry)")
@@ -319,6 +320,7 @@ func main() {
 		return
 	}
 	libWindow = *libWin
+	candFile = *candPath
 	neutralMode = *neutral
 	longOnly = *bookKind == "longonly"
 	if *aucInc {
@@ -366,6 +368,8 @@ func main() {
 		freezeModels(pp, *frz, *models)
 	case "lib2":
 		lib2(pp, *frz)
+	case "libext":
+		libExt(pp, *frz)
 	case "lib3":
 		libMode = "lib3"
 		lib2(pp, *frz)
