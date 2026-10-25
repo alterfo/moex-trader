@@ -14,7 +14,7 @@ var nan = math.NaN()
 
 var excludeCols = map[string]bool{
 	"OpenDay": true, "CloseDay": true, "Open10": true, "Close10": true, "Close1830": true, "High": true, "Low": true,
-	"ValDay": true, "AucA1": true, "EvA1": true, "EvA2": true, "EvSpRatio": true, "EvRet": true, "MornA1": true, "MornShare": true,
+	"ValDay": true, "AucA1": true, "ProfP2": true, "ProfP3": true, "VolEnt": true, "DepEnt": true, "EvA1": true, "EvA2": true, "EvSpRatio": true, "EvRet": true, "MornA1": true, "MornShare": true,
 }
 
 type row struct {

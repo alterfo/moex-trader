@@ -1,0 +1,38 @@
+#!/bin/bash
+set -euo pipefail
+WORK="${WORK:-/home/oleg/moex-rerun/forward}"
+R2="${R2:-/home/oleg/moex-rerun/r2}"
+BIN="${BIN:-/home/oleg/moex-rerun/bin}"
+SCRIPTS="${SCRIPTS:-/home/oleg/moex-trader-task12/scripts}"
+NEWS="${NEWS:-/home/oleg/moex-trader-daily/work/news_history.jsonl}"
+CONFIG="${CONFIG:-/home/oleg/moex-rerun/config.sandbox.yaml}"
+PY="${PY:-/home/oleg/moex-venv/bin/python}"
+DFREEZE="${DFREEZE:-2026-10-16}"
+FROM="${FROM:-2026-10-17}"
+TILL="${TILL:-$(date +%F)}"
+FEAT18="return_pct,realized_volatility,news_sentiment,news_count,order_book_imbalance,mom_5d,mom_21d,mom_63d,reversal_1d,rsi_14,dist_ma20_pct,dist_ma50_pct,realized_vol_21d_annualized_pct,volume_zscore_20d,macd_hist_pct,stoch_k_14,williams_r_14,alligator_spread_pct"
+ORDER="$FEAT18,event_dividend,event_buyback,event_sanctions,event_ipo,event_report,event_delisting,event_mna,event_default,negotiations_signal,sanctions_signal"
+T17="YDEX,OZON,SBER,LKOH,GAZP,GMKN,ROSN,NVTK,TATN,MTSS,MGNT,PLZL,CHMF,T,VTBR,RUAL,POSI"
+mkdir -p "$WORK"
+cd "$WORK"
+for variant in abs exc; do
+  [ -f "ens-$variant.json" ] || DATASET="$R2/data-$variant.csv" ENSEMBLE_FEATURES14="$FEAT18" ENSEMBLE_FEATURE_ORDER="$ORDER" \
+    ENSEMBLE_TRAIN_TILL="$DFREEZE" ENSEMBLE_EMBARGO_SPLIT="$DFREEZE" ENSEMBLE_EMBARGO_BARS=10 \
+    ENSEMBLE_OUT="ens-$variant.json" "$PY" "$SCRIPTS/export_ensemble.py" > "train-$variant.log" 2>&1
+done
+[ -f forward.csv ] || echo "run_date,till,variant,realized,net_mtm,trades,max_dd_pct" > forward.csv
+for spec in "ctl abs ens" "clg abs logistic" "f exc ens"; do
+  set -- $spec
+  extra=()
+  [ "$3" = logistic ] && extra=(-ensemble-member logistic)
+  "$BIN/backtest" -config "$CONFIG" -tickers "$T17" -from "$FROM" -till "$TILL" \
+    -deposit 1000000 -max-lots 1000 -commission-rate 0.0005 -spread-pct 0.0005 -slippage-pct 0.0005 \
+    -target-notional 15000 -lookback-days 0 -signal-source ensemble -ensemble-path "ens-$2.json" \
+    -news-history "$NEWS" "${extra[@]}" -out "bt-$1.md" > "bt-$1.log" 2>&1 || { echo "$(date +%F),$TILL,$1,,,," >> forward.csv; continue; }
+  r=$(grep -m1 "^- Realized P&L" "bt-$1.md" | sed -E 's/.*\*\*(-?[0-9.]+)\*\*.*/\1/')
+  m=$(grep -m1 "^- Net P&L" "bt-$1.md" | sed -E 's/.*\*\*(-?[0-9.]+)\*\*.*/\1/')
+  t=$(grep -m1 "^- Closed trades" "bt-$1.md" | sed -E 's/[^0-9]*([0-9]+).*/\1/')
+  d=$(grep -m1 "^- Max drawdown" "bt-$1.md" | sed -E 's/[^0-9]*([0-9.]+)%.*/\1/')
+  echo "$(date +%F),$TILL,$1,$r,$m,$t,$d" >> forward.csv
+done
+tail -3 forward.csv

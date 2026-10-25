@@ -56,3 +56,7 @@ Reviewer leakage hunt (opencode, read-only, 2026-10-23): no hard leakage; embarg
 ## Errata
 
 (none)
+
+## Composite shadow recorder (added 2026-10-25, owner's order of work)
+
+`scripts/composite-shadow.sh` (launchd template `scripts/launchd/com.oleg.moex-trader.compositeshadow.plist`, 00:50 Moscow, after the AlgoPack daily fetch at 00:20; **not loaded**, the owner enables it with `launchctl load`) syncs the last seven days of the AlgoPack files to the ai-box, rebuilds the matrix there, and scores the frozen models (SHA-256 `793bf125...`) with the new mode `cmd/alphafit -mode shadow`, writing one file per run date, `data/shadow-composite/scores-<as-of date>.csv` (date, ticker, liquidity rank, composite score, A2 baseline score, the daily-rebalanced target weight). It computes no statistic and no return: it only logs point-in-time scores as they were computable on the as-of date (the last four fetched days are refreshed by the daily job, so successive files can differ slightly for recent dates; keeping every vintage is the point). The forward read of this plan still uses `-mode forward` once at the evaluation date; the recorder never replaces or pre-empts it. The first manual run (2026-10-25) wrote 99 names for each of 2026-10-22 and 2026-10-23. The four wave-3b base columns are excluded from the default feature set (`-with3b` restores them), so the matrix rebuilt by the current `flowscan` still gives the 75 features the frozen models expect.

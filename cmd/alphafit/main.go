@@ -278,6 +278,7 @@ func main() {
 	cm := flag.String("cost", "flat", "cost model: flat (0.15% a side), bbo (0.05% plus half the BBO spread), mio (0.05% plus half the 1 mln RUB spread)")
 	em := flag.String("entry", "close", "entry: close (trade at the close of the signal day) or open (change in weights earns the next day intraday return only)")
 	divPath := flag.String("div", "", "dividend calendar: adds DivFlow and the A2PR network column (wave 3b)")
+	with3b := flag.Bool("with3b", false, "keep the four wave-3b base columns (ProfP2, ProfP3, VolEnt, DepEnt) as features")
 	aucInc := flag.Bool("aucinc", false, "keep AucA1 as a feature (valid only with next-open entry)")
 	libWin := flag.String("libwin", "realtime", "lib2: realtime (the verdict, run once) or explore (debug on the regenerated window, not evidence)")
 	dsrCol := flag.String("col", "net_gp_blend", "dsr: column of the dump CSV given by -base")
@@ -299,6 +300,11 @@ func main() {
 	neutralMode = *neutral
 	if *aucInc {
 		delete(excludeCols, "AucA1")
+	}
+	if *with3b {
+		for _, c := range []string{"ProfP2", "ProfP3", "VolEnt", "DepEnt"} {
+			delete(excludeCols, c)
+		}
 	}
 	ds, err := load(*mat)
 	if err != nil {
@@ -342,6 +348,8 @@ func main() {
 		lib2(pp, *frz)
 	case "dump":
 		dump(pp, *frz, *outPath)
+	case "shadow":
+		shadowScores(pp, *models, *fromDate, *outPath)
 	case "forward":
 		forward(pp, *models, *fromDate)
 	}

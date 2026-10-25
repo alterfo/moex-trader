@@ -96,3 +96,47 @@ func forward(pp *pipe, modelsPath, fromDate string) {
 	report("net/day GP blend (25%)", r.out.netGP25["blend"], split, draws)
 	report("net/day daily blend (17%)", r.out.netD["blend"], split, draws)
 }
+
+func shadowScores(pp *pipe, modelsPath, fromDate, outPath string) {
+	raw, err := os.ReadFile(modelsPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var fm frozenModels
+	if err := json.Unmarshal(raw, &fm); err != nil {
+		log.Fatal(err)
+	}
+	if len(fm.Names) != pp.p {
+		log.Fatalf("alphafit: model has %d inputs, matrix gives %d", len(fm.Names), pp.p)
+	}
+	for i := 0; i < pp.nf; i++ {
+		if fm.Names[i] != pp.ds.names[i] {
+			log.Fatalf("alphafit: input %d is %q in the model and %q in the matrix", i, fm.Names[i], pp.ds.names[i])
+		}
+	}
+	sum := sha256.Sum256(raw)
+	f, err := os.Create(outPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "# composite shadow scores: frozen models SHA-256 %s trained %s..%s\n", hex.EncodeToString(sum[:]), fm.TrainedFrom, fm.TrainedUntil)
+	fmt.Fprintln(f, "date,secid,liquidity_rank,blend,a2,aim_weight")
+	lo := sort.SearchStrings(pp.ds.dates, fromDate)
+	n := 0
+	for d := lo; d < len(pp.ds.dates); d++ {
+		rows := pp.ds.byDate[d]
+		blend := make([]float64, len(rows))
+		a2 := make([]float64, len(rows))
+		for i, x := range rows {
+			blend[i] = 0.5 * (predict(fm.Ridge, x.feat) + predict(fm.EN, x.feat))
+			a2[i] = predict(fm.A2, x.feat)
+		}
+		aim := aimWeights(rows, blend)
+		for i, x := range rows {
+			fmt.Fprintf(f, "%s,%s,%.0f,%.8f,%.8f,%.8f\n", pp.ds.dates[d], x.secid, x.rank, blend[i], a2[i], aim[x.secid])
+			n++
+		}
+	}
+	fmt.Printf("shadow: %d rows for %d dates from %s written to %s\n", n, len(pp.ds.dates)-lo, pp.ds.dates[lo], outPath)
+}

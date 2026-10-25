@@ -157,7 +157,7 @@ func deflatedSharpe(path string, col string, trials []int) {
 			}
 			dsr := normCDF((sr - sr0) * math.Sqrt(T-1) / denom)
 			fmt.Printf("dsr: trials %4d: expected maximum daily Sharpe under zero skill %.4f (annualised %.2f), deflated Sharpe probability %.3f\n", n, sr0, sr0*math.Sqrt(252), dsr)
-			}
+		}
 	}
 	_ = dates
 	_ = sort.Float64s
