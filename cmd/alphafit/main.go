@@ -190,6 +190,11 @@ func newRunner(pp *pipe, fz frozen, names []string) *runner {
 
 func (r *runner) day(d int, preds map[string][]float64) {
 	rows := r.pp.ds.byDate[d]
+	if neutralMode == "sector" {
+		for k, v := range preds {
+			preds[k] = sectorNeutral(rows, v)
+		}
+	}
 	for _, n := range r.names {
 		pr := preds[n]
 		r.out.ic[n][d] = icOf(rows, pr)
@@ -275,6 +280,8 @@ func main() {
 	divPath := flag.String("div", "", "dividend calendar: adds DivFlow and the A2PR network column (wave 3b)")
 	aucInc := flag.Bool("aucinc", false, "keep AucA1 as a feature (valid only with next-open entry)")
 	libWin := flag.String("libwin", "realtime", "lib2: realtime (the verdict, run once) or explore (debug on the regenerated window, not evidence)")
+	dsrCol := flag.String("col", "net_gp_blend", "dsr: column of the dump CSV given by -base")
+	neutral := flag.String("neutral", "none", "none or sector: demean the prediction within frozen sector lists before building the book")
 	basePath := flag.String("base", "", "compare: baseline dump CSV")
 	extDump := flag.String("extdump", "", "compare: extended dump CSV")
 	fromDate := flag.String("from", "2026-10-21", "forward: first feature date")
@@ -283,7 +290,13 @@ func main() {
 		compareDumps(*basePath, *extDump)
 		return
 	}
+	if *mode == "dsr" {
+		deflatedSharpe(*basePath, *dsrCol, []int{1, 10, 50, 100, 300, 800})
+		betaDiagnostic(*basePath, *dsrCol)
+		return
+	}
 	libWindow = *libWin
+	neutralMode = *neutral
 	if *aucInc {
 		delete(excludeCols, "AucA1")
 	}
@@ -574,7 +587,7 @@ func dump(pp *pipe, frzPath, outPath string) {
 			}
 		}
 	}
-	head := "date,ic_blend,ic_a2,net_gp_blend,net_gp_a2,net_gp25_blend,net_d_blend,u10,glong_gp_blend,gshort_gp_blend,ic_t1,ic_t2,ic_t3"
+	head := "date,ic_blend,ic_a2,net_gp_blend,net_gp_a2,net_gp25_blend,net_d_blend,u10,glong_gp_blend,gshort_gp_blend,ic_t1,ic_t2,ic_t3,u1"
 	for _, v := range vital {
 		head += ",f_" + v
 	}
@@ -589,7 +602,14 @@ func dump(pp *pipe, frzPath, outPath string) {
 				break
 			}
 		}
-		fmt.Fprintf(f, "%s,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g", pp.ds.dates[d], r.out.ic["blend"][d], r.out.ic["a2"][d], r.out.netGP["blend"][d], r.out.netGP["a2"][d], r.out.netGP25["blend"][d], r.out.netD["blend"][d], u, r.out.glongGP["blend"][d], r.out.gshortGP["blend"][d], r.out.icT["blend"][0][d], r.out.icT["blend"][1][d], r.out.icT["blend"][2][d])
+		u1d := nan
+		for _, x := range pp.ds.byDate[d] {
+			if !math.IsNaN(x.u1) {
+				u1d = x.u1
+				break
+			}
+		}
+		fmt.Fprintf(f, "%s,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g,%g", pp.ds.dates[d], r.out.ic["blend"][d], r.out.ic["a2"][d], r.out.netGP["blend"][d], r.out.netGP["a2"][d], r.out.netGP25["blend"][d], r.out.netD["blend"][d], u, r.out.glongGP["blend"][d], r.out.gshortGP["blend"][d], r.out.icT["blend"][0][d], r.out.icT["blend"][1][d], r.out.icT["blend"][2][d], u1d)
 		rows := pp.ds.byDate[d]
 		for _, k := range vIdx {
 			fv := nan
