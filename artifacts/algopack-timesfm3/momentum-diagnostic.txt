@@ -1,0 +1,24 @@
+2026/10/25 08:38:27 alphafit: 163709 rows, 1644 dates, 75 AlgoPack features plus 3 controls
+momdiag: 2021 mean daily IC against the 10-day abnormal rank (all top-100 names with 256 observations): mom60 +0.0308, mom120 +0.0923, mom256 +0.0953 (189 dates)
+momdiag: 2022 mean daily IC against the 10-day abnormal rank (all top-100 names with 256 observations): mom60 +0.0059, mom120 -0.0079, mom256 +0.0100 (220 dates)
+momdiag: 2023 mean daily IC against the 10-day abnormal rank (all top-100 names with 256 observations): mom60 +0.0340, mom120 +0.0101, mom256 +0.0080 (254 dates)
+momdiag: 2024 mean daily IC against the 10-day abnormal rank (all top-100 names with 256 observations): mom60 +0.0741, mom120 +0.0777, mom256 +0.0495 (256 dates)
+momdiag: 2025 mean daily IC against the 10-day abnormal rank (all top-100 names with 256 observations): mom60 +0.0090, mom120 +0.0696, mom256 +0.1206 (254 dates)
+momdiag: 2026 mean daily IC against the 10-day abnormal rank (all top-100 names with 256 observations): mom60 +0.0626, mom120 +0.0724, mom256 +0.0899 (196 dates)
+momdiag: mean daily rank correlation of tfm_uni with the 256-observation momentum of abnormal returns: +0.653 (457 dates)
+momdiag: mean daily rank correlation of tfm_cov with the 256-observation momentum of abnormal returns: +0.595 (457 dates)
+momdiag: mean daily rank correlation of tfm_plc with the 256-observation momentum of abnormal returns: +0.672 (457 dates)
+2026/10/25 08:38:32 alphafit: 163709 rows, 1644 dates, 75 AlgoPack features plus 3 controls
+2026/10/25 08:38:32 open artifacts/algopack-wave3/w3-frozen-h10.json: no such file or directory
+2026/10/25 08:38:43 alphafit: 163709 rows, 1644 dates, 75 AlgoPack features plus 3 controls
+libext: 3 candidate columns from work/mom-cands.csv, 5 placebo permutations of the first column
+candidate                                 IC       t  inc.slope       t     half1     half2 flags
+mom60                               +0.03236   +1.16   +0.01113   +0.42  -0.01093  +0.03972 
+mom120                              +0.07086   +2.62   +0.05287   +2.04  +0.05592  +0.04891 
+mom256                              +0.10722   +3.95   +0.08862   +3.41  +0.10576  +0.06641 HIT
+placebo1 (mom60 permuted)           -0.00155   -0.32   -0.00006   -0.01  +0.00866  -0.01136 
+placebo2 (mom60 permuted)           +0.00886   +1.76   +0.00915   +1.82  +0.01449  +0.00222 
+placebo3 (mom60 permuted)           -0.00184   -0.37   -0.00221   -0.43  -0.00716  +0.00421 
+placebo4 (mom60 permuted)           +0.00116   +0.22   +0.00236   +0.46  +0.00128  +0.00376 
+placebo5 (mom60 permuted)           -0.01026   -2.01   -0.00987   -1.99  -0.01378  -0.00479 
+libext: hits 1 of 3 candidates, placebo hits 0 of 5 (rule: |t| of the incremental slope at least 3.0, same sign in both halves and for the IC)

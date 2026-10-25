@@ -1,0 +1,12 @@
+2026/10/25 06:13:30 alphafit: 163709 rows, 1644 dates, 75 AlgoPack features plus 3 controls
+libext: 3 candidate columns from work/tfm3-features.csv, 5 placebo permutations of the first column
+candidate                                 IC       t  inc.slope       t     half1     half2 flags
+tfm_uni                             +0.06664   +2.46   +0.03760   +1.44  +0.03996  +0.03453 
+tfm_cov                             +0.08140   +3.22   +0.05613   +2.35  +0.05643  +0.05575 
+tfm_plc                             +0.08253   +3.01   +0.05712   +2.14  +0.05613  +0.05840 
+placebo1 (tfm_uni permuted)         +0.00076   +0.16   +0.00249   +0.51  +0.00456  -0.00019 
+placebo2 (tfm_uni permuted)         -0.00286   -0.52   -0.00276   -0.51  -0.00062  -0.00553 
+placebo3 (tfm_uni permuted)         -0.00466   -0.87   -0.00422   -0.78  -0.01431  +0.00885 
+placebo4 (tfm_uni permuted)         +0.00603   +1.16   +0.00612   +1.21  +0.00878  +0.00268 
+placebo5 (tfm_uni permuted)         -0.00991   -2.18   -0.00808   -1.79  -0.01034  -0.00515 
+libext: hits 0 of 3 candidates, placebo hits 0 of 5 (rule: |t| of the incremental slope at least 3.0, same sign in both halves and for the IC)

@@ -189,3 +189,7 @@ Plan `docs/plans/20261025-algopack-news-impulse.md`, numbers in `docs/metrics.md
 ## Dividend run-up (2026-10-25)
 
 Plan `docs/plans/20261025-algopack-dividend-runup.md`, numbers in `docs/metrics.md` 8.33. Long-only anticipation of the dividend last-buy day (buy 11 trading days before, sell the day before): +2.13% net per event for yields of 3% or more (66 events, interval [+1.14%, +3.13%], positive in all six years), but the yield does not rank the run-up within the sample and the calendar file lacks announcement dates, so the foreknowledge assumption cannot be verified; a point-in-time snapshot job and a frozen forward rule (15 matured events) are in place. First calendar-trade lead in the study with an economic gate passed on an independent price sample (not the regenerated flow data).
+
+## TimesFM 3 and the momentum lead (2026-10-25)
+
+Plan `docs/plans/20261025-algopack-timesfm3.md`, numbers in `docs/metrics.md` 8.34. A zero-shot TimesFM 3 forecast of the abnormal-return history has realtime IC +0.07 to +0.08 but the placebo (another name's covariates) equals the treatment and none passes the incremental rule; the forecast is a proxy for 12-month relative momentum (rank correlation 0.6-0.7), which the composite lacks: mom256 adds +0.089 slope over the composite (t +3.4) and is positive in every year 2021-2026 (IC +0.04 in 2021-2024, +0.11 in 2025-26). Lead, found post hoc on a spent window: confirm on 2021-2024 prices and with the composite refitted with momentum controls before any use.
