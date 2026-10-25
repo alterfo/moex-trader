@@ -1,0 +1,34 @@
+dsr: work/w5-base.csv column net_gp_blend, T 457 days, mean +0.07510% per day, daily Sharpe +0.0982, annualised +1.56, skew -1.52, kurtosis 16.37
+dsr: probabilistic Sharpe ratio against zero 0.973 (one trial)
+dsr: null trial variance V = 1/T
+dsr: trials    1: expected maximum daily Sharpe under zero skill 0.0000 (annualised 0.00), deflated Sharpe probability 0.973
+dsr: trials   10: expected maximum daily Sharpe under zero skill 0.0737 (annualised 1.17), deflated Sharpe probability 0.685
+dsr: trials   50: expected maximum daily Sharpe under zero skill 0.1065 (annualised 1.69), deflated Sharpe probability 0.435
+dsr: trials  100: expected maximum daily Sharpe under zero skill 0.1184 (annualised 1.88), deflated Sharpe probability 0.346
+dsr: trials  300: expected maximum daily Sharpe under zero skill 0.1354 (annualised 2.15), deflated Sharpe probability 0.233
+dsr: trials  800: expected maximum daily Sharpe under zero skill 0.1493 (annualised 2.37), deflated Sharpe probability 0.158
+dsr: null trial variance V' = (1 + 2 sum of 10 autocorrelations = 1.87)/T
+dsr: trials    1: expected maximum daily Sharpe under zero skill 0.0000 (annualised 0.00), deflated Sharpe probability 0.973
+dsr: trials   10: expected maximum daily Sharpe under zero skill 0.1008 (annualised 1.60), deflated Sharpe probability 0.480
+dsr: trials   50: expected maximum daily Sharpe under zero skill 0.1457 (annualised 2.31), deflated Sharpe probability 0.176
+dsr: trials  100: expected maximum daily Sharpe under zero skill 0.1620 (annualised 2.57), deflated Sharpe probability 0.106
+dsr: trials  300: expected maximum daily Sharpe under zero skill 0.1853 (annualised 2.94), deflated Sharpe probability 0.044
+dsr: trials  800: expected maximum daily Sharpe under zero skill 0.2042 (annualised 3.24), deflated Sharpe probability 0.019
+beta: net_gp_blend on the universe mean 1-day return: beta -0.269; mean net +0.07510% (NW t +1.71), beta-hedged residual mean +0.05377% (NW t +1.49, boot95 [-0.01241%, +0.12527%]), n 457
+dsr: work/w5-sector.csv column net_gp_blend, T 457 days, mean +0.04457% per day, daily Sharpe +0.0612, annualised +0.97, skew -1.20, kurtosis 13.83
+dsr: probabilistic Sharpe ratio against zero 0.895 (one trial)
+dsr: null trial variance V = 1/T
+dsr: trials    1: expected maximum daily Sharpe under zero skill 0.0000 (annualised 0.00), deflated Sharpe probability 0.895
+dsr: trials   10: expected maximum daily Sharpe under zero skill 0.0737 (annualised 1.17), deflated Sharpe probability 0.399
+dsr: trials   50: expected maximum daily Sharpe under zero skill 0.1065 (annualised 1.69), deflated Sharpe probability 0.176
+dsr: trials  100: expected maximum daily Sharpe under zero skill 0.1184 (annualised 1.88), deflated Sharpe probability 0.120
+dsr: trials  300: expected maximum daily Sharpe under zero skill 0.1354 (annualised 2.15), deflated Sharpe probability 0.064
+dsr: trials  800: expected maximum daily Sharpe under zero skill 0.1493 (annualised 2.37), deflated Sharpe probability 0.035
+dsr: null trial variance V' = (1 + 2 sum of 10 autocorrelations = 1.62)/T
+dsr: trials    1: expected maximum daily Sharpe under zero skill 0.0000 (annualised 0.00), deflated Sharpe probability 0.895
+dsr: trials   10: expected maximum daily Sharpe under zero skill 0.0938 (annualised 1.49), deflated Sharpe probability 0.252
+dsr: trials   50: expected maximum daily Sharpe under zero skill 0.1356 (annualised 2.15), deflated Sharpe probability 0.063
+dsr: trials  100: expected maximum daily Sharpe under zero skill 0.1508 (annualised 2.39), deflated Sharpe probability 0.033
+dsr: trials  300: expected maximum daily Sharpe under zero skill 0.1725 (annualised 2.74), deflated Sharpe probability 0.011
+dsr: trials  800: expected maximum daily Sharpe under zero skill 0.1901 (annualised 3.02), deflated Sharpe probability 0.004
+beta: net_gp_blend on the universe mean 1-day return: beta -0.265; mean net +0.04457% (NW t +1.12), beta-hedged residual mean +0.02350% (NW t +0.73, boot95 [-0.03409%, +0.08981%]), n 457

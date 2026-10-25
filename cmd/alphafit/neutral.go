@@ -124,11 +124,40 @@ func deflatedSharpe(path string, col string, trials []int) {
 	fmt.Printf("dsr: probabilistic Sharpe ratio against zero %.3f (one trial)\n", psr)
 	gamma := 0.5772156649
 	v := 1 / T
-	for _, n := range trials {
-		nn := float64(n)
-		sr0 := math.Sqrt(v) * ((1-gamma)*normInv(1-1/nn) + gamma*normInv(1-1/(nn*math.E)))
-		dsr := normCDF((sr - sr0) * math.Sqrt(T-1) / denom)
-		fmt.Printf("dsr: trials %4d: expected maximum daily Sharpe under zero skill %.4f (annualised %.2f), deflated Sharpe probability %.3f\n", n, sr0, sr0*math.Sqrt(252), dsr)
+	for _, adj := range []bool{false, true} {
+		vv := v
+		label := "V = 1/T"
+		if adj {
+			mu := mean(x)
+			var c0 float64
+			for _, a := range x {
+				c0 += (a - mu) * (a - mu)
+			}
+			sumRho := 0.0
+			for k := 1; k <= 10; k++ {
+				var ck float64
+				for i := k; i < len(x); i++ {
+					ck += (x[i] - mu) * (x[i-k] - mu)
+				}
+				sumRho += ck / c0
+			}
+			fac := 1 + 2*sumRho
+			if fac < 1 {
+				fac = 1
+			}
+			vv = fac / T
+			label = fmt.Sprintf("V' = (1 + 2 sum of 10 autocorrelations = %.2f)/T", fac)
+		}
+		fmt.Printf("dsr: null trial variance %s\n", label)
+		for _, n := range trials {
+			nn := float64(n)
+			sr0 := 0.0
+			if n > 1 {
+				sr0 = math.Sqrt(vv) * ((1-gamma)*normInv(1-1/nn) + gamma*normInv(1-1/(nn*math.E)))
+			}
+			dsr := normCDF((sr - sr0) * math.Sqrt(T-1) / denom)
+			fmt.Printf("dsr: trials %4d: expected maximum daily Sharpe under zero skill %.4f (annualised %.2f), deflated Sharpe probability %.3f\n", n, sr0, sr0*math.Sqrt(252), dsr)
+			}
 	}
 	_ = dates
 	_ = sort.Float64s

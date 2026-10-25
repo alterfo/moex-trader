@@ -161,3 +161,7 @@ Plan `docs/plans/20261025-algopack-library-v3-moderators.md`, numbers in `docs/m
 ## The world outside the exchange (2026-10-25)
 
 Plan `docs/plans/20261025-algopack-wave4-world-data.md`, numbers in `docs/metrics.md` 8.27. Weather in ten cities (temperature, heating degrees, precipitation), twelve commodity direction states, GDELT tone and volume of Russia news, a parameter-free resource-equilibrium index, ten commodity exposure interactions: 0 of 99 rows, 0 of 18 controls, smallest p 0.024 against a threshold of 0.0007. Government procurement could not be reached. The "abandon the backtest" request is a forward-only registry of the frozen leads with dates and criteria (in the plan), not a test.
+
+## Deflation and neutrality of the best book (2026-10-25)
+
+Plan `docs/plans/20261025-algopack-deflation-neutrality.md`, numbers in `docs/metrics.md` 8.28. After a look at how funds work: the deflated Sharpe probability of the best book is 0.685 at 10 trials and 0.346 at 100 (0.480 and 0.106 with the autocorrelation-adjusted null variance), the book is net short the market (beta -0.27) and its beta-hedged alpha is +0.054% per day (t +1.5); the sector-neutral composite loses 14% of the IC and 40% of the net and misses the gate. Lesson recorded: count trials explicitly (deflated Sharpe) and report beta-hedged returns next to any book result on a window with a market trend.

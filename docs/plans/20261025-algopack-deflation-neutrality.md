@@ -1,6 +1,6 @@
 # AlgoPack book: deflated Sharpe and neutrality to the market and sectors (2026-10-25)
 
-Status: REGISTERED 2026-10-25 (English only), before the runs. Prompted by the owner's request to look at how funds work (courses, fund strategies) and to do both follow-ups: (a) correct the book's Sharpe ratio for the number of trials, (b) test whether the book survives neutralisation to the market and to sectors.
+Status: DONE 2026-10-25 (English only; scored once, book not distinguishable from zero after deflation), registered before the runs. Prompted by the owner's request to look at how funds work (courses, fund strategies) and to do both follow-ups: (a) correct the book's Sharpe ratio for the number of trials, (b) test whether the book survives neutralisation to the market and to sectors.
 
 ## Why
 
@@ -25,10 +25,18 @@ The deflation is expected to put the book near or below the 0.95 line at any N a
 2. `dump` of the base book (new `u1` column, otherwise byte-identical) and `dsr` on it; `verdict -neutral sector` once and `dump -neutral sector` with `dsr`.
 3. Numbers into `docs/metrics.md` 8.28.
 
+## Result (scored once, 2026-10-25)
+
+Numbers in `docs/metrics.md` 8.28, outputs `artifacts/algopack-deflation/`. **(a) Deflated Sharpe of the primary book** (bbo costs, rate 0.5, borrow 17%; 457 days, daily Sharpe +0.098, annualised +1.56, skew -1.52, kurtosis 16.4): probabilistic Sharpe against zero 0.973; deflated probability with V = 1/T: 0.685 (10 trials), 0.435 (50), 0.346 (100), 0.233 (300), 0.158 (800); with the autocorrelation-adjusted variance V' (factor 1.87): 0.480, 0.176, 0.106, 0.044, 0.019. By the rule written before the run (below 0.95 already at 10 trials) **the book is not distinguishable from the best of ten zero-skill books.** **(b1) Market:** beta of the book on the universe mean return -0.269 (a net short market exposure; the sample window had a falling universe, mean about -0.08% per day), beta-hedged residual +0.0538% per day (NW t +1.49, boot95 [-0.012%, +0.125%]) against +0.0751% unhedged. **(b2) Sector-neutral composite:** IC +0.0819 (-14% against 0.0957, interval [+0.056, +0.113], 5 of 5 placebos); partial-adjustment net +0.0446% per day [-0.027%, +0.126%], NW t +1.12, halves +0.031% / +0.062%, +0.0140% at 25% borrow, placebo books -0.34..-0.41%; **the wave-3 gate fails** (interval touches zero); deflated probability 0.399 at 10 trials; beta unchanged (-0.265), hedged residual +0.0235% per day (t +0.73). Registered reading: neutralising the sectors costs about 40% of the net and 14% of the IC, does not neutralise the market, and leaves the book statistically indistinguishable from zero; the composite is not sector rotation but it is not a deflated-proof edge either.
+
 ## Review log
 
-(pending the Reviewer's pre-run pass)
+Pre-run pass (opencode, 2026-10-25): the deflated Sharpe formula verified term by term, V = 1/T defensible, u1 aligned with the book P&L, sector lists acceptable, one non-grid neutral run; amendments applied (errata 1-3).
 
 ## Errata
 
-(none)
+Written 2026-10-25 after the Reviewer's pass, before the sector-neutral run.
+
+1. A sensitivity is added to the deflation: the null variance V' = (1 + 2 times the sum of the first ten empirical autocorrelations of the net series) divided by T (floored at 1/T) is reported next to V = 1/T; the reading rule is unchanged.
+2. The beta regression is also run on the sector-neutral dump. The deflation applies to the primary book only (bbo costs, rate 0.5, borrow 17%); the 25% borrow stress is reported undeflated and the two are never mixed.
+3. The sector lists are frozen judgment calls: RASP (coal) and ENPG (an energy-plus-metals holding) sit in `metals`; the remaining group holds about two thirds of the names and is a weak control.
