@@ -173,3 +173,7 @@ Plan `docs/plans/20261025-algopack-deflation-neutrality.md`, numbers in `docs/me
 ## Ordinary and preferred share pairs (2026-10-25)
 
 Plan `docs/plans/20261025-algopack-pairs-arbitrage.md`, numbers in `docs/metrics.md` 8.29. Six pairs, 2020-2026 prices: the spread mean-reverts (pooled t -3.2 at h5, same sign before and after 2025, absent in same-sector pairs of different companies), but the gross edge of 0.37% per 5-day trade is below costs plus the broker's carry on the short leg (net -0.47% with carry, +0.05% without). Lesson: size a permutation test's attainable p before registering a threshold (shift grid fine enough that 1 / (1 + shifts) is below the threshold).
+
+## Thin universe with real spreads (2026-10-25)
+
+Plan `docs/plans/20261025-algopack-thin-universe.md`, numbers in `docs/metrics.md` 8.30. On ranks 101-400 the composite's IC is +0.129 (top-100: +0.096), flat across liquidity thirds, and a composite trained on the top-100 transfers to unseen names at half strength (+0.050). Net of the quoted spread: long-short +0.017% per day at 25% carry (interval includes 0), long-only against the thin universe +0.018% per day (interval includes 0). More signal, equally eaten by costs; the second regime where the forecast improves without becoming money.

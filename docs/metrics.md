@@ -149,6 +149,7 @@ Sections 3-9 live in `docs/metrics/`; numbering is unchanged, so `metrics.md 8.1
 | 8.27 Wave 4: weather, commodities, news tone and a resource-equilibrium index (2026-10-25) | s8b-portfolio.md |
 | 8.28 Deflated Sharpe, market beta and sector neutrality of the book (2026-10-25) | s8b-portfolio.md |
 | 8.29 Ordinary and preferred share pairs: statistical arbitrage (2026-10-25) | s8b-portfolio.md |
+| 8.30 Thin universe (ranks 101-400): the composite with real spreads (2026-10-25) | s8b-portfolio.md |
 | 9.1 Root cause of the September-October SELL drift (step 9) | s9-live.md |
 | 9.2 Sell-bias diagnostic and the out-of-range guard (2026-10-18) | s9-live.md |
 | 9.3 Preflight concentration (2026-10-18) | s9-live.md |

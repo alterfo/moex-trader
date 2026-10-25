@@ -1,0 +1,8 @@
+2026/10/25 05:39:05 alphafit: 242868 rows, 1644 dates, 75 AlgoPack features plus 3 controls
+forward: 2025-01-03..2026-10-21 (460 dates), models trained through 2026-10-07
+IC blend                     mean +0.04955 NW10 t +4.63 boot95 [+0.03170, +0.07242] halves +0.06404 / +0.03454 n 450
+IC a2                        mean +0.00348 NW10 t +0.30 boot95 [-0.01828, +0.02657] halves +0.02771 / -0.02163 n 450
+IC blend minus a2            mean +0.04607 NW10 t +5.72 boot95 [+0.03197, +0.06239] halves +0.03633 / +0.05618 n 450
+net/day GP blend (17%)       mean -0.00029 NW10 t -1.28 boot95 [-0.00067, +0.00020] halves -0.00013 / -0.00045 n 460
+net/day GP blend (25%)       mean -0.00057 NW10 t -2.51 boot95 [-0.00095, -0.00007] halves -0.00040 / -0.00073 n 460
+net/day daily blend (17%)    mean -0.00188 NW10 t -5.89 boot95 [-0.00236, -0.00120] halves -0.00174 / -0.00202 n 460

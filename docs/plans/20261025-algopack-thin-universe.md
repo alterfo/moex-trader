@@ -1,6 +1,6 @@
 # AlgoPack thin universe: the composite on ranks 101-400 with real spreads (2026-10-25)
 
-Status: REGISTERED 2026-10-25 (English only), before the run. Item 3 of the owner's order of work. Continues `docs/plans/20261024-algopack-wave3-costs-horizon.md` (the same chain on the top-100) and `docs/plans/20261023-algopack-third-untouched.md` (thin equities: the A2 lead t +7.47 with flat costs).
+Status: DONE 2026-10-25 (English only; scored once, signal stronger than in the top-100, both economic gates fail), registered before the run. Item 3 of the owner's order of work. Continues `docs/plans/20261024-algopack-wave3-costs-horizon.md` (the same chain on the top-100) and `docs/plans/20261023-algopack-third-untouched.md` (thin equities: the A2 lead t +7.47 with flat costs).
 
 ## Why this plan
 
@@ -27,10 +27,19 @@ The IC should be at least as high as in the top-100 (A2 was strongest in thin na
 2. Exploration, one verdict (L and O), the dump for thirds, the transfer arm, the borrow terms sample.
 3. Numbers into `docs/metrics.md` 8.30 and `docs/knowledge/model-quality-history.md`.
 
+## Result (scored once, 2026-10-25)
+
+Numbers in `docs/metrics.md` 8.30, outputs `artifacts/algopack-thin/`. **Signal: stronger than in the top-100.** Thin composite IC +0.1292 (Newey-West t +12.8, bootstrap 95% [+0.111, +0.150], halves +0.142 / +0.113), composite minus A2 baseline +0.036 [+0.017, +0.058], 5 of 5 placebos; the IC is flat across the three liquidity thirds of the thin universe (0.122 / 0.124 / 0.123), so the strongest-in-the-thinnest pattern of the top-100 does not extend. Transfer arm (frozen top-100 composite on names it never saw): IC +0.0496 (t +4.6) with the A2 baseline at +0.003: the composite generalises across names at half the in-universe strength. **Economics: both gates fail.** (L) long-short, rate 0.20, bbo costs: gross +0.194% per day, turnover 0.458, net +0.0407% per day at 17% carry [0.000%, +0.086%], halves +0.058% / +0.019%; **+0.0174% at 25% carry [-0.023%, +0.063%]** (gate fails; extrapolated linearly to the 27-29% broker carry about +0.009% per day, about 2% a year); placebo books -0.74% to -0.77% per day. (O) long-only top quintile against the equal-weight thin universe: gross abnormal +0.073% per day, turnover 0.264, **net +0.0184% per day [-0.004%, +0.045%], halves +0.033% / 0.000%** (gate fails; about +4.6% a year). The transfer arm's long-short books are negative (-0.029% at 17% carry, -0.057% at 25% [-0.095%, -0.007%]). Borrow-terms sample: 10 of 60 thin tickers short-enabled at the broker. Registered reading: the composite predicts the thin cross-section better than the top-100 one, and costs consume almost all of it; the long-only form has no carry but a gross of only 0.07% a day against the benchmark of the thin universe itself.
+
 ## Review log
 
-(pending the Reviewer's pre-run pass)
+Pre-run pass (opencode, 2026-10-25): the long-only benchmark arithmetic, the thin universe mean, the rank flags, the cost model, the absence of a tradability filter and the comparability with wave 3 verified; three pins applied (errata).
 
 ## Errata
 
-(none)
+Written 2026-10-25 after the Reviewer's pass, before the run.
+
+1. The thin universe includes the production-18 names that fall in ranks 101-400 (the rank window does not exclude them, unlike the band-2 filter of the round-3 plan): the registered difference.
+2. The long-only benchmark is the thin universe's own equal-weight mean, so "abnormal" is relative to the 101-400 names, not the top-100: the product-relevant benchmark, because a retail buyer of thin names chooses among them.
+3. Basis of the numbers: the long-only net is per unit of long notional (weights sum to about 1), the long-short net is per unit of one leg (gross exposure 2): both on the same per-leg basis.
+4. Exploration results (regenerated window, selection surface only): the thin composite IC 0.1314 (ridge 0.003, elastic net 0.0002), long-short partial-adjustment net +0.069% per day at rate 0.20 (gross 0.51%), long-only abnormal +0.036% per day at rate 0.20; the rate 0.20 is used for both books. Borrow-terms sample: of the 60 thin tickers with the lowest mean rank (present at least 200 days in the realtime window) 10 are marked short-enabled by the broker (APTK, DELI, ELFV, GEMC, KMAZ, MRKU, MSRS, NKHP, ROLO, ZAYM), 50 are not.
