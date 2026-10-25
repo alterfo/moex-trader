@@ -1,0 +1,75 @@
+id    row                                                                 n      coef       t   perm_p     t_pre      t_rt
+PR01  SBER reversion of the ordinary/preferred spread z, h5            1538   -0.0005   -2.05   0.0435     -1.78     -2.40
+PR02  TATN reversion of the ordinary/preferred spread z, h5            1454   -0.0018   -4.15   0.0054     -3.47     -2.36
+PR03  SNGS reversion of the ordinary/preferred spread z, h5            1574   -0.0032   -2.14   0.0435     -2.15     -0.67
+PR04  MTLR reversion of the ordinary/preferred spread z, h5            1573   +0.0003   +0.19   0.8967     +0.77     -2.28
+PR05  BANE reversion of the ordinary/preferred spread z, h5            1417   -0.0021   -1.54   0.1453     -1.41     -0.82
+PR06  RTKM reversion of the ordinary/preferred spread z, h5            1420   -0.0021   -2.84   0.0112     -2.96     -1.42
+PR07  pooled reversion z, h1                                           9105   -0.0004   -3.22   0.0054     -2.40     -2.97
+PR08  pooled reversion z, h5                                           8976   -0.0015   -3.18   0.0054     -2.41     -2.72
+PR09  pooled reversion z, h10                                          8819   -0.0024   -2.68   0.0272     -1.96     -2.89
+PM01  pooled spread momentum (20d change), h5                          8976   -0.0015   -1.59   0.1196     -1.06     -1.75
+PM02  pooled spread momentum (20d change), h10                         8819   -0.0019   -1.21   0.2717     -0.90     -1.46
+PF01  SBER A2 difference, h1 (realtime)                                 451   -0.0000   -0.25   0.8043      +NaN      +NaN
+PF02  TATN A2 difference, h1 (realtime)                                 439   +0.0003   +1.16   0.2283      +NaN      +NaN
+PF03  SNGS A2 difference, h1 (realtime)                                 456   +0.0005   +0.67   0.5000      +NaN      +NaN
+PF04  MTLR A2 difference, h1 (realtime)                                 455   +0.0004   +0.90   0.3533      +NaN      +NaN
+PF05  BANE A2 difference, h1 (realtime)                                 366   +0.0009   +1.19   0.2179      +NaN      +NaN
+PF06  RTKM A2 difference, h1 (realtime)                                 429   -0.0002   -0.35   0.7542      +NaN      +NaN
+PF07  pooled A2 difference, h1 (realtime)                              2596   +0.0003   +1.59   0.1250      +NaN      +NaN
+PF08  pooled A2 difference, h5 (realtime)                              2552   +0.0016   +2.12   0.0543      +NaN      +NaN
+PX01  pooled z x A2 difference interaction, h5 (realtime)              2552   +0.0008   +1.82   0.0761      +NaN      +NaN
+PN01  near-pair (same sector, different companies) pooled reversion z, h5 (descriptive)   7536   +0.0004   +0.60   0.6087     +0.69     -0.64
+
+family: 20 rows, Nyholt M_eff 14.22, permutation threshold p <= 0.0035
+  PR01  p 0.0435 sign-ok true halves-ok true 
+  PR02  p 0.0054 sign-ok true halves-ok true 
+  PR03  p 0.0435 sign-ok true halves-ok true 
+  PR04  p 0.8967 sign-ok false halves-ok false 
+  PR05  p 0.1453 sign-ok true halves-ok true 
+  PR06  p 0.0112 sign-ok true halves-ok true 
+  PR07  p 0.0054 sign-ok true halves-ok true 
+  PR08  p 0.0054 sign-ok true halves-ok true 
+  PR09  p 0.0272 sign-ok true halves-ok true 
+  PM01  p 0.1196 sign-ok false halves-ok true 
+  PM02  p 0.2717 sign-ok false halves-ok true 
+  PF01  p 0.8043 sign-ok false halves-ok true 
+  PF02  p 0.2283 sign-ok true halves-ok true 
+  PF03  p 0.5000 sign-ok true halves-ok true 
+  PF04  p 0.3533 sign-ok true halves-ok true 
+  PF05  p 0.2179 sign-ok true halves-ok true 
+  PF06  p 0.7542 sign-ok false halves-ok true 
+  PF07  p 0.1250 sign-ok true halves-ok true 
+  PF08  p 0.0543 sign-ok true halves-ok true 
+  PX01  p 0.0761 sign-ok true halves-ok true 
+hits: 0 of 20
+
+economics [all] |z| >= 1.5, hold 5 trading days, non-overlapping, both legs round trip at the day's BBO spread, with the broker carry on the short leg (0.074% per calendar day, 7 days)
+  trades 785, mean gross +0.366%, mean net -0.470% per trade (per unit of one leg's notional), bootstrap 95% [-0.704%, -0.240%], share of winning trades 35%
+  2020:  77 trades, mean net -0.492%
+  2021: 135 trades, mean net -0.555%
+  2022: 101 trades, mean net -0.306%
+  2023: 117 trades, mean net -0.861%
+  2024: 122 trades, mean net -0.266%
+  2025: 133 trades, mean net -0.262%
+  2026: 100 trades, mean net -0.570%
+
+economics [all] |z| >= 1.5, hold 5 trading days, non-overlapping, both legs round trip at the day's BBO spread, without carry (a short leg that costs nothing: a futures hedge, for illustration)
+  trades 785, mean gross +0.366%, mean net +0.048% per trade (per unit of one leg's notional), bootstrap 95% [-0.186%, +0.278%], share of winning trades 45%
+  2020:  77 trades, mean net +0.026%
+  2021: 135 trades, mean net -0.037%
+  2022: 101 trades, mean net +0.212%
+  2023: 117 trades, mean net -0.343%
+  2024: 122 trades, mean net +0.252%
+  2025: 133 trades, mean net +0.256%
+  2026: 100 trades, mean net -0.052%
+
+economics [rt] |z| >= 1.5, hold 5 trading days, non-overlapping, both legs round trip at the day's BBO spread, with the broker carry on the short leg (0.074% per calendar day, 7 days)
+  trades 234, mean gross +0.460%, mean net -0.362% per trade (per unit of one leg's notional), bootstrap 95% [-0.715%, -0.012%], share of winning trades 33%
+  2025: 134 trades, mean net -0.208%
+  2026: 100 trades, mean net -0.570%
+
+economics [rt] |z| >= 1.5, hold 5 trading days, non-overlapping, both legs round trip at the day's BBO spread, without carry (a short leg that costs nothing: a futures hedge, for illustration)
+  trades 234, mean gross +0.460%, mean net +0.156% per trade (per unit of one leg's notional), bootstrap 95% [-0.197%, +0.506%], share of winning trades 42%
+  2025: 134 trades, mean net +0.310%
+  2026: 100 trades, mean net -0.052%

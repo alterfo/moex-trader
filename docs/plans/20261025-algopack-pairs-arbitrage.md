@@ -1,6 +1,6 @@
 # Ordinary and preferred share pairs: statistical arbitrage on MOEX (2026-10-25)
 
-Status: REGISTERED 2026-10-25 (English only), before the run. Item 2 of the owner's order of work ("also add arbitrage, maybe we can earn on arbitrage"). Continues `docs/plans/20261023-algopack-futures-fx.md` (futures-spot basis, closed: 1 of 62, a thin-spot artefact).
+Status: DONE 2026-10-25 (English only; scored once, 0 of 20 under the registered rule, the reversion is real but not tradable), registered before the run. Item 2 of the owner's order of work ("also add arbitrage, maybe we can earn on arbitrage"). Continues `docs/plans/20261023-algopack-futures-fx.md` (futures-spot basis, closed: 1 of 62, a thin-spot artefact).
 
 ## What arbitrage is available to us
 
@@ -39,10 +39,20 @@ A pair spread of 2-5% with a 5-day reversion of 20-30% of a 1.5-sigma deviation 
 2. One run on the ai-box (`~/algopack-study/work/matrix.csv`).
 3. Numbers into `docs/metrics.md` 8.29 and `docs/knowledge/model-quality-history.md`.
 
+## Result (scored once, 2026-10-25)
+
+Numbers in `docs/metrics.md` 8.29, output `artifacts/algopack-pairs/pairscan-verdict.txt`. **0 hits of 20 under the registered rule**, because the rule could not be met by construction: M_eff 14.22 gave the permutation threshold p at most 0.0035, but the permutation has about 180 shifts (offsets 120 to 1400 in steps of 7, fewer for the shorter pairs), so its smallest attainable p is about 0.0054 (reached by PR02, PR07 and PR08). This is a design flaw of mine, not a feature of the data, and it is recorded here rather than repaired by a rerun with a finer grid. What the data say: the price-only reversion is present and consistent: pooled reversion z coefficient -0.0004 (h1, t -3.22), -0.0015 (h5, t -3.18), -0.0024 (h10, t -2.68), the same sign before and after 2025 (t -2.41 and -2.72 at h5), five of six pairs with the registered sign (TATN t -4.15, RTKM -2.84, SNGS -2.14, SBER -2.05; MTLR +0.19, BANE -1.54); the same-sector pairs of different companies show nothing (PN01 t +0.60), so the reversion is specific to claims on the same company. Momentum (PM) and flow differences (PF, PX01) are null (smallest p 0.054, 0.076). **Economics (PE): the reversion is too small for the costs.** 785 trades 2020-2026: mean gross +0.366% per trade, mean net **-0.470%** with the broker carry on the short leg (bootstrap [-0.70%, -0.24%], 35% winning trades, every year negative), and **+0.048%** [-0.19%, +0.28%] if the short leg were free (2023 -0.34%, 2025 +0.26%); realtime only: gross +0.460%, net -0.362% [-0.72%, -0.01%] with carry, +0.156% [-0.20%, +0.51%] without. Registered reading: a real but small mean reversion of the ordinary-preferred spread (about 0.4% gross per 5-day trade at |z| 1.5), not tradable after four sides of spread and the carry of the short leg; no gate pass.
+
 ## Review log
 
-(pending the Reviewer's pre-run pass)
+Pre-run pass (opencode, 2026-10-25): no look-ahead; ex-dividend handling, survivorship, fixed effects with date-clustered Newey-West, permutation, interaction, economic simulation and the Nyholt computation (implemented in `family.go`) all check out; five pins and one amendment applied (errata).
 
 ## Errata
 
-(none)
+Written 2026-10-25 after the Reviewer's pass, before the run.
+
+1. `mz` pairs a numerator that includes the current 20-observation change (known at the close) with a standard deviation from the 60 previous daily differences: a defensible asymmetry, not a leak.
+2. The 60-observation windows are observation-based, so a day skipped because a leg is absent stretches the window in calendar time; this is the honest behaviour for a gap.
+3. The cost uses the signal day's BBO spread (the approximation of the wave-3 book) and the 5-day outcome is a difference of log returns treated as a return, adequate at these magnitudes.
+4. PX01's M_eff entry uses its z panel as the proxy for the correlation structure of the interaction product: a stated approximation.
+5. The result table quotes the per-year net next to the trade count, so a single lucky year cannot pass as a strategy, and the availability of the short leg (the preferred shares may not be shortable at the broker, not checked) is an execution caveat of any pass, not a footnote.

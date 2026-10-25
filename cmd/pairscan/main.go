@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"sort"
+	"strings"
 )
 
 type row struct {
@@ -134,6 +135,7 @@ func report(sr []*series, rows []row, nearRow row) {
 	}
 	nT := len(dates)
 	fmt.Printf("%-5s %-62s %6s %9s %7s %8s %9s %9s\n", "id", "row", "n", "coef", "t", "perm_p", "t_pre", "t_rt")
+	var results []result
 	run := func(r row) {
 		pts := collect(sr, r, r.win, 0, di)
 		f := regress(pts, nT, r.hor+5)
@@ -174,11 +176,29 @@ func report(sr []*series, rows []row, nearRow row) {
 			}
 		}
 		fmt.Printf("%-5s %-62s %6d %+9.4f %+7.2f %8.4f %+9.2f %+9.2f\n", r.id, r.desc, f.n, f.coef[idx], f.t[idx], float64(1+ge)/float64(1+cnt), tPre, tRt)
+		sigma := map[int]float64{}
+		for _, k := range r.series {
+			sg := r.sig(sr[k])
+			for i, d := range sr[k].dates {
+				if r.win == "rt" && d < split {
+					continue
+				}
+				if !math.IsNaN(sg[i]) {
+					sigma[k*100000+di[d]] = sg[i]
+				}
+			}
+		}
+		sign := -1.0
+		if strings.HasPrefix(r.id, "PM") || strings.HasPrefix(r.id, "PF") {
+			sign = 1
+		}
+		results = append(results, result{id: r.id, coef: f.coef[idx], t: f.t[idx], p: float64(1+ge) / float64(1+cnt), tPre: tPre, tRt: tRt, ok: true, signal: sigma, sign: sign, price: r.win == "all", twoSide: r.inter})
 	}
 	for _, r := range rows {
 		run(r)
 	}
 	run(nearRow)
+	verdict(results)
 	economics(sr, "all")
 	economics(sr, "rt")
 }
