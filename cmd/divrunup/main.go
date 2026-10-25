@@ -264,6 +264,8 @@ func bootCorr(y, o []float64, cl []string) (float64, float64) {
 }
 
 func economics(es []event) {
+	var cn, cy []string
+	var cv []float64
 	for _, thr := range []float64{0.0, 0.03, 0.06} {
 		var net, gross []float64
 		for _, e := range es {
@@ -276,11 +278,30 @@ func economics(es []event) {
 			}
 			gross = append(gross, e.run10)
 			net = append(net, e.run10-cost)
+			if thr == 0.03 {
+				cn, cy, cv = append(cn, e.last[:7]), append(cy, e.last[:4]), append(cv, e.run10-cost)
+			}
 		}
 		if len(net) < 20 {
 			continue
 		}
 		lo, hi := bootMean(net)
+		if thr == 0.03 {
+			lo2, hi2 := clusterMean(cv, cn)
+			fmt.Printf("robustness (added after the first read) for yield >= 3%%: month-cluster bootstrap 95%% interval of the net mean [%+.2f%%, %+.2f%%]\n", lo2*100, hi2*100)
+			by := map[string][]float64{}
+			for i, y := range cy {
+				by[y] = append(by[y], cv[i])
+			}
+			var ys []string
+			for y := range by {
+				ys = append(ys, y)
+			}
+			sort.Strings(ys)
+			for _, y := range ys {
+				fmt.Printf("  %s: %d events, mean net %+.2f%%\n", y, len(by[y]), mean(by[y])*100)
+			}
+		}
 		fmt.Printf("economics: buy 11 days before the last-buy day, sell the day before it, long only against the market, yield >= %.0f%%: %d events, gross %+.2f%%, net of the quoted spread both ways %+.2f%% [%+.2f%%, %+.2f%%]\n", thr*100, len(net), mean(gross)*100, mean(net)*100, lo*100, hi*100)
 	}
 }
@@ -294,6 +315,32 @@ func bootMean(x []float64) (float64, float64) {
 			s += x[rng.Intn(len(x))]
 		}
 		ms[d] = s / float64(len(x))
+	}
+	sort.Float64s(ms)
+	return ms[int(0.025*4000)], ms[int(0.975*4000)]
+}
+
+func clusterMean(v []float64, cl []string) (float64, float64) {
+	groups := map[string][]float64{}
+	var keys []string
+	for i, c := range cl {
+		if _, ok := groups[c]; !ok {
+			keys = append(keys, c)
+		}
+		groups[c] = append(groups[c], v[i])
+	}
+	rng := rand.New(rand.NewSource(20261027))
+	ms := make([]float64, 4000)
+	for d := range ms {
+		var s float64
+		n := 0
+		for range keys {
+			for _, x := range groups[keys[rng.Intn(len(keys))]] {
+				s += x
+				n++
+			}
+		}
+		ms[d] = s / float64(n)
 	}
 	sort.Float64s(ms)
 	return ms[int(0.025*4000)], ms[int(0.975*4000)]

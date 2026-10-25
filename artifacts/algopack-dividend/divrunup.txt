@@ -1,0 +1,14 @@
+divrunup: 115 dividend events with a top-100 price history around the last-buy date, yields median 3.3%
+DV1 run-up, 10 days to the day before the last-buy day       n 115  rank corr(yield, abnormal) +0.138 [-0.076, +0.338]  mean abnormal: top-half yield +2.33%, bottom half +0.59%, all +1.47%
+DV2 run-up, 5 days to the day before the last-buy day        n 115  rank corr(yield, abnormal) +0.013 [-0.193, +0.219]  mean abnormal: top-half yield +0.85%, bottom half +0.13%, all +0.49%
+DV3 post ex-date drift, 5 days from the second day after     n 115  rank corr(yield, abnormal) -0.177 [-0.395, +0.054]  mean abnormal: top-half yield -0.92%, bottom half +0.18%, all -0.38%
+economics: buy 11 days before the last-buy day, sell the day before it, long only against the market, yield >= 0%: 115 events, gross +1.47%, net of the quoted spread both ways +1.34% [+0.40%, +2.19%]
+robustness (added after the first read) for yield >= 3%: month-cluster bootstrap 95% interval of the net mean [+1.13%, +3.10%]
+  2021: 14 events, mean net +2.33%
+  2022: 8 events, mean net +1.35%
+  2023: 9 events, mean net +3.85%
+  2024: 15 events, mean net +2.73%
+  2025: 11 events, mean net +0.69%
+  2026: 9 events, mean net +1.55%
+economics: buy 11 days before the last-buy day, sell the day before it, long only against the market, yield >= 3%: 66 events, gross +2.26%, net of the quoted spread both ways +2.13% [+1.14%, +3.13%]
+economics: buy 11 days before the last-buy day, sell the day before it, long only against the market, yield >= 6%: 31 events, gross +2.50%, net of the quoted spread both ways +2.38% [+0.83%, +3.88%]

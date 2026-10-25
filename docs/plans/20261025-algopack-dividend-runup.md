@@ -33,8 +33,12 @@ Only about 100 events can enter (the calendar file is short and the top-100 filt
 
 ## Review log
 
-(pending the Reviewer's pre-run pass)
+Pre-run pass (opencode, 2026-10-25): no look-ahead; the ex-date cannot enter a window; the test is a meaningful registered measurement of limited power; three pins applied (errata).
 
 ## Errata
 
-(none)
+Written 2026-10-25 after the Reviewer's pass, before the run.
+
+1. The effective ex-date is the index of the last-buy day plus 1 in both cases (also when the last-buy date is not a trading day and the index steps back one trading day); the post window starts at that index plus 2; the entitlement day is never measured.
+2. The economics charges the entry day's quoted spread for both legs (in and out) and no hedge cost on the market leg: the market is a benchmark, not a traded hedge.
+3. The effective sample of the bootstrap interval is the number of month clusters (about sixty), not the roughly hundred events; the power statement (a correlation of about 0.25 needed) reads against that.

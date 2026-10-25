@@ -185,3 +185,7 @@ Plan `docs/plans/20261025-algopack-execution-timing.md`, numbers in `docs/metric
 ## News impulse is a reversal (2026-10-25)
 
 Plan `docs/plans/20261025-algopack-news-impulse.md`, numbers in `docs/metrics.md` 8.32. The hypothesis was a continuation (an impulse); the data say the opposite: a news-attention shock on a top-100 ticker is followed by a negative abnormal return (top decile -0.13% the next day, -0.25% over ten days; rank IC -0.025, t -6.3), controls clean, but the effect shrank to about a quarter in 2025-plus. Crude-lexicon sentiment shows nothing (t about +2). Candidate overlay for the composite (exclude names in a news burst from the long leg), not tested.
+
+## Dividend run-up (2026-10-25)
+
+Plan `docs/plans/20261025-algopack-dividend-runup.md`, numbers in `docs/metrics.md` 8.33. Long-only anticipation of the dividend last-buy day (buy 11 trading days before, sell the day before): +2.13% net per event for yields of 3% or more (66 events, interval [+1.14%, +3.13%], positive in all six years), but the yield does not rank the run-up within the sample and the calendar file lacks announcement dates, so the foreknowledge assumption cannot be verified; a point-in-time snapshot job and a frozen forward rule (15 matured events) are in place. First calendar-trade lead in the study with an economic gate passed on an independent price sample (not the regenerated flow data).
