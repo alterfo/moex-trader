@@ -157,3 +157,7 @@ Plan `docs/plans/20261024-algopack-library-v2.md`, numbers in `docs/metrics.md` 
 ## Library v3: stock-level moderators of the composite (2026-10-25)
 
 Plan `docs/plans/20261025-algopack-library-v3-moderators.md`, numbers in `docs/metrics.md` 8.26. 105 moderators (the 100 library-v2 candidates and five stock characteristics): two nominal hits (LevAsym x A2 and A2H2 x LevAsym, IC difference +0.09) are explained by the composite's own conviction (stratified by the absolute prediction the effect is +0.015); liquidity rank, the prior-guided row, is not significant (p 0.19). Lesson recorded: an IC difference across subgroups defined by the model's own inputs is mechanically inflated by predictor dispersion; use stratification by conviction or a slope comparison.
+
+## The world outside the exchange (2026-10-25)
+
+Plan `docs/plans/20261025-algopack-wave4-world-data.md`, numbers in `docs/metrics.md` 8.27. Weather in ten cities (temperature, heating degrees, precipitation), twelve commodity direction states, GDELT tone and volume of Russia news, a parameter-free resource-equilibrium index, ten commodity exposure interactions: 0 of 99 rows, 0 of 18 controls, smallest p 0.024 against a threshold of 0.0007. Government procurement could not be reached. The "abandon the backtest" request is a forward-only registry of the frozen leads with dates and criteria (in the plan), not a test.

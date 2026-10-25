@@ -146,6 +146,7 @@ Sections 3-9 live in `docs/metrics/`; numbering is unchanged, so `metrics.md 8.1
 | 8.24 Wave 3b: five ideas from the local models added to the composite (2026-10-24) | s8b-portfolio.md |
 | 8.25 Library v2: 100 transforms and combinations of the vital features against the composite (2026-10-24) | s8b-portfolio.md |
 | 8.26 Library v3: 105 stock-level moderators of the composite (2026-10-25) | s8b-portfolio.md |
+| 8.27 Wave 4: weather, commodities, news tone and a resource-equilibrium index (2026-10-25) | s8b-portfolio.md |
 | 9.1 Root cause of the September-October SELL drift (step 9) | s9-live.md |
 | 9.2 Sell-bias diagnostic and the out-of-range guard (2026-10-18) | s9-live.md |
 | 9.3 Preflight concentration (2026-10-18) | s9-live.md |

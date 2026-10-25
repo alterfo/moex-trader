@@ -1,6 +1,6 @@
 # AlgoPack wave 4: the world outside the exchange (weather, commodities, news tone, a resource-equilibrium index) and the forward-only registry (2026-10-25)
 
-Status: REGISTERED 2026-10-25 (English only), before any wave-4 series is aligned with the composite. Design from the owner's request to include the "crazy" hypotheses (abandoning the backtest, weather forecasts, a mathematical model of resources and market equilibrium, more world data, government procurement) and from the Reviewer's critique of 2026-10-25. Continues `docs/plans/20261024-algopack-meta-variables.md` and `docs/plans/20261024-algopack-meta-wave2.md`; the machinery is `cmd/metascan` (causal binary states at d-1, circular-shift permutation, Nyholt threshold over the enlarged family, the six controls).
+Status: DONE 2026-10-25 (English only; scored once, 0 of 99), registered before any wave-4 series is aligned with the composite. Design from the owner's request to include the "crazy" hypotheses (abandoning the backtest, weather forecasts, a mathematical model of resources and market equilibrium, more world data, government procurement) and from the Reviewer's critique of 2026-10-25. Continues `docs/plans/20261024-algopack-meta-variables.md` and `docs/plans/20261024-algopack-meta-wave2.md`; the machinery is `cmd/metascan` (causal binary states at d-1, circular-shift permutation, Nyholt threshold over the enlarged family, the six controls).
 
 ## What is a hypothesis here and what is calibration (stated plainly)
 
@@ -52,10 +52,17 @@ The expected number of hits among the 99 rows is zero. The interaction rows (Q) 
 2. One run on the ai-box: `cmd/metascan -mode wave4 -series work/alphafit-series2.csv`.
 3. Numbers into `docs/metrics.md` 8.27 and `docs/knowledge/model-quality-history.md`.
 
+## Result (scored once, 2026-10-25)
+
+Numbers in `docs/metrics.md` 8.27, output `artifacts/algopack-wave4/metascan-wave4.txt`. The wave-1 and wave-2 rows reproduced byte for byte. Enlarged M_eff **70.76** (the Reviewer expected 30-50; the weather block has M_eff 10.84 of 12 states, largest eigenvalue 4.29, the commodity block 11.39 of 12, largest 3.17, the news block 3.52 of 4), threshold p 0.0007. **0 hits among the 99 wave-4 rows; 0 hits among the 18 control rows.** Smallest p: N01 T 0.0239 (sanctions-news tone pessimistic: the next 10-day universe return higher by 2.3%, both halves positive), Q11 energy and utilities list against the heating-degree anomaly 0.0406 (difference -0.057), K12 T 0.062, Q10 0.076; 2 rows below 0.05 (about 5 expected) and 6 below 0.10 (about 10 expected). The resource-equilibrium index E01: R p 0.97, S p 0.21, T p 0.24. Registered reading: nothing in the weather, commodity, news-tone or equilibrium families conditions the composite, times the 10-day market, or enters through stock exposures at the family threshold; the mechanism rows (commodity interactions Q01-Q10, heating demand W11 and Q11, sanctions tone N01 R) all have p above 0.04.
+
 ## Review log
 
 World-data critique (opencode, 2026-10-25): alignment pins for the US and GDELT series; ten cities as one factor (calibration, not hypotheses); weather interactions capped at two frozen-list rows; E01 charged by the correlation matrix; expected M_eff 30-50 with the block eigenstructure printed; about twenty states labelled calibration and three mechanisms named; the backtest answer is the registry table with dates and criteria; procurement an acquisition item. Applied. The Reviewer put the calibration share at about twenty rows; the plan above puts it nearer seventy once the T and S uses of the commodity and news states are counted, and says so.
 
 ## Errata
 
-(none)
+Written 2026-10-25 after the Reviewer's code pass, before the run.
+
+1. Threshold accounting: the wave-4 run re-prints the wave-1 and wave-2 rows for reference only. Their registered verdicts are those of `docs/metrics.md` 8.21 and 8.22, and the calibration rule (one control hit voids the real hits of the same use) is evaluated on the registered verdicts of the earlier waves plus the wave-4 hits, not on statuses re-judged at the enlarged threshold. The same holds for the wave-2 controls.
+2. When the GDELT feed has a gap the state is absent (missing), never extrapolated; the staleness guard (7 days) applies to the raw series, and the trailing median of the 7-day mean skips missing days.
