@@ -406,6 +406,18 @@ func run(dir, seriesPath, matrixPath, newsPath string, wave2 bool, exA2Path stri
 			isW2[id] = true
 		}
 	}
+	var w4 *wave4Out
+	if wave4Mode {
+		n0 := len(ss.ids)
+		var err error
+		w4, err = addWave4States(dir, dp.dates, ss, fac)
+		if err != nil {
+			return err
+		}
+		for _, id := range ss.ids[n0:] {
+			isW2[id] = true
+		}
+	}
 	mx, err := loadMatrix(matrixPath)
 	if err != nil {
 		return err
@@ -416,10 +428,24 @@ func run(dir, seriesPath, matrixPath, newsPath string, wave2 bool, exA2Path stri
 	}
 	type pair struct{ id, exp, cond string }
 	pairs := []pair{{"I01", "brent", "brent"}, {"I02", "cny", "cny"}, {"I03", "gold", "gold"}, {"I04", "imoex", "imoex"}, {"I05", "imoex", "rvi"}}
+	memberList := map[string]map[string]bool{}
+	zFns := map[string]func(time.Time) float64{}
 	nP1 := len(pairs)
 	if wave2 {
 		pairs = append(pairs, pair{"J01", "moexog", "moexog"}, pair{"J02", "moexfn", "moexfn"}, pair{"J03", "moexmm", "moexmm"}, pair{"J04", "moexch", "moexch"}, pair{"J05", "moexeu", "moexeu"}, pair{"J06", "moextl", "moextl"})
 		for _, pr := range pairs[nP1:] {
+			isW2[pr.id] = true
+		}
+	}
+	if wave4Mode {
+		n0 := len(pairs)
+		for i, c := range []string{"cm_ng", "cm_ttf", "cm_hg", "cm_ali", "cm_hrc", "cm_si", "cm_pl", "cm_pa", "cm_zw", "cm_zc"} {
+			pairs = append(pairs, pair{"Q" + two(i+1), c, c})
+		}
+		pairs = append(pairs, pair{"Q11", "", ""}, pair{"Q12", "", ""})
+		memberList["Q11"], memberList["Q12"] = toSet(energyList), toSet(agriList)
+		zFns["Q11"], zFns["Q12"] = w4.zHDD, w4.zRostovP
+		for _, pr := range pairs[n0:] {
 			isW2[pr.id] = true
 		}
 	}
@@ -430,7 +456,11 @@ func run(dir, seriesPath, matrixPath, newsPath string, wave2 bool, exA2Path stri
 		z := make([]float64, n)
 		for i, d := range dp.raw {
 			sl[i] = math.NaN()
-			z[i] = fac[pr.cond].tenDayZ(dp.dates[i])
+			if f, ok := zFns[pr.id]; ok {
+				z[i] = f(dp.dates[i])
+			} else {
+				z[i] = fac[pr.cond].tenDayZ(dp.dates[i])
+			}
 			di, ok := dayIdx[d]
 			if !ok {
 				continue
@@ -438,7 +468,14 @@ func run(dir, seriesPath, matrixPath, newsPath string, wave2 bool, exA2Path stri
 			day := mx.byDay[d]
 			beta := make([]float64, len(day))
 			for k, r := range day {
-				beta[k] = rollBeta(mx, fac[pr.exp], di, r.secid)
+				if set, ok := memberList[pr.id]; ok {
+					beta[k] = 0
+					if set[r.secid] {
+						beta[k] = 1
+					}
+				} else {
+					beta[k] = rollBeta(mx, fac[pr.exp], di, r.secid)
+				}
 			}
 			sl[i] = slopeOn(day, beta)
 		}
@@ -609,6 +646,10 @@ func run(dir, seriesPath, matrixPath, newsPath string, wave2 bool, exA2Path stri
 		}
 	}
 	fmt.Printf("real hits by use: %v; control hits by use: %v; BH cut %.4f\n", hits, ctlHits, bhCut)
+	if wave4Mode {
+		blockReport(ss, w4)
+		return nil
+	}
 	if wave2 {
 		return diagnostics(dir, dp, ss, mx, exA2Path)
 	}

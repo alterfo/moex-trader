@@ -30,6 +30,11 @@ func main() {
 		if err := run(*macroDir, *series, *matrix, *news, false, *exA2); err != nil {
 			log.Fatal(err)
 		}
+	case "wave4":
+		wave4Mode = true
+		if err := run(*macroDir, *series, *matrix, *news, true, *exA2); err != nil {
+			log.Fatal(err)
+		}
 	case "wave2":
 		if err := run(*macroDir, *series, *matrix, *news, true, *exA2); err != nil {
 			log.Fatal(err)
