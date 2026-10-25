@@ -177,3 +177,7 @@ Plan `docs/plans/20261025-algopack-pairs-arbitrage.md`, numbers in `docs/metrics
 ## Thin universe with real spreads (2026-10-25)
 
 Plan `docs/plans/20261025-algopack-thin-universe.md`, numbers in `docs/metrics.md` 8.30. On ranks 101-400 the composite's IC is +0.129 (top-100: +0.096), flat across liquidity thirds, and a composite trained on the top-100 transfers to unseen names at half strength (+0.050). Net of the quoted spread: long-short +0.017% per day at 25% carry (interval includes 0), long-only against the thin universe +0.018% per day (interval includes 0). More signal, equally eaten by costs; the second regime where the forecast improves without becoming money.
+
+## Execution timing (2026-10-25)
+
+Plan `docs/plans/20261025-algopack-execution-timing.md`, numbers in `docs/metrics.md` 8.31. The quoted half-spread at the opening window is 13 bp per side higher than in the predicted-cheapest window for the widest third of tickers (median spread 80 bp), 2 bp for the middle third, 0.25 bp for the tightest; most of the saving is a universal mid-day shape (a control using another ticker's window gives two thirds of it), the personal window adds 0.2 bp overall and 0.5 bp in the widest third; savings are about three times smaller in the second half of the sample. A free rule ("do not trade in the first half hour") captures most of the value; this is not a basis for a paid product on its own.

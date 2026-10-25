@@ -292,12 +292,14 @@ func analyse(dates []string, ticks map[string]*tick) {
 	savOpen := make([][][]float64, 4)
 	savClose := make([][][]float64, 4)
 	ctlBest := make([][][]float64, 4)
+	personalMinusControl := make([][][]float64, 4)
 	for g := range pers {
 		pers[g] = make([][]float64, nd)
 		savBest[g] = make([][]float64, nd)
 		savOpen[g] = make([][]float64, nd)
 		savClose[g] = make([][]float64, nd)
 		ctlBest[g] = make([][]float64, nd)
+		personalMinusControl[g] = make([][]float64, nd)
 	}
 	bestSlotCount := make([]int, nSlots)
 	var secs []string
@@ -382,6 +384,7 @@ func analyse(dates []string, ticks map[string]*tick) {
 				cb := argmin(othTr[j])
 				if !math.IsNaN(p[cb]) {
 					push(ctlBest, (sess-p[cb])/2)
+					push(personalMinusControl, (p[cb]-p[b])/2)
 				}
 			}
 		}
@@ -408,8 +411,9 @@ func analyse(dates []string, ticks map[string]*tick) {
 	report("E1 persistence: Spearman correlation of the trailing 60-day median intraday spread profile with the day's profile", pers, "")
 	report("E2 half-spread saved per side (bp) by trading in the predicted-best 30-minute window against the session average", savBest, "bp")
 	report("E3 half-spread saved per side (bp) by the predicted-best window against the naive opening window 10:05-10:35", savOpen, "bp")
-	report("E4 half-spread saved per side (bp) by the predicted-best window against the naive closing window 18:00-18:30", savClose, "bp")
+	report("E4 half-spread saved per side (bp) by the predicted-best window against the naive closing window 18:05-18:30", savClose, "bp")
 	report("C1 control: the best window predicted from another ticker's trailing profile, against the session average", ctlBest, "bp")
+	report("P personal window minus the control window: half-spread saved per side (bp), E2 minus C1, the product number (personal beats universal)", personalMinusControl, "bp")
 	fmt.Printf("\npredicted-best window distribution (30-minute windows from 10:05): ")
 	tot := 0
 	for _, c := range bestSlotCount {

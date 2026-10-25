@@ -256,3 +256,18 @@ Plan `docs/plans/20261025-algopack-thin-universe.md`, outputs `artifacts/algopac
 - **Long-only book (O)** against the equal-weight thin universe: gross abnormal +0.073% per day, net **+0.0184%** [-0.004%, +0.045%], halves +0.033% / 0.000%: gate fails.
 - **Execution caveat:** 10 of 60 sampled thin tickers are short-enabled at the broker.
 - **Reading.** The composite predicts the thin cross-section better than the top-100 one, but the quoted spreads take most of it; neither the short-carrying nor the long-only form clears zero. The thin niche is not a cost-free refuge.
+
+### 8.31 Execution timing: when a ticker is cheapest to trade (realtime, run once, 2026-10-25)
+
+Plan `docs/plans/20261025-algopack-execution-timing.md`, output `artifacts/algopack-exectiming/exectiming.txt`, tool `cmd/exectiming`. AlgoPack `obstats` realtime rows 2025-01-03..2026-10-23, 244 tickers with at least 300 days, 17 consecutive 30-minute windows from 10:05; the predicted cheapest window of a day is the one with the lowest median quoted BBO spread over the ticker's previous 60 days. Savings are half the spread difference per side, in basis points, on the quoted spread (not realised execution). Median session-mean spread by liquidity third: 4.6 / 25.1 / 79.9 bp.
+
+| Per-side saving, bp | tightest third | middle third | widest third | all |
+|---|---|---|---|---|
+| against the opening window 10:05-10:35 (E3) | +0.25 | +2.01 | +12.92 | +5.04 |
+| against the closing window 18:05-18:30 (E4) | +0.15 | +0.64 | +0.82 | +0.53 |
+| against the session average (E2) | +0.05 | +0.24 | +1.75 | +0.68 |
+| control: another ticker's predicted window (C1) | +0.03 | +0.16 | +1.25 | +0.48 |
+| personal minus control (P = E2 - C1) | +0.02 (t 3.8) | +0.08 (t 1.6) | +0.51 (t 3.3) | +0.20 (t 4.0) |
+
+- **Persistence** of the intraday profile (Spearman of the trailing median profile with the day's): +0.076 (t +22.1), positive in every third.
+- **Reading.** The one robust, sizeable fact is the opening window: trading there instead of in the predicted-cheapest window costs about 13 bp per side in the widest third (80 bp median spread), 2 bp in the middle third and 0.25 bp in the tightest third. The control is positive in every group, so most of the saving is the common mid-day shape (a universal time rule); the personal window adds about 0.2 bp overall and about 0.5 bp in the widest third. The savings halve between the first and second half of the sample. The statement the rows support is "the predicted window quotes a cheaper spread", not "execution costs less".

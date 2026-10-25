@@ -1,0 +1,39 @@
+exectiming: 461 days (2025-01-03..2026-10-23), 244 tickers with at least 300 days; median session-mean BBO spread by tercile: T1 4.6 bp (82 names)  T2 25.1 bp (81 names)  T3 79.9 bp (81 names)  
+
+E1 persistence: Spearman correlation of the trailing 60-day median intraday spread profile with the day's profile
+  all            mean +0.076 , NW t +22.1, halves +0.100 / +0.053, days 428
+  T1 (tightest)  mean +0.086 , NW t +31.4, halves +0.100 / +0.072, days 428
+  T2             mean +0.054 , NW t +18.6, halves +0.071 / +0.037, days 428
+  T3 (widest)    mean +0.089 , NW t +14.2, halves +0.128 / +0.050, days 428
+
+E2 half-spread saved per side (bp) by trading in the predicted-best 30-minute window against the session average
+  all            mean +0.677 bp, NW t +12.0, halves +0.992 / +0.362, days 428
+  T1 (tightest)  mean +0.048 bp, NW t +12.0, halves +0.052 / +0.044, days 428
+  T2             mean +0.239 bp, NW t +7.4, halves +0.320 / +0.158, days 428
+  T3 (widest)    mean +1.751 bp, NW t +10.7, halves +2.609 / +0.894, days 428
+
+E3 half-spread saved per side (bp) by the predicted-best window against the naive opening window 10:05-10:35
+  all            mean +5.041 bp, NW t +11.2, halves +7.751 / +2.331, days 428
+  T1 (tightest)  mean +0.249 bp, NW t +12.0, halves +0.314 / +0.184, days 428
+  T2             mean +2.009 bp, NW t +14.0, halves +2.754 / +1.264, days 428
+  T3 (widest)    mean +12.918 bp, NW t +10.5, halves +20.241 / +5.595, days 428
+
+E4 half-spread saved per side (bp) by the predicted-best window against the naive closing window 18:05-18:30
+  all            mean +0.534 bp, NW t +7.8, halves +0.441 / +0.628, days 428
+  T1 (tightest)  mean +0.146 bp, NW t +14.3, halves +0.168 / +0.124, days 428
+  T2             mean +0.641 bp, NW t +10.3, halves +0.680 / +0.601, days 428
+  T3 (widest)    mean +0.822 bp, NW t +4.5, halves +0.476 / +1.168, days 428
+
+C1 control: the best window predicted from another ticker's trailing profile, against the session average
+  all            mean +0.476 bp, NW t +7.6, halves +0.771 / +0.182, days 428
+  T1 (tightest)  mean +0.028 bp, NW t +6.9, halves +0.031 / +0.025, days 428
+  T2             mean +0.162 bp, NW t +5.3, halves +0.179 / +0.144, days 428
+  T3 (widest)    mean +1.245 bp, NW t +6.7, halves +2.101 / +0.389, days 428
+
+P personal window minus the control window: half-spread saved per side (bp), E2 minus C1, the product number (personal beats universal)
+  all            mean +0.202 bp, NW t +4.0, halves +0.227 / +0.178, days 428
+  T1 (tightest)  mean +0.020 bp, NW t +3.8, halves +0.020 / +0.020, days 428
+  T2             mean +0.077 bp, NW t +1.6, halves +0.145 / +0.010, days 428
+  T3 (widest)    mean +0.511 bp, NW t +3.3, halves +0.515 / +0.507, days 428
+
+predicted-best window distribution (30-minute windows from 10:05): 10:05 1%  10:35 4%  11:05 5%  11:35 6%  12:05 5%  12:35 6%  13:05 7%  13:35 7%  14:05 6%  14:35 9%  15:05 7%  15:35 7%  16:05 6%  16:35 7%  17:05 6%  17:35 7%  18:05 5%  
