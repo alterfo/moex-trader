@@ -175,11 +175,13 @@ func aimWeights(rows []*row, pred []float64) map[string]float64 {
 		}
 	}
 	leg(idx[:q], 1)
-	leg(idx[n-q:], -1)
+	if !longOnly {
+		leg(idx[n-q:], -1)
+	}
 	return out
 }
 
-type dayPL struct{ gross, cost, short, glong, gshort, turn float64 }
+type dayPL struct{ gross, cost, short, glong, gshort, turn, wlong float64 }
 
 func (b *book) step(rows []*row, aim map[string]float64) dayPL {
 	next := map[string]float64{}
@@ -216,6 +218,11 @@ func (b *book) step(rows []*row, aim map[string]float64) dayPL {
 			return c
 		}
 		return 0.0015
+	}
+	for _, w := range next {
+		if w > 0 {
+			pl.wlong += w
+		}
 	}
 	for k, w := range next {
 		turn += math.Abs(w - b.prev[k])

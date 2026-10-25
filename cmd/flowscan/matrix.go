@@ -105,6 +105,8 @@ var baseNames = []string{
 	"DepEnt",
 }
 
+var matrixFrom, matrixTo = 1, 100
+
 func (r *run) exportMatrix(path string) {
 	p := r.p
 	f, err := os.Create(path)
@@ -143,10 +145,20 @@ func (r *run) exportMatrix(path string) {
 			continue
 		}
 		adm := p.admittedAt(d)
+		sub := adm
+		if matrixTo < len(adm) {
+			sub = adm[:matrixTo]
+		}
+		if matrixFrom > 1 {
+			if matrixFrom-1 >= len(sub) {
+				continue
+			}
+			sub = sub[matrixFrom-1:]
+		}
 		var u [3]float64
 		var un [3]int
 		hs := [3]int{1, 5, 10}
-		for _, i := range adm {
+		for _, i := range sub {
 			for k, h := range hs {
 				if x := p.ret(i, d, d+h); !math.IsNaN(x) {
 					u[k] += x
@@ -163,7 +175,7 @@ func (r *run) exportMatrix(path string) {
 		}
 		var ux [2]float64
 		var uxn [2]int
-		for _, i := range adm {
+		for _, i := range sub {
 			for k, h := range []int{20, 40} {
 				if x := p.ret(i, d, d+h); !math.IsNaN(x) {
 					ux[k] += x
@@ -179,7 +191,10 @@ func (r *run) exportMatrix(path string) {
 			}
 		}
 		for k, i := range adm {
-			if k >= 100 {
+			if k < matrixFrom-1 {
+				continue
+			}
+			if k >= matrixTo {
 				break
 			}
 			b := p.base[i][d]

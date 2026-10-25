@@ -506,6 +506,8 @@ func main() {
 	out := flag.String("out", "", "prep: write the frozen file here")
 	onlyFlag := flag.String("only", "", "comma-separated row ids")
 	universe := flag.Int("universe", 100, "admitted universe size")
+	rankFrom := flag.Int("rank-from", 1, "matrix mode: first rank written")
+	rankTo := flag.Int("rank-to", 100, "matrix mode: last rank written (set -universe to at least this)")
 	tm := flag.Float64("tm", 3.0, "mkt: frozen threshold T_M")
 	econKind := flag.String("econ-kind", "h5", "econ mode: h5 or h10")
 	workers := flag.Int("workers", runtime.NumCPU(), "parallel day loaders")
@@ -541,6 +543,7 @@ func main() {
 		}
 	}
 	admN = *universe
+	matrixFrom, matrixTo = *rankFrom, *rankTo
 	if *mode == "export" {
 		admN = 300
 	}

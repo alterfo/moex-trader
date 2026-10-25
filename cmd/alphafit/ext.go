@@ -154,3 +154,5 @@ func compareDumps(basePath, extPath string) {
 		report("extended minus base "+c, diff(ec[c], bc[c]), split, 5000)
 	}
 }
+
+var longOnly bool

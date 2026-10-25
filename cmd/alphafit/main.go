@@ -190,6 +190,15 @@ func newRunner(pp *pipe, fz frozen, names []string) *runner {
 
 func (r *runner) day(d int, preds map[string][]float64) {
 	rows := r.pp.ds.byDate[d]
+	bench := 0.0
+	if longOnly {
+		for _, x := range rows {
+			if !math.IsNaN(x.u1) {
+				bench = x.u1
+				break
+			}
+		}
+	}
 	if neutralMode == "sector" {
 		for k, v := range preds {
 			preds[k] = sectorNeutral(rows, v)
@@ -200,21 +209,33 @@ func (r *runner) day(d int, preds map[string][]float64) {
 		r.out.ic[n][d] = icOf(rows, pr)
 		aim := aimWeights(rows, pr)
 		pl := r.books[n].step(rows, aim)
+		if longOnly {
+			pl.gross -= pl.wlong * bench
+		}
 		r.out.grossD[n][d] = pl.gross
 		r.out.netD[n][d] = pl.gross - pl.cost - pl.short*borrow17
 		r.out.turnD[n][d] = pl.turn
 		pl25 := r.books25[n].step(rows, aim)
+		if longOnly {
+			pl25.gross -= pl25.wlong * bench
+		}
 		r.out.netD25[n][d] = pl25.gross - pl25.cost - pl25.short*borrow25
 		plg := r.booksGP[n].step(rows, aim)
+		if longOnly {
+			plg.gross -= plg.wlong * bench
+		}
 		r.out.netGP[n][d] = plg.gross - plg.cost - plg.short*borrow17
 		r.out.glongGP[n][d] = plg.glong
 		r.out.gshortGP[n][d] = plg.gshort
 		for k := 0; k < 3; k++ {
-			r.out.icT[n][k][d] = icOfRank(rows, pr, float64(k)*33.34, float64(k+1)*33.34)
+			r.out.icT[n][k][d] = icOfRankThird(rows, pr, k)
 		}
 		r.out.grossGP[n][d] = plg.gross
 		r.out.turnGP[n][d] = plg.turn
 		plg25 := r.booksGP25[n].step(rows, aim)
+		if longOnly {
+			plg25.gross -= plg25.wlong * bench
+		}
 		r.out.netGP25[n][d] = plg25.gross - plg25.cost - plg25.short*borrow25
 	}
 }
@@ -285,6 +306,7 @@ func main() {
 	neutral := flag.String("neutral", "none", "none or sector: demean the prediction within frozen sector lists before building the book")
 	basePath := flag.String("base", "", "compare: baseline dump CSV")
 	extDump := flag.String("extdump", "", "compare: extended dump CSV")
+	bookKind := flag.String("book", "longshort", "longshort or longonly (top quintile long only, abnormal against the equal-weight universe mean, no carry)")
 	fromDate := flag.String("from", "2026-10-21", "forward: first feature date")
 	flag.Parse()
 	if *mode == "compare" {
@@ -298,6 +320,7 @@ func main() {
 	}
 	libWindow = *libWin
 	neutralMode = *neutral
+	longOnly = *bookKind == "longonly"
 	if *aucInc {
 		delete(excludeCols, "AucA1")
 	}
@@ -660,4 +683,20 @@ func zeroFeatures(ds *dataset, names []string) {
 			x.feat[k] = 0
 		}
 	}
+}
+
+func icOfRankThird(rows []*row, pred []float64, third int) float64 {
+	rmin, rmax := math.Inf(1), math.Inf(-1)
+	for _, x := range rows {
+		if !math.IsNaN(x.rank) {
+			rmin = math.Min(rmin, x.rank)
+			rmax = math.Max(rmax, x.rank)
+		}
+	}
+	if rmax < rmin {
+		return nan
+	}
+	size := (rmax - rmin + 1) / 3
+	lo := rmin - 1 + float64(third)*size
+	return icOfRank(rows, pred, lo, lo+size)
 }
