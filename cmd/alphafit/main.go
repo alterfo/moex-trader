@@ -370,6 +370,8 @@ func main() {
 		lib2(pp, *frz)
 	case "momdiag":
 		momentumDiagnostic(pp, candFile, *outPath)
+	case "tfmb":
+		tfmB(pp, *frz)
 	case "libext":
 		libExt(pp, *frz)
 	case "lib3":

@@ -189,6 +189,7 @@ Research studies (not in the trading path): (placebo check of the score table: `
 | `deploy-failover.sh`, `sync-aibox.sh` | failover deploy, ai-box sync | Mac |
 | `export_ensemble.py`, `compare_models.py`, `combos.py`, `dump_parity_fixture.py` | ensemble training/export, comparison, parity fixture | Mac / ai-box |
 | `timesfm_features.py` | TimesFM 3 zero-shot inference to a CSV of forecasts (research only, non-commercial weights; the single Python exception, run in an isolated virtual environment on the ai-box; plan `20261025-algopack-timesfm3`) | ai-box |
+| `timesfm_features_b.py` | TimesFM 3 wave A inference (multi-length contexts, quantiles, shuffled-tail ablation, horizon 20, flow forecasts) to one CSV; same isolated-Python exception; plan `20261025-algopack-timesfm3-wave2` | ai-box |
 | `daily-retrain.sh`, `daily-retrain-box.sh`, `recent-window-experiment.sh` | daily CANDIDATE retrain (report only) | Mac / ai-box cron |
 | `ridge_probs.py`, `ridge_full_dump.py`, `factors_wide.py`, `ridge-scores-pull.sh`, `factor_shadow*.py`, `quantile_probs.py` | ridge score table and factor research | ai-box → Mac |
 | `breadth*.sh/py`, `hypo*.sh/py`, `depth-candidate.sh`, `rerun-r2.sh`, `rerun-forward.sh`, `calendar_cycles.py`, `intraday_*.py`, `futoi_study.py`, `events_study.py`, `procvar.py`, `world_*.py`, `timesfm_features.py`, `make_candles_csv.py` | hypothesis studies | ai-box |

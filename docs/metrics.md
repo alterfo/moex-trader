@@ -154,6 +154,7 @@ Sections 3-9 live in `docs/metrics/`; numbering is unchanged, so `metrics.md 8.1
 | 8.32 News impulse: attention and sentiment shocks (2026-10-25) | s8b-portfolio.md |
 | 8.33 Dividend run-up: trading ahead of a predictable public flow (2026-10-25) | s8b-portfolio.md |
 | 8.34 TimesFM 3 zero-shot forecasts as a feature and a 12-month momentum lead (2026-10-25) | s8b-portfolio.md |
+| 8.35 TimesFM 3 wave A: calibration, surprise, spread, disagreement, flow forecast, shape, sensitivity (2026-10-25) | s8b-portfolio.md |
 | 9.1 Root cause of the September-October SELL drift (step 9) | s9-live.md |
 | 9.2 Sell-bias diagnostic and the out-of-range guard (2026-10-18) | s9-live.md |
 | 9.3 Preflight concentration (2026-10-18) | s9-live.md |

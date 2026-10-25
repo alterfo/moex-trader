@@ -191,6 +191,7 @@ Mac (основной) и ai-box (резервный) никогда не тор
 | `deploy-failover.sh`, `sync-aibox.sh` | деплой отказоустойчивости, синхронизация ai-box | Mac |
 | `export_ensemble.py`, `compare_models.py`, `combos.py`, `dump_parity_fixture.py` | обучение/экспорт ансамбля, сравнение, фикстура паритета | Mac / ai-box |
 | `timesfm_features.py` | вывод TimesFM 3 без дообучения в CSV прогнозов (только исследование, некоммерческие веса; единственное исключение по Python, изолированное виртуальное окружение на ai-box; план `20261025-algopack-timesfm3`) | ai-box |
+| `timesfm_features_b.py` | вывод TimesFM 3, волна A (контексты разной длины, квантили, перемешанный хвост, горизонт 20, прогнозы потоков) в один CSV; то же исключение по Python; план `20261025-algopack-timesfm3-wave2` | ai-box |
 | `daily-retrain.sh`, `daily-retrain-box.sh`, `recent-window-experiment.sh` | ежедневное переобучение КАНДИДАТА (только отчёт) | Mac / ai-box cron |
 | `ridge_probs.py`, `ridge_full_dump.py`, `factors_wide.py`, `ridge-scores-pull.sh`, `factor_shadow*.py`, `quantile_probs.py` | таблица оценок ridge и исследование факторов | ai-box → Mac |
 | `breadth*.sh/py`, `hypo*.sh/py`, `depth-candidate.sh`, `rerun-r2.sh`, `rerun-forward.sh`, `calendar_cycles.py`, `intraday_*.py`, `futoi_study.py`, `events_study.py`, `procvar.py`, `world_*.py`, `timesfm_features.py`, `make_candles_csv.py` | исследования гипотез | ai-box |

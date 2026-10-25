@@ -1,0 +1,59 @@
+2026/10/25 12:02:34 alphafit: 163709 rows, 1644 dates, 75 AlgoPack features plus 3 controls
+tfmb: 11 candidates plus 5 placebos, baseline composite + mom120 + mom256 ranks, window 2025-01-03..2026-10-16
+candidate                        IC      t inc.slope      t    half1    half2  r_m256    t|twin flags
+u256                        +0.0666  +2.46   -0.0291  -1.40  -0.0361  -0.0201  +0.654         - 
+surprise_lag                +0.0086  +0.60   -0.0015  -0.10  +0.0025  -0.0066  +0.015     +0.19 
+d512-64                     +0.0458  +2.92   +0.0254  +1.69  +0.0444  +0.0007  +0.221     +1.20 
+d512-256                    +0.0259  +2.11   +0.0239  +1.96  +0.0154  +0.0349  -0.003     +1.92 
+d256-64                     +0.0325  +2.20   +0.0028  +0.25  +0.0269  -0.0283  +0.285     -0.54 
+flA2                        +0.0429  +2.90   -0.0003  -0.02  -0.0090  +0.0110  -0.028     -0.76 
+flLev                       +0.0856  +4.68   +0.0121  +0.80  +0.0158  +0.0073  +0.309     -0.00 
+flSp                        -0.0488  -2.32   -0.0064  -0.34  +0.0208  -0.0417  -0.385     +1.87 
+shapeA                      +0.0093  +1.26   +0.0014  +0.20  +0.0053  -0.0035  +0.030     +0.63 
+shapeB                      -0.0023  -0.20   +0.0035  +0.32  +0.0036  +0.0033  -0.028     -0.00 
+drop                        +0.0077  +0.80   +0.0052  +0.58  +0.0193  -0.0132  +0.007     +0.87 
+placebo1 (u256 permuted)    -0.0029  -0.52   -0.0024  -0.45  +0.0017  -0.0076  -0.007         - 
+placebo2 (u256 permuted)    -0.0047  -0.87   -0.0047  -0.90  -0.0138  +0.0070  +0.007         - 
+placebo3 (u256 permuted)    +0.0060  +1.16   +0.0056  +1.10  +0.0080  +0.0024  -0.004         - 
+placebo4 (u256 permuted)    -0.0099  -2.18   -0.0068  -1.60  -0.0091  -0.0038  -0.007         - 
+placebo5 (u256 permuted)    +0.0017  +0.29   -0.0004  -0.07  -0.0018  +0.0013  +0.000         - 
+tfmb: hits 0 of 11 candidates, placebo hits 0 of 5 (rule: |t| of the slope at least 3.0, same sign in both halves and for the IC; twin column is the slope t with the twin added to the baseline)
+tfmb E2: sp raw (top vs bottom tercile)     mean IC difference +0.0318 (NW t +1.31), halves +0.0851 / -0.0374, 450 dates
+tfmb E2: sp stratified by |prediction|      mean IC difference +0.0212 (NW t +1.43), halves +0.0585 / -0.0270, 450 dates
+tfmb E2: sp stratified by vol20             mean IC difference +0.0141 (NW t +0.75), halves +0.0366 / -0.0150, 450 dates
+tfmb E2: vol20 raw (top vs bottom tercile)  mean IC difference +0.0283 (NW t +1.83), halves +0.0614 / -0.0147, 450 dates
+tfmb E4 skill A2      : forecast IC against realised mean flow d+1..d+10 +0.6744, naive last-10 mean IC +0.6372, difference +0.0372 (NW t +9.63)
+tfmb E4 skill LevAsym : forecast IC against realised mean flow d+1..d+10 +0.6872, naive last-10 mean IC +0.6458, difference +0.0414 (NW t +7.22)
+tfmb E4 skill SpLv    : forecast IC against realised mean flow d+1..d+10 +0.9926, naive last-10 mean IC +0.9935, difference -0.0008 (NW t -0.71)
+tfmb confirmation (guard 3): per-date slope of the 10-day abnormal rank on mom256 rank and the candidate, 2022-04-01..2024-12-30
+candidate                      slope   NW t     2022     2023     2024    t|twin flag
+u256                         +0.0929  +4.29  +0.0543  +0.0999  +0.1145         - CONFIRMED
+surprise_lag                 +0.0231  +1.58  +0.0343  +0.0529  -0.0143     -3.08 
+d512-64                      +0.0093  +0.73  -0.0003  -0.0063  +0.0308     +1.40 
+d512-256                     -0.0142  -1.26  -0.0388  -0.0215  +0.0087     -1.21 
+d256-64                      +0.0274  +2.90  +0.0274  +0.0187  +0.0360     +3.26 CONFIRMED
+flA2                         +0.0894  +6.25  +0.0457  +0.1410  +0.0706     +2.22 CONFIRMED
+flLev                        +0.0931  +5.98  +0.0288  +0.1386  +0.0956     +2.27 CONFIRMED
+flSp                         -0.0221  -1.03  +0.0238  -0.0338  -0.0447     +1.25 
+shapeA                       +0.0196  +3.11  +0.0220  +0.0261  +0.0114     +3.67 CONFIRMED
+shapeB                       -0.0194  -2.00  -0.0303  -0.0124  -0.0182     -1.82 
+drop                         +0.0082  +1.25  +0.0130  +0.0262  -0.0132     +1.67 
+tfmb E0 calibration of the 80% interval (q10..q90) against the realised single-day abnormal return at the step; usable if coverage lies in 0.72-0.88 at every step
+tfmb E0: step  1 2022     n   16825 coverage 0.813 below q10 0.085 above q90 0.102
+tfmb E0: step  1 2023     n   22644 coverage 0.803 below q10 0.093 above q90 0.104
+tfmb E0: step  1 2024     n   21972 coverage 0.797 below q10 0.099 above q90 0.104
+tfmb E0: step  1 2025     n   22840 coverage 0.825 below q10 0.082 above q90 0.093
+tfmb E0: step  1 2026     n   17969 coverage 0.779 below q10 0.108 above q90 0.113
+tfmb E0: step  1 all      n  102250 coverage 0.804 below q10 0.093 above q90 0.103
+tfmb E0: step  5 2022     n   16806 coverage 0.833 below q10 0.075 above q90 0.092
+tfmb E0: step  5 2023     n   22584 coverage 0.817 below q10 0.086 above q90 0.097
+tfmb E0: step  5 2024     n   21920 coverage 0.813 below q10 0.092 above q90 0.095
+tfmb E0: step  5 2025     n   22808 coverage 0.846 below q10 0.072 above q90 0.082
+tfmb E0: step  5 2026     n   17695 coverage 0.789 below q10 0.102 above q90 0.109
+tfmb E0: step  5 all      n  101813 coverage 0.820 below q10 0.085 above q90 0.095
+tfmb E0: step 10 2022     n   16787 coverage 0.839 below q10 0.072 above q90 0.089
+tfmb E0: step 10 2023     n   22506 coverage 0.822 below q10 0.083 above q90 0.096
+tfmb E0: step 10 2024     n   21858 coverage 0.815 below q10 0.092 above q90 0.094
+tfmb E0: step 10 2025     n   22760 coverage 0.849 below q10 0.071 above q90 0.080
+tfmb E0: step 10 2026     n   17184 coverage 0.786 below q10 0.104 above q90 0.110
+tfmb E0: step 10 all      n  101095 coverage 0.823 below q10 0.084 above q90 0.093
