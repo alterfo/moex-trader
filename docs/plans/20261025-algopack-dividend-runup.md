@@ -1,6 +1,6 @@
 # Dividend run-up: trading ahead of a predictable public flow (2026-10-25)
 
-Status: REGISTERED 2026-10-25 (English only), before the run. Item 8 of the owner's order of work ("front-running"). Only the legal reading is tested: anticipating flows that are announced in advance and visible in public data. Trading ahead of client orders one has privileged knowledge of, and manipulation of the order book, are not tested and not proposed.
+Status: DONE 2026-10-25 (English only; scored once, a lead: the pre-registered economic gate passes, the statistical rows do not), registered before the run. Item 8 of the owner's order of work ("front-running"). Only the legal reading is tested: anticipating flows that are announced in advance and visible in public data. Trading ahead of client orders one has privileged knowledge of, and manipulation of the order book, are not tested and not proposed.
 
 ## Hypothesis
 
@@ -30,6 +30,16 @@ Only about 100 events can enter (the calendar file is short and the top-100 filt
 1. Reviewer reads this file and `cmd/divrunup`.
 2. One run on the ai-box.
 3. Numbers into `docs/metrics.md` 8.33 and `docs/knowledge/model-quality-history.md`.
+
+## Result (scored once, 2026-10-25)
+
+Numbers in `docs/metrics.md` 8.33, output `artifacts/algopack-dividend/divrunup.txt`. 115 events (median yield 3.3%). **Statistical rows: none is a hit** (the bootstrap intervals include zero): DV1 rank correlation of the yield with the 10-day abnormal run-up +0.138 [-0.076, +0.338] (mean abnormal +2.33% in the higher-yield half, +0.59% in the lower, +1.47% all), DV2 5-day +0.013 [-0.193, +0.219] (+0.85%, +0.13%, +0.49%), DV3 post-ex-date drift -0.177 [-0.395, +0.054] (-0.92%, +0.18%, -0.38%). **The pre-registered economic read passes:** buying at the close 11 trading days before the last-buy day and selling at the close before it, long only against the market, yield 3% or more: 66 events, gross +2.26%, **net of the quoted spread both ways +2.13%, bootstrap 95% [+1.14%, +3.13%]**; yield 0%: +1.34% [+0.40%, +2.19%] (115 events); yield 6%: +2.38% [+0.83%, +3.88%] (31 events). Robustness added after the first read (not conditions): the month-cluster bootstrap for the 3% rule gives [+1.13%, +3.10%]; by year +2.33% (2021, 14 events), +1.35% (2022, 8), +3.85% (2023, 9), +2.73% (2024, 15), +0.69% (2025, 11), +1.55% (2026, 9): positive in each of the six years, weakest in 2025. Registered reading: **a lead** (the economic gate passes with small, positive, year-stable numbers, while the yield does not rank the run-up within the sample: every event, not only the high-yield ones, gains in the ten days before the last-buy day).
+
+**Caveat that bounds the lead:** the calendar file holds the final record of each dividend; `declared_date` in it is the record/ex date, not the announcement date, so the plan's assumption that the last-buy date is known 11 trading days (about 15 calendar days) earlier cannot be verified from this file for any event (large companies announce weeks ahead, interim payers sometimes later); the result is an upper bound conditional on that foreknowledge. Other caveats: only dividends that were paid appear in the calendar; 115 events is a small sample; the long position is unhedged against the market (dividend payers are low-beta names); capacity of a calendar trade is limited to a few names a month.
+
+## Forward rule (frozen 2026-10-25, before any forward event matures)
+
+Point-in-time capture: `scripts/dividends-snapshot.sh` (launchd template `com.oleg.moex-trader.dividendssnapshot.plist`, 06:10 Moscow, **not loaded**) writes the broker dividend calendar for the top-100 names as of each run date into `data/dividends-snapshots/`; the first snapshot (2026-10-25) holds one upcoming event (LKOH, last-buy day 2026-12-08, net 535 RUB). An event qualifies if it first appears in a snapshot at least 11 trading days before its last-buy day and its yield (net dividend over the close 11 trading days before the last-buy day) is 3% or more. Rule: buy at that close, sell at the close before the last-buy day, long only, abnormal against the equal-weight top-100, net of the entry-day quoted spread both ways. Read once, when 15 qualifying events have matured (not extended, not repeated): the mean net abnormal return with a month-cluster bootstrap interval above zero. Nothing enters the live path.
 
 ## Review log
 
