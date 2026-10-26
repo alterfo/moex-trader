@@ -1,6 +1,6 @@
 # Dividend run-up: point-in-time announcement dates from the news history (2026-10-26)
 
-Status: DONE 2026-10-26 (English only; scored once, DA2 passes: the lead survives on events with a public announcement), registered before the run. Follows `20261025-algopack-dividend-runup.md` (a lead whose result is an upper bound because the calendar file carries no announcement date). The owner asked to look for historical data for the items waiting on forward evaluation; this is the one item whose missing input exists in history: `data/news_history.jsonl` holds 155,601 ticker-tagged headlines from 2022-01, including board dividend recommendations.
+Status: DONE 2026-10-26 (English only; run twice, rule v2 after the Reviewer; DA2 passes with +1.96% net on 41 events), registered before the first run. Follows `20261025-algopack-dividend-runup.md` (a lead whose result is an upper bound because the calendar file carries no board announcement date: its `declared_date` is the record date, a median of 8 calendar days before the last-buy day). The owner asked to look for historical data for the items waiting on forward evaluation; this is the one item whose missing input exists in history: `data/news_history.jsonl` holds 155,601 ticker-tagged headlines from 2022-01, including board dividend recommendations.
 
 ## Question
 
@@ -33,8 +33,12 @@ Headline coverage is incomplete (about 25 thousand headlines a year, mostly larg
 ## Run order
 
 1. `go run ./cmd/divrunup -news data/news_history.jsonl` on the existing matrix.
-2. Numbers into `docs/metrics.md` 8.37 and `docs/metrics/s8b-portfolio.md`.
+2. Numbers into `docs/metrics.md` 8.38 and `docs/metrics/s8b-portfolio.md`.
 
-## Result (scored once, 2026-10-26)
+## Errata (rule v2, written after the Reviewer's pass and after the v1 numbers were seen)
 
-Numbers in `docs/metrics.md` 8.37, output `artifacts/algopack-dividend/divrunup-announce.txt`. 69 of 115 events matched, all verified (lead 17 to 92 trading days, median 36). **DA2 passes:** yield at least 3%, 48 verified events, net +2.20% [+1.07%, +3.31%], month-cluster [+1.05%, +3.26%]; positive in every year, weakest in 2025-2026 (+1.15%, +1.02%). DA3: the 46 unverified events give +1.27% at yield 0%, the same size as the verified set. Registered reading: the foreknowledge caveat of the 8.33 lead is removed for the events whose announcement can be found; the rule remains a lead until the forward read. Caveat: the earliest-match rule can attach a headline about another payout when the previous payout is not in the calendar.
+The Reviewer (opencode, 2026-10-26) found that rule 2 as written matched previews of the board meeting ("will consider recommendations", "will approve recommendations") and multi-company digests where the dividend sentence belongs to another issuer, and that the previous-payout guard was inactive for most events. v2 replaces the stem by a finite verb (`рекомендовал`, `рекомендовали`, `рекомендовало`, `рекомендует`), requires the company stem within 80 characters before or inside the board phrase, drops titles longer than 240 characters or marked as digests, and drops "not to pay" headlines. This amendment was made after seeing v1; both runs are reported and v2 is the reading. A timing check that can reject would need the first public mention rather than the earliest recommendation headline; not done.
+
+## Result (rule v2 is the reading; v1 kept in `divrunup-announce-v1.txt`)
+
+Numbers in `docs/metrics.md` 8.38. v2: 57 of 115 events matched, 56 verified, leads 14 to 81 trading days (median 24). **DA2 passes:** yield at least 3%, 41 verified events, net +1.96% [+0.72%, +3.13%], month-cluster [+0.82%, +3.03%]; 2025 is negative (-0.67%, 8 events). DA3: the unverified events give +1.51% at yield 0%. v1 (looser rule): 69 matched, net +2.20% on 48 events. Data limit: the registered condition "fewer than half of the events verified" is met (56 of 115), so the pass rests on 41 events (36%) and is reported as a data limit. Registered reading: the foreknowledge caveat of the 8.33 lead is largely removed for events with a findable announcement, with smaller and less year-stable numbers; the rule remains a lead until the forward read.

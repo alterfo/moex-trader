@@ -10,13 +10,17 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 var (
-	boardRec  = regexp.MustCompile(`(?i)(совет директоров|наблюдательный совет|набсовет|(^|[^\p{L}])сд([^\p{L}]|$))[^.]{0,60}рекоменд`)
+	boardRec  = regexp.MustCompile(`(совет директоров|наблюдательный совет|набсовет|(^|[^\p{L}])сд([^\p{L}]|$))[^.]{0,60}(рекомендовал|рекомендовали|рекомендовало|рекомендует)`)
+	declined  = regexp.MustCompile(`не (выплачивать|выплатить|платить|выплачива)`)
 	moscow    = time.FixedZone("MSK", 3*3600)
 	annCutHrs = 18*60 + 30
 )
+
+const maxTitleRunes = 240
 
 type headline struct {
 	day string
@@ -66,12 +70,19 @@ func loadHeadlines(path string, stems map[string][]string) map[string][]headline
 			continue
 		}
 		low := strings.ToLower(r.Title)
-		if !strings.Contains(low, "дивиденд") || !boardRec.MatchString(r.Title) {
+		if utf8.RuneCountInString(low) > maxTitleRunes || strings.Contains(low, "#новостикомпаний") || strings.Contains(low, "основные события") {
+			continue
+		}
+		if !strings.Contains(low, "дивиденд") || declined.MatchString(low) {
+			continue
+		}
+		loc := boardRec.FindStringIndex(low)
+		if loc == nil {
 			continue
 		}
 		hit := false
 		for _, s := range stems[r.Ticker] {
-			if strings.Contains(low, s) {
+			if k := strings.Index(low, s); k >= 0 && k <= loc[1] && k >= loc[0]-80 {
 				hit = true
 				break
 			}
@@ -96,7 +107,7 @@ func announce(events []event, dates []string, lasts map[string][]string, newsPat
 	hl := loadHeadlines(newsPath, loadAliases(aliasPath))
 	var ver, unver []event
 	var leads []int
-	matched := 0
+	matched, fallback := 0, 0
 	for i := range events {
 		e := &events[i]
 		e.ann = -1
@@ -110,6 +121,8 @@ func announce(events []event, dates []string, lasts map[string][]string, newsPat
 		start := lo.AddDate(0, 0, -150).Format("2006-01-02")
 		if prev != "" && prev > start {
 			start = prev
+		} else {
+			fallback++
 		}
 		for _, h := range hl[e.ticker] {
 			if h.day > start && h.day < e.last {
@@ -132,6 +145,7 @@ func announce(events []event, dates []string, lasts map[string][]string, newsPat
 		}
 	}
 	sort.Ints(leads)
+	fmt.Printf("DA1 window start fell back to 150 calendar days (no earlier payout in the calendar): %d events\n", fallback)
 	fmt.Printf("DA1 announcement dates: %d events, matched %d, verified (announced at or before the entry close) %d, unverified %d\n", len(events), matched, len(ver), len(unver))
 	if len(leads) > 0 {
 		fmt.Printf("DA1 lead in trading days from the announcement to the entry: min %d, quartiles %d / %d / %d, max %d\n", leads[0], leads[len(leads)/4], leads[len(leads)/2], leads[3*len(leads)/4], leads[len(leads)-1])

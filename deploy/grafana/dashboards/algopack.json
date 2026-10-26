@@ -1,0 +1,1530 @@
+{
+  "uid": "algopack-beta-alpha",
+  "title": "AlgoPack: поток заявок, альфа и бета",
+  "tags": [
+    "algopack",
+    "moex"
+  ],
+  "timezone": "Europe/Moscow",
+  "schemaVersion": 41,
+  "version": 3,
+  "refresh": "",
+  "time": {
+    "from": "now-1y",
+    "to": "now"
+  },
+  "graphTooltip": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "ticker",
+        "label": "Тикер",
+        "type": "query",
+        "datasource": {
+          "type": "frser-sqlite-datasource",
+          "uid": "algopack-sqlite"
+        },
+        "query": "SELECT secid FROM daily GROUP BY secid HAVING COUNT(*) > 250 ORDER BY SUM(val) DESC LIMIT 150",
+        "refresh": 2,
+        "sort": 0,
+        "current": {
+          "text": "SBER",
+          "value": "SBER"
+        }
+      },
+      {
+        "name": "win",
+        "label": "Окно регрессии, торговых дней",
+        "type": "custom",
+        "query": "20,60,120,250",
+        "current": {
+          "text": "60",
+          "value": "60"
+        },
+        "options": [
+          {
+            "text": "20",
+            "value": "20",
+            "selected": false
+          },
+          {
+            "text": "60",
+            "value": "60",
+            "selected": true
+          },
+          {
+            "text": "120",
+            "value": "120",
+            "selected": false
+          },
+          {
+            "text": "250",
+            "value": "250",
+            "selected": false
+          }
+        ]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Бета к IMOEX",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "table",
+          "timeColumns": [],
+          "queryText": "WITH b AS (SELECT ts, ret, mret FROM daily WHERE secid = '${ticker}' AND ret IS NOT NULL AND mret IS NOT NULL), r AS (SELECT ts, COUNT(*) OVER w AS n, AVG(ret) OVER w AS ar, AVG(mret) OVER w AS am, AVG(ret * mret) OVER w AS arm, AVG(mret * mret) OVER w AS amm FROM b WINDOW w AS (ORDER BY ts ROWS BETWEEN ${win} - 1 PRECEDING AND CURRENT ROW)) SELECT (arm - ar * am) / (amm - am * am) AS beta FROM r WHERE n = ${win} AND ts <= ${__to:date:seconds} ORDER BY ts DESC LIMIT 1",
+          "rawQueryText": "WITH b AS (SELECT ts, ret, mret FROM daily WHERE secid = '${ticker}' AND ret IS NOT NULL AND mret IS NOT NULL), r AS (SELECT ts, COUNT(*) OVER w AS n, AVG(ret) OVER w AS ar, AVG(mret) OVER w AS am, AVG(ret * mret) OVER w AS arm, AVG(mret * mret) OVER w AS amm FROM b WINDOW w AS (ORDER BY ts ROWS BETWEEN ${win} - 1 PRECEDING AND CURRENT ROW)) SELECT (arm - ar * am) / (amm - am * am) AS beta FROM r WHERE n = ${win} AND ts <= ${__to:date:seconds} ORDER BY ts DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Альфа, % годовых",
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "table",
+          "timeColumns": [],
+          "queryText": "WITH b AS (SELECT ts, ret, mret FROM daily WHERE secid = '${ticker}' AND ret IS NOT NULL AND mret IS NOT NULL), r AS (SELECT ts, COUNT(*) OVER w AS n, AVG(ret) OVER w AS ar, AVG(mret) OVER w AS am, AVG(ret * mret) OVER w AS arm, AVG(mret * mret) OVER w AS amm FROM b WINDOW w AS (ORDER BY ts ROWS BETWEEN ${win} - 1 PRECEDING AND CURRENT ROW)) SELECT (ar - (arm - ar * am) / (amm - am * am) * am) * 25200 AS alpha FROM r WHERE n = ${win} AND ts <= ${__to:date:seconds} ORDER BY ts DESC LIMIT 1",
+          "rawQueryText": "WITH b AS (SELECT ts, ret, mret FROM daily WHERE secid = '${ticker}' AND ret IS NOT NULL AND mret IS NOT NULL), r AS (SELECT ts, COUNT(*) OVER w AS n, AVG(ret) OVER w AS ar, AVG(mret) OVER w AS am, AVG(ret * mret) OVER w AS arm, AVG(mret * mret) OVER w AS amm FROM b WINDOW w AS (ORDER BY ts ROWS BETWEEN ${win} - 1 PRECEDING AND CURRENT ROW)) SELECT (ar - (arm - ar * am) / (amm - am * am) * am) * 25200 AS alpha FROM r WHERE n = ${win} AND ts <= ${__to:date:seconds} ORDER BY ts DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "R² регрессии на IMOEX",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "table",
+          "timeColumns": [],
+          "queryText": "WITH b AS (SELECT ts, ret, mret FROM daily WHERE secid = '${ticker}' AND ret IS NOT NULL AND mret IS NOT NULL), r AS (SELECT ts, COUNT(*) OVER w AS n, AVG(ret) OVER w AS ar, AVG(mret) OVER w AS am, AVG(ret * mret) OVER w AS arm, AVG(mret * mret) OVER w AS amm, AVG(ret * ret) OVER w AS arr FROM b WINDOW w AS (ORDER BY ts ROWS BETWEEN ${win} - 1 PRECEDING AND CURRENT ROW)) SELECT (arm - ar * am) * (arm - ar * am) / ((amm - am * am) * (arr - ar * ar)) AS r2 FROM r WHERE n = ${win} AND ts <= ${__to:date:seconds} ORDER BY ts DESC LIMIT 1",
+          "rawQueryText": "WITH b AS (SELECT ts, ret, mret FROM daily WHERE secid = '${ticker}' AND ret IS NOT NULL AND mret IS NOT NULL), r AS (SELECT ts, COUNT(*) OVER w AS n, AVG(ret) OVER w AS ar, AVG(mret) OVER w AS am, AVG(ret * mret) OVER w AS arm, AVG(mret * mret) OVER w AS amm, AVG(ret * ret) OVER w AS arr FROM b WINDOW w AS (ORDER BY ts ROWS BETWEEN ${win} - 1 PRECEDING AND CURRENT ROW)) SELECT (arm - ar * am) * (arm - ar * am) / ((amm - am * am) * (arr - ar * ar)) AS r2 FROM r WHERE n = ${win} AND ts <= ${__to:date:seconds} ORDER BY ts DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "min": 0,
+          "max": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "A2: дисбаланс стакана, 10 уровней",
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "table",
+          "timeColumns": [],
+          "queryText": "SELECT a2 FROM daily WHERE secid = '${ticker}' AND a2 IS NOT NULL AND ts <= ${__to:date:seconds} ORDER BY ts DESC LIMIT 1",
+          "rawQueryText": "SELECT a2 FROM daily WHERE secid = '${ticker}' AND a2 IS NOT NULL AND ts <= ${__to:date:seconds} ORDER BY ts DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Цена ${ticker} и IMOEX, начало периода = 100",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "time series",
+          "timeColumns": [
+            "time"
+          ],
+          "queryText": "WITH t AS (SELECT d.ts, d.close AS c, i.close AS m FROM daily d JOIN imoex i ON i.ts = d.ts WHERE d.secid = '${ticker}' AND d.ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds}) SELECT ts AS time, c * 100.0 / FIRST_VALUE(c) OVER (ORDER BY ts) AS price, m * 100.0 / FIRST_VALUE(m) OVER (ORDER BY ts) AS imoex FROM t ORDER BY ts",
+          "rawQueryText": "WITH t AS (SELECT d.ts, d.close AS c, i.close AS m FROM daily d JOIN imoex i ON i.ts = d.ts WHERE d.secid = '${ticker}' AND d.ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds}) SELECT ts AS time, c * 100.0 / FIRST_VALUE(c) OVER (ORDER BY ts) AS price, m * 100.0 / FIRST_VALUE(m) OVER (ORDER BY ts) AS imoex FROM t ORDER BY ts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "custom": {
+            "lineWidth": 2,
+            "showPoints": "never",
+            "fillOpacity": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "imoex"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "gray"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "price"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Скользящая бета к IMOEX и R²",
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "time series",
+          "timeColumns": [
+            "time"
+          ],
+          "queryText": "WITH b AS (SELECT ts, ret, mret FROM daily WHERE secid = '${ticker}' AND ret IS NOT NULL AND mret IS NOT NULL), r AS (SELECT ts, COUNT(*) OVER w AS n, AVG(ret) OVER w AS ar, AVG(mret) OVER w AS am, AVG(ret * mret) OVER w AS arm, AVG(mret * mret) OVER w AS amm, AVG(ret * ret) OVER w AS arr FROM b WINDOW w AS (ORDER BY ts ROWS BETWEEN ${win} - 1 PRECEDING AND CURRENT ROW)) SELECT ts AS time, (arm - ar * am) / (amm - am * am) AS beta, (arm - ar * am) * (arm - ar * am) / ((amm - am * am) * (arr - ar * ar)) AS r2 FROM r WHERE n = ${win} AND ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY ts",
+          "rawQueryText": "WITH b AS (SELECT ts, ret, mret FROM daily WHERE secid = '${ticker}' AND ret IS NOT NULL AND mret IS NOT NULL), r AS (SELECT ts, COUNT(*) OVER w AS n, AVG(ret) OVER w AS ar, AVG(mret) OVER w AS am, AVG(ret * mret) OVER w AS arm, AVG(mret * mret) OVER w AS amm, AVG(ret * ret) OVER w AS arr FROM b WINDOW w AS (ORDER BY ts ROWS BETWEEN ${win} - 1 PRECEDING AND CURRENT ROW)) SELECT ts AS time, (arm - ar * am) / (amm - am * am) AS beta, (arm - ar * am) * (arm - ar * am) / ((amm - am * am) * (arr - ar * ar)) AS r2 FROM r WHERE n = ${win} AND ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY ts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "custom": {
+            "lineWidth": 2,
+            "showPoints": "never",
+            "fillOpacity": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "beta"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "r2"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Скользящая альфа, % годовых",
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "time series",
+          "timeColumns": [
+            "time"
+          ],
+          "queryText": "WITH b AS (SELECT ts, ret, mret FROM daily WHERE secid = '${ticker}' AND ret IS NOT NULL AND mret IS NOT NULL), r AS (SELECT ts, COUNT(*) OVER w AS n, AVG(ret) OVER w AS ar, AVG(mret) OVER w AS am, AVG(ret * mret) OVER w AS arm, AVG(mret * mret) OVER w AS amm FROM b WINDOW w AS (ORDER BY ts ROWS BETWEEN ${win} - 1 PRECEDING AND CURRENT ROW)) SELECT ts AS time, (ar - (arm - ar * am) / (amm - am * am) * am) * 25200 AS alpha FROM r WHERE n = ${win} AND ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY ts",
+          "rawQueryText": "WITH b AS (SELECT ts, ret, mret FROM daily WHERE secid = '${ticker}' AND ret IS NOT NULL AND mret IS NOT NULL), r AS (SELECT ts, COUNT(*) OVER w AS n, AVG(ret) OVER w AS ar, AVG(mret) OVER w AS am, AVG(ret * mret) OVER w AS arm, AVG(mret * mret) OVER w AS amm FROM b WINDOW w AS (ORDER BY ts ROWS BETWEEN ${win} - 1 PRECEDING AND CURRENT ROW)) SELECT ts AS time, (ar - (arm - ar * am) / (amm - am * am) * am) * 25200 AS alpha FROM r WHERE n = ${win} AND ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY ts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "percent",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "showPoints": "never",
+            "fillOpacity": 12,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "gray",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "xychart",
+      "title": "Регрессия дневной доходности ${ticker} на IMOEX, %: наклон линии равен бете",
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "table",
+          "timeColumns": [],
+          "queryText": "SELECT mret * 100 AS imoex, ret * 100 AS ticker FROM daily WHERE secid = '${ticker}' AND ret IS NOT NULL AND mret IS NOT NULL AND ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY ts",
+          "rawQueryText": "SELECT mret * 100 AS imoex, ret * 100 AS ticker FROM daily WHERE secid = '${ticker}' AND ret IS NOT NULL AND mret IS NOT NULL AND ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY ts"
+        },
+        {
+          "refId": "B",
+          "queryType": "table",
+          "timeColumns": [],
+          "queryText": "WITH b AS (SELECT ret, mret FROM daily WHERE secid = '${ticker}' AND ret IS NOT NULL AND mret IS NOT NULL AND ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds}), s AS (SELECT AVG(ret) AS ar, AVG(mret) AS am, AVG(ret * mret) AS arm, AVG(mret * mret) AS amm, MIN(mret) AS lo, MAX(mret) AS hi FROM b) SELECT lo * 100 AS imoex, (ar + (arm - ar * am) / (amm - am * am) * (lo - am)) * 100 AS fit FROM s UNION ALL SELECT hi * 100, (ar + (arm - ar * am) / (amm - am * am) * (hi - am)) * 100 FROM s",
+          "rawQueryText": "WITH b AS (SELECT ret, mret FROM daily WHERE secid = '${ticker}' AND ret IS NOT NULL AND mret IS NOT NULL AND ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds}), s AS (SELECT AVG(ret) AS ar, AVG(mret) AS am, AVG(ret * mret) AS arm, AVG(mret * mret) AS amm, MIN(mret) AS lo, MAX(mret) AS hi FROM b) SELECT lo * 100 AS imoex, (ar + (arm - ar * am) / (amm - am * am) * (lo - am)) * 100 AS fit FROM s UNION ALL SELECT hi * 100, (ar + (arm - ar * am) / (amm - am * am) * (hi - am)) * 100 FROM s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "custom.show",
+                "value": "points"
+              },
+              {
+                "id": "custom.pointSize",
+                "value": {
+                  "fixed": 5
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "custom.show",
+                "value": "lines"
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "mapping": "auto",
+        "series": [],
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "A2 по тикеру: среднее за день, на закрытии основной сессии, MA20",
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "time series",
+          "timeColumns": [
+            "time"
+          ],
+          "queryText": "WITH t AS (SELECT ts, a2, a2_close, AVG(a2) OVER (ORDER BY ts ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS a2_ma20 FROM daily WHERE secid = '${ticker}') SELECT ts AS time, a2, a2_close, a2_ma20 FROM t WHERE ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY ts",
+          "rawQueryText": "WITH t AS (SELECT ts, a2, a2_close, AVG(a2) OVER (ORDER BY ts ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS a2_ma20 FROM daily WHERE secid = '${ticker}') SELECT ts AS time, a2, a2_close, a2_ma20 FROM t WHERE ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY ts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "custom": {
+            "lineWidth": 1,
+            "showPoints": "never",
+            "fillOpacity": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "a2_ma20"
+            },
+            "properties": [
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "a2_close"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "gray"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "a2"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Доля покупок в обороте и MA20",
+      "gridPos": {
+        "x": 12,
+        "y": 22,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "time series",
+          "timeColumns": [
+            "time"
+          ],
+          "queryText": "WITH t AS (SELECT ts, buy_share, AVG(buy_share) OVER (ORDER BY ts ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS buy_share_ma20 FROM daily WHERE secid = '${ticker}') SELECT ts AS time, buy_share, buy_share_ma20 FROM t WHERE ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY ts",
+          "rawQueryText": "WITH t AS (SELECT ts, buy_share, AVG(buy_share) OVER (ORDER BY ts ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS buy_share_ma20 FROM daily WHERE secid = '${ticker}') SELECT ts AS time, buy_share, buy_share_ma20 FROM t WHERE ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY ts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 1,
+            "showPoints": "never",
+            "fillOpacity": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "buy_share_ma20"
+            },
+            "properties": [
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "buy_share"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Спред bbo (б.п.) и оборот (млн ₽)",
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "time series",
+          "timeColumns": [
+            "time"
+          ],
+          "queryText": "SELECT ts AS time, spread_bbo, val / 1000000.0 AS turnover FROM daily WHERE secid = '${ticker}' AND ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY ts",
+          "rawQueryText": "SELECT ts AS time, spread_bbo, val / 1000000.0 AS turnover FROM daily WHERE secid = '${ticker}' AND ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY ts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "custom": {
+            "lineWidth": 1,
+            "showPoints": "never",
+            "fillOpacity": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "spread_bbo"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "turnover"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "gray"
+                }
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "bars"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 30
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "A2 по рынку: среднее по 50 самым торгуемым бумагам дня",
+      "gridPos": {
+        "x": 12,
+        "y": 30,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "time series",
+          "timeColumns": [
+            "time"
+          ],
+          "queryText": "WITH t AS (SELECT ts, a2, ROW_NUMBER() OVER (PARTITION BY ts ORDER BY val DESC) AS rk FROM daily WHERE a2 IS NOT NULL), m AS (SELECT ts, AVG(a2) AS a2_top50 FROM t WHERE rk <= 50 GROUP BY ts) SELECT ts AS time, a2_top50, AVG(a2_top50) OVER (ORDER BY ts ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS a2_top50_ma20 FROM m WHERE ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY ts",
+          "rawQueryText": "WITH t AS (SELECT ts, a2, ROW_NUMBER() OVER (PARTITION BY ts ORDER BY val DESC) AS rk FROM daily WHERE a2 IS NOT NULL), m AS (SELECT ts, AVG(a2) AS a2_top50 FROM t WHERE rk <= 50 GROUP BY ts) SELECT ts AS time, a2_top50, AVG(a2_top50) OVER (ORDER BY ts ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) AS a2_top50_ma20 FROM m WHERE ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY ts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "custom": {
+            "lineWidth": 1,
+            "showPoints": "never",
+            "fillOpacity": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "a2_top50_ma20"
+            },
+            "properties": [
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "a2_top50"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Бета и альфа по 50 самым торгуемым бумагам за последние ${win} торговых дней периода",
+      "gridPos": {
+        "x": 0,
+        "y": 38,
+        "w": 24,
+        "h": 12
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "table",
+          "timeColumns": [],
+          "queryText": "WITH r AS (SELECT secid, ret, mret, val, ROW_NUMBER() OVER (PARTITION BY secid ORDER BY ts DESC) AS rn FROM daily WHERE ret IS NOT NULL AND mret IS NOT NULL AND ts <= ${__to:date:seconds}), s AS (SELECT secid, COUNT(*) AS n, AVG(ret) AS ar, AVG(mret) AS am, AVG(ret * mret) AS arm, AVG(mret * mret) AS amm, AVG(ret * ret) AS arr, SUM(val) AS v FROM r WHERE rn <= ${win} GROUP BY secid HAVING n = ${win} ORDER BY v DESC LIMIT 50) SELECT secid AS ticker, (arm - ar * am) / (amm - am * am) AS beta, (ar - (arm - ar * am) / (amm - am * am) * am) * 25200 AS alpha_pct_year, (arm - ar * am) * (arm - ar * am) / ((amm - am * am) * (arr - ar * ar)) AS r2, v / 1000000000.0 AS turnover_bn FROM s ORDER BY v DESC",
+          "rawQueryText": "WITH r AS (SELECT secid, ret, mret, val, ROW_NUMBER() OVER (PARTITION BY secid ORDER BY ts DESC) AS rn FROM daily WHERE ret IS NOT NULL AND mret IS NOT NULL AND ts <= ${__to:date:seconds}), s AS (SELECT secid, COUNT(*) AS n, AVG(ret) AS ar, AVG(mret) AS am, AVG(ret * mret) AS arm, AVG(mret * mret) AS amm, AVG(ret * ret) AS arr, SUM(val) AS v FROM r WHERE rn <= ${win} GROUP BY secid HAVING n = ${win} ORDER BY v DESC LIMIT 50) SELECT secid AS ticker, (arm - ar * am) / (amm - am * am) AS beta, (ar - (arm - ar * am) / (amm - am * am) * am) * 25200 AS alpha_pct_year, (arm - ar * am) * (arm - ar * am) / ((amm - am * am) * (arr - ar * ar)) AS r2, v / 1000000000.0 AS turnover_bn FROM s ORDER BY v DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "alpha_pct_year"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 0
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "turnover_bn"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "turnover_bn",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "A2, форвард с 2026-10-21: накопленно, п.п. до издержек",
+      "gridPos": {
+        "x": 0,
+        "y": 50,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "table",
+          "timeColumns": [],
+          "queryText": "WITH b AS (SELECT ts, secid, a2, LEAD(ret) OVER (PARTITION BY secid ORDER BY ts) AS nret, AVG(val) OVER (PARTITION BY secid ORDER BY ts ROWS BETWEEN 60 PRECEDING AND 1 PRECEDING) AS av FROM daily), u AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY ts ORDER BY av DESC) AS rk FROM b WHERE ts >= 1735862400 AND ABS(nret) < 0.5 AND a2 IS NOT NULL AND av IS NOT NULL), u2 AS (SELECT ts, nret, NTILE(5) OVER (PARTITION BY ts ORDER BY a2 DESC) AS q FROM u WHERE rk <= 100), d AS (SELECT ts, AVG(CASE WHEN q = 1 THEN nret END) - AVG(nret) AS spread FROM u2 GROUP BY ts), c AS (SELECT ts AS time, SUM(spread) OVER (ORDER BY ts) * 100 AS all_pct, SUM(CASE WHEN ts >= 1792540800 THEN spread END) OVER (ORDER BY ts) * 100 AS forward_pct FROM d) SELECT forward_pct FROM c WHERE forward_pct IS NOT NULL ORDER BY time DESC LIMIT 1",
+          "rawQueryText": "WITH b AS (SELECT ts, secid, a2, LEAD(ret) OVER (PARTITION BY secid ORDER BY ts) AS nret, AVG(val) OVER (PARTITION BY secid ORDER BY ts ROWS BETWEEN 60 PRECEDING AND 1 PRECEDING) AS av FROM daily), u AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY ts ORDER BY av DESC) AS rk FROM b WHERE ts >= 1735862400 AND ABS(nret) < 0.5 AND a2 IS NOT NULL AND av IS NOT NULL), u2 AS (SELECT ts, nret, NTILE(5) OVER (PARTITION BY ts ORDER BY a2 DESC) AS q FROM u WHERE rk <= 100), d AS (SELECT ts, AVG(CASE WHEN q = 1 THEN nret END) - AVG(nret) AS spread FROM u2 GROUP BY ts), c AS (SELECT ts AS time, SUM(spread) OVER (ORDER BY ts) * 100 AS all_pct, SUM(CASE WHEN ts >= 1792540800 THEN spread END) OVER (ORDER BY ts) * 100 AS forward_pct FROM d) SELECT forward_pct FROM c WHERE forward_pct IS NOT NULL ORDER BY time DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "A2, форвардных дат из 60",
+      "gridPos": {
+        "x": 6,
+        "y": 50,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "table",
+          "timeColumns": [],
+          "queryText": "WITH b AS (SELECT ts, secid, a2, LEAD(ret) OVER (PARTITION BY secid ORDER BY ts) AS nret, AVG(val) OVER (PARTITION BY secid ORDER BY ts ROWS BETWEEN 60 PRECEDING AND 1 PRECEDING) AS av FROM daily), u AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY ts ORDER BY av DESC) AS rk FROM b WHERE ts >= 1735862400 AND ABS(nret) < 0.5 AND a2 IS NOT NULL AND av IS NOT NULL), u2 AS (SELECT ts, nret, NTILE(5) OVER (PARTITION BY ts ORDER BY a2 DESC) AS q FROM u WHERE rk <= 100), d AS (SELECT ts, AVG(CASE WHEN q = 1 THEN nret END) - AVG(nret) AS spread FROM u2 GROUP BY ts), c AS (SELECT ts AS time, SUM(spread) OVER (ORDER BY ts) * 100 AS all_pct, SUM(CASE WHEN ts >= 1792540800 THEN spread END) OVER (ORDER BY ts) * 100 AS forward_pct FROM d) SELECT COUNT(forward_pct) AS dates FROM c",
+          "rawQueryText": "WITH b AS (SELECT ts, secid, a2, LEAD(ret) OVER (PARTITION BY secid ORDER BY ts) AS nret, AVG(val) OVER (PARTITION BY secid ORDER BY ts ROWS BETWEEN 60 PRECEDING AND 1 PRECEDING) AS av FROM daily), u AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY ts ORDER BY av DESC) AS rk FROM b WHERE ts >= 1735862400 AND ABS(nret) < 0.5 AND a2 IS NOT NULL AND av IS NOT NULL), u2 AS (SELECT ts, nret, NTILE(5) OVER (PARTITION BY ts ORDER BY a2 DESC) AS q FROM u WHERE rk <= 100), d AS (SELECT ts, AVG(CASE WHEN q = 1 THEN nret END) - AVG(nret) AS spread FROM u2 GROUP BY ts), c AS (SELECT ts AS time, SUM(spread) OVER (ORDER BY ts) * 100 AS all_pct, SUM(CASE WHEN ts >= 1792540800 THEN spread END) OVER (ORDER BY ts) * 100 AS forward_pct FROM d) SELECT COUNT(forward_pct) AS dates FROM c"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 16,
+      "type": "stat",
+      "title": "Ridge: p по ${ticker}",
+      "gridPos": {
+        "x": 12,
+        "y": 50,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "table",
+          "timeColumns": [],
+          "queryText": "SELECT p FROM ridge WHERE secid = '${ticker}' AND ts <= ${__to:date:seconds} ORDER BY ts DESC LIMIT 1",
+          "rawQueryText": "SELECT p FROM ridge WHERE secid = '${ticker}' AND ts <= ${__to:date:seconds} ORDER BY ts DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 17,
+      "type": "stat",
+      "title": "Ridge: верхняя треть минус все доступные бумаги, накопленно с 2025-03, п.п.",
+      "gridPos": {
+        "x": 18,
+        "y": 50,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "table",
+          "timeColumns": [],
+          "queryText": "WITH b AS (SELECT ts, secid, LEAD(ret) OVER (PARTITION BY secid ORDER BY ts) AS nret FROM daily), j AS (SELECT r.ts, r.p, b.nret FROM ridge r JOIN b ON b.ts = r.ts AND b.secid = r.secid WHERE r.ts >= 1735862400 AND ABS(b.nret) < 0.5), j2 AS (SELECT ts, nret, NTILE(3) OVER (PARTITION BY ts ORDER BY p DESC) AS q FROM j), d AS (SELECT ts, AVG(CASE WHEN q = 1 THEN nret END) - AVG(nret) AS spread FROM j2 GROUP BY ts), c AS (SELECT ts AS time, SUM(spread) OVER (ORDER BY ts) * 100 AS cum_pct FROM d) SELECT cum_pct FROM c ORDER BY time DESC LIMIT 1",
+          "rawQueryText": "WITH b AS (SELECT ts, secid, LEAD(ret) OVER (PARTITION BY secid ORDER BY ts) AS nret FROM daily), j AS (SELECT r.ts, r.p, b.nret FROM ridge r JOIN b ON b.ts = r.ts AND b.secid = r.secid WHERE r.ts >= 1735862400 AND ABS(b.nret) < 0.5), j2 AS (SELECT ts, nret, NTILE(3) OVER (PARTITION BY ts ORDER BY p DESC) AS q FROM j), d AS (SELECT ts, AVG(CASE WHEN q = 1 THEN nret END) - AVG(nret) AS spread FROM j2 GROUP BY ts), c AS (SELECT ts AS time, SUM(spread) OVER (ORDER BY ts) * 100 AS cum_pct FROM d) SELECT cum_pct FROM c ORDER BY time DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 18,
+      "type": "timeseries",
+      "title": "A2: верхний квинтиль по дневному A2 минус вселенная (топ-100 по среднему обороту за 60 дней), накопленно с 2025-01-03, п.п., валово",
+      "gridPos": {
+        "x": 0,
+        "y": 54,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "time series",
+          "timeColumns": [
+            "time"
+          ],
+          "queryText": "WITH b AS (SELECT ts, secid, a2, LEAD(ret) OVER (PARTITION BY secid ORDER BY ts) AS nret, AVG(val) OVER (PARTITION BY secid ORDER BY ts ROWS BETWEEN 60 PRECEDING AND 1 PRECEDING) AS av FROM daily), u AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY ts ORDER BY av DESC) AS rk FROM b WHERE ts >= 1735862400 AND ABS(nret) < 0.5 AND a2 IS NOT NULL AND av IS NOT NULL), u2 AS (SELECT ts, nret, NTILE(5) OVER (PARTITION BY ts ORDER BY a2 DESC) AS q FROM u WHERE rk <= 100), d AS (SELECT ts, AVG(CASE WHEN q = 1 THEN nret END) - AVG(nret) AS spread FROM u2 GROUP BY ts), c AS (SELECT ts AS time, SUM(spread) OVER (ORDER BY ts) * 100 AS all_pct, SUM(CASE WHEN ts >= 1792540800 THEN spread END) OVER (ORDER BY ts) * 100 AS forward_pct FROM d) SELECT time, all_pct, forward_pct FROM c WHERE time BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY time",
+          "rawQueryText": "WITH b AS (SELECT ts, secid, a2, LEAD(ret) OVER (PARTITION BY secid ORDER BY ts) AS nret, AVG(val) OVER (PARTITION BY secid ORDER BY ts ROWS BETWEEN 60 PRECEDING AND 1 PRECEDING) AS av FROM daily), u AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY ts ORDER BY av DESC) AS rk FROM b WHERE ts >= 1735862400 AND ABS(nret) < 0.5 AND a2 IS NOT NULL AND av IS NOT NULL), u2 AS (SELECT ts, nret, NTILE(5) OVER (PARTITION BY ts ORDER BY a2 DESC) AS q FROM u WHERE rk <= 100), d AS (SELECT ts, AVG(CASE WHEN q = 1 THEN nret END) - AVG(nret) AS spread FROM u2 GROUP BY ts), c AS (SELECT ts AS time, SUM(spread) OVER (ORDER BY ts) * 100 AS all_pct, SUM(CASE WHEN ts >= 1792540800 THEN spread END) OVER (ORDER BY ts) * 100 AS forward_pct FROM d) SELECT time, all_pct, forward_pct FROM c WHERE time BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "custom": {
+            "lineWidth": 2,
+            "showPoints": "never",
+            "fillOpacity": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "all_pct"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "forward_pct"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 4
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "description": "Описательно, без издержек. Зарегистрированный нетто-результат правила A2 (0.15% за сторону) +0.049% в день, docs/metrics.md 8.15; форвардная оценка после 60 дат с 2026-10-21. Из вселенной исключены бумаги с дневной доходностью больше 50% по модулю (сплиты и консолидации)."
+    },
+    {
+      "id": 19,
+      "type": "timeseries",
+      "title": "Ridge: верхняя треть по p минус все доступные бумаги (14–17), накопленно с 2025-03, п.п., валово",
+      "gridPos": {
+        "x": 12,
+        "y": 54,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "time series",
+          "timeColumns": [
+            "time"
+          ],
+          "queryText": "WITH b AS (SELECT ts, secid, LEAD(ret) OVER (PARTITION BY secid ORDER BY ts) AS nret FROM daily), j AS (SELECT r.ts, r.p, b.nret FROM ridge r JOIN b ON b.ts = r.ts AND b.secid = r.secid WHERE r.ts >= 1735862400 AND ABS(b.nret) < 0.5), j2 AS (SELECT ts, nret, NTILE(3) OVER (PARTITION BY ts ORDER BY p DESC) AS q FROM j), d AS (SELECT ts, AVG(CASE WHEN q = 1 THEN nret END) - AVG(nret) AS spread FROM j2 GROUP BY ts), c AS (SELECT ts AS time, SUM(spread) OVER (ORDER BY ts) * 100 AS cum_pct FROM d) SELECT time, cum_pct FROM c WHERE time BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY time",
+          "rawQueryText": "WITH b AS (SELECT ts, secid, LEAD(ret) OVER (PARTITION BY secid ORDER BY ts) AS nret FROM daily), j AS (SELECT r.ts, r.p, b.nret FROM ridge r JOIN b ON b.ts = r.ts AND b.secid = r.secid WHERE r.ts >= 1735862400 AND ABS(b.nret) < 0.5), j2 AS (SELECT ts, nret, NTILE(3) OVER (PARTITION BY ts ORDER BY p DESC) AS q FROM j), d AS (SELECT ts, AVG(CASE WHEN q = 1 THEN nret END) - AVG(nret) AS spread FROM j2 GROUP BY ts), c AS (SELECT ts AS time, SUM(spread) OVER (ORDER BY ts) * 100 AS cum_pct FROM d) SELECT time, cum_pct FROM c WHERE time BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "custom": {
+            "lineWidth": 2,
+            "showPoints": "never",
+            "fillOpacity": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cum_pct"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "description": "Описательно, без издержек. p меняется раз в 21 день, спред пересчитывается ежедневно; доходность без поправки на дивиденды, модель училась на скорректированной. Состав 14–17 бумаг меняется (YDEX с 2025-08-12, T с 2025-12-09)."
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "Ridge: p по ${ticker} и среднее по таблице",
+      "gridPos": {
+        "x": 0,
+        "y": 63,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "time series",
+          "timeColumns": [
+            "time"
+          ],
+          "queryText": "SELECT ts AS time, MAX(CASE WHEN secid = '${ticker}' THEN p END) AS p_ticker, AVG(p) AS p_mean FROM ridge WHERE ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} GROUP BY ts ORDER BY ts",
+          "rawQueryText": "SELECT ts AS time, MAX(CASE WHEN secid = '${ticker}' THEN p END) AS p_ticker, AVG(p) AS p_mean FROM ridge WHERE ts BETWEEN ${__from:date:seconds} AND ${__to:date:seconds} GROUP BY ts ORDER BY ts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "custom": {
+            "lineWidth": 2,
+            "showPoints": "never",
+            "fillOpacity": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p_ticker"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p_mean"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "gray"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 21,
+      "type": "table",
+      "title": "Ridge: последний рейтинг и A2 на ту же дату",
+      "gridPos": {
+        "x": 12,
+        "y": 63,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "table",
+          "timeColumns": [],
+          "queryText": "WITH l AS (SELECT MAX(ts) AS t FROM ridge WHERE ts <= ${__to:date:seconds}) SELECT r.secid AS ticker, r.p AS ridge_p, RANK() OVER (ORDER BY r.p DESC) AS ridge_rank, d.a2_close, d.a2, d.spread_bbo FROM ridge r JOIN l ON r.ts = l.t LEFT JOIN daily d ON d.secid = r.secid AND d.ts = l.t ORDER BY r.p DESC",
+          "rawQueryText": "WITH l AS (SELECT MAX(ts) AS t FROM ridge WHERE ts <= ${__to:date:seconds}) SELECT r.secid AS ticker, r.p AS ridge_p, RANK() OVER (ORDER BY r.p DESC) AS ridge_rank, d.a2_close, d.a2, d.spread_bbo FROM ridge r JOIN l ON r.ts = l.t LEFT JOIN daily d ON d.secid = r.secid AND d.ts = l.t ORDER BY r.p DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ridge_rank"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "ridge_p",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 22,
+      "type": "stat",
+      "title": "Ridge: дата последней оценки в таблице",
+      "gridPos": {
+        "x": 0,
+        "y": 71,
+        "w": 6,
+        "h": 3
+      },
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "algopack-sqlite"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "table",
+          "timeColumns": [
+            "time"
+          ],
+          "queryText": "SELECT MAX(ts) AS time FROM ridge",
+          "rawQueryText": "SELECT MAX(ts) AS time FROM ridge"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dateTimeAsIso"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    }
+  ]
+}

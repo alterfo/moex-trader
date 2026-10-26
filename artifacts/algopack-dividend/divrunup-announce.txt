@@ -12,17 +12,26 @@ robustness (added after the first read) for yield >= 3%: month-cluster bootstrap
   2026: 9 events, mean net +1.55%
 economics: buy 11 days before the last-buy day, sell the day before it, long only against the market, yield >= 3%: 66 events, gross +2.26%, net of the quoted spread both ways +2.13% [+1.14%, +3.13%]
 economics: buy 11 days before the last-buy day, sell the day before it, long only against the market, yield >= 6%: 31 events, gross +2.50%, net of the quoted spread both ways +2.38% [+0.83%, +3.88%]
-DA1 announcement dates: 115 events, matched 69, verified (announced at or before the entry close) 69, unverified 46
-DA1 lead in trading days from the announcement to the entry: min 17, quartiles 24 / 36 / 62, max 92
+DA1 window start fell back to 150 calendar days (no earlier payout in the calendar): 81 events
+DA1 announcement dates: 115 events, matched 57, verified (announced at or before the entry close) 56, unverified 59
+DA1 lead in trading days from the announcement to the entry: min 14, quartiles 20 / 24 / 28, max 81
 DA2 economics, verified events only
-economics: buy 11 days before the last-buy day, sell the day before it, long only against the market, yield >= 0%: 69 events, gross +1.51%, net of the quoted spread both ways +1.38% [-0.08%, +2.56%]
-robustness (added after the first read) for yield >= 3%: month-cluster bootstrap 95% interval of the net mean [+1.05%, +3.26%]
-  2022: 6 events, mean net +1.71%
-  2023: 9 events, mean net +3.85%
-  2024: 15 events, mean net +2.73%
-  2025: 10 events, mean net +1.15%
+economics: buy 11 days before the last-buy day, sell the day before it, long only against the market, yield >= 0%: 56 events, gross +1.28%, net of the quoted spread both ways +1.15% [-0.49%, +2.55%]
+robustness (added after the first read) for yield >= 3%: month-cluster bootstrap 95% interval of the net mean [+0.82%, +3.03%]
+  2022: 5 events, mean net +2.42%
+  2023: 7 events, mean net +4.98%
+  2024: 13 events, mean net +2.36%
+  2025: 8 events, mean net -0.67%
   2026: 8 events, mean net +1.02%
-economics: buy 11 days before the last-buy day, sell the day before it, long only against the market, yield >= 3%: 48 events, gross +2.32%, net of the quoted spread both ways +2.20% [+1.07%, +3.31%]
-economics: buy 11 days before the last-buy day, sell the day before it, long only against the market, yield >= 6%: 25 events, gross +2.69%, net of the quoted spread both ways +2.57% [+0.84%, +4.16%]
+economics: buy 11 days before the last-buy day, sell the day before it, long only against the market, yield >= 3%: 41 events, gross +2.08%, net of the quoted spread both ways +1.96% [+0.72%, +3.13%]
+economics: buy 11 days before the last-buy day, sell the day before it, long only against the market, yield >= 6%: 24 events, gross +2.49%, net of the quoted spread both ways +2.37% [+0.69%, +3.98%]
 DA3 economics, unverified events (descriptive)
-economics: buy 11 days before the last-buy day, sell the day before it, long only against the market, yield >= 0%: 46 events, gross +1.40%, net of the quoted spread both ways +1.27% [+0.07%, +2.54%]
+economics: buy 11 days before the last-buy day, sell the day before it, long only against the market, yield >= 0%: 59 events, gross +1.65%, net of the quoted spread both ways +1.51% [+0.52%, +2.58%]
+robustness (added after the first read) for yield >= 3%: month-cluster bootstrap 95% interval of the net mean [+0.65%, +4.28%]
+  2021: 14 events, mean net +2.33%
+  2022: 3 events, mean net -0.44%
+  2023: 2 events, mean net -0.11%
+  2024: 2 events, mean net +5.11%
+  2025: 3 events, mean net +4.31%
+  2026: 1 events, mean net +5.81%
+economics: buy 11 days before the last-buy day, sell the day before it, long only against the market, yield >= 3%: 25 events, gross +2.54%, net of the quoted spread both ways +2.40% [+0.55%, +4.20%]

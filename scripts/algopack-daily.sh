@@ -25,6 +25,7 @@ bin/algopackfetch -dates "$DAYS" -workers 8 -out data/algopack
 for m in fo fx; do
   bin/algopackfetch -market "$m" -dates "$DAYS" -workers 8 -out "data/algopack-$m"
 done
+scripts/ridge-scores-pull.sh || echo "ridge pull failed"
 go build -o bin/algopackgrafana ./cmd/algopackgrafana
 bin/algopackgrafana -out data/grafana/algopack.db
 rsync -a --inplace data/grafana/algopack.db "${AIBOX:-oleg@192.168.88.193}:monitoring/grafana/data/algopack.db" || echo "grafana sync failed"
