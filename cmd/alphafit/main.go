@@ -299,6 +299,7 @@ func main() {
 	cm := flag.String("cost", "flat", "cost model: flat (0.15% a side), bbo (0.05% plus half the BBO spread), mio (0.05% plus half the 1 mln RUB spread)")
 	em := flag.String("entry", "close", "entry: close (trade at the close of the signal day) or open (change in weights earns the next day intraday return only)")
 	divPath := flag.String("div", "", "dividend calendar: adds DivFlow and the A2PR network column (wave 3b)")
+	momF := flag.String("mom", "", "add Mom120 and Mom256 (sums of abnormal returns over 120 and 256 observations) as features: on, or placebo (within-date permutation)")
 	with3b := flag.Bool("with3b", false, "keep the four wave-3b base columns (ProfP2, ProfP3, VolEnt, DepEnt) as features")
 	aucInc := flag.Bool("aucinc", false, "keep AucA1 as a feature (valid only with next-open entry)")
 	libWin := flag.String("libwin", "realtime", "lib2: realtime (the verdict, run once) or explore (debug on the regenerated window, not evidence)")
@@ -345,6 +346,10 @@ func main() {
 		log.Fatal("horizon other than 10 and open entry need -ext")
 	}
 	ds.derived()
+	if *momF != "" {
+		momPlacebo = *momF == "placebo"
+		ds.addMomentum()
+	}
 	if *divPath != "" {
 		ds.addNetwork()
 		if err := ds.addDivFlow(*divPath); err != nil {

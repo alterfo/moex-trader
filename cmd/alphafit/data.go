@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"io"
 	"math"
+	"math/rand"
 	"os"
 	"sort"
 	"strconv"
@@ -199,6 +200,68 @@ func (ds *dataset) derived() {
 			}
 			if !math.IsNaN(x.rb1) {
 				prevRet[x.secid] = append(h, x.rb1)
+			}
+		}
+	}
+}
+
+var momFeatures bool
+var momPlacebo bool
+
+func (ds *dataset) addMomentum() {
+	ds.names = append(ds.names, "Mom120", "Mom256")
+	hist := map[string][]float64{}
+	for d := range ds.byDate {
+		var vals []float64
+		for _, x := range ds.byDate[d] {
+			if !math.IsNaN(x.rb1) {
+				vals = append(vals, x.rb1)
+			}
+		}
+		mk := nan
+		if len(vals) >= 30 {
+			mk = mean(vals)
+		}
+		for _, x := range ds.byDate[d] {
+			ab := 0.0
+			if !math.IsNaN(x.rb1) && !math.IsNaN(mk) {
+				ab = x.rb1 - mk
+			}
+			h := append(hist[x.secid], ab)
+			hist[x.secid] = h
+			m120, m256 := nan, nan
+			if len(h) >= 120 {
+				m120 = 0
+				for _, a := range h[len(h)-120:] {
+					m120 += a
+				}
+			}
+			if len(h) >= 256 {
+				m256 = 0
+				for _, a := range h[len(h)-256:] {
+					m256 += a
+				}
+			}
+			x.raw = append(x.raw, m120, m256)
+		}
+		if momPlacebo {
+			rows := ds.byDate[d]
+			var who []int
+			for i, x := range rows {
+				if !math.IsNaN(x.raw[len(x.raw)-1]) {
+					who = append(who, i)
+				}
+			}
+			rng := rand.New(rand.NewSource(int64(20261026)*1000003 + int64(d)))
+			perm := rng.Perm(len(who))
+			saved := make([][2]float64, len(who))
+			for j, i := range who {
+				n := len(rows[i].raw)
+				saved[j] = [2]float64{rows[i].raw[n-2], rows[i].raw[n-1]}
+			}
+			for j, i := range who {
+				n := len(rows[i].raw)
+				rows[i].raw[n-2], rows[i].raw[n-1] = saved[perm[j]][0], saved[perm[j]][1]
 			}
 		}
 	}

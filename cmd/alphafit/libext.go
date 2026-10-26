@@ -282,6 +282,24 @@ func momentumDiagnostic(pp *pipe, tfmPath, outPath string) {
 		v := byYear[y]
 		fmt.Printf("momdiag: %s mean daily IC against the 10-day abnormal rank (all top-100 names with 256 observations): mom60 %+.4f, mom120 %+.4f, mom256 %+.4f (%d dates)\n", y, mean(clean(v[0])), mean(clean(v[1])), mean(clean(v[2])), len(v[2]))
 	}
+	for k, nm := range []string{"mom60", "mom120", "mom256"} {
+		var all, early, late []float64
+		for _, y := range yrs {
+			if y > "2024" {
+				continue
+			}
+			v := clean(byYear[y][k])
+			all = append(all, v...)
+			if y <= "2022" {
+				early = append(early, v...)
+			} else {
+				late = append(late, v...)
+			}
+		}
+		m, tv := neweyWest(all, 10)
+		lo, hi := bootCI(all, 5000, 20261026)
+		fmt.Printf("momdiag: pooled 2021-2024 %s daily IC %+.4f (NW t %+.2f, boot95 [%+.4f, %+.4f], n %d), 2021-2022 %+.4f, 2023-2024 %+.4f\n", nm, m, tv, lo, hi, len(all), mean(early), mean(late))
+	}
 	for c, nm := range names {
 		fmt.Printf("momdiag: mean daily rank correlation of %s with the 256-observation momentum of abnormal returns: %+.3f (%d dates)\n", nm, mean(clean(corr[c])), len(clean(corr[c])))
 	}
