@@ -156,6 +156,8 @@ Sections 3-9 live in `docs/metrics/`; numbering is unchanged, so `metrics.md 8.1
 | 8.34 TimesFM 3 zero-shot forecasts as a feature and a 12-month momentum lead (2026-10-25) | s8b-portfolio.md |
 | 8.35 TimesFM 3 wave A: calibration, surprise, spread, disagreement, flow forecast, shape, sensitivity (2026-10-25) | s8b-portfolio.md |
 | 8.36 12-month momentum: independent confirmation and composite refit (2026-10-26) | s8b-portfolio.md |
+| 8.37 Slow momentum books: long-only, blended sleeve, slow composite (2026-10-26) | s8b-portfolio.md |
+| 8.37 Dividend run-up: announcement dates from the news history (2026-10-26) | s8b-portfolio.md |
 | 9.1 Root cause of the September-October SELL drift (step 9) | s9-live.md |
 | 9.2 Sell-bias diagnostic and the out-of-range guard (2026-10-18) | s9-live.md |
 | 9.3 Preflight concentration (2026-10-18) | s9-live.md |

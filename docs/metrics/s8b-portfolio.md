@@ -318,3 +318,23 @@ Plan `docs/plans/20261026-algopack-momentum-confirmation.md`, outputs `artifacts
 - **Step 2, IC gain real:** composite IC 0.0957 -> 0.1062, difference +0.0105 (t +2.39, [+0.0031, +0.0196], halves +0.0128 / +0.0075); permuted-momentum placebo +0.0009 (t +1.56).
 - **Step 2, net gain absent:** best book net per day base +0.0751% / +0.0445% / +0.0350% at carry 17% / 25% / 27.5%; with momentum +0.0834% / +0.0526% / +0.0429%; placebo +0.0835% / +0.0529% / +0.0434%. Extended minus base at 25% +0.008% a day (naive t +0.65), the placebo gain is the same: the net improvement is an artefact of the refit, not momentum. Primary gate fails.
 - **Reading.** 12-month momentum is a confirmed ranking signal (IC +0.01 on the composite), but the partial-adjustment book converts none of it into net return after costs and carry; it stays a documented feature for a future lower-turnover form.
+
+### 8.37 Dividend run-up: announcement dates from the news history (2022-2026 events, run once, 2026-10-26)
+
+Plan `docs/plans/20261026-algopack-dividend-announcement.md`, output `artifacts/algopack-dividend/divrunup-announce.txt`, tool `cmd/divrunup -news data/news_history.jsonl`. The announcement of an event is the earliest headline tagged with its ticker, after the previous last-buy day, that names the company, mentions a dividend and has a board word followed by "рекоменд"; an event is verified if that headline is dated at or before the entry close (11 trading days before the last-buy day).
+
+- **Coverage:** 69 of the 115 events have a matching headline, all 69 are verified; the lead from the announcement to the entry is 17 to 92 trading days, quartiles 24 / 36 / 62. 46 events have no matching headline and stay unverified (not assumed known).
+- **DA2 passes:** verified events only, yield at least 3%: 48 events, gross +2.32%, net of the quoted spread +2.20%, bootstrap 95% [+1.07%, +3.31%], month-cluster [+1.05%, +3.26%]; yield 6%: 25 events, +2.57% [+0.84%, +4.16%]; yield 0%: 69 events, +1.38% [-0.08%, +2.56%]. By year at 3%: 2022 +1.71% (6 events), 2023 +3.85% (9), 2024 +2.73% (15), 2025 +1.15% (10), 2026 +1.02% (8).
+- **DA3 (descriptive):** unverified events, yield 0%: 46 events, +1.27% [+0.07%, +2.54%], the same size as the verified set, so the lead does not come from events whose timing could not be checked.
+- **Caveats:** the rule takes the earliest matching headline, so a headline about a different payout of the same company can verify an event wrongly when the previous payout is missing from the calendar; the verified set leans to large, news-covered names; the sample is the same 115 events, now read twice; nothing here is a forward result.
+- **Reading.** The foreknowledge assumption of the 8.33 lead holds on the events whose announcement can be found, and the economics there is unchanged (about +2.2% per event net, positive in every year, weaker since 2025). The lead stays a lead until the forward rule (15 events from the point-in-time snapshot) reads.
+
+
+### 8.37 Slow momentum books: long-only, blended sleeve, slow composite (exploration 2021-2024, realtime run once, 2026-10-26)
+
+Plan `docs/plans/20261026-algopack-slow-momentum.md`, outputs `artifacts/algopack-momentum/`, modes `momsleeve` and `s3diff` of `cmd/alphafit`. Rate frozen on the independent exploration sample (first date with 40 names holding 256 observations, 2021-04-08, to 2024-12-30); signal mom256; bbo costs; 12-1 variant dropped (t +1.83).
+
+- **S1 long-only vs universe, rate 0.10, turnover 0.04:** exploration +0.042% a day (NW t +1.96, positive at all three rates), realtime +0.083% a day (t +2.40, [+0.018%, +0.151%], halves +0.108% / +0.053%); placebo means -0.013..+0.012% (intervals contain 0). Absolute book return -0.7% a year, universe -20.0%. Gate failed on the exploration t (1.96 against 2.0).
+- **S2 long-short sleeve:** exploration negative at 25% carry at all rates (-0.023%, t -0.65); realtime sleeve +0.031%, blend minus composite -0.007% [-0.046%, +0.039%], placebo-corrected +0.041% (t +1.20, interval contains 0). Gate failed.
+- **S3 (momentum in the composite at rate 0.10 / 0.05):** baseline net at 25% carry +0.014% / +0.003% (worse than +0.045% at rate 0.5); placebo-corrected difference +0.0075% (t +0.66) / +0.0091% (t +0.87), intervals contain 0. Gate failed.
+- **Reading.** Momentum is a real, slow ranking signal, but a book that clears costs, carry and the independent-sample condition has not been found; the relative-return long book (S1) is the closest and is recorded as a description.

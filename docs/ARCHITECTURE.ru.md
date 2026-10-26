@@ -99,7 +99,7 @@ Mac (основной) и ai-box (резервный) никогда не тор
 | `cmd/sandboxcheck` | дымовой тест песочницы T-Bank (`-place-order` по желанию) |
 | `cmd/verifier` | markdown-отчёт по P&L из событий аудита |
 | `cmd/pnlexporter` | экспортёр P&L для Prometheus из SQLite |
-| `cmd/algopackgrafana` | дневная SQLite из AlgoPack и IMOEX (`data/grafana/algopack.db`) для дашборда Grafana `deploy/grafana/dashboards/algopack.json`; скользящие альфа и бета считаются в SQL на лету; синхронизируется на ai-box скриптом `scripts/algopack-daily.sh` |
+| `cmd/algopackgrafana` | дневная SQLite из AlgoPack и IMOEX (`data/grafana/algopack.db`) для дашборда Grafana `deploy/grafana/dashboards/algopack.json`; скользящие альфа и бета считаются в SQL на лету; таблица `ridge` грузится из `data/ridge_scores.csv` (тянется `scripts/ridge-scores-pull.sh`), дашборд показывает накопленные спреды верхнего квинтиля A2 и верхней трети ridge и последний рейтинг ridge; синхронизируется на ai-box скриптом `scripts/algopack-daily.sh` |
 | `cmd/livepnl` | живой P&L за диапазон дат из аудита SQLite |
 | `cmd/retrainreport` | Telegram-отчёт о ежедневном переобучении кандидата (без подмены модели) |
 | `cmd/tradesrecord` | регистратор отложенных сделок AlgoPack (cron на ai-box) |

@@ -42,6 +42,7 @@ type dayRow struct {
 func main() {
 	root := flag.String("algopack", "data/algopack", "AlgoPack directory with tradestats/ and obstats/")
 	imoexPath := flag.String("imoex", "data/macro-long/imoex.csv", "IMOEX close history (date,value)")
+	ridgePath := flag.String("ridge", "data/ridge_scores.csv", "ridge score table (ticker,date,p)")
 	out := flag.String("out", "data/grafana/algopack.db", "SQLite file for Grafana")
 	refresh := flag.Int("refresh-days", 4, "re-read this many most recent stored days")
 	workers := flag.Int("workers", 6, "parallel day readers")
@@ -174,6 +175,9 @@ func main() {
 	if err := loadIMOEX(db, *imoexPath); err != nil {
 		log.Fatal(err)
 	}
+	if err := loadRidge(db, *ridgePath); err != nil {
+		log.Printf("ridge scores skipped: %v", err)
+	}
 	if err := rebuildDaily(db); err != nil {
 		log.Fatal(err)
 	}
@@ -195,6 +199,7 @@ func initSchema(db *sql.DB) error {
 			close REAL, vol REAL, val REAL, trades REAL,
 			buy_share REAL, a2 REAL, a2_close REAL, spread_bbo REAL,
 			PRIMARY KEY (secid, day))`,
+		`CREATE TABLE IF NOT EXISTS ridge (ts INTEGER NOT NULL, secid TEXT NOT NULL, p REAL NOT NULL, PRIMARY KEY (secid, ts))`,
 		`CREATE TABLE IF NOT EXISTS imoex (day TEXT PRIMARY KEY, ts INTEGER NOT NULL, close REAL NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS daily (
 			ts INTEGER NOT NULL, secid TEXT NOT NULL,
@@ -399,6 +404,51 @@ func loadIMOEX(db *sql.DB, path string) error {
 			continue
 		}
 		if _, err := stmt.Exec(f[0], t.Unix(), v); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func loadRidge(db *sql.DB, path string) error {
+	fh, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer fh.Close()
+	r := csv.NewReader(fh)
+	if _, err := r.Read(); err != nil {
+		return err
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM ridge`); err != nil {
+		return err
+	}
+	stmt, err := tx.Prepare(`INSERT OR REPLACE INTO ridge (ts, secid, p) VALUES (?,?,?)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	for {
+		f, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		t, err := time.Parse("2006-01-02", f[1])
+		if err != nil {
+			continue
+		}
+		v, ok := pf(f[2])
+		if !ok {
+			continue
+		}
+		if _, err := stmt.Exec(t.Unix(), f[0], v); err != nil {
 			return err
 		}
 	}

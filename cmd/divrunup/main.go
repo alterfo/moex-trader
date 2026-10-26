@@ -29,6 +29,7 @@ type event struct {
 	post5        float64
 	spread       float64
 	li           int
+	ann          int
 }
 
 func f64(s string) float64 {
@@ -129,6 +130,8 @@ func corr(a, b []float64) float64 {
 func main() {
 	matrix := flag.String("matrix", "work/matrix.csv", "flowscan matrix")
 	div := flag.String("div", "data/dividends.jsonl", "dividend calendar")
+	news := flag.String("news", "", "news history for announcement dates (empty: skip)")
+	aliases := flag.String("aliases", "data/ticker_aliases.json", "company aliases per ticker")
 	flag.Parse()
 	dates, byDate := load(*matrix)
 	alias := map[string]string{"YNDX": "YDEX", "TCSG": "T"}
@@ -139,6 +142,7 @@ func main() {
 	defer f.Close()
 	sc := bufio.NewScanner(f)
 	seen := map[string]bool{}
+	lasts := map[string][]string{}
 	var events []event
 	for sc.Scan() {
 		var r struct {
@@ -158,6 +162,7 @@ func main() {
 			continue
 		}
 		seen[t+"|"+l] = true
+		lasts[t] = append(lasts[t], l)
 		li := sort.SearchStrings(dates, l)
 		if li >= len(dates) || li < 12 || li+8 >= len(dates) {
 			continue
@@ -220,6 +225,9 @@ func main() {
 		fmt.Printf("%-60s n %3d  rank corr(yield, abnormal) %+.3f [%+.3f, %+.3f]  mean abnormal: top-half yield %+.2f%%, bottom half %+.2f%%, all %+.2f%%\n", r.id, len(y), c, lo, hi, mean(top)*100, mean(bot)*100, mean(o)*100)
 	}
 	economics(events)
+	if *news != "" {
+		announce(events, dates, lasts, *news, *aliases)
+	}
 }
 
 func yields(es []event) []float64 {

@@ -197,3 +197,7 @@ Plan `docs/plans/20261025-algopack-timesfm3.md`, numbers in `docs/metrics.md` 8.
 ## TimesFM wave A and the momentum confirmation (2026-10-25..26)
 
 TimesFM 3 wave A (11 candidates, baseline with momentum controls): 0 hits, calibrated intervals, nothing beyond momentum. The momentum lead itself: confirmed on 2021-2024 prices (mom256 IC +0.038, NW t +2.56) and adds +0.0105 IC to the composite (placebo +0.001), but the net of the best book is unchanged (the +0.008% a day gain is identical in the placebo run). Lesson: a confirmed ranking signal is not a confirmed return; the conversion into net P&L is a separate test that costs and carry decide.
+
+## Slow momentum books (2026-10-26)
+
+Momentum made slow (rate 0.10, turnover 0.04 a day) does not become a passing book: the long-only version earns +0.04% a day against the universe on 2021-2024 prices (t 1.96, just under the registered 2.0) and +0.08% in the spent window, but flat in absolute terms in a falling market; the long-short sleeve is killed by the short carry on the independent sample; momentum inside a slow composite is worse than inside the fast one. Lesson: separate exploration conditions (price-only independent sample, all frozen parameters, all rates positive) kept a window-flattering sleeve from being read as a lead.

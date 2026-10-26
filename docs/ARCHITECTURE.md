@@ -97,7 +97,7 @@ Live and operations (in the live or failover path):
 | `cmd/sandboxcheck` | T-Bank sandbox smoke test (`-place-order` optional) |
 | `cmd/verifier` | markdown P&L report from audit events |
 | `cmd/pnlexporter` | Prometheus P&L exporter from SQLite |
-| `cmd/algopackgrafana` | daily AlgoPack and IMOEX SQLite (`data/grafana/algopack.db`) for the Grafana dashboard `deploy/grafana/dashboards/algopack.json`; rolling alpha and beta are computed in SQL on the fly; synced to the ai-box by `scripts/algopack-daily.sh` |
+| `cmd/algopackgrafana` | daily AlgoPack and IMOEX SQLite (`data/grafana/algopack.db`) for the Grafana dashboard `deploy/grafana/dashboards/algopack.json`; rolling alpha and beta are computed in SQL on the fly; the table `ridge` is loaded from `data/ridge_scores.csv` (pulled by `scripts/ridge-scores-pull.sh`), and the dashboard shows the cumulative A2 top-quintile and ridge top-third spreads and the latest ridge ranking; synced to the ai-box by `scripts/algopack-daily.sh` |
 | `cmd/livepnl` | live P&L over a date range from the SQLite audit |
 | `cmd/retrainreport` | Telegram report of the daily candidate retrain (no model swap) |
 | `cmd/tradesrecord` | AlgoPack delayed-trades recorder (ai-box cron) |

@@ -1,0 +1,28 @@
+2026/10/26 04:21:16 alphafit: 163709 rows, 1644 dates, 75 AlgoPack features plus 3 controls
+momsleeve: stage verdict, signal mom256, exploration 2021-04-08..2024-12-30, realtime 2025-01-03..2026-10-16, cost mode bbo
+S1 exploration long-only net (no carry)      mean +0.04213% NW t +1.96 boot95 [+0.00267%, +0.08806%] halves +0.04919% / +0.03220% n 929
+S2 exploration sleeve net 25% carry          mean -0.02317% NW t -0.65 boot95 [-0.08978%, +0.05161%] halves -0.01684% / -0.03208% n 929
+momsleeve realtime:
+momsleeve S1 turnover 0.037 gross +0.08630%
+S1 realtime long-only net (no carry)         mean +0.08348% NW t +2.40 boot95 [+0.01818%, +0.15118%] halves +0.10785% / +0.05300% n 457
+momsleeve S1 absolute net (book return after costs, no carry): -0.00290% a day, -0.7% a year; equal-weight universe -0.07942% a day, -20.0% a year; mean deployed long weight 0.980
+S1 placebo 1 long-only net                   mean +0.00861% NW t +0.80 boot95 [-0.01342%, +0.02781%] halves +0.00039% / +0.01889% n 457
+S1 placebo 2 long-only net                   mean +0.00408% NW t +0.41 boot95 [-0.01514%, +0.02280%] halves -0.00247% / +0.01227% n 457
+S1 placebo 3 long-only net                   mean +0.01185% NW t +1.07 boot95 [-0.01031%, +0.03220%] halves +0.00458% / +0.02094% n 457
+S1 placebo 4 long-only net                   mean +0.00680% NW t +0.67 boot95 [-0.01260%, +0.02612%] halves +0.00122% / +0.01377% n 457
+S1 placebo 5 long-only net                   mean -0.01318% NW t -1.17 boot95 [-0.03665%, +0.00594%] halves -0.01859% / -0.00641% n 457
+momsleeve S2 sleeve turnover 0.078 gross +0.13596% short 0.980
+S2 realtime sleeve net 17% carry             mean +0.06247% NW t +0.91 boot95 [-0.06292%, +0.19762%] halves +0.07946% / +0.04121% n 457
+S2 realtime sleeve net 25% carry             mean +0.03136% NW t +0.46 boot95 [-0.09404%, +0.16636%] halves +0.04885% / +0.00947% n 457
+S2 realtime sleeve net 27.5% carry           mean +0.02164% NW t +0.32 boot95 [-0.10376%, +0.15658%] halves +0.03928% / -0.00045% n 457
+composite sleeve alone net 25% carry         mean +0.04451% NW t +1.01 boot95 [-0.03609%, +0.13136%] halves +0.03507% / +0.05633% n 457
+S2 blend net 17% carry                       mean +0.06878% NW t +1.29 boot95 [-0.02779%, +0.17226%] halves +0.07255% / +0.06407% n 457
+S2 blend net 25% carry                       mean +0.03793% NW t +0.71 boot95 [-0.05847%, +0.14119%] halves +0.04196% / +0.03290% n 457
+S2 blend net 27.5% carry                     mean +0.02829% NW t +0.53 boot95 [-0.06805%, +0.13154%] halves +0.03240% / +0.02316% n 457
+S2 blend minus composite alone, 25% carry    mean -0.00658% NW t -0.30 boot95 [-0.04586%, +0.03901%] halves +0.00689% / -0.02343% n 457
+S2 placebo 1 blend minus composite, 25%      mean -0.04383% NW t -1.91 boot95 [-0.08920%, -0.00126%] halves -0.04042% / -0.04811% n 457
+S2 placebo 2 blend minus composite, 25%      mean -0.04622% NW t -1.98 boot95 [-0.09211%, -0.00374%] halves -0.04219% / -0.05126% n 457
+S2 placebo 3 blend minus composite, 25%      mean -0.04433% NW t -2.07 boot95 [-0.08670%, -0.00482%] halves -0.03579% / -0.05502% n 457
+S2 placebo 4 blend minus composite, 25%      mean -0.04792% NW t -2.17 boot95 [-0.09211%, -0.00715%] halves -0.03787% / -0.06050% n 457
+S2 placebo 5 blend minus composite, 25%      mean -0.05803% NW t -2.66 boot95 [-0.10256%, -0.01977%] halves -0.05550% / -0.06120% n 457
+S2 placebo-corrected difference, 25% carry   mean +0.04149% NW t +1.20 boot95 [-0.02128%, +0.10912%] halves +0.04925% / +0.03179% n 457

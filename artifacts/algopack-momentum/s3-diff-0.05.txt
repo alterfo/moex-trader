@@ -1,0 +1,12 @@
+S3 net_gp_blend baseline                     mean +0.02655% NW t +0.74 boot95 [-0.03822%, +0.09767%] halves +0.00693% / +0.05111% n 457
+S3 net_gp_blend extended (momentum)          mean +0.03595% NW t +0.81 boot95 [-0.04429%, +0.12279%] halves +0.02473% / +0.05000% n 457
+S3 net_gp_blend placebo                      mean +0.02544% NW t +0.71 boot95 [-0.03855%, +0.09530%] halves +0.00597% / +0.04980% n 457
+S3 net_gp_blend extended minus baseline      mean +0.00940% NW t +0.94 boot95 [-0.00962%, +0.02930%] halves +0.01780% / -0.00111% n 457
+S3 net_gp_blend placebo minus baseline       mean -0.00112% NW t -1.05 boot95 [-0.00331%, +0.00080%] halves -0.00096% / -0.00131% n 457
+S3 net_gp_blend placebo-corrected difference mean +0.01052% NW t +1.01 boot95 [-0.00912%, +0.03124%] halves +0.01876% / +0.00020% n 457
+S3 net_gp25_blend baseline                   mean +0.00312% NW t +0.09 boot95 [-0.06178%, +0.07392%] halves -0.01564% / +0.02659% n 457
+S3 net_gp25_blend extended (momentum)        mean +0.01112% NW t +0.25 boot95 [-0.06947%, +0.09774%] halves +0.00097% / +0.02381% n 457
+S3 net_gp25_blend placebo                    mean +0.00207% NW t +0.06 boot95 [-0.06185%, +0.07175%] halves -0.01652% / +0.02532% n 457
+S3 net_gp25_blend extended minus baseline    mean +0.00800% NW t +0.80 boot95 [-0.01109%, +0.02784%] halves +0.01661% / -0.00278% n 457
+S3 net_gp25_blend placebo minus baseline     mean -0.00105% NW t -0.98 boot95 [-0.00325%, +0.00086%] halves -0.00088% / -0.00127% n 457
+S3 net_gp25_blend placebo-corrected difference mean +0.00905% NW t +0.87 boot95 [-0.01069%, +0.02973%] halves +0.01749% / -0.00151% n 457
