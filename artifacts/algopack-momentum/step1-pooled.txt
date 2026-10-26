@@ -1,0 +1,4 @@
+momdiag: pooled 2021-2024 mom60 daily IC +0.0378 (NW t +2.16, boot95 [+0.0067, +0.0731], n 919), 2021-2022 +0.0174, 2023-2024 +0.0541
+momdiag: pooled 2021-2024 mom120 daily IC +0.0415 (NW t +2.48, boot95 [+0.0108, +0.0744], n 919), 2021-2022 +0.0384, 2023-2024 +0.0440
+momdiag: pooled 2021-2024 mom256 daily IC +0.0380 (NW t +2.56, boot95 [+0.0097, +0.0668], n 919), 2021-2022 +0.0494, 2023-2024 +0.0288
+net by carry (partial-adjustment book, bbo costs, 457 dates): base 17% +0.07510%, 25% +0.04451%, 27.5% +0.03495%; momentum 17% +0.08343%, 25% +0.05258%, 27.5% +0.04294%; permuted-momentum placebo 17% +0.08348%, 25% +0.05292%, 27.5% +0.04337%; extended minus base at 25%: +0.00807% (naive t +0.65, halves +0.00766% / +0.00858%), placebo minus base +0.00841%

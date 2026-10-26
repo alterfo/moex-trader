@@ -22,8 +22,12 @@ Momentum in the composite is mostly cheap: it moves slowly, so it adds IC withou
 
 ## Review log
 
-(pre-run pass to be recorded)
+Pre-run Reviewer pass NOT held: the opencode pane did not accept messages (composer prompt not recognisable, five attempts); the owner said to run without review (2026-10-26). Self-checks: momentum sums include the same-day abnormal return and the outcome starts at the close of the day; missing momentum rank is the neutral 0 like every missing feature.
 
 ## Errata
 
-(none yet)
+Written before the run: step 1 was run first and printed (price only, pooled 2021-2024 mom256 IC +0.0380, NW t +2.56, 2021-22 +0.0494, 2023-24 +0.0288): CONFIRMED by the registered rule. Hyperparameters from explore on the regenerated window (ridge 0.003, EN 0.0005, rate 0.5; explore IC 0.1296 against 0.1343 without momentum, not evidence). Placebo = the extended run with Mom120/Mom256 permuted within date (-mom placebo), compared to the baseline with the same interval rule.
+
+## Result (scored once, 2026-10-26)
+
+Numbers in `docs/metrics.md` 8.36, outputs `artifacts/algopack-momentum/`. **Step 1 confirmed** (price only, 2021-2024 pooled mom256 IC +0.038, NW t +2.56, both sub-periods positive). **Step 2: IC gain real, net gain absent; the primary gate fails.** Adding Mom120 and Mom256 raises the composite IC from 0.0957 to 0.1062 (difference +0.0105, NW t +2.39, interval [+0.0031, +0.0196], both halves positive) while the permuted-momentum placebo gives +0.0009 [-0.0003, +0.0021]. The net of the partial-adjustment book moves from +0.0751% to +0.0834% a day at 17% carry and from +0.0445% to +0.0526% at 25% (about +0.043% at 27.5%) but the placebo run moves identically (+0.0835% / +0.0529%): the net difference of +0.008% a day (naive t +0.65, interval at 17% [-0.016%, +0.037%]) is not due to momentum. The gate required a difference interval excluding zero: failed. Reading: momentum is a real, confirmed ranking signal that the books cannot monetise, because it is slow and sits on the same names the composite already holds; no lead for the forward log beyond recording.

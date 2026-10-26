@@ -193,3 +193,7 @@ Plan `docs/plans/20261025-algopack-dividend-runup.md`, numbers in `docs/metrics.
 ## TimesFM 3 and the momentum lead (2026-10-25)
 
 Plan `docs/plans/20261025-algopack-timesfm3.md`, numbers in `docs/metrics.md` 8.34. A zero-shot TimesFM 3 forecast of the abnormal-return history has realtime IC +0.07 to +0.08 but the placebo (another name's covariates) equals the treatment and none passes the incremental rule; the forecast is a proxy for 12-month relative momentum (rank correlation 0.6-0.7), which the composite lacks: mom256 adds +0.089 slope over the composite (t +3.4) and is positive in every year 2021-2026 (IC +0.04 in 2021-2024, +0.11 in 2025-26). Lead, found post hoc on a spent window: confirm on 2021-2024 prices and with the composite refitted with momentum controls before any use.
+
+## TimesFM wave A and the momentum confirmation (2026-10-25..26)
+
+TimesFM 3 wave A (11 candidates, baseline with momentum controls): 0 hits, calibrated intervals, nothing beyond momentum. The momentum lead itself: confirmed on 2021-2024 prices (mom256 IC +0.038, NW t +2.56) and adds +0.0105 IC to the composite (placebo +0.001), but the net of the best book is unchanged (the +0.008% a day gain is identical in the placebo run). Lesson: a confirmed ranking signal is not a confirmed return; the conversion into net P&L is a separate test that costs and carry decide.
