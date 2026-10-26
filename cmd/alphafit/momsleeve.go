@@ -91,41 +91,80 @@ func statLine(label string, x []float64, split int) string {
 	return fmt.Sprintf("%-44s mean %+.5f%% NW t %+.2f boot95 [%+.5f%%, %+.5f%%] halves %+.5f%% / %+.5f%% n %d", label, m*100, tv, lo*100, hi*100, h1*100, h2*100, len(v))
 }
 
-func momSleeve(pp *pipe, basePath, kind string) {
-	ds := pp.ds
-	t := buildTfmCtx(pp, "")
-	ea, eb := pp.dateRange("2022-04-01", "2024-12-31")
-	ra, rb := pp.dateRange("2025-01-03", "2026-10-16")
-	rates := []float64{0.10, 0.05, 0.03}
-	fmt.Printf("momsleeve: signal %s, exploration 2022-04-01..2024-12-31, realtime 2025-01-03..2026-10-16\n", kind)
-	bestL, bestS := 0.0, 0.0
-	bl, bs := math.Inf(-1), math.Inf(-1)
-	for _, r := range rates {
-		l := runSleeve(t, kind, 0, r, true, ea, eb)
-		s := runSleeve(t, kind, 0, r, false, ea, eb)
-		ml, ms := mean(clean(l.net17)), mean(clean(s.net25))
-		fmt.Printf("momsleeve exploration rate %.2f: S1 long-only net %+.5f%% (gross %+.5f%%, turnover %.3f); long-short net25 %+.5f%% (gross %+.5f%%, turnover %.3f)\n", r, ml*100, mean(clean(l.gross))*100, mean(clean(l.turn)), ms*100, mean(clean(s.gross))*100, mean(clean(s.turn)))
-		if ml > bl+1e-12 {
-			bl, bestL = ml, r
+func firstSignalDate(t *tfmCtx, kind string, from int) int {
+	for d := from; d < len(t.ds.dates); d++ {
+		rows := t.ds.byDate[d]
+		sig := sleeveSignal(t, d, rows, kind)
+		n := 0
+		for _, v := range sig {
+			if !math.IsNaN(v) {
+				n++
+			}
 		}
-		if ms > bs+1e-12 {
-			bs, bestS = ms, r
+		if n >= 40 {
+			return d
 		}
 	}
-	fmt.Printf("momsleeve frozen rates: S1 %.2f, S2 %.2f\n", bestL, bestS)
-	split := sortSearch(ds.dates, "2026-01-05") - ra
+	return from
+}
+
+func momSleeve(pp *pipe, basePath, kind, stage string, rateL, rateS float64) {
+	ds := pp.ds
+	t := buildTfmCtx(pp, "")
+	_, eb := pp.dateRange("2022-04-01", "2024-12-31")
+	ea := firstSignalDate(t, kind, 0)
+	ra, rb := pp.dateRange("2025-01-03", "2026-10-16")
+	rates := []float64{0.10, 0.05, 0.03}
+	fmt.Printf("momsleeve: stage %s, signal %s, exploration %s..%s, realtime %s..%s, cost mode %s\n", stage, kind, ds.dates[ea], ds.dates[eb], ds.dates[ra], ds.dates[rb], costMode)
 	esplit := sortSearch(ds.dates, "2023-07-01") - ea
-	l := runSleeve(t, kind, 0, bestL, true, ea, eb)
-	fmt.Println(statLine("S1 exploration long-only net (no carry)", l.net17, esplit))
-	s := runSleeve(t, kind, 0, bestS, false, ea, eb)
-	fmt.Println(statLine("S2 exploration sleeve net 25% carry", s.net25, esplit))
+	if stage == "explore" {
+		nan, tot := 0, 0
+		for d := ea; d <= eb; d++ {
+			for _, x := range ds.byDate[d] {
+				tot++
+				if math.IsNaN(x.spb) || x.spb <= 0 {
+					nan++
+				}
+			}
+		}
+		fmt.Printf("momsleeve SpBBO missing or non-positive on exploration rows: %.3f of %d\n", float64(nan)/float64(tot), tot)
+		bl, bs := math.Inf(-1), math.Inf(-1)
+		var chL, chS float64
+		allPosL, allPosS := true, true
+		for _, r := range rates {
+			l := runSleeve(t, kind, 0, r, true, ea, eb)
+			sl := runSleeve(t, kind, 0, r, false, ea, eb)
+			ml, ms := mean(clean(l.net17)), mean(clean(sl.net25))
+			fmt.Printf("momsleeve exploration rate %.2f: S1 long-only net %+.5f%% (gross %+.5f%%, turnover %.3f); S2 sleeve net25 %+.5f%% (gross %+.5f%%, turnover %.3f)\n", r, ml*100, mean(clean(l.gross))*100, mean(clean(l.turn)), ms*100, mean(clean(sl.gross))*100, mean(clean(sl.turn)))
+			if ml <= 0 {
+				allPosL = false
+			}
+			if ms <= 0 {
+				allPosS = false
+			}
+			if ml >= bl {
+				bl, chL = ml, r
+			}
+			if ms >= bs {
+				bs, chS = ms, r
+			}
+		}
+		fmt.Printf("momsleeve frozen rates (ties to the lower rate): S1 %.2f, S2 %.2f; exploration net positive at all three rates: S1 %v, S2 %v\n", chL, chS, allPosL, allPosS)
+		fmt.Println(statLine("S1 exploration long-only net at the chosen rate", runSleeve(t, kind, 0, chL, true, ea, eb).net17, esplit))
+		fmt.Println(statLine("S2 exploration sleeve net 25% at the chosen rate", runSleeve(t, kind, 0, chS, false, ea, eb).net25, esplit))
+		return
+	}
+	bestL, bestS := rateL, rateS
+	split := sortSearch(ds.dates, "2026-01-05") - ra
+	fmt.Println(statLine("S1 exploration long-only net (no carry)", runSleeve(t, kind, 0, bestL, true, ea, eb).net17, esplit))
+	fmt.Println(statLine("S2 exploration sleeve net 25% carry", runSleeve(t, kind, 0, bestS, false, ea, eb).net25, esplit))
 	fmt.Println("momsleeve realtime:")
 	rl := runSleeve(t, kind, 0, bestL, true, ra, rb)
 	fmt.Printf("momsleeve S1 turnover %.3f gross %+.5f%%\n", mean(clean(rl.turn)), mean(clean(rl.gross))*100)
 	fmt.Println(statLine("S1 realtime long-only net (no carry)", rl.net17, split))
 	plcL := make([]*sleeveRun, 5)
 	for k := range plcL {
-		plcL[k] = runSleeve(t, kind, int64(20261026+k), bestL, true, ra, rb)
+		plcL[k] = runSleeve(t, kind, int64(20261027+k), bestL, true, ra, rb)
 		fmt.Println(statLine(fmt.Sprintf("S1 placebo %d long-only net", k+1), plcL[k].net17, split))
 	}
 	rs := runSleeve(t, kind, 0, bestS, false, ra, rb)
@@ -179,7 +218,7 @@ func momSleeve(pp *pipe, basePath, kind string) {
 	pd := make([][]float64, 5)
 	avg := filled(len(td))
 	for k := 0; k < 5; k++ {
-		ps := runSleeve(t, kind, int64(20261026+k), bestS, false, ra, rb)
+		ps := runSleeve(t, kind, int64(20261027+k), bestS, false, ra, rb)
 		_, p25, _ := blend(ps)
 		pd[k] = diff(p25, c25)
 		fmt.Println(statLine(fmt.Sprintf("S2 placebo %d blend minus composite, 25%%", k+1), pd[k], split))
@@ -194,4 +233,36 @@ func momSleeve(pp *pipe, basePath, kind string) {
 		}
 	}
 	fmt.Println(statLine("S2 placebo-corrected difference, 25% carry", diff(td, avg), split))
+}
+
+func s3Diff(basePath, extPath, plcPath string) {
+	bc, dates := readDump(basePath)
+	ec, ed := readDump(extPath)
+	pc, pd := readDump(plcPath)
+	if len(dates) != len(ed) || len(dates) != len(pd) {
+		fatal(fmt.Errorf("dumps differ in length: %d %d %d", len(dates), len(ed), len(pd)))
+	}
+	split := 0
+	for i, d := range dates {
+		if d < "2026-01-05" {
+			split = i + 1
+		}
+	}
+	for _, col := range []string{"net_gp_blend", "net_gp25_blend"} {
+		b, e, p := bc[col], ec[col], pc[col]
+		de, dp, cor := filled(len(b)), filled(len(b)), filled(len(b))
+		for i := range b {
+			if math.IsNaN(b[i]) || math.IsNaN(e[i]) || math.IsNaN(p[i]) {
+				continue
+			}
+			de[i], dp[i] = e[i]-b[i], p[i]-b[i]
+			cor[i] = de[i] - dp[i]
+		}
+		fmt.Println(statLine("S3 "+col+" baseline", b, split))
+		fmt.Println(statLine("S3 "+col+" extended (momentum)", e, split))
+		fmt.Println(statLine("S3 "+col+" placebo", p, split))
+		fmt.Println(statLine("S3 "+col+" extended minus baseline", de, split))
+		fmt.Println(statLine("S3 "+col+" placebo minus baseline", dp, split))
+		fmt.Println(statLine("S3 "+col+" placebo-corrected difference", cor, split))
+	}
 }

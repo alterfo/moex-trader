@@ -299,6 +299,10 @@ func main() {
 	cm := flag.String("cost", "flat", "cost model: flat (0.15% a side), bbo (0.05% plus half the BBO spread), mio (0.05% plus half the 1 mln RUB spread)")
 	em := flag.String("entry", "close", "entry: close (trade at the close of the signal day) or open (change in weights earns the next day intraday return only)")
 	divPath := flag.String("div", "", "dividend calendar: adds DivFlow and the A2PR network column (wave 3b)")
+	stage := flag.String("stage", "explore", "momsleeve: explore (freeze the rates on the exploration sample) or verdict")
+	rateL := flag.Float64("ratel", 0.05, "momsleeve verdict: frozen rate of the long-only sleeve")
+	rateS := flag.Float64("rates", 0.05, "momsleeve verdict: frozen rate of the long-short sleeve")
+	plcDump := flag.String("plcdump", "", "s3diff: placebo dump CSV")
 	sigKind := flag.String("sig", "mom256", "momsleeve: mom256 or mom121")
 	momF := flag.String("mom", "", "add Mom120 and Mom256 (sums of abnormal returns over 120 and 256 observations) as features: on, or placebo (within-date permutation)")
 	with3b := flag.Bool("with3b", false, "keep the four wave-3b base columns (ProfP2, ProfP3, VolEnt, DepEnt) as features")
@@ -312,6 +316,10 @@ func main() {
 	bookKind := flag.String("book", "longshort", "longshort or longonly (top quintile long only, abnormal against the equal-weight universe mean, no carry)")
 	fromDate := flag.String("from", "2026-10-21", "forward: first feature date")
 	flag.Parse()
+	if *mode == "s3diff" {
+		s3Diff(*basePath, *extDump, *plcDump)
+		return
+	}
 	if *mode == "compare" {
 		compareDumps(*basePath, *extDump)
 		return
@@ -377,7 +385,7 @@ func main() {
 	case "momdiag":
 		momentumDiagnostic(pp, candFile, *outPath)
 	case "momsleeve":
-		momSleeve(pp, *basePath, *sigKind)
+		momSleeve(pp, *basePath, *sigKind, *stage, *rateL, *rateS)
 	case "tfmb":
 		tfmB(pp, *frz)
 	case "libext":
