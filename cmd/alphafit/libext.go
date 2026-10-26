@@ -244,7 +244,7 @@ func momentumDiagnostic(pp *pipe, tfmPath, outPath string) {
 	}
 	byYear := map[string][][]float64{}
 	for d := range ds.dates {
-		for k, n := range []int{60, 120, 256} {
+		for k, n := range []int{60, 120, 256, 236} {
 			var s, y []float64
 			for _, x := range ds.byDate[d] {
 				q := seq[x.secid]
@@ -259,7 +259,11 @@ func momentumDiagnostic(pp *pipe, tfmPath, outPath string) {
 					continue
 				}
 				sum := 0.0
-				for i := pos - n + 1; i <= pos; i++ {
+				hiI := pos
+				if k == 3 {
+					hiI = pos - 20
+				}
+				for i := hiI - n + 1; i <= hiI; i++ {
 					sum += q[i].ab
 				}
 				s, y = append(s, sum), append(y, x.y10)
@@ -267,7 +271,7 @@ func momentumDiagnostic(pp *pipe, tfmPath, outPath string) {
 			if len(s) >= 30 {
 				yr := ds.dates[d][:4]
 				if byYear[yr] == nil {
-					byYear[yr] = make([][]float64, 3)
+					byYear[yr] = make([][]float64, 4)
 				}
 				byYear[yr][k] = append(byYear[yr][k], pearson(rankScale(s), y))
 			}
@@ -282,7 +286,7 @@ func momentumDiagnostic(pp *pipe, tfmPath, outPath string) {
 		v := byYear[y]
 		fmt.Printf("momdiag: %s mean daily IC against the 10-day abnormal rank (all top-100 names with 256 observations): mom60 %+.4f, mom120 %+.4f, mom256 %+.4f (%d dates)\n", y, mean(clean(v[0])), mean(clean(v[1])), mean(clean(v[2])), len(v[2]))
 	}
-	for k, nm := range []string{"mom60", "mom120", "mom256"} {
+	for k, nm := range []string{"mom60", "mom120", "mom256", "mom121"} {
 		var all, early, late []float64
 		for _, y := range yrs {
 			if y > "2024" {

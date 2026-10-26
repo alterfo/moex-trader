@@ -25,7 +25,11 @@ type tfmCtx struct {
 
 func buildTfmCtx(pp *pipe, path string) *tfmCtx {
 	ds := pp.ds
-	names, cv := readCandidates(path)
+	var names []string
+	cv := map[string][]float64{}
+	if path != "" {
+		names, cv = readCandidates(path)
+	}
 	t := &tfmCtx{ds: ds, ser: map[string]*tfmSeries{}, pos: map[string]map[int]int{}, names: names, cv: cv, col: map[string]int{}}
 	for i, n := range names {
 		t.col[n] = i
