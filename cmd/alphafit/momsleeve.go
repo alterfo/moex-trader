@@ -9,6 +9,7 @@ import (
 type sleeveRun struct {
 	gross, cost, short, turn []float64
 	net17, net25, net275     []float64
+	wlong, bench             []float64
 }
 
 func sleeveSignal(t *tfmCtx, d int, rows []*row, kind string) []float64 {
@@ -32,7 +33,7 @@ func runSleeve(t *tfmCtx, kind string, seed int64, rate float64, long bool, a, b
 	ds := t.ds
 	nd := b - a + 1
 	r := &sleeveRun{}
-	for _, p := range []*[]float64{&r.gross, &r.cost, &r.short, &r.turn, &r.net17, &r.net25, &r.net275} {
+	for _, p := range []*[]float64{&r.gross, &r.cost, &r.short, &r.turn, &r.net17, &r.net25, &r.net275, &r.wlong, &r.bench} {
 		*p = filled(nd)
 	}
 	prevLong := longOnly
@@ -70,6 +71,7 @@ func runSleeve(t *tfmCtx, kind string, seed int64, rate float64, long bool, a, b
 				}
 			}
 			pl.gross -= pl.wlong * bench
+			r.wlong[d-a], r.bench[d-a] = pl.wlong, bench
 		}
 		i := d - a
 		r.gross[i], r.cost[i], r.short[i], r.turn[i] = pl.gross, pl.cost, pl.short, pl.turn
@@ -162,6 +164,15 @@ func momSleeve(pp *pipe, basePath, kind, stage string, rateL, rateS float64) {
 	rl := runSleeve(t, kind, 0, bestL, true, ra, rb)
 	fmt.Printf("momsleeve S1 turnover %.3f gross %+.5f%%\n", mean(clean(rl.turn)), mean(clean(rl.gross))*100)
 	fmt.Println(statLine("S1 realtime long-only net (no carry)", rl.net17, split))
+	absS1 := filled(len(rl.net17))
+	uni := filled(len(rl.net17))
+	for i := range absS1 {
+		if !math.IsNaN(rl.net17[i]) {
+			absS1[i] = rl.net17[i] + rl.wlong[i]*rl.bench[i]
+			uni[i] = rl.bench[i]
+		}
+	}
+	fmt.Printf("momsleeve S1 absolute net (book return after costs, no carry): %+.5f%% a day, %.1f%% a year; equal-weight universe %+.5f%% a day, %.1f%% a year; mean deployed long weight %.3f\n", mean(clean(absS1))*100, mean(clean(absS1))*25200, mean(clean(uni))*100, mean(clean(uni))*25200, mean(clean(rl.wlong)))
 	plcL := make([]*sleeveRun, 5)
 	for k := range plcL {
 		plcL[k] = runSleeve(t, kind, int64(20261027+k), bestL, true, ra, rb)
