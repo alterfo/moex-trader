@@ -1,0 +1,9 @@
+2026/10/26 04:19:12 alphafit: 163709 rows, 1644 dates, 75 AlgoPack features plus 3 controls
+momsleeve: stage explore, signal mom256, exploration 2021-04-08..2024-12-30, realtime 2025-01-03..2026-10-16, cost mode bbo
+momsleeve SpBBO missing or non-positive on exploration rows: 0.000 of 92368
+momsleeve exploration rate 0.10: S1 long-only net +0.04213% (gross +0.04577%, turnover 0.038); S2 sleeve net25 -0.02317% (gross +0.08292%, turnover 0.079)
+momsleeve exploration rate 0.05: S1 long-only net +0.04014% (gross +0.04255%, turnover 0.025); S2 sleeve net25 -0.02429% (gross +0.07763%, turnover 0.052)
+momsleeve exploration rate 0.03: S1 long-only net +0.03804% (gross +0.03979%, turnover 0.018); S2 sleeve net25 -0.02882% (gross +0.06937%, turnover 0.037)
+momsleeve frozen rates (ties to the lower rate): S1 0.10, S2 0.10; exploration net positive at all three rates: S1 true, S2 false
+S1 exploration long-only net at the chosen rate mean +0.04213% NW t +1.96 boot95 [+0.00267%, +0.08806%] halves +0.04919% / +0.03220% n 929
+S2 exploration sleeve net 25% at the chosen rate mean -0.02317% NW t -0.65 boot95 [-0.08978%, +0.05161%] halves -0.01684% / -0.03208% n 929
