@@ -1,6 +1,6 @@
 # Momentum inside low-beta names: replication and a sleeve (2026-10-27)
 
-Status: REGISTERED 2026-10-27 before any run (English only). Follows `20261027-algopack-owner-100-ind-batch.md`, whose one lead is that 256-observation momentum lives in low-beta names (IC +0.108 in the lowest beta tercile against +0.025 in the highest on 2021-04..2024-12, difference -0.082, level 0.0083, both halves, placebo clean; beta-neutral momentum has the same IC as raw momentum). The finding was made on 2021-2024. On the realtime window 2025-01-03..2026-10-16 the interaction of momentum and beta has not been evaluated, but the constituents have: M256's own IC there (8.43; `20261026-algopack-momentum-confirmation.md`) and the beta column C01 through the playbook (one of its 94 columns, inside the K02 and K05 blends). Only the interaction and the sleeve are new on that window; it is the replication sample, not an untouched one.
+Status: DONE 2026-10-27 (Step 1 not replicated; Step 2 not run for a verdict). Registered 2026-10-27 before any run (English only). Follows `20261027-algopack-owner-100-ind-batch.md`, whose one lead is that 256-observation momentum lives in low-beta names (IC +0.108 in the lowest beta tercile against +0.025 in the highest on 2021-04..2024-12, difference -0.082, level 0.0083, both halves, placebo clean; beta-neutral momentum has the same IC as raw momentum). The finding was made on 2021-2024. On the realtime window 2025-01-03..2026-10-16 the interaction of momentum and beta has not been evaluated, but the constituents have: M256's own IC there (8.43; `20261026-algopack-momentum-confirmation.md`) and the beta column C01 through the playbook (one of its 94 columns, inside the K02 and K05 blends). Only the interaction and the sleeve are new on that window; it is the replication sample, not an untouched one.
 
 ## Step 1: replication of the conditioning (one test)
 
@@ -50,3 +50,7 @@ Written after the Reviewer's sixteen conditions, before any run.
 - Step 2 verdict: the same with `-stage verdict -ratel R -rates R` (R from the exploration output, in {0.10, 0.05, 0.03}); descriptive variants add `-sig lbmom3`, `-eqw`, `-cost bbo`.
 
 Frozen before the first run: `hetero.go` SHA-256 d8c7bfd725b29bf2421bb4b182ac0a369dd0418aec92bb5343d20734b1be1e77; `momsleeve.go` 456a1bbc1e1eeeab2879982c766b87dca18120327125fa1f6413cc442d4d9529; `guard.go` 655edbc6cdbbaa42d078ad197824d06ce85a3c5d4b22db034af2bd415bc7bbab; `eval.go` 03851951debb674fd6e6bed3c6d26c375a5a5be1df48f08c95ebb502e604ec5e; feature file 299a7f9b73751d5c8ecbeaab1eba4d598351fb0a14bab65662a46323adab0c70. Any change after the first output is a new plan.
+
+## Result (scored once, 2026-10-27)
+
+Numbers in `docs/metrics.md` 8.45, outputs `artifacts/algopack-lowbeta/`. Step 1: difference -0.0355 [-0.112, +0.026], halves -0.075 / +0.016, one placebo of five excluded zero: not replicated. Step 2 was not run for a verdict by the registered rule; the exploration stage was run as description only (net +0.05% a day at turnover 0.02-0.03 in 2021-2024, where the lead was found).

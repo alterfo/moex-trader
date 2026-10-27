@@ -1,0 +1,34 @@
+2026/10/27 08:23:54 alphafit: 163709 rows, 1644 dates, 75 AlgoPack features plus 3 controls
+momsleeve: stage explore, signal lbmom3, exploration 2021-04-08..2024-12-30, realtime 2025-01-03..2026-10-16, cost mode flat
+momsleeve SpBBO missing or non-positive on exploration rows: 0.000 of 92368
+momsleeve exploration rate 0.10: S1 long-only net +0.06617% (gross +0.05466%, turnover 0.038); S2 sleeve net25 +0.04413% (gross +0.10606%, turnover 0.074)
+momsleeve S1 rate 0.10: gross +0.05466% a day, cost +0.00573%, turnover 0.038, break-even cost per side 142.96 bp (charged on average 15.00 bp), thin days 256
+momsleeve S2 rate 0.10: gross +0.10606% a day, cost +0.01113%, turnover 0.074, break-even cost per side 142.92 bp (charged on average 15.00 bp), thin days 256
+S1 exploration net at rate 0.10              mean +0.06617% NW t +2.36 boot95 [+0.01298%, +0.12233%] halves +0.11074% / +0.03303% n 673
+S2 exploration net25 at rate 0.10            mean +0.04413% NW t +0.98 boot95 [-0.03944%, +0.13561%] halves +0.09024% / +0.00985% n 673
+momsleeve exploration rate 0.05: S1 long-only net +0.06972% (gross +0.05520%, turnover 0.024); S2 sleeve net25 +0.04478% (gross +0.10604%, turnover 0.048)
+momsleeve S1 rate 0.05: gross +0.05520% a day, cost +0.00361%, turnover 0.024, break-even cost per side 229.61 bp (charged on average 15.00 bp), thin days 256
+momsleeve S2 rate 0.05: gross +0.10604% a day, cost +0.00713%, turnover 0.048, break-even cost per side 223.11 bp (charged on average 15.00 bp), thin days 256
+S1 exploration net at rate 0.05              mean +0.06972% NW t +2.63 boot95 [+0.02001%, +0.12383%] halves +0.10513% / +0.04338% n 673
+S2 exploration net25 at rate 0.05            mean +0.04478% NW t +1.02 boot95 [-0.03804%, +0.13245%] halves +0.09115% / +0.01031% n 673
+momsleeve exploration rate 0.03: S1 long-only net +0.06728% (gross +0.05195%, turnover 0.017); S2 sleeve net25 +0.03809% (gross +0.10099%, turnover 0.034)
+momsleeve S1 rate 0.03: gross +0.05195% a day, cost +0.00255%, turnover 0.017, break-even cost per side 305.95 bp (charged on average 15.00 bp), thin days 256
+momsleeve S2 rate 0.03: gross +0.10099% a day, cost +0.00505%, turnover 0.034, break-even cost per side 300.21 bp (charged on average 15.00 bp), thin days 256
+S1 exploration net at rate 0.03              mean +0.06728% NW t +2.78 boot95 [+0.02231%, +0.11697%] halves +0.09551% / +0.04629% n 673
+S2 exploration net25 at rate 0.03            mean +0.03809% NW t +0.93 boot95 [-0.04041%, +0.12042%] halves +0.07997% / +0.00694% n 673
+momsleeve frozen rates (ties to the lower rate): S1 0.05, S2 0.05; exploration net positive at all three rates: S1 true, S2 true
+S1 exploration long-only net at the chosen rate mean +0.06972% NW t +2.63 boot95 [+0.02001%, +0.12383%] halves +0.10513% / +0.04338% n 673
+S2 exploration sleeve net 25% at the chosen rate mean +0.04478% NW t +1.02 boot95 [-0.03804%, +0.13245%] halves +0.09115% / +0.01031% n 673
+S1 exploration placebo 1 net                 mean -0.01513% NW t -2.34 boot95 [-0.02780%, -0.00310%] halves -0.01193% / -0.01751% n 673
+S2 exploration placebo 1 net25               mean -0.03558% NW t -4.96 boot95 [-0.04963%, -0.02160%] halves -0.03919% / -0.03289% n 673
+S1 exploration placebo 2 net                 mean -0.01713% NW t -2.83 boot95 [-0.02906%, -0.00515%] halves -0.01458% / -0.01903% n 673
+S2 exploration placebo 2 net25               mean -0.03945% NW t -6.43 boot95 [-0.05073%, -0.02699%] halves -0.03710% / -0.04120% n 673
+S1 exploration placebo 3 net                 mean -0.01394% NW t -2.24 boot95 [-0.02619%, -0.00221%] halves -0.02570% / -0.00519% n 673
+S2 exploration placebo 3 net25               mean -0.03872% NW t -7.22 boot95 [-0.04951%, -0.02800%] halves -0.03815% / -0.03915% n 673
+S1 exploration placebo 4 net                 mean -0.01956% NW t -3.06 boot95 [-0.03227%, -0.00784%] halves -0.02656% / -0.01435% n 673
+S2 exploration placebo 4 net25               mean -0.05607% NW t -7.38 boot95 [-0.07170%, -0.04184%] halves -0.06883% / -0.04659% n 673
+S1 exploration placebo 5 net                 mean -0.01161% NW t -1.71 boot95 [-0.02514%, +0.00063%] halves -0.00160% / -0.01905% n 673
+S2 exploration placebo 5 net25               mean -0.03709% NW t -4.88 boot95 [-0.05214%, -0.02255%] halves -0.02288% / -0.04765% n 673
+S1 exploration placebo-corrected net (real minus mean of 5 random rankings) mean +0.08519% NW t +3.13 boot95 [+0.03531%, +0.13990%] halves +0.12121% / +0.05841% n 673
+S2 exploration placebo-corrected net25 (real minus mean of 5 random rankings) mean +0.08616% NW t +1.95 boot95 [+0.00350%, +0.17405%] halves +0.13238% / +0.05180% n 673
+momsleeve lbmom3: fixed bar for the primary book is t 2.00; thin days at the chosen rates S1 256, S2 256; names available per date min 0 median 22 max 26
