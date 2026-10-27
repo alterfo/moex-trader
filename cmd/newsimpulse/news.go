@@ -13,6 +13,7 @@ var negativeStems = []string{"пад", "снизил", "снижен", "убыт
 
 type item struct {
 	id     string
+	title  string
 	llm    float64
 	hasLLM bool
 	ticker string
@@ -68,7 +69,7 @@ func loadNews(path string) ([]item, error) {
 		if w <= 0 {
 			w = 1
 		}
-		out = append(out, item{id: r.ID, ticker: r.Ticker, ts: time.Unix(r.TS, 0).In(loc), trust: w, score: lexScore(r.Title)})
+		out = append(out, item{id: r.ID, title: strings.ToLower(r.Title), ticker: r.Ticker, ts: time.Unix(r.TS, 0).In(loc), trust: w, score: lexScore(r.Title)})
 	}
 	return out, sc.Err()
 }

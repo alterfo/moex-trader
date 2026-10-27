@@ -1,0 +1,20 @@
+2026/10/27 07:59:04 alphafit: 163709 rows, 1644 dates, 75 AlgoPack features plus 3 controls
+speed: Table A, mean daily rank IC by calendar year and horizon (dates in brackets); trend = OLS slope of the daily IC per year with Newey-West t
+M256 momentum          h1   2021 +0.0404 (189)  2022 +0.0333 (36)  2023 +0.0080 (191)  2024 +0.0354 (256)  2025 +0.0456 (254)  2026 +0.0619 (203)  | trend +0.0061 per year (NW t +1.67)
+M256 momentum          h5   2021 +0.0892 (189)  2022 +0.1038 (32)  2023 +0.0530 (191)  2024 +0.0472 (256)  2025 +0.0758 (254)  2026 +0.0777 (201)  | trend -0.0012 per year (NW t -0.16)
+M256 momentum          h10  2021 +0.1092 (189)  2022 +0.1565 (27)  2023 +0.0551 (191)  2024 +0.0503 (256)  2025 +0.0932 (254)  2026 +0.0942 (196)  | trend -0.0016 per year (NW t -0.16)
+GAP (minus B05)        h1   2021 +0.0143 (189)  2022 +0.0202 (228)  2023 +0.0510 (254)  2024 +0.0251 (256)  2025 +0.0315 (254)  2026 +0.0289 (203)  | trend +0.0021 per year (NW t +0.84)
+GAP (minus B05)        h5   2021 +0.0040 (189)  2022 +0.0229 (224)  2023 +0.0328 (254)  2024 +0.0096 (256)  2025 +0.0293 (254)  2026 +0.0291 (201)  | trend +0.0035 per year (NW t +1.31)
+GAP (minus B05)        h10  2021 +0.0086 (189)  2022 +0.0193 (219)  2023 +0.0218 (254)  2024 +0.0178 (256)  2025 +0.0200 (254)  2026 +0.0330 (196)  | trend +0.0034 per year (NW t +1.24)
+ZC news count shock    h1   2022 -0.0229 (229)  2023 -0.0378 (254)  2024 -0.0404 (256)  2025 -0.0131 (254)  2026 -0.0038 (203)  | trend +0.0063 per year (NW t +2.06)
+ZC news count shock    h5   2022 -0.0315 (225)  2023 -0.0417 (254)  2024 -0.0255 (256)  2025 -0.0107 (254)  2026 +0.0072 (201)  | trend +0.0114 per year (NW t +2.60)
+ZC news count shock    h10  2022 -0.0286 (220)  2023 -0.0521 (254)  2024 -0.0341 (256)  2025 -0.0153 (254)  2026 +0.0129 (196)  | trend +0.0123 per year (NW t +2.32)
+
+speed: Table B, market-speed proxies by calendar year (median over name-days); SpBBO and Trades are AlgoPack columns re-emitted by the exchange before 2025
+year    median turnover   median spb  median trades  median amih  1-day reversal IC
+2021           1.81e+08         7.77           4350       0.0848    +0.0051 (189)
+2022           1.15e+08        11.16           4333        0.239    +0.0276 (228)
+2023           3.06e+08         5.93           8125       0.0606    -0.0065 (254)
+2024           3.77e+08         5.32           9629       0.0524    -0.0060 (256)
+2025           2.96e+08         5.46           7839        0.075    -0.0244 (254)
+2026           2.43e+08         5.34           8629       0.0763    +0.0013 (203)

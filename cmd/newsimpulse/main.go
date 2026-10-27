@@ -39,6 +39,7 @@ func main() {
 	ext := flag.String("ext", "work/matrix.csv.ext", "matrix side file with idy1")
 	newsPath := flag.String("news", "data/news_history.jsonl", "news history")
 	llmPath := flag.String("llm", "", "newsllm scores.csv; runs the L rows instead of the N rows")
+	dumpPath := flag.String("dump", "", "write the count-shock variants by date and name to this CSV and exit")
 	flag.Parse()
 	dates, byDate := loadMatrix(*matrix, *ext)
 	items, err := loadNews(*newsPath)
@@ -46,6 +47,12 @@ func main() {
 		log.Fatal(err)
 	}
 	fmt.Printf("newsimpulse: %d matrix dates, %d news items\n", len(dates), len(items))
+	if *dumpPath != "" {
+		if err := dumpShocks(dates, byDate, items, *dumpPath); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if *llmPath != "" {
 		if err := attachLLM(items, *llmPath); err != nil {
 			log.Fatal(err)

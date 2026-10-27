@@ -315,6 +315,9 @@ func main() {
 	extDump := flag.String("extdump", "", "compare: extended dump CSV")
 	bookKind := flag.String("book", "longshort", "longshort or longonly (top quintile long only, abnormal against the equal-weight universe mean, no carry)")
 	fromDate := flag.String("from", "2026-10-21", "forward: first feature date")
+	hStudy := flag.String("hstudy", "momentum", "hetero: momentum or attention")
+	hMod := flag.String("modfile", "", "hetero: moderator CSV (default: -candfile)")
+	hK := flag.Int("hk", 6, "hetero: number of tests in the study (Bonferroni)")
 	eqw := flag.Bool("eqw", false, "equal weights inside each book leg instead of inverse volatility")
 	thr := flag.Float64("thr", 0, "fundtest: stage-R threshold from fundmeff")
 	macroDir := flag.String("macro", "data/macro-long", "fundgen, fundtest: directory of macro series CSVs")
@@ -398,6 +401,14 @@ func main() {
 		tfmB(pp, *frz)
 	case "libext":
 		libExt(pp, *frz)
+	case "hetero":
+		mp := *hMod
+		if mp == "" {
+			mp = candFile
+		}
+		heteroRun(pp, candFile, mp, *macroDir, *hStudy, *hK)
+	case "speed":
+		speedTable(pp, candFile, *hMod)
 	case "fundcover":
 		fundCover(pp)
 	case "fundmeff":

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"strings"
 )
 
 type sleeveRun struct {
@@ -16,11 +17,17 @@ type sleeveRun struct {
 var equalWeight bool
 
 func isRevKind(kind string) bool {
-	return kind == "gap" || kind == "blend"
+	return kind == "gap" || kind == "blend" || strings.HasPrefix(kind, "cand:")
 }
 
 func revSignal(t *tfmCtx, d int, rows []*row, kind string) []float64 {
 	out := filled(len(rows))
+	if strings.HasPrefix(kind, "cand:") {
+		for i, x := range rows {
+			out[i] = t.file(d, x.secid, kind[5:])
+		}
+		return out
+	}
 	names := []string{"B05"}
 	if kind == "blend" {
 		names = []string{"B05", "B04", "B12"}

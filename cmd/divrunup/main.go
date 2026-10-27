@@ -132,6 +132,7 @@ func main() {
 	div := flag.String("div", "data/dividends.jsonl", "dividend calendar")
 	news := flag.String("news", "", "news history for announcement dates (empty: skip)")
 	aliases := flag.String("aliases", "data/ticker_aliases.json", "company aliases per ticker")
+	splits := flag.Bool("splits", false, "run the dependence splits of plan 20261027-algopack-owner-100-ind-batch after the announcement step")
 	flag.Parse()
 	dates, byDate := load(*matrix)
 	alias := map[string]string{"YNDX": "YDEX", "TCSG": "T"}
@@ -227,6 +228,9 @@ func main() {
 	economics(events)
 	if *news != "" {
 		announce(events, dates, lasts, *news, *aliases)
+	}
+	if *splits {
+		eventSplits(events, dates, byDate, *news)
 	}
 }
 

@@ -213,3 +213,7 @@ A 4B local model scored 143,088 ticker-tagged headlines (pilot gate on lexicon a
 ## Opening-gap reversal as a standalone book (2026-10-27)
 
 The one lead of the fund playbook is a real one-day signal (rank IC +0.029, t +6.3 over 2021-2024) but a directional book on it earns 0.5-2 bp a day gross and breaks even at 0.4-1.2 bp a side (4.5 bp at best with equal weights or open entry) against 10-15 bp of costs: net -0.07% to -0.55% a day, the placebo does as well. The family would need passive (market-making) execution; the incremental form is untested. Details: `docs/metrics.md` 8.42.
+
+## Signal strength and market speed by year (2026-10-27)
+
+Momentum and the opening-gap signal have not lost strength or horizon from 2021 to 2026 (trend t -0.16 and +0.84), while the market became more liquid (turnover and trades up 2-3x, spreads about halved between 2022 and 2024, partly retraced in 2026). Only the news count shock fades (1-day IC -0.040 in 2024 to -0.004 in 2026, trend t +2.1 to +2.6), in a hump shape that coincides with the headline file doubling in 2025, so a faster market cannot be separated from a changed news mix. Details: `docs/metrics.md` 8.43.

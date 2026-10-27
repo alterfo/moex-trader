@@ -71,6 +71,7 @@ func collect(sr []*series, r row, win string, shift int, di map[string]int) []po
 
 func main() {
 	matrix := flag.String("matrix", "work/matrix.csv", "flowscan matrix")
+	splitsDir := flag.String("splits", "", "macro directory: run the dependence splits of plan 20261027-algopack-owner-100-ind-batch and exit")
 	flag.Parse()
 	want := map[string]bool{}
 	for _, p := range append(append([]pairSpec{}, realPairs...), nearPairs...) {
@@ -83,6 +84,10 @@ func main() {
 	var sr []*series
 	for _, sp := range append(append([]pairSpec{}, realPairs...), nearPairs...) {
 		sr = append(sr, build(p, sp))
+	}
+	if *splitsDir != "" {
+		pairSplits(sr, *splitsDir)
+		return
 	}
 	nReal := len(realPairs)
 	var allReal []int
