@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"os"
 	"testing"
 )
 
@@ -151,5 +152,33 @@ func TestMinAimForLowBetaKinds(t *testing.T) {
 	}
 	if !lbRateOK(0.10) || lbRateOK(0.3) {
 		t.Fatal("low-beta rates are the slow momentum rates")
+	}
+}
+
+func TestFileSHAAndPlaybookGuard(t *testing.T) {
+	p := t.TempDir() + "/f.csv"
+	if err := os.WriteFile(p, []byte("abc"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := fileSHA(p)
+	if err != nil || got != "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" {
+		t.Fatalf("sha %v %v", got, err)
+	}
+}
+
+func TestAvailNamesRange(t *testing.T) {
+	ds := &dataset{dates: []string{"d0", "d1", "d2"}}
+	t0 := &tfmCtx{ds: ds, cv: map[string][]float64{}, col: map[string]int{"M256": 0, "C01": 1}}
+	ds.byDate = make([][]*row, 3)
+	for d := 0; d < 3; d++ {
+		for i := 0; i < 40+10*d; i++ {
+			id := fmt.Sprintf("S%02d", i)
+			ds.byDate[d] = append(ds.byDate[d], &row{secid: id})
+			t0.cv[ds.dates[d]+"|"+id] = []float64{float64(i), float64(100 - i)}
+		}
+	}
+	lo, md, hi := availNames(t0, "lbmom", 0, 2)
+	if lo != 20 || md != 25 || hi != 30 {
+		t.Fatalf("range %d %d %d", lo, md, hi)
 	}
 }

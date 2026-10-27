@@ -11,7 +11,7 @@ import (
 type sleeveRun struct {
 	gross, cost, short, turn []float64
 	net17, net25, net275     []float64
-	wlong, bench             []float64
+	wlong, bench, univ       []float64
 	thin                     int
 }
 
@@ -68,6 +68,10 @@ func revSignal(t *tfmCtx, d int, rows []*row, kind string) []float64 {
 		out[i] = -acc[j]
 	}
 	return out
+}
+
+func isDiagKind(kind string) bool {
+	return isRevKind(kind) || isLBKind(kind)
 }
 
 func isLBKind(kind string) bool {
@@ -149,7 +153,7 @@ func runSleeve(t *tfmCtx, kind string, seed int64, rate float64, long bool, a, b
 	ds := t.ds
 	nd := b - a + 1
 	r := &sleeveRun{}
-	for _, p := range []*[]float64{&r.gross, &r.cost, &r.short, &r.turn, &r.net17, &r.net25, &r.net275, &r.wlong, &r.bench} {
+	for _, p := range []*[]float64{&r.gross, &r.cost, &r.short, &r.turn, &r.net17, &r.net25, &r.net275, &r.wlong, &r.bench, &r.univ} {
 		*p = filled(nd)
 	}
 	prevLong, prevMin := longOnly, minAim
@@ -176,6 +180,7 @@ func runSleeve(t *tfmCtx, kind string, seed int64, rate float64, long bool, a, b
 					break
 				}
 			}
+			r.univ[d-a] = bench
 			if isLBKind(kind) {
 				bench = lbBench(rows, sleeveSignal(t, d, rows, kind))
 			}
@@ -269,6 +274,9 @@ func firstSignalDate(t *tfmCtx, kind string, from int) int {
 
 func momSleeve(pp *pipe, basePath, kind, stage string, rateL, rateS float64) {
 	ds := pp.ds
+	if isLBKind(kind) {
+		requirePlaybookFile(candFile)
+	}
 	path := ""
 	if isRevKind(kind) || isLBKind(kind) {
 		path = candFile
@@ -312,7 +320,7 @@ func momSleeve(pp *pipe, basePath, kind, stage string, rateL, rateS float64) {
 			sl := runSleeve(t, kind, 0, r, false, ea, eb)
 			ml, ms := mean(clean(l.net17)), mean(clean(sl.net25))
 			fmt.Printf("momsleeve exploration rate %.2f: S1 long-only net %+.5f%% (gross %+.5f%%, turnover %.3f); S2 sleeve net25 %+.5f%% (gross %+.5f%%, turnover %.3f)\n", r, ml*100, mean(clean(l.gross))*100, mean(clean(l.turn)), ms*100, mean(clean(sl.gross))*100, mean(clean(sl.turn)))
-			if isRevKind(kind) {
+			if isDiagKind(kind) {
 				fmt.Println(rateLine("momsleeve S1", r, l))
 				fmt.Println(rateLine("momsleeve S2", r, sl))
 				fmt.Println(statLine(fmt.Sprintf("S1 exploration net at rate %.2f", r), l.net17, esplit))
@@ -334,7 +342,7 @@ func momSleeve(pp *pipe, basePath, kind, stage string, rateL, rateS float64) {
 		fmt.Printf("momsleeve frozen rates (ties to the lower rate): S1 %.2f, S2 %.2f; exploration net positive at all three rates: S1 %v, S2 %v\n", chL, chS, allPosL, allPosS)
 		fmt.Println(statLine("S1 exploration long-only net at the chosen rate", runSleeve(t, kind, 0, chL, true, ea, eb).net17, esplit))
 		fmt.Println(statLine("S2 exploration sleeve net 25% at the chosen rate", runSleeve(t, kind, 0, chS, false, ea, eb).net25, esplit))
-		if isRevKind(kind) {
+		if isDiagKind(kind) {
 			realL, realS := runSleeve(t, kind, 0, chL, true, ea, eb), runSleeve(t, kind, 0, chS, false, ea, eb)
 			avgL, avgS := filled(len(realL.net17)), filled(len(realS.net25))
 			for k := 0; k < 5; k++ {
@@ -362,7 +370,12 @@ func momSleeve(pp *pipe, basePath, kind, stage string, rateL, rateS float64) {
 			}
 			fmt.Println(statLine("S1 exploration placebo-corrected net (real minus mean of 5 random rankings)", dl, esplit))
 			fmt.Println(statLine("S2 exploration placebo-corrected net25 (real minus mean of 5 random rankings)", ds2, esplit))
-			fmt.Printf("momsleeve rev: fixed bar for the primary book is t 2.64; thin days at the chosen rates S1 %d, S2 %d\n", realL.thin, realS.thin)
+			bar := 2.64
+			if isLBKind(kind) {
+				bar = 2.0
+			}
+			lo1, md1, hi1 := availNames(t, kind, ea, eb)
+			fmt.Printf("momsleeve %s: fixed bar for the primary book is t %.2f; thin days at the chosen rates S1 %d, S2 %d; names available per date min %d median %d max %d\n", kind, bar, realL.thin, realS.thin, lo1, md1, hi1)
 		}
 		return
 	}
@@ -384,8 +397,10 @@ func momSleeve(pp *pipe, basePath, kind, stage string, rateL, rateS float64) {
 	fmt.Println("momsleeve realtime:")
 	rl := runSleeve(t, kind, 0, bestL, true, ra, rb)
 	fmt.Printf("momsleeve S1 turnover %.3f gross %+.5f%%\n", mean(clean(rl.turn)), mean(clean(rl.gross))*100)
-	if isRevKind(kind) {
+	if isDiagKind(kind) {
 		fmt.Println(rateLine("momsleeve realtime S1", bestL, rl))
+		lo1, md1, hi1 := availNames(t, kind, ra, rb)
+		fmt.Printf("momsleeve realtime names available per date min %d median %d max %d; thin days %d (nets on thin days are missing and the gate t uses non-thin days only)\n", lo1, md1, hi1, rl.thin)
 	}
 	fmt.Println(statLine("S1 realtime long-only net (no carry)", rl.net17, split))
 	absS1 := filled(len(rl.net17))
@@ -396,20 +411,50 @@ func momSleeve(pp *pipe, basePath, kind, stage string, rateL, rateS float64) {
 			uni[i] = rl.bench[i]
 		}
 	}
-	fmt.Printf("momsleeve S1 absolute net (book return after costs, no carry): %+.5f%% a day, %.1f%% a year; equal-weight universe %+.5f%% a day, %.1f%% a year; mean deployed long weight %.3f\n", mean(clean(absS1))*100, mean(clean(absS1))*25200, mean(clean(uni))*100, mean(clean(uni))*25200, mean(clean(rl.wlong)))
+	fmt.Printf("momsleeve S1 absolute net (book return after costs, no carry): %+.5f%% a day, %.1f%% a year; benchmark mean %+.5f%% a day, %.1f%% a year (the low-beta group mean for lbmom kinds, the equal-weight universe otherwise); mean deployed long weight %.3f\n", mean(clean(absS1))*100, mean(clean(absS1))*25200, mean(clean(uni))*100, mean(clean(uni))*25200, mean(clean(rl.wlong)))
+	if isLBKind(kind) {
+		prem := filled(len(rl.bench))
+		for i := range prem {
+			if !math.IsNaN(rl.bench[i]) && !math.IsNaN(rl.univ[i]) {
+				prem[i] = rl.bench[i] - rl.univ[i]
+			}
+		}
+		fmt.Printf("momsleeve universe equal-weight mean %+.5f%% a day\n", mean(clean(rl.univ))*100)
+		fmt.Println(statLine("descriptive: low-beta group mean minus universe mean (the low-beta premium)", prem, split))
+	}
 	plcL := make([]*sleeveRun, 5)
 	for k := range plcL {
 		plcL[k] = runSleeve(t, kind, int64(20261027+k), bestL, true, ra, rb)
 		fmt.Println(statLine(fmt.Sprintf("S1 placebo %d long-only net", k+1), plcL[k].net17, split))
 	}
+	if isLBKind(kind) {
+		avg := filled(len(rl.net17))
+		for _, p := range plcL {
+			for i, v := range p.net17 {
+				if !math.IsNaN(v) {
+					avg[i] = nanAdd(avg[i], v/5)
+				}
+			}
+		}
+		corr := filled(len(avg))
+		for i := range corr {
+			if !math.IsNaN(rl.net17[i]) && !math.IsNaN(avg[i]) {
+				corr[i] = rl.net17[i] - avg[i]
+			}
+		}
+		fmt.Println(statLine("S1 realtime placebo-corrected net (real minus mean of 5 random rankings inside the group)", corr, split))
+	}
 	rs := runSleeve(t, kind, 0, bestS, false, ra, rb)
 	fmt.Printf("momsleeve S2 sleeve turnover %.3f gross %+.5f%% short %.3f\n", mean(clean(rs.turn)), mean(clean(rs.gross))*100, mean(clean(rs.short)))
-	if isRevKind(kind) {
+	if isDiagKind(kind) {
 		fmt.Println(rateLine("momsleeve realtime S2", bestS, rs))
 	}
 	fmt.Println(statLine("S2 realtime sleeve net 17% carry", rs.net17, split))
 	fmt.Println(statLine("S2 realtime sleeve net 25% carry", rs.net25, split))
 	fmt.Println(statLine("S2 realtime sleeve net 27.5% carry", rs.net275, split))
+	if isLBKind(kind) {
+		return
+	}
 	cols, dates := readDump(basePath)
 	idx := map[string]int{}
 	for i, dd := range dates {

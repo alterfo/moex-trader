@@ -259,6 +259,9 @@ func heteroRun(pp *pipe, sigPath, modPath, macroDir, study string, k int) {
 	if !ok {
 		fatal(fmt.Errorf("unknown hetero study %s", study))
 	}
+	if study == "lbrep" {
+		requirePlaybookFile(sigPath)
+	}
 	ds := pp.ds
 	hd := heteroLoad(sigPath, modPath)
 	lo, hi := sortSearch(ds.dates, st.from), sortSearch(ds.dates, st.till)
