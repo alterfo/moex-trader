@@ -25,7 +25,7 @@ func newAlertFixture(t *testing.T, cfg WatchConfig) (*Watch, *[]string, *time.Ti
 	t.Cleanup(server.Close)
 
 	client := newClient(server.URL, "token-123", "chat-456", server.Client())
-	now := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
 	if cfg.Now == nil {
 		cfg.Now = func() time.Time { return now }
 	}
@@ -140,6 +140,51 @@ func TestStaleCandleAlertsInSessionAndCooldown(t *testing.T) {
 	}
 	if len(*messages) != 2 {
 		t.Fatalf("messages = %d, want 2", len(*messages))
+	}
+}
+
+func TestStaleCandleIgnoresWeekendGap(t *testing.T) {
+	ctx := context.Background()
+	monday := time.Date(2026, 10, 26, 14, 36, 0, 0, time.UTC)
+	watch, messages, _ := newAlertFixture(t, WatchConfig{
+		StaleCandleAge: 24 * time.Hour,
+		Now:            func() time.Time { return monday },
+	})
+
+	fridayClose := time.Date(2026, 10, 23, 20, 59, 59, 0, time.UTC)
+	alerted, err := watch.ObserveCandleAge(ctx, "SBER", monday.Sub(fridayClose), true)
+	if err != nil {
+		t.Fatalf("ObserveCandleAge() error = %v", err)
+	}
+	if alerted || len(*messages) != 0 {
+		t.Fatal("ObserveCandleAge() alerted for a Friday candle on Monday")
+	}
+
+	thursdayClose := fridayClose.AddDate(0, 0, -1)
+	alerted, err = watch.ObserveCandleAge(ctx, "SBER", monday.Sub(thursdayClose), true)
+	if err != nil {
+		t.Fatalf("ObserveCandleAge() error = %v", err)
+	}
+	if !alerted {
+		t.Fatal("ObserveCandleAge() did not alert for a candle missing a whole trading day")
+	}
+}
+
+func TestWeekendSpan(t *testing.T) {
+	loc := mskLocation()
+	cases := []struct {
+		name     string
+		from, to time.Time
+		want     time.Duration
+	}{
+		{"weekdays only", time.Date(2026, 10, 21, 10, 0, 0, 0, loc), time.Date(2026, 10, 22, 10, 0, 0, 0, loc), 0},
+		{"full weekend", time.Date(2026, 10, 23, 23, 59, 59, 0, loc), time.Date(2026, 10, 26, 10, 0, 0, 0, loc), 48 * time.Hour},
+		{"inside sunday", time.Date(2026, 10, 25, 10, 0, 0, 0, loc), time.Date(2026, 10, 25, 12, 0, 0, 0, loc), 2 * time.Hour},
+	}
+	for _, c := range cases {
+		if got := weekendSpan(c.from, c.to); got != c.want {
+			t.Errorf("%s: weekendSpan() = %v, want %v", c.name, got, c.want)
+		}
 	}
 }
 

@@ -99,11 +99,14 @@ func (w *Watch) ObserveCandleAge(ctx context.Context, ticker string, age time.Du
 	if w == nil || w.client == nil || !w.client.Enabled() {
 		return false, nil
 	}
-	if !inSession || age <= w.cfg.StaleCandleAge {
+	if !inSession {
 		return false, nil
 	}
 
 	now := w.cfg.Now()
+	if age-weekendSpan(now.Add(-age), now) <= w.cfg.StaleCandleAge {
+		return false, nil
+	}
 	w.mu.Lock()
 	alert := w.cooldownElapsed(now, w.lastStale[ticker])
 	if alert {
@@ -173,6 +176,28 @@ func TradingSessionActive(now time.Time, loc *time.Location) bool {
 	}
 	minutes := local.Hour()*60 + local.Minute()
 	return minutes >= 10*60 && minutes < 18*60+45
+}
+
+func weekendSpan(from, to time.Time) time.Duration {
+	loc := mskLocation()
+	var total time.Duration
+	day := time.Date(from.In(loc).Year(), from.In(loc).Month(), from.In(loc).Day(), 0, 0, 0, 0, loc)
+	for ; day.Before(to); day = day.AddDate(0, 0, 1) {
+		if wd := day.Weekday(); wd != time.Saturday && wd != time.Sunday {
+			continue
+		}
+		lo, hi := day, day.AddDate(0, 0, 1)
+		if lo.Before(from) {
+			lo = from
+		}
+		if hi.After(to) {
+			hi = to
+		}
+		if hi.After(lo) {
+			total += hi.Sub(lo)
+		}
+	}
+	return total
 }
 
 func mskLocation() *time.Location {
