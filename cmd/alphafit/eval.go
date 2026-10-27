@@ -212,6 +212,19 @@ func (b *book) step(rows []*row, aim map[string]float64) dayPL {
 			}
 		}
 	}
+	if delistDay != nil && len(rows) > 0 {
+		d := rows[0].di
+		for k, w := range next {
+			if dd, ok := delistDay[k]; ok && dd <= d && w != 0 {
+				if w > 0 {
+					pl.gross -= w
+					pl.glong -= w
+					delistHits++
+				}
+				next[k] = 0
+			}
+		}
+	}
 	costSum := 0.0
 	costFor := func(k string) float64 {
 		if c, ok := costOf[k]; ok {

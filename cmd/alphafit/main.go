@@ -175,6 +175,7 @@ type runner struct {
 	books25   map[string]*book
 	booksGP25 map[string]*book
 	keep      map[int][]float64
+	keepAll   map[int][]float64
 }
 
 func newRunner(pp *pipe, fz frozen, names []string) *runner {
@@ -189,6 +190,9 @@ func newRunner(pp *pipe, fz frozen, names []string) *runner {
 }
 
 func (r *runner) day(d int, preds map[string][]float64) {
+	if r.keepAll != nil {
+		r.keepAll[d] = append([]float64(nil), preds["blend"]...)
+	}
 	rows := r.pp.ds.byDate[d]
 	bench := 0.0
 	if longOnly {
@@ -321,6 +325,7 @@ func main() {
 	eqw := flag.Bool("eqw", false, "equal weights inside each book leg instead of inverse volatility")
 	thr := flag.Float64("thr", 0, "fundtest: stage-R threshold from fundmeff")
 	macroDir := flag.String("macro", "data/macro-long", "fundgen, fundtest: directory of macro series CSVs")
+	dir := flag.String("dir", "data/algopack", "robust: AlgoPack directory for last trading dates")
 	flag.Parse()
 	if *mode == "s3diff" {
 		s3Diff(*basePath, *extDump, *plcDump)
@@ -424,6 +429,8 @@ func main() {
 		shadowScores(pp, *models, *fromDate, *outPath)
 	case "forward":
 		forward(pp, *models, *fromDate)
+	case "robust":
+		robust(pp, *frz, *dir)
 	}
 }
 

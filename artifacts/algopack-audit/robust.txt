@@ -1,0 +1,77 @@
+2026/10/27 11:39:30 alphafit: 163709 rows, 1644 dates, 75 AlgoPack features plus 3 controls
+== baseline: frozen composite, ridge 0.003 en 0.0010 rate 0.50, window 2025-01-03..2026-10-16, 457 dates
+IC blend                     mean +0.09571 NW10 t +5.87 boot95 [+0.06933, +0.12943] halves +0.08533 / +0.10915 n 450
+net/day daily book           mean +0.00048 NW10 t +1.03 boot95 [-0.00037, +0.00142] halves +0.00011 / +0.00093 n 457
+net/day GP book              mean +0.00075 NW10 t +1.71 boot95 [-0.00005, +0.00163] halves +0.00066 / +0.00087 n 457
+Sharpe annualised GP book +1.56
+== 1. noise in the inputs (refit), sd = m x 0.289
+m 0.25 seed 1: IC +0.09443 (99% of clean) GP net/day +0.06944%
+m 0.25 seed 2: IC +0.09354 (98% of clean) GP net/day +0.07524%
+m 0.25 seed 3: IC +0.09312 (97% of clean) GP net/day +0.07557%
+m 0.25 mean IC +0.09370 (98% of clean), mean GP net/day +0.07342%
+m 0.50 seed 1: IC +0.09031 (94% of clean) GP net/day +0.05640%
+m 0.50 seed 2: IC +0.08832 (92% of clean) GP net/day +0.06190%
+m 0.50 seed 3: IC +0.08969 (94% of clean) GP net/day +0.06554%
+m 0.50 mean IC +0.08944 (93% of clean), mean GP net/day +0.06128%
+m 1.00 seed 1: IC +0.08246 (86% of clean) GP net/day +0.03952%
+m 1.00 seed 2: IC +0.07801 (82% of clean) GP net/day +0.03232%
+m 1.00 seed 3: IC +0.08262 (86% of clean) GP net/day +0.03292%
+m 1.00 mean IC +0.08103 (85% of clean), mean GP net/day +0.03492%
+== 2. stale signal, prediction of day d-k against the outcome of day d
+k  0: IC +0.09571 (100% of k=0)
+k  1: IC +0.08060 (84% of k=0)  GP net/day +0.02228%
+k  2: IC +0.07562 (79% of k=0)  GP net/day -0.03382%
+k  5: IC +0.06496 (68% of k=0)
+k 10: IC +0.05192 (54% of k=0)
+== 3. total loss for names that left the board
+7 names with the last trade before 2026-10-10: AMEZ CIAN FIXP INGR LNZL LNZLP QIWI
+long positions lost in full, counted over the four books of the run: 2
+net/day GP total loss        mean +0.00072 NW10 t +1.63 boot95 [-0.00010, +0.00160] halves +0.00060 / +0.00087 n 457
+GP total loss minus base     mean -0.00003 NW10 t -1.01 boot95 [-0.00010, +0.00000] halves -0.00006 / +0.00000 n 457
+net/day daily total loss     mean +0.00048 NW10 t +1.03 boot95 [-0.00037, +0.00142] halves +0.00011 / +0.00093 n 457
+daily total loss minus base  mean -0.00000 NW10 t -0.82 boot95 [-0.00000, +0.00000] halves -0.00000 / -0.00000 n 457
+== 4. dividends
+ticker-days in the window 45636; within one day of an ex-date 132 (0.29%); next-day return missing 143, of which at ex-date days 88
+proxy bound: next-day returns more than 5 points away from the universe mean set missing (4177 ticker-days in all years, includes dividend gaps and news jumps)
+net/day GP, jumps removed    mean +0.00069 NW10 t +2.62 boot95 [+0.00023, +0.00123] halves +0.00069 / +0.00069 n 457
+GP jumps removed minus base  mean -0.00007 NW10 t -0.25 boot95 [-0.00056, +0.00047] halves +0.00003 / -0.00018 n 457
+net/day daily, jumps removed mean +0.00033 NW10 t +1.12 boot95 [-0.00021, +0.00093] halves +0.00019 / +0.00051 n 457
+== 5. independent periods
+2025-01-03..2025-03-31 n  61 IC +0.03456 NW5 t +1.09 GP net/day -0.05576%
+2025-04-01..2025-06-30 n  62 IC +0.10408 NW5 t +6.92 GP net/day +0.09540%
+2025-07-01..2025-09-30 n  66 IC +0.15613 NW5 t +5.06 GP net/day +0.17197%
+2025-10-01..2025-12-31 n  65 IC +0.04320 NW5 t +1.85 GP net/day +0.04323%
+2026-01-01..2026-03-31 n  61 IC +0.12324 NW5 t +7.31 GP net/day +0.06069%
+2026-04-01..2026-06-30 n  64 IC +0.20308 NW5 t +7.61 GP net/day +0.27678%
+2026-07-01..2026-10-16 n  71 IC +0.01239 NW5 t +0.26 GP net/day -0.04833%
+quarters with positive IC: 7 of 7
+2025-01 days 20 IC +0.10858 GP net/day +0.07737%
+2025-02 days 20 IC -0.04753 GP net/day -0.23850%
+2025-03 days 21 IC +0.04224 GP net/day -0.00852%
+2025-04 days 22 IC +0.07999 GP net/day +0.07209%
+2025-05 days 20 IC +0.08658 GP net/day +0.09326%
+2025-06 days 20 IC +0.14806 GP net/day +0.12318%
+2025-07 days 23 IC +0.18953 GP net/day +0.33535%
+2025-08 days 21 IC +0.05178 GP net/day -0.06415%
+2025-09 days 22 IC +0.22081 GP net/day +0.22655%
+2025-10 days 23 IC -0.00667 GP net/day -0.10149%
+2025-11 days 20 IC +0.00615 GP net/day -0.01196%
+2025-12 days 22 IC +0.12902 GP net/day +0.24471%
+2026-01 days 19 IC +0.06072 GP net/day -0.03025%
+2026-02 days 20 IC +0.13703 GP net/day +0.05661%
+2026-03 days 22 IC +0.16470 GP net/day +0.14293%
+2026-04 days 22 IC +0.22356 GP net/day +0.20619%
+2026-05 days 21 IC +0.24384 GP net/day +0.55823%
+2026-06 days 21 IC +0.14086 GP net/day +0.06926%
+2026-07 days 23 IC -0.10288 GP net/day -0.37453%
+2026-08 days 21 IC +0.09697 GP net/day +0.23592%
+2026-09 days 22 IC +0.11539 GP net/day +0.23942%
+2026-10 days  5 IC -0.26580 GP net/day -0.44810%
+months with positive IC: 18 of 22; with positive GP net: 14 of 22
+== 6. minimum backtest length
+observed annualised Sharpe of the GP book +1.56 over 1.81 years
+N   10: expected maximum annualised Sharpe of skill-free strategies 1.17; years needed for the observed Sharpe to exceed it 1.02
+N   50: expected maximum annualised Sharpe of skill-free strategies 1.69; years needed for the observed Sharpe to exceed it 2.14
+N  100: expected maximum annualised Sharpe of skill-free strategies 1.88; years needed for the observed Sharpe to exceed it 2.64
+N  300: expected maximum annualised Sharpe of skill-free strategies 2.15; years needed for the observed Sharpe to exceed it 3.46
+N  800: expected maximum annualised Sharpe of skill-free strategies 2.37; years needed for the observed Sharpe to exceed it 4.20
