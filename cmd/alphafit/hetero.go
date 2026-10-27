@@ -22,6 +22,7 @@ type heteroStudy struct {
 	name  string
 	from  string
 	till  string
+	split string
 	tests []heteroTest
 }
 
@@ -45,7 +46,9 @@ func heteroStudies() map[string]heteroStudy {
 		heteroTest{id: "30a dividend headlines minus overall", kind: "paired", sig: "zc_div", sigB: "zc", hh: 1},
 		heteroTest{id: "30b sanctions and restrictions minus overall", kind: "paired", sig: "zc_san", sigB: "zc", hh: 1},
 		heteroTest{id: "30c results and profit minus overall", kind: "paired", sig: "zc_res", sigB: "zc", hh: 1})
-	return map[string]heteroStudy{"momentum": mom, "attention": news}
+	rep := heteroStudy{name: "low-beta momentum replication", from: "2025-01-03", till: "2026-10-16", split: "2026-01-05"}
+	rep.tests = append(rep.tests, heteroTest{id: "R1 beta tercile (C01), lowest minus highest", kind: "tercile", sig: "M256", mod: "C01", hh: 10})
+	return map[string]heteroStudy{"momentum": mom, "attention": news, "lbrep": rep}
 }
 
 type heteroData struct {
@@ -262,9 +265,13 @@ func heteroRun(pp *pipe, sigPath, modPath, macroDir, study string, k int) {
 	if hi >= len(ds.dates) || ds.dates[hi] != st.till {
 		hi = sortSearch(ds.dates, st.till) - 1
 	}
-	split := sortSearch(ds.dates, "2023-07-01") - lo
+	splitDate := st.split
+	if splitDate == "" {
+		splitDate = "2023-07-01"
+	}
+	split := sortSearch(ds.dates, splitDate) - lo
 	alpha := 0.05 / float64(k)
-	fmt.Printf("hetero: study %s, %s..%s, %d tests, Bonferroni-adjusted level %.4f, halves split 2023-07-01\n", st.name, ds.dates[lo], ds.dates[hi], len(st.tests), alpha)
+	fmt.Printf("hetero: study %s, %s..%s, %d tests, Bonferroni-adjusted level %.4f, halves split %s\n", st.name, ds.dates[lo], ds.dates[hi], len(st.tests), alpha, splitDate)
 	for ti, tc := range st.tests {
 		a, b := filled(hi-lo+1), filled(hi-lo+1)
 		var flags []bool

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"sort"
 	"strings"
 )
 
@@ -15,6 +16,8 @@ type sleeveRun struct {
 }
 
 var equalWeight bool
+
+var minAim = 40
 
 func isRevKind(kind string) bool {
 	return kind == "gap" || kind == "blend" || strings.HasPrefix(kind, "cand:")
@@ -67,9 +70,64 @@ func revSignal(t *tfmCtx, d int, rows []*row, kind string) []float64 {
 	return out
 }
 
+func isLBKind(kind string) bool {
+	return kind == "lbmom" || kind == "lbmom3"
+}
+
+func lbSignal(t *tfmCtx, d int, rows []*row, kind string) []float64 {
+	out := filled(len(rows))
+	var who []int
+	for i, x := range rows {
+		if !math.IsNaN(t.file(d, x.secid, "M256")) && !math.IsNaN(t.file(d, x.secid, "C01")) {
+			who = append(who, i)
+		}
+	}
+	if len(who) < 30 {
+		return out
+	}
+	sort.SliceStable(who, func(a, b int) bool {
+		return t.file(d, rows[who[a]].secid, "C01") < t.file(d, rows[who[b]].secid, "C01")
+	})
+	k := len(who) / 2
+	if kind == "lbmom3" {
+		k = len(who) / 3
+	}
+	for _, i := range who[:k] {
+		out[i] = t.file(d, rows[i].secid, "M256")
+	}
+	return out
+}
+
+func lbBench(rows []*row, sig []float64) float64 {
+	s, n := 0.0, 0
+	for i, x := range rows {
+		if !math.IsNaN(sig[i]) && !math.IsNaN(x.f1) && !x.divDrop {
+			s += x.f1
+			n++
+		}
+	}
+	if n == 0 {
+		return 0
+	}
+	return s / float64(n)
+}
+
+func minAimFor(kind string) int {
+	switch kind {
+	case "lbmom":
+		return 24
+	case "lbmom3":
+		return 18
+	}
+	return 40
+}
+
 func sleeveSignal(t *tfmCtx, d int, rows []*row, kind string) []float64 {
 	if isRevKind(kind) {
 		return revSignal(t, d, rows, kind)
+	}
+	if isLBKind(kind) {
+		return lbSignal(t, d, rows, kind)
 	}
 	out := filled(len(rows))
 	for i, x := range rows {
@@ -94,9 +152,9 @@ func runSleeve(t *tfmCtx, kind string, seed int64, rate float64, long bool, a, b
 	for _, p := range []*[]float64{&r.gross, &r.cost, &r.short, &r.turn, &r.net17, &r.net25, &r.net275, &r.wlong, &r.bench} {
 		*p = filled(nd)
 	}
-	prevLong := longOnly
-	longOnly = long
-	defer func() { longOnly = prevLong }()
+	prevLong, prevMin := longOnly, minAim
+	longOnly, minAim = long, minAimFor(kind)
+	defer func() { longOnly, minAim = prevLong, prevMin }()
 	bk := newBook(rate)
 	for d := a; d <= b; d++ {
 		rows := ds.byDate[d]
@@ -118,12 +176,15 @@ func runSleeve(t *tfmCtx, kind string, seed int64, rate float64, long bool, a, b
 					break
 				}
 			}
+			if isLBKind(kind) {
+				bench = lbBench(rows, sleeveSignal(t, d, rows, kind))
+			}
 			pl.gross -= pl.wlong * bench
 			r.wlong[d-a], r.bench[d-a] = pl.wlong, bench
 		}
 		i := d - a
 		r.gross[i], r.cost[i], r.short[i], r.turn[i] = pl.gross, pl.cost, pl.short, pl.turn
-		if thin && isRevKind(kind) {
+		if thin && (isRevKind(kind) || isLBKind(kind)) {
 			continue
 		}
 		r.net17[i] = pl.gross - pl.cost - pl.short*borrow17
@@ -138,6 +199,10 @@ func nanAdd(a, b float64) float64 {
 		return b
 	}
 	return a + b
+}
+
+func lbRateOK(rate float64) bool {
+	return rate == 0.10 || rate == 0.05 || rate == 0.03
 }
 
 func revRateOK(rate float64) bool {
@@ -205,7 +270,7 @@ func firstSignalDate(t *tfmCtx, kind string, from int) int {
 func momSleeve(pp *pipe, basePath, kind, stage string, rateL, rateS float64) {
 	ds := pp.ds
 	path := ""
-	if isRevKind(kind) {
+	if isRevKind(kind) || isLBKind(kind) {
 		path = candFile
 	}
 	t := buildTfmCtx(pp, path)
@@ -213,6 +278,9 @@ func momSleeve(pp *pipe, basePath, kind, stage string, rateL, rateS float64) {
 	ea := firstSignalDate(t, kind, 0)
 	if isRevKind(kind) {
 		ea = firstSignalDate(t, kind, sortSearch(ds.dates, "2021-04-08"))
+	}
+	if isLBKind(kind) {
+		ea = sortSearch(ds.dates, "2021-04-08")
 	}
 	ra, rb := pp.dateRange("2025-01-03", "2026-10-16")
 	rates := []float64{0.10, 0.05, 0.03}
@@ -299,6 +367,9 @@ func momSleeve(pp *pipe, basePath, kind, stage string, rateL, rateS float64) {
 		return
 	}
 	bestL, bestS := rateL, rateS
+	if isLBKind(kind) && (!lbRateOK(bestL) || !lbRateOK(bestS)) {
+		fatal(fmt.Errorf("momsleeve verdict for %s needs -ratel and -rates from {0.10, 0.05, 0.03}, got %v and %v", kind, bestL, bestS))
+	}
 	if isRevKind(kind) {
 		if !revRateOK(bestL) || !revRateOK(bestS) {
 			fatal(fmt.Errorf("momsleeve verdict for %s needs -ratel and -rates from {1.0, 0.5, 0.3}, got %v and %v", kind, bestL, bestS))

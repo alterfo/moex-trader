@@ -153,7 +153,7 @@ func aimWeights(rows []*row, pred []float64) map[string]float64 {
 	}
 	n := len(idx)
 	out := map[string]float64{}
-	if n < 40 {
+	if n < minAim {
 		return out
 	}
 	sort.SliceStable(idx, func(a, b int) bool { return pred[idx[a]] > pred[idx[b]] })
