@@ -12,6 +12,9 @@ var positiveStems = []string{"рост", "вырос", "выросл", "приб
 var negativeStems = []string{"пад", "снизил", "снижен", "убыт", "санкц", "штраф", "иск ", "отмен", "дефолт", "банкрот", "расследован", "приостанов", "сократ", "понижен", "риск", "авария", "обвал", "потер"}
 
 type item struct {
+	id     string
+	llm    float64
+	hasLLM bool
 	ticker string
 	ts     time.Time
 	trust  float64
@@ -65,7 +68,7 @@ func loadNews(path string) ([]item, error) {
 		if w <= 0 {
 			w = 1
 		}
-		out = append(out, item{ticker: r.Ticker, ts: time.Unix(r.TS, 0).In(loc), trust: w, score: lexScore(r.Title)})
+		out = append(out, item{id: r.ID, ticker: r.Ticker, ts: time.Unix(r.TS, 0).In(loc), trust: w, score: lexScore(r.Title)})
 	}
 	return out, sc.Err()
 }

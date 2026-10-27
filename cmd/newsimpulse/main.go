@@ -23,6 +23,7 @@ type cell struct {
 
 type agg struct {
 	cnt, tw, sent, eveCnt, eveSent float64
+	lc, ls, elc, els               float64
 }
 
 func f64(s string) float64 {
@@ -37,6 +38,7 @@ func main() {
 	matrix := flag.String("matrix", "work/matrix.csv", "flowscan matrix")
 	ext := flag.String("ext", "work/matrix.csv.ext", "matrix side file with idy1")
 	newsPath := flag.String("news", "data/news_history.jsonl", "news history")
+	llmPath := flag.String("llm", "", "newsllm scores.csv; runs the L rows instead of the N rows")
 	flag.Parse()
 	dates, byDate := loadMatrix(*matrix, *ext)
 	items, err := loadNews(*newsPath)
@@ -44,6 +46,14 @@ func main() {
 		log.Fatal(err)
 	}
 	fmt.Printf("newsimpulse: %d matrix dates, %d news items\n", len(dates), len(items))
+	if *llmPath != "" {
+		if err := attachLLM(items, *llmPath); err != nil {
+			log.Fatal(err)
+		}
+		signals := buildSignals(dates, byDate, items)
+		runLLMRows(dates, byDate, signals)
+		return
+	}
 	signals := buildSignals(dates, byDate, items)
 	runRows(dates, byDate, signals)
 }
@@ -140,10 +150,18 @@ func buildSignals(dates []string, byDate map[string][]cell, items []item) map[st
 		a.cnt++
 		a.tw += it.trust
 		a.sent += it.trust * it.score
+		if it.hasLLM {
+			a.lc++
+			a.ls += it.trust * it.llm
+		}
 		if i > 0 && it.ts.After(cuts[i-1]) && it.ts.Before(cuts[i-1].Add(15*time.Hour+20*time.Minute)) {
 			e := get(dates[i-1], it.ticker)
 			e.eveCnt++
 			e.eveSent += it.trust * it.score
+			if it.hasLLM {
+				e.elc++
+				e.els += it.trust * it.llm
+			}
 		}
 	}
 	return out

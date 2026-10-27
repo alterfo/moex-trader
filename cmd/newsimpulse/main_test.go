@@ -25,3 +25,19 @@ func TestTrailingZExcludesToday(t *testing.T) {
 		t.Fatalf("z %v", z)
 	}
 }
+
+func TestOlsSlopeRecoversCoefficient(t *testing.T) {
+	var y []float64
+	x := [][]float64{nil, nil}
+	for i := 0; i < 50; i++ {
+		a, b := float64(i%7)-3, float64((i*5)%11)-5
+		x[0], x[1] = append(x[0], a), append(x[1], b)
+		y = append(y, 2+3*a-1.5*b)
+	}
+	if g := olsSlope(y, x, 0); math.Abs(g-3) > 1e-9 {
+		t.Fatalf("slope %v", g)
+	}
+	if g := olsSlope(y, x, 1); math.Abs(g+1.5) > 1e-9 {
+		t.Fatalf("slope %v", g)
+	}
+}

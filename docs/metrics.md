@@ -159,6 +159,8 @@ Sections 3-9 live in `docs/metrics/`; numbering is unchanged, so `metrics.md 8.1
 | 8.37 Slow momentum books: long-only, blended sleeve, slow composite (2026-10-26) | s8b-portfolio.md |
 | 8.38 Dividend run-up: announcement dates from the news history (2026-10-26) | s8b-portfolio.md |
 | 8.39 Calm before the move: does a quiet stock predict its own direction (2026-10-26) | s8b-portfolio.md |
+| 8.40 News sentiment scored by a local LLM (2026-10-27) | s8b-portfolio.md |
+| 8.41 Fund playbook: 94 stock columns and 6 book rules (2026-10-27) | s8b-portfolio.md |
 | 9.1 Root cause of the September-October SELL drift (step 9) | s9-live.md |
 | 9.2 Sell-bias diagnostic and the out-of-range guard (2026-10-18) | s9-live.md |
 | 9.3 Preflight concentration (2026-10-18) | s9-live.md |

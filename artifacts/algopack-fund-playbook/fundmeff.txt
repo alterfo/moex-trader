@@ -1,0 +1,2 @@
+2026/10/27 04:12:05 alphafit: 163709 rows, 1644 dates, 75 AlgoPack features plus 3 controls
+fundmeff: 94 family columns with at least 200 stage-I dates of 94, Nyholt M_eff 89.8, family-wise z for 5% 3.452, stage-R threshold max(3.0, z) = 3.452 (computed from feature correlations only, no outcome used)

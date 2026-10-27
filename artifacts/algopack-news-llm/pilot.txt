@@ -1,0 +1,8 @@
+pilot: n 500, seconds per headline 0.071, predicted full run 3.5 hours (x1.2 factor), fallback to 2023-2026 false
+pilot: label strong_negative     0 (0.0%)
+pilot: label negative           69 (13.8%)
+pilot: label neutral           329 (65.8%)
+pilot: label positive          102 (20.4%)
+pilot: label strong_positive     0 (0.0%)
+pilot: unparseable 0 (0.0%, gate at most 5%), max class share 65.8% (gate at most 80%), |Spearman with lexicon| 0.265 (gate at least 0.4)
+pilot: ticker-redacted twin, label agreement 460 of 500 (92.0%)

@@ -315,9 +315,15 @@ func main() {
 	extDump := flag.String("extdump", "", "compare: extended dump CSV")
 	bookKind := flag.String("book", "longshort", "longshort or longonly (top quintile long only, abnormal against the equal-weight universe mean, no carry)")
 	fromDate := flag.String("from", "2026-10-21", "forward: first feature date")
+	thr := flag.Float64("thr", 0, "fundtest: stage-R threshold from fundmeff")
+	macroDir := flag.String("macro", "data/macro-long", "fundgen, fundtest: directory of macro series CSVs")
 	flag.Parse()
 	if *mode == "s3diff" {
 		s3Diff(*basePath, *extDump, *plcDump)
+		return
+	}
+	if *mode == "fundgen" {
+		fundGen(*mat, *macroDir, *outPath)
 		return
 	}
 	if *mode == "compare" {
@@ -390,6 +396,12 @@ func main() {
 		tfmB(pp, *frz)
 	case "libext":
 		libExt(pp, *frz)
+	case "fundcover":
+		fundCover(pp)
+	case "fundmeff":
+		fundMeff(pp)
+	case "fundtest":
+		fundTest(pp, *frz, *macroDir, *basePath, *thr)
 	case "lib3":
 		libMode = "lib3"
 		lib2(pp, *frz)

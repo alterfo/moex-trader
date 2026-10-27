@@ -201,3 +201,11 @@ TimesFM 3 wave A (11 candidates, baseline with momentum controls): 0 hits, calib
 ## Slow momentum books (2026-10-26)
 
 Momentum made slow (rate 0.10, turnover 0.04 a day) does not become a passing book: the long-only version earns +0.04% a day against the universe on 2021-2024 prices (t 1.96, just under the registered 2.0) and +0.08% in the spent window, but flat in absolute terms in a falling market; the long-short sleeve is killed by the short carry on the independent sample; momentum inside a slow composite is worse than inside the fast one. Lesson: separate exploration conditions (price-only independent sample, all frozen parameters, all rates positive) kept a window-flattering sleeve from being read as a lead.
+
+## News sentiment scored by a local LLM (2026-10-27)
+
+A 4B local model scored 143,088 ticker-tagged headlines (pilot gate on lexicon agreement failed, 0.265). Daily sentiment IC +0.016 at h1 (NW t +2.73, under the 3.0 floor), shock nothing, placebos 0 of 5. The evening sentiment against the next open-to-close shows IC +0.064 (t +4.95) but only in 2022-2024 (t +7.25); in 2025+ it is zero (t +0.14), so the registered guard blocks it. A better reader would need a large model and an idle GPU (separate plan). Details: `docs/metrics.md` 8.40.
+
+## Fund playbook, 100 hypotheses (2026-10-27)
+
+94 stock-level columns and 6 exposure rules from what AQR, trend followers, statistical-arbitrage houses, macro funds and Russian momentum and dividend funds describe. No candidate: trend, defensive and blend columns are momentum in other clothes (rank correlation 0.6-0.97 with mom256, incremental slopes within |t| 1.5). One lead, the 1-2 day reversal family led by the opening gap (B05 slope -0.023, t -3.65, bar 3.452; blocked from candidacy only by a stage-I IC of 0.0184 against a registered 0.02 floor). Exposure rules: the RVI rule adds +0.022% a day (t about 2, bar 2.6). Value, quality and size are untestable without point-in-time fundamentals. Details: `docs/metrics.md` 8.41.

@@ -1,0 +1,9 @@
+{
+  "digest": "1e97878b74bdf5f3c8338e98614a7584572ae542525a1581d34cc0a05748ff98",
+  "from": "2022-01-03",
+  "headlines": 143088,
+  "instruction": "You classify Russian financial news headlines. Decide how the headline changes the outlook for the share price of the named company over the next days. Answer with exactly one of these words and nothing else: strong_negative, negative, neutral, positive, strong_positive.",
+  "instruction_sha256": "7ad7d870d133434726a702c57e621fdb75b8a566cf55a4c06b19ed8ff7e0a9a2",
+  "model": "huihui_ai/qwen3-abliterated:4b",
+  "till": "2026-10-16"
+}
