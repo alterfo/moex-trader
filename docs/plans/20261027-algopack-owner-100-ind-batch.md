@@ -1,6 +1,6 @@
 # Owner's second hundred: the independent batch (2026-10-27)
 
-Status: REGISTERED 2026-10-27 before any run (English only). Executes the IND class of `20261027-algopack-owner-100-triage.md` that is still open after the gap-reversal result: 20 dependence tests in four studies. Each is a split of a signal or a book that already exists; none is a new signal. All run on samples that exclude the spent AlgoPack window (price-only 2021-04..2024-12, news and dividends before 2025, pairs 2020-2024), and the 2025-2026 window is not read for any verdict here.
+Status: DONE 2026-10-27 (run once: 1 lead of 20, 2 not testable). Registered 2026-10-27 before any run (English only). Executes the IND class of `20261027-algopack-owner-100-triage.md` that is still open after the gap-reversal result: 20 dependence tests in four studies. Each is a split of a signal or a book that already exists; none is a new signal. All run on samples that exclude the spent AlgoPack window (price-only 2021-04..2024-12, news and dividends before 2025, pairs 2020-2024), and the 2025-2026 window is not read for any verdict here.
 
 ## Common rule (frozen)
 
@@ -46,3 +46,9 @@ None yet.
 4. Attention: `cmd/newsimpulse -dump` writes `zc` (identical definition to N01), the high- and low-trust, company and aggregated (three or more tickers per article) and keyword-class variants, and `zcneg` for the book; the economics rows use `cmd/alphafit -mode momsleeve -sig cand:zcneg -stage explore` with flat costs as the gate and bbo as description, on 2022-01..2024-12 only.
 5. Momentum and attention splits run in `cmd/alphafit -mode hetero -hstudy momentum|attention` with `-hk 6` and `-hk 9`.
 6. Frozen artefacts (hashes of `hetero.go`, `splits.go` in pairscan and divrunup, `dump.go`, the playbook feature file and the news dump) are recorded below before the first run.
+
+Frozen before the first run (the Reviewer's pre-run answer had not arrived when the owner told the run to start; recorded as such): `hetero.go` SHA-256 ba60932bc927c880b8fda09609d6242dcbe6a66c2afd88afbb3c8d65d76f5a19; `pairscan/splits.go` b775e2b4467af82ca6fc7df1f01e41b27605a65d56aff8997d381f406ecba54f; `divrunup/splits.go` e31a7d54a0db32b34400e855a7c234e5bbdda85fbbe22cb5a5094dcfb0dd779c; `newsimpulse/dump.go` b33330dbcbfcb24469d6e8a8a75a8dd7cf675eb6dd9e3e45c6307745eef80da4; `momsleeve.go` 925d4619f8e22b56cbad298fffaf22d4000352d08bbaae49192da66609fd2c61; playbook feature file 299a7f9b73751d5c8ecbeaab1eba4d598351fb0a14bab65662a46323adab0c70; news dump 669b08bdc08dfe580236c1badc63ae07aa7f21208ce3545d56cdbcc49ce33675. Any change after the first output is a new plan.
+
+## Result (scored once, 2026-10-27)
+
+Numbers in `docs/metrics.md` 8.44, outputs `artifacts/algopack-owner-ind/`. 1 hit of 20 (momentum is stronger in low-beta names: IC +0.108 against +0.025, difference -0.082, level 0.0083, both halves, placebo clean), 2 not testable (size of positive shocks: 99 dates; source: the median trust weight is 1), 17 nulls. The attention reversal book is the closest standalone book so far (break-even 13 bp a side against 15 bp flat; bbo net +0.016% a day, t +0.92) but fails the flat-cost gate and the signal fades from 2025. Pairs and dividends splits are nulls. Errata: the dividend sample is 46 events (last-buy day before 2025), not 66; the pairs holding-period and executable-price rows are levels.

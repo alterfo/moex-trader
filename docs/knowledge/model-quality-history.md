@@ -217,3 +217,7 @@ The one lead of the fund playbook is a real one-day signal (rank IC +0.029, t +6
 ## Signal strength and market speed by year (2026-10-27)
 
 Momentum and the opening-gap signal have not lost strength or horizon from 2021 to 2026 (trend t -0.16 and +0.84), while the market became more liquid (turnover and trades up 2-3x, spreads about halved between 2022 and 2024, partly retraced in 2026). Only the news count shock fades (1-day IC -0.040 in 2024 to -0.004 in 2026, trend t +2.1 to +2.6), in a hump shape that coincides with the headline file doubling in 2025, so a faster market cannot be separated from a changed news mix. Details: `docs/metrics.md` 8.43.
+
+## The owner's second hundred, independent batch (2026-10-27)
+
+20 dependence tests on samples without the spent window: one lead (momentum lives in low-beta and low-volatility names: IC +0.108 against +0.025; beta-neutral momentum equals raw momentum), two not testable, seventeen nulls. The news-attention reversal as a standalone long-only book breaks even at 13 bp a side (rate 0.3) against 15 bp flat and earns +0.016% a day under bbo costs (t +0.9) in 2022-2024; it fades from 2025. Pairs net is negative at every holding period after the broker carry (gross at 5 days equals the spread cost). Details: `docs/metrics.md` 8.44.

@@ -163,6 +163,7 @@ Sections 3-9 live in `docs/metrics/`; numbering is unchanged, so `metrics.md 8.1
 | 8.41 Fund playbook: 94 stock columns and 6 book rules (2026-10-27) | s8b-portfolio.md |
 | 8.42 Opening-gap reversal as a standalone book: feasibility bound (2026-10-27) | s8b-portfolio.md |
 | 8.43 Signal strength and market speed by year (2026-10-27) | s8b-portfolio.md |
+| 8.44 The owner's second hundred: the independent batch (2026-10-27) | s8b-portfolio.md |
 | 9.1 Root cause of the September-October SELL drift (step 9) | s9-live.md |
 | 9.2 Sell-bias diagnostic and the out-of-range guard (2026-10-18) | s9-live.md |
 | 9.3 Preflight concentration (2026-10-18) | s9-live.md |

@@ -1,0 +1,8 @@
+2026/10/27 08:04:03 alphafit: 163709 rows, 1644 dates, 75 AlgoPack features plus 3 controls
+hetero: study momentum, 2021-04-08..2024-12-17, 6 tests, Bonferroni-adjusted level 0.0083, halves split 2023-07-01
+63a liquidity (D02)                                                                  diff -0.0221 [-0.1000, +0.0611] halves -0.0820 / +0.0220  A +0.0504 B +0.0725  dates 653  placebo hits 0 of 5  no hit
+63b volatility (C04)                                                                 diff -0.0719 [-0.1686, +0.0126] halves -0.0337 / -0.1000  A +0.0485 B +0.1204  dates 653  placebo hits 0 of 5  no hit
+63c beta (C01)                                                                       diff -0.0824 [-0.1771, -0.0033] halves -0.0389 / -0.1145  A +0.0254 B +0.1079  dates 653  placebo hits 0 of 5  HIT (lead)
+64a IMOEX below its 200-day mean                                                     diff -0.0049 [-0.1466, +0.1242] halves +0.1033 / -0.0459  on +0.0734 (185) off +0.0784 (468)  placebo hits 0 of 5  no hit
+64b RVI above its 60-day median                                                      diff -0.0009 [-0.0985, +0.0899] halves +0.0483 / -0.0364  on +0.0765 (328) off +0.0774 (325)  placebo hits 0 of 5  no hit
+68 beta-neutral minus raw                                                            diff -0.0002 [-0.0184, +0.0221] halves +0.0072 / -0.0056  A +0.0770 B +0.0768  dates 653  placebo hits 0 of 5  no hit

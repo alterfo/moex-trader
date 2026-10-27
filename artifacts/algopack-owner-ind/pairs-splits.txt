@@ -1,0 +1,11 @@
+pairscan splits: 552 baseline trades (|z| >= 1.5, hold 5, 2020-2024, broker carry), Bonferroni-adjusted level 0.0125, month-cluster bootstrap, halves split 2022-07-01
+73 pair liquidity: wide spread minus tight spread            diff +0.146% [-0.845%, +1.180%] halves -0.287% / +0.982% groups -0.442% (184) vs -0.588% (185) placebo hits 0 of 5 no hit
+74 regime on minus off: imoex200                             diff +0.355% [-0.542%, +1.226%] halves +0.236% / +0.418% groups -0.279% (205) vs -0.634% (347) placebo hits 0 of 5 no hit
+74 regime on minus off: rvi60                                diff +0.326% [-0.339%, +1.009%] halves +0.365% / +0.318% groups -0.327% (256) vs -0.653% (296) placebo hits 0 of 5 no hit
+75 extremeness: |z| >= 2.5 minus |z| < 2.0                   diff +0.624% [-0.942%, +2.407%] halves +0.455% / +0.899% groups -0.001% (82) vs -0.625% (341) placebo hits 0 of 5 no hit
+76 holding period 1 day(s), bbo costs                        trades 1941 gross +0.096% cost +0.326% net -0.334% [-0.408%, -0.257%] break-even cost multiplier 0.29
+76 holding period 5 day(s), bbo costs                        trades 552 gross +0.340% cost +0.324% net -0.502% [-0.796%, -0.206%] break-even cost multiplier 1.05
+76 holding period 10 day(s), bbo costs                       trades 333 gross +0.483% cost +0.324% net -0.878% [-1.372%, -0.391%] break-even cost multiplier 1.49
+77a bbo costs x 1.0 (as run)                                 trades 552 gross +0.340% cost +0.324% net -0.502% [-0.796%, -0.206%] break-even cost multiplier 1.05
+77b bbo costs x 1.5 (close spread wider than the day mean)   trades 552 gross +0.340% cost +0.486% net -0.664% [-0.957%, -0.370%] break-even cost multiplier 0.70
+77c flat 0.15% a side on both legs                           trades 552 gross +0.340% cost +0.600% net -0.778% [-1.072%, -0.485%] break-even cost multiplier 0.57

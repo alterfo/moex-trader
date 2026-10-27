@@ -1,0 +1,11 @@
+2026/10/27 08:04:09 alphafit: 163709 rows, 1644 dates, 75 AlgoPack features plus 3 controls
+hetero: study attention, 2022-01-03..2024-12-17, 9 tests, Bonferroni-adjusted level 0.0056, halves split 2023-07-01
+21 size: positive shocks, top minus bottom tercile (next-day abnormal return)        not testable (99 dates)
+22 source: high-trust minus low-trust                                                not testable (0 dates)
+23 liquidity (D02)                                                                   diff +0.0119 [-0.0134, +0.0386] halves +0.0331 / -0.0047  A -0.0280 B -0.0399  dates 670  placebo hits 0 of 5  no hit
+24a IMOEX below its 200-day mean                                                     diff +0.0156 [-0.0146, +0.0454] halves +0.0352 / +0.0034  on -0.0267 (394) off -0.0423 (335)  placebo hits 0 of 5  no hit
+24b RVI above its 60-day median                                                      diff +0.0129 [-0.0161, +0.0396] halves +0.0081 / +0.0179  on -0.0263 (303) off -0.0392 (426)  placebo hits 0 of 5  no hit
+26 company minus aggregated                                                          diff -0.0098 [-0.0200, +0.0007] halves -0.0126 / -0.0071  first -0.0352 second -0.0255  dates 729  placebo hits 0 of 5  no hit
+30a dividend headlines minus overall                                                 diff +0.0002 [-0.0111, +0.0114] halves +0.0130 / -0.0119  first -0.0337 second -0.0338  dates 729  placebo hits 0 of 5  no hit
+30b sanctions and restrictions minus overall                                         diff +0.0119 [-0.0011, +0.0255] halves +0.0162 / +0.0079  first -0.0217 second -0.0338  dates 723  placebo hits 0 of 5  no hit
+30c results and profit minus overall                                                 diff +0.0121 [-0.0009, +0.0255] halves +0.0191 / +0.0055  first -0.0218 second -0.0338  dates 729  placebo hits 0 of 5  no hit
