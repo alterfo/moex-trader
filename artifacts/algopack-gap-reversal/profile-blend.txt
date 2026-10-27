@@ -1,0 +1,8 @@
+2026/10/27 05:42:21 alphafit: 163709 rows, 1644 dates, 75 AlgoPack features plus 3 controls
+revprofile: signal blend, daily rank IC against the abnormal return
+revprofile exploration                        1 day    mean IC +0.0093 NW t +1.93 halves +0.0025 / +0.0185 dates 909
+revprofile exploration                        5 days   mean IC -0.0034 NW t -0.66 halves +0.0027 / -0.0115 dates 905
+revprofile exploration                        10 days  mean IC -0.0053 NW t -1.02 halves -0.0034 / -0.0079 dates 900
+revprofile realtime (spent for this signal)   1 day    mean IC +0.0158 NW t +2.02 halves +0.0264 / +0.0026 dates 457
+revprofile realtime (spent for this signal)   5 days   mean IC +0.0143 NW t +1.53 halves +0.0169 / +0.0110 dates 455
+revprofile realtime (spent for this signal)   10 days  mean IC +0.0106 NW t +1.20 halves +0.0116 / +0.0092 dates 450

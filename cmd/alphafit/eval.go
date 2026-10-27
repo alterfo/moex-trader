@@ -163,7 +163,7 @@ func aimWeights(rows []*row, pred []float64) map[string]float64 {
 		w := make([]float64, len(sel))
 		for k, i := range sel {
 			s := rows[i].sig
-			if math.IsNaN(s) || s <= 0 {
+			if equalWeight || math.IsNaN(s) || s <= 0 {
 				w[k] = 1
 			} else {
 				w[k] = 1 / s

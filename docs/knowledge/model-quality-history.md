@@ -209,3 +209,7 @@ A 4B local model scored 143,088 ticker-tagged headlines (pilot gate on lexicon a
 ## Fund playbook, 100 hypotheses (2026-10-27)
 
 94 stock-level columns and 6 exposure rules from what AQR, trend followers, statistical-arbitrage houses, macro funds and Russian momentum and dividend funds describe. No candidate: trend, defensive and blend columns are momentum in other clothes (rank correlation 0.6-0.97 with mom256, incremental slopes within |t| 1.5). One lead, the 1-2 day reversal family led by the opening gap (B05 slope -0.023, t -3.65, bar 3.452; blocked from candidacy only by a stage-I IC of 0.0184 against a registered 0.02 floor). Exposure rules: the RVI rule adds +0.022% a day (t about 2, bar 2.6). Value, quality and size are untestable without point-in-time fundamentals. Details: `docs/metrics.md` 8.41.
+
+## Opening-gap reversal as a standalone book (2026-10-27)
+
+The one lead of the fund playbook is a real one-day signal (rank IC +0.029, t +6.3 over 2021-2024) but a directional book on it earns 0.5-2 bp a day gross and breaks even at 0.4-1.2 bp a side (4.5 bp at best with equal weights or open entry) against 10-15 bp of costs: net -0.07% to -0.55% a day, the placebo does as well. The family would need passive (market-making) execution; the incremental form is untested. Details: `docs/metrics.md` 8.42.

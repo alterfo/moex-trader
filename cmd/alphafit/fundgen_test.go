@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 )
 
@@ -252,5 +253,83 @@ func TestE06OnlyWhenMonthChangesWithinTen(t *testing.T) {
 	}
 	if !finite(withFlag.v["E06"]) {
 		t.Fatal("day 605 has a month change within ten days (month ends at 608)")
+	}
+}
+
+func TestRevSignalLongsGapDowns(t *testing.T) {
+	ds := &dataset{dates: []string{"2025-01-03"}}
+	t0 := &tfmCtx{ds: ds, cv: map[string][]float64{}, col: map[string]int{"B05": 0, "B04": 1, "B12": 2}}
+	var rows []*row
+	for i := 0; i < 40; i++ {
+		id := fmt.Sprintf("S%02d", i)
+		rows = append(rows, &row{secid: id})
+		t0.cv["2025-01-03|"+id] = []float64{float64(i), float64(i), float64(i)}
+	}
+	sig := revSignal(t0, 0, rows, "gap")
+	if !(sig[0] > sig[39]) {
+		t.Fatalf("the most negative gap must get the highest signal: %v %v", sig[0], sig[39])
+	}
+	bl := revSignal(t0, 0, rows, "blend")
+	if !(bl[0] > bl[39]) {
+		t.Fatal("blend must also long gap-downs")
+	}
+}
+
+func TestBlendDropsNameWithOneMissingMember(t *testing.T) {
+	ds := &dataset{dates: []string{"2025-01-03"}}
+	t0 := &tfmCtx{ds: ds, cv: map[string][]float64{}, col: map[string]int{"B05": 0, "B04": 1, "B12": 2}}
+	var rows []*row
+	for i := 0; i < 40; i++ {
+		id := fmt.Sprintf("S%02d", i)
+		rows = append(rows, &row{secid: id})
+		t0.cv["2025-01-03|"+id] = []float64{float64(i), float64(i), float64(i)}
+	}
+	t0.cv["2025-01-03|S07"][1] = nan
+	sig := revSignal(t0, 0, rows, "blend")
+	if !math.IsNaN(sig[7]) {
+		t.Fatal("a name with one missing member must be excluded from BLEND")
+	}
+	if g := revSignal(t0, 0, rows, "gap"); math.IsNaN(g[7]) {
+		t.Fatal("GAP needs only B05")
+	}
+}
+
+func TestPermuteSignalKeepsMarginalOnly(t *testing.T) {
+	sig := make([]float64, 60)
+	for i := range sig {
+		sig[i] = float64(i)
+	}
+	sig[5] = nan
+	orig := append([]float64{}, sig...)
+	permuteSignal(sig, 7, 3)
+	if !math.IsNaN(sig[5]) {
+		t.Fatal("missing positions must stay missing")
+	}
+	var a, b []float64
+	moved := 0
+	for i := range sig {
+		if math.IsNaN(orig[i]) {
+			continue
+		}
+		a, b = append(a, orig[i]), append(b, sig[i])
+		if sig[i] != orig[i] {
+			moved++
+		}
+	}
+	if moved < 40 {
+		t.Fatalf("permutation must scramble the cross-section, moved %d", moved)
+	}
+	sortFloats := func(v []float64) []float64 { sort.Float64s(v); return v }
+	x, y := sortFloats(a), sortFloats(b)
+	for i := range x {
+		if x[i] != y[i] {
+			t.Fatal("marginal distribution must be preserved")
+		}
+	}
+}
+
+func TestRevRateOK(t *testing.T) {
+	if !revRateOK(1.0) || !revRateOK(0.5) || !revRateOK(0.3) || revRateOK(0.05) {
+		t.Fatal("only the frozen reversal rates are allowed")
 	}
 }
