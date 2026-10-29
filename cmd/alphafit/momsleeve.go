@@ -150,6 +150,16 @@ func sleeveSignal(t *tfmCtx, d int, rows []*row, kind string) []float64 {
 }
 
 func runSleeve(t *tfmCtx, kind string, seed int64, rate float64, long bool, a, b int) *sleeveRun {
+	return runSleeveWith(t, kind, rate, long, a, b, func(d int, rows []*row) []float64 {
+		sig := sleeveSignal(t, d, rows, kind)
+		if seed != 0 {
+			permuteSignal(sig, seed, d)
+		}
+		return sig
+	})
+}
+
+func runSleeveWith(t *tfmCtx, kind string, rate float64, long bool, a, b int, signal func(d int, rows []*row) []float64) *sleeveRun {
 	ds := t.ds
 	nd := b - a + 1
 	r := &sleeveRun{}
@@ -162,10 +172,7 @@ func runSleeve(t *tfmCtx, kind string, seed int64, rate float64, long bool, a, b
 	bk := newBook(rate)
 	for d := a; d <= b; d++ {
 		rows := ds.byDate[d]
-		sig := sleeveSignal(t, d, rows, kind)
-		if seed != 0 {
-			permuteSignal(sig, seed, d)
-		}
+		sig := signal(d, rows)
 		aim := aimWeights(rows, sig)
 		pl := bk.step(rows, aim)
 		thin := len(aim) == 0

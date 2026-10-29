@@ -1,0 +1,33 @@
+momctrl rate 0.33: composite rate 0.33: gross +0.18693% a day, cost +0.09430%, turnover 0.629, break-even cost per side 29.74 bp (charged on average 15.00 bp), thin days 0
+momctrl rate 0.33: mom256 rate 0.33: gross +0.13232% a day, cost +0.02318%, turnover 0.155, break-even cost per side 85.62 bp (charged on average 15.00 bp), thin days 0
+momctrl rate 0.33: residual rate 0.33: gross +0.18527% a day, cost +0.09877%, turnover 0.658, break-even cost per side 28.14 bp (charged on average 15.00 bp), thin days 0
+momctrl rate 0.33: composite sleeve net 17% carry               mean +0.02979% NW t +0.70 boot95 [-0.04814%, +0.11357%] halves +0.02411% / +0.03689% n 457
+momctrl rate 0.33: mom256 sleeve net 17% carry                  mean +0.04198% NW t +0.58 boot95 [-0.08685%, +0.18272%] halves +0.05222% / +0.02916% n 457
+momctrl rate 0.33: residual sleeve net 17% carry                mean +0.02453% NW t +0.92 boot95 [-0.02823%, +0.07697%] halves +0.00269% / +0.05185% n 457
+momctrl rate 0.33: composite sleeve net 25% carry               mean +0.00022% NW t +0.01 boot95 [-0.07776%, +0.08392%] halves -0.00537% / +0.00720% n 457
+momctrl rate 0.33: mom256 sleeve net 25% carry                  mean +0.01037% NW t +0.14 boot95 [-0.11837%, +0.15097%] halves +0.02073% / -0.00258% n 457
+momctrl rate 0.33: residual sleeve net 25% carry                mean -0.00464% NW t -0.17 boot95 [-0.05745%, +0.04774%] halves -0.02646% / +0.02267% n 457
+momctrl rate 0.33: composite minus mom256, net 25% carry        mean -0.01016% NW t -0.23 boot95 [-0.10382%, +0.06763%] halves -0.02610% / +0.00978% n 457
+momctrl rate 0.33: residual minus mom256, net 25% carry         mean -0.01501% NW t -0.23 boot95 [-0.14550%, +0.10265%] halves -0.04719% / +0.02525% n 457
+momctrl rate 0.33: composite minus residual, net 25% carry      mean +0.00485% NW t +0.17 boot95 [-0.05014%, +0.05937%] halves +0.02109% / -0.01547% n 457
+momctrl rate 0.33: composite minus mom256, net 17% carry        mean -0.01219% NW t -0.27 boot95 [-0.10585%, +0.06561%] halves -0.02811% / +0.00773% n 457
+momctrl rate 0.33: residual minus mom256, net 17% carry         mean -0.01745% NW t -0.27 boot95 [-0.14804%, +0.10024%] halves -0.04953% / +0.02269% n 457
+momctrl rate 0.33: mean short carry paid composite 93.15406% a day, mom256 99.55572%, residual 91.86868%
+momctrl rate 0.50: composite rate 0.50: gross +0.22383% a day, cost +0.14051%, turnover 0.937, break-even cost per side 23.89 bp (charged on average 15.00 bp), thin days 0
+momctrl rate 0.50: mom256 rate 0.50: gross +0.13085% a day, cost +0.02968%, turnover 0.198, break-even cost per side 66.12 bp (charged on average 15.00 bp), thin days 0
+momctrl rate 0.50: residual rate 0.50: gross +0.22231% a day, cost +0.14792%, turnover 0.986, break-even cost per side 22.54 bp (charged on average 15.00 bp), thin days 0
+momctrl rate 0.50: composite sleeve net 17% carry               mean +0.01832% NW t +0.42 boot95 [-0.06261%, +0.10447%] halves +0.00825% / +0.03092% n 457
+momctrl rate 0.50: mom256 sleeve net 17% carry                  mean +0.03385% NW t +0.47 boot95 [-0.09511%, +0.17557%] halves +0.04326% / +0.02208% n 457
+momctrl rate 0.50: residual sleeve net 17% carry                mean +0.00989% NW t +0.35 boot95 [-0.04437%, +0.06578%] halves -0.01484% / +0.04084% n 457
+momctrl rate 0.50: composite sleeve net 25% carry               mean -0.01227% NW t -0.28 boot95 [-0.09324%, +0.07377%] halves -0.02232% / +0.00032% n 457
+momctrl rate 0.50: mom256 sleeve net 25% carry                  mean +0.00218% NW t +0.03 boot95 [-0.12685%, +0.14382%] halves +0.01164% / -0.00967% n 457
+momctrl rate 0.50: residual sleeve net 25% carry                mean -0.02046% NW t -0.72 boot95 [-0.07477%, +0.03551%] halves -0.04523% / +0.01053% n 457
+momctrl rate 0.50: composite minus mom256, net 25% carry        mean -0.01444% NW t -0.31 boot95 [-0.11355%, +0.06674%] halves -0.03397% / +0.00999% n 457
+momctrl rate 0.50: residual minus mom256, net 25% carry         mean -0.02264% NW t -0.33 boot95 [-0.15806%, +0.09969%] halves -0.05687% / +0.02020% n 457
+momctrl rate 0.50: composite minus residual, net 25% carry      mean +0.00819% NW t +0.27 boot95 [-0.05054%, +0.06528%] halves +0.02290% / -0.01021% n 457
+momctrl rate 0.50: composite minus mom256, net 17% carry        mean -0.01553% NW t -0.33 boot95 [-0.11457%, +0.06567%] halves -0.03501% / +0.00884% n 457
+momctrl rate 0.50: residual minus mom256, net 17% carry         mean -0.02396% NW t -0.35 boot95 [-0.15935%, +0.09843%] halves -0.05810% / +0.01876% n 457
+momctrl rate 0.50: mean short carry paid composite 96.34663% a day, mom256 99.78118%, residual 95.61265%
+momctrl IC: composite mean +0.09571, composite daily IC                           mean +9.57052% NW t +5.87 boot95 [+6.98521%, +12.99732%] halves +8.53274% / +10.91541% n 450
+momctrl IC: mom256 mean +0.10722, mom256 daily IC                              mean +10.72243% NW t +3.95 boot95 [+6.27826%, +16.37290%] halves +12.06181% / +8.98669% n 450
+momctrl IC: residual mean +0.08689, residual daily IC                            mean +8.68872% NW t +7.33 boot95 [+6.52177%, +10.97156%] halves +7.41252% / +10.34258% n 450

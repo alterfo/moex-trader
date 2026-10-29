@@ -402,6 +402,8 @@ func main() {
 		momentumDiagnostic(pp, candFile, *outPath)
 	case "momsleeve":
 		momSleeve(pp, *basePath, *sigKind, *stage, *rateL, *rateS)
+	case "momctrl":
+		momControl(pp, *frz, *outPath)
 	case "tfmb":
 		tfmB(pp, *frz)
 	case "libext":
