@@ -2,6 +2,8 @@
 
 Status: registered 2026-10-29 before the first run of E1; item 1 RUN the same day and closed as null (metrics 8.46). English only. This file is the registry of the limitations stated in the programme's conclusion and the action that removes each one. A limitation is removed only by a measurement or a design change committed with its numbers in `docs/metrics.md`; the ones that no measurement can remove are listed as scope facts with a mitigation, not as hedges.
 
+Reviewer: none on this registry yet (2026-10-29). Items 1 and 2 closed as null measurements, which need no review to be reported; a confirmation would not be recorded without a completed review pass.
+
 ## Registry
 
 | # | Limitation as stated | Action | Criterion / output | Status |

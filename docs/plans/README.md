@@ -1,6 +1,6 @@
 # Plans and pre-registrations
 
-Rules: criteria are written before the run; numbers go into `docs/metrics.md` (index) and `docs/metrics/*.md` in the same commit; the `Status:` line of a plan carries its outcome. Plans are English-only. Closed plans are deleted from the tree: their text lives in git history and their numbers in the metrics files. Only `completed/20261018-manual-retrain.md` stays, as the manual retraining procedure.
+Rules: criteria are written before the run; numbers go into `docs/metrics.md` (index) and `docs/metrics/*.md` in the same commit; the `Status:` line of a plan carries its outcome; every plan carries a `Reviewer:` line (who reviewed it, when, or `none`) and a plan without a completed review is never recorded as confirmed. Plans are English-only. Closed plans are deleted from the tree: their text lives in git history and their numbers in the metrics files. Only `completed/20261018-manual-retrain.md` stays, as the manual retraining procedure.
 
 ## Open
 
