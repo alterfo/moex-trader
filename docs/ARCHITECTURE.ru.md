@@ -175,7 +175,6 @@ Mac (основной) и ai-box (резервный) никогда не тор
 | `internal/alert` | клиент `telegram` и наблюдатель за вероятностью/устаревшими свечами/PSI | live |
 | `internal/metrics` | метрики Prometheus | live |
 | `internal/drift` | PSI-дрейф признаков | live |
-| `internal/proxyroute` | выбор прокси для HTTP-клиентов через SOCKS: loopback, приватные и link-local адреса идут напрямую, а не через туннель | live |
 | `internal/dailysummary`, `internal/pnl` | дневная сводка в Telegram, расчёт P&L | live |
 | `internal/filltracking`, `internal/spread`, `internal/borrowcost` | качество исполнения, пер-тикерные спреды из аудита, стоимость займа | live/analysis |
 | `internal/incidentcheck` | аудит/проверка детектора инцидентов | live |
