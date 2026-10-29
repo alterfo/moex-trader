@@ -109,6 +109,7 @@ Sections 3-9 live in `docs/metrics/`; numbering is unchanged, so `metrics.md 8.1
 | 6.8 Macro and dividend-yield features (2026-10-10) | s6-labels-features.md |
 | 6.9 Negotiations and sanctions topic signals (2026-09-18) | s6-labels-features.md |
 | 6.10 Explainability of signals (2026-10-18) | s6-labels-features.md |
+| 6.11 Ensemble member disagreement as an abstain rule (H15, 2026-10-29) | s6-labels-features.md |
 | 7.1 Headline-classifier recalibration attempts (2026-09) | s7-news.md |
 | 7.2 Where the 9596 articles are lost (2026-10-01) | s7-news.md |
 | 7.3 Classifier trained on the 2021-2024 archive (step 2, 2026-10-18) | s7-news.md |

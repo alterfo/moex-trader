@@ -135,7 +135,7 @@ Validation and backtest:
 | Package | Role |
 |---|---|
 | `cmd/backtest` | historical replay with `-signal-source=model\|ensemble\|rule\|csvprob`; `-members-csv` writes one row per closed ensemble trade (member probabilities of the opening decision) for the member-agreement analysis |
-| `cmd/memberagree` | member-agreement analysis of the `-members-csv` files (plan `20261029-ensemble-member-disagreement`): unanimous versus split trades, ISO-week cluster bootstrap, `|p-0.5|` terciles, label placebo, per-seed and per-window tables; offline, no live path |
+| `cmd/memberagree` | member-agreement analysis of the `-members-csv` files (H15, metrics 6.11): unanimous versus split trades, ISO-week cluster bootstrap, `|p-0.5|` terciles, label placebo, per-seed and per-window tables; offline, no live path |
 | `cmd/walkforward` | purged walk-forward with per-window artifacts |
 | `cmd/strategyvalidation` | attempts registry, DSR, PBO, reliability, consistency |
 | `cmd/oosfreeze` | OOS recipe freeze (`-action record\|status`) |

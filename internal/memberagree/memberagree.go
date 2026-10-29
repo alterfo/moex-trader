@@ -169,8 +169,9 @@ func signAgreement(decision Decision) bool {
 	return up || down
 }
 
-// Options fixes the statistics of the pre-registered plan
-// (docs/plans/20261029-ensemble-member-disagreement.md).
+// Options fixes the statistics of the pre-registered H15 plan: a 5000-draw
+// ISO-week cluster bootstrap, 2000-label placebo, conviction terciles and the
+// size gates that make a verdict possible.
 type Options struct {
 	PrimarySeed  int
 	Seeds        []int
@@ -247,6 +248,7 @@ type Verdict struct {
 	Primary   Contrast
 	Placebo   float64
 	Terciles  []Tercile
+	Spreads   []Tercile
 	PassSize  bool
 	PassCI    bool
 	PassConv  bool
@@ -261,6 +263,7 @@ type Report struct {
 	BySeed   []SeedRow
 	ByWindow []WindowRow
 	Sign     Verdict
+	Spreads  []Tercile
 	PassSeed bool
 	Verdict  string
 }
@@ -286,6 +289,7 @@ func Analyze(rows []Row, unmatched int, opts Options) Report {
 		signRows = append(signRows, copied)
 	}
 	report.Sign = analyze(signRows, unmatched, opts)
+	report.Spreads = report.Primary.Spreads
 
 	seeds := append([]int(nil), opts.Seeds...)
 	if len(seeds) == 0 {
@@ -355,6 +359,7 @@ func analyze(rows []Row, unmatched int, opts Options) Verdict {
 	verdict.Primary = contrast(rows, opts)
 	verdict.Placebo = placebo(rows, opts)
 	verdict.Terciles = terciles(rows, opts)
+	verdict.Spreads = spreadTerciles(rows, opts)
 	verdict.PassSize = len(rows) >= opts.MinTrades && verdict.All.Dates >= opts.MinDates && agree.Trades >= opts.MinSegment && split.Trades >= opts.MinSegment
 	verdict.PassCI = verdict.Primary.Diff > 0 && verdict.Primary.Low > 0
 	verdict.PassConv = tercileAgreement(verdict.Terciles, opts.TercileAgree)
@@ -539,12 +544,28 @@ func placebo(rows []Row, opts Options) float64 {
 }
 
 func terciles(rows []Row, opts Options) []Tercile {
+	return tercilesBy(rows, func(row Row) float64 { return row.Conviction() },
+		[]string{"low conviction", "mid conviction", "high conviction"}, opts)
+}
+
+func spreadTerciles(rows []Row, opts Options) []Tercile {
+	return tercilesBy(rows, func(row Row) float64 { return row.Spread() },
+		[]string{"narrow spread", "mid spread", "wide spread"}, opts)
+}
+
+func tercilesBy(rows []Row, value func(Row) float64, labels []string, opts Options) []Tercile {
 	if len(rows) == 0 {
 		return nil
 	}
 	sorted := append([]Row(nil), rows...)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Conviction() < sorted[j].Conviction() })
-	labels := []string{"low conviction", "mid conviction", "high conviction"}
+	sort.SliceStable(sorted, func(i, j int) bool {
+		left := value(sorted[i])
+		right := value(sorted[j])
+		if left == right {
+			return false
+		}
+		return left < right
+	})
 	out := make([]Tercile, 0, 3)
 	for i := 0; i < 3; i++ {
 		start := i * len(sorted) / 3
@@ -815,6 +836,11 @@ func (r Report) Markdown() string {
 	for _, row := range r.ByWindow {
 		fmt.Fprintf(&b, "| %s | %d | %d | %+.2f | %+.2f | %+.2f |\n",
 			row.Window, row.Agree.Trades, row.Split.Trades, row.Diff, row.Agree.MeanNet, row.Split.MeanNet)
+	}
+	fmt.Fprintf(&b, "\n### Terciles of the member spread max(p)-min(p), seed %d (descriptive)\n\n| tercile | trades | unanimous | split | difference, RUB per trade | 95%% CI |\n|---|---|---|---|---|---|\n", r.Options.PrimarySeed)
+	for _, tercile := range r.Spreads {
+		fmt.Fprintf(&b, "| %s | %d | %d | %d | %+.2f | [%+.2f, %+.2f] |\n",
+			tercile.Label, tercile.Trades, tercile.AgreeTrades, tercile.SplitTrades, tercile.Diff, tercile.Low, tercile.High)
 	}
 	fmt.Fprintf(&b, "\n### Sign agreement (descriptive)\n\n")
 	writeSegmentTable(&b, r.Sign)

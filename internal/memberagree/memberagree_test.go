@@ -171,6 +171,9 @@ func TestAnalyzeConfirmsWhenSplitTradesAreWorse(t *testing.T) {
 	if !strings.Contains(report.Markdown(), "Verdict") {
 		t.Fatal("markdown report must state a verdict")
 	}
+	if !strings.Contains(report.Markdown(), "member spread") {
+		t.Fatal("markdown report must carry the descriptive spread terciles")
+	}
 }
 
 func TestAnalyzeNullWhenSegmentsAreEqual(t *testing.T) {

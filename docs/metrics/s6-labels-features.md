@@ -105,3 +105,33 @@ With versus without `negotiations_signal` and `sanctions_signal` (same 18-ticker
 
 Occlusion attribution: each trained feature is replaced by its training mean and the change in ensemble probability is the driver; the top 3 are appended to `Reasoning` as ` drivers=<feature>:<signed percentage points>` (not Shapley: interactions are unsplit and the tree artifact has no node covers). Unit tests confirm the logistic occlusion delta equals the exact linear contribution to 1e-9. `cmd/explaincheck` on the deployed artifact (10195 rows from 2025-04-01, 17 tickers, 20 draws per row): replacing the 3 top drivers moves the probability by 0.0822 against 0.0236 for 3 random trained features (ratio 3.48, needed 1.5); in the decision zone (3964 rows) the sign of the top driver matches the side of 0.5 in 95.9% of rows (needed 70%). Both criteria met. The claim is faithfulness of the model's own dependence on inputs, not causality of returns.
 
+
+### 6.11 Ensemble member disagreement as an abstain rule (H15, 2026-10-29)
+
+The live decision uses the averaged probability `p = (p_lgb+p_xgb+p_logistic)/3` and discards the spread between the members. H15 asked whether a trade taken while the members disagree is worse per trade than a trade they agree on. Recipe abs-10d of section 6.7 (18 price/flow features in the 28-name order, deadband 0.5, horizon 10 bars, embargo 10 bars, thresholds 0.60/0.40), dataset `data-abs.csv` (11254 rows, 2024-09-02..2026-10-16, sha256 `e9898b68`), news overrides of 2026-10-29 (sha256 `536979e8`, 157093 headlines), 17 sandbox tickers, the six Task-5 windows, seeds 0-4 and 42. Tools: `cmd/backtest -members-csv` (member probabilities of the decision that opened each closed trade) and `cmd/memberagree`. 6824 closed trades over 36 replays, every one joined to its opening decision (0 unmatched). A trade is **unanimous** when all three members cross the same threshold the ensemble crossed, otherwise **split**; numbers are realized net of commission, spread and slippage per closed trade. Records: `artifacts/memberagree/`.
+
+Primary arm (seed 42, six windows pooled):
+
+| segment | trades | open dates | mean net RUB | total net RUB | hit rate |
+|---|---|---|---|---|---|
+| unanimous | 373 | 55 | +39.98 | +14911.85 | 0.357 |
+| split | 754 | 154 | +71.00 | +53537.40 | 0.391 |
+| all | 1127 | 181 | +60.74 | +68449.24 | 0.380 |
+
+Difference unanimous minus split: **-31.03 RUB per trade**, 95% cluster bootstrap over ISO weeks [-103.85, +57.99] (5000 draws, seed 42); the label placebo puts the observed difference at percentile 0.203. Size gate passes (1127 trades, 181 open dates, segments 373/754), the interval gate fails.
+
+Seed robustness, same contrast (interval gate needs 4 of 5 seeds positive):
+
+| seed | trades | unanimous | split | difference | 95% CI |
+|---|---|---|---|---|---|
+| 0 | 1131 | 343 | 788 | -29.47 | [-111.77, +72.68] |
+| 1 | 1138 | 352 | 786 | -42.10 | [-120.68, +64.12] |
+| 2 | 1138 | 383 | 755 | -13.25 | [-88.33, +86.11] |
+| 3 | 1142 | 378 | 764 | -59.23 | [-135.17, +42.13] |
+| 4 | 1148 | 342 | 806 | -42.82 | [-120.26, +62.07] |
+
+The sign holds in 0 of 5 seeds: the seed gate fails as well. Twenty-six of the thirty-six replays close positive on realized P&L (worst -12111 RUB), so the pooled result is not a book-level profit claim either way.
+
+Descriptive rows. Conviction terciles `|p-0.5|` (seed 42): low +62.76 [-203.14, +433.62] (23 unanimous of 375), mid -84.20 [-215.99, +101.11], high +84.87 [+8.82, +266.52]. Terciles of the member spread `max(p)-min(p)`: narrow -91.62 [-395.80, +67.39] (209 unanimous of 375), mid -95.26 [-223.74, +85.02], wide +192.24 [-151.84, +441.95] (21 unanimous of 376). Per window, seed 42 (unanimous minus split): q1 -129.24, q2 +28.09, q3 +14.99, q4 -23.83, w2 +277.24, w1 -81.99; w2 holds 24 unanimous trades only. Sign agreement (`p>0.5` for all three members, or `<0.5` for all three): 917 unanimous against 210 split trades, mean +73.19 against +6.35, difference +66.84 [-26.10, +193.05], hit rates 0.379 against 0.381.
+
+**Verdict: null.** The interval of the primary contrast contains zero and the difference is negative under every seed, so member disagreement does not mark worse trades in this recipe and no abstain filter or uncertainty-driven sizing is wired. The direction is the opposite of the hypothesis: split trades are, if anything, slightly better per trade, and the conviction terciles (positive in the high-conviction bucket only) say nothing beyond the known absence of edge (§3.1). Consistent with §3.6: at ~1100 trades the seed-to-seed range of the pooled mean is larger than the observed contrast.
