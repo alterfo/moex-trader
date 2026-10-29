@@ -22,6 +22,7 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/domain"
 	"github.com/olegsidorkin/moex-trader/internal/features"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/moex"
+	"github.com/olegsidorkin/moex-trader/internal/memberagree"
 	"github.com/olegsidorkin/moex-trader/internal/model"
 	"github.com/olegsidorkin/moex-trader/internal/risk"
 	"github.com/olegsidorkin/moex-trader/internal/spread"
@@ -88,6 +89,8 @@ func run() error {
 	var labelMode string
 	var labelHorizonBars int
 	var labelDeadbandPct float64
+	var membersCSV, membersWindow string
+	var membersSeed int
 
 	flag.StringVar(&configPath, "config", "config.yaml", "path to config YAML")
 	flag.StringVar(&macroDir, "macro-dir", "", "directory with macro series (cmd/macrofetch); needed by ensembles trained with macro/dividend-yield features")
@@ -137,6 +140,9 @@ func run() error {
 	flag.StringVar(&labelMode, "label-mode", "absolute", "label mode used for persisted reliability labels: absolute or excess")
 	flag.IntVar(&labelHorizonBars, "label-horizon-bars", 10, "forward-return horizon in bars used for persisted reliability labels")
 	flag.Float64Var(&labelDeadbandPct, "label-deadband-pct", 0.5, "deadband percent used for persisted reliability labels")
+	flag.StringVar(&membersCSV, "members-csv", "", "ensemble: when set, write one row per closed trade with the member probabilities of the decision that opened it")
+	flag.StringVar(&membersWindow, "members-window", "", "members-csv: window label stored in every row")
+	flag.IntVar(&membersSeed, "members-seed", 42, "members-csv: training seed label stored in every row")
 	flag.Parse()
 
 	deposit, err := decimal.NewFromString(depositStr)
@@ -302,6 +308,20 @@ func run() error {
 		}()
 	}
 
+	var memberRecorder *memberagree.Recorder
+	var memberEnsemble *model.EnsembleModel
+	if strings.TrimSpace(membersCSV) != "" {
+		if signalSourceName != signalSourceEnsemble {
+			return fmt.Errorf("-members-csv requires -signal-source %s", signalSourceEnsemble)
+		}
+		memberEnsemble, err = model.LoadEnsembleModel(ensemblePath)
+		if err != nil {
+			return fmt.Errorf("load ensemble for member recording: %w", err)
+		}
+		memberRecorder = memberagree.NewRecorder(signalSource, memberEnsemble)
+		signalSource = memberRecorder
+	}
+
 	var recorder *walkforward.Recorder
 	var wfConfig walkforward.Config
 	var wfConfigHash string
@@ -435,6 +455,21 @@ func run() error {
 	result, err := engine.Run(ctx)
 	if err != nil {
 		return fmt.Errorf("backtest run: %w", err)
+	}
+
+	if memberRecorder != nil {
+		rows, unmatched := memberagree.Join(result.Trades, memberRecorder.Decisions(), memberEnsemble.BuyThreshold, memberEnsemble.SellThreshold)
+		for i := range rows {
+			rows[i].Window = membersWindow
+			rows[i].Seed = membersSeed
+		}
+		if err := memberagree.WriteCSV(membersCSV, rows); err != nil {
+			return err
+		}
+		if err := memberagree.WriteMeta(membersCSV, memberagree.Meta{Trades: len(result.Trades), Unmatched: unmatched}); err != nil {
+			return err
+		}
+		log.Printf("backtest: wrote %d member rows (%d closed trades without an opening decision) to %s", len(rows), unmatched, membersCSV)
 	}
 
 	if recorder != nil {

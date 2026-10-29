@@ -340,3 +340,59 @@ func TestEnsembleValidateRejectsMalformedArtifact(t *testing.T) {
 		})
 	}
 }
+
+func TestMemberProbabilitiesForMasksUntrainedFeatures(t *testing.T) {
+	order := append([]string(nil), defaultFeatureOrder...)
+	zeros := make([]float64, len(order))
+	std := make([]float64, len(order))
+	coef := make([]float64, len(order))
+	for i := range std {
+		std[i] = 1
+	}
+	for i, name := range order {
+		if name == "news_sentiment" {
+			coef[i] = 1
+		}
+	}
+	path := filepath.Join(t.TempDir(), "model.json")
+	raw, err := json.Marshal(EnsembleModel{
+		FeatureOrder:  order,
+		BuyThreshold:  0.60,
+		SellThreshold: 0.40,
+		Logistic:      logisticWeights{Mean: zeros, Std: std, Coef: coef},
+	})
+	if err != nil {
+		t.Fatalf("marshal model: %v", err)
+	}
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatalf("write model: %v", err)
+	}
+	model, err := LoadEnsembleModel(path)
+	if err != nil {
+		t.Fatalf("load model: %v", err)
+	}
+
+	feature := domain.FeatureContext{
+		Ticker:        "SBER",
+		LastPrice:     decimal.NewFromInt(100),
+		PrevClose:     decimal.NewFromInt(100),
+		NewsSentiment: decimal.NewFromInt(5),
+	}
+	lgb, xgb, logistic, err := model.MemberProbabilitiesFor(feature)
+	if err != nil {
+		t.Fatalf("MemberProbabilitiesFor: %v", err)
+	}
+	if math.Abs(logistic-0.5) > 1e-9 {
+		t.Fatalf("masked logistic member = %v, want 0.5 (news_sentiment is untrained)", logistic)
+	}
+	if math.Abs(lgb-0.5) > 1e-9 || math.Abs(xgb-0.5) > 1e-9 {
+		t.Fatalf("tree members = %v/%v, want 0.5/0.5 without trees", lgb, xgb)
+	}
+	if _, _, _, err := model.MemberProbabilitiesFor(domain.FeatureContext{}); err == nil {
+		t.Fatal("empty ticker must be rejected")
+	}
+	var nilModel *EnsembleModel
+	if _, _, _, err := nilModel.MemberProbabilitiesFor(feature); err == nil {
+		t.Fatal("nil model must be rejected")
+	}
+}

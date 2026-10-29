@@ -261,6 +261,25 @@ func (m *EnsembleModel) Probability(vector []float64) float64 {
 	return (pLGB + pXGB + pLogReg) / 3.0
 }
 
+// MemberProbabilitiesFor evaluates the three members on the same masked vector
+// the signal source uses, so a caller sees exactly the probabilities the
+// averaged decision was made from.
+func (m *EnsembleModel) MemberProbabilitiesFor(feature domain.FeatureContext) (lgb, xgb, logistic float64, err error) {
+	if m == nil {
+		return 0, 0, 0, fmt.Errorf("ensemble: model is required")
+	}
+	if strings.TrimSpace(feature.Ticker) == "" {
+		return 0, 0, 0, fmt.Errorf("ensemble: feature ticker must not be empty")
+	}
+	vector, err := ToVectorFor(feature, m.FeatureOrder)
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("ensemble: %w", err)
+	}
+	maskUntrainedFeatures(vector, m.FeatureOrder)
+	lgb, xgb, logistic = m.MemberProbabilities(vector)
+	return lgb, xgb, logistic, nil
+}
+
 func (m *EnsembleModel) MemberProbabilities(vector []float64) (lgb, xgb, logistic float64) {
 	return probabilityFromFloat64Trees(m.LGBTrees, m.LGBBaseLogit, vector),
 		probabilityFromFloat32Trees(m.XGBTrees, m.XGBBaseLogit, vector),

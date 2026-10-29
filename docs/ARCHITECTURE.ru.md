@@ -137,6 +137,7 @@ Mac (основной) и ai-box (резервный) никогда не тор
 | Package | Role |
 |---|---|
 | `cmd/backtest` | исторический реплей с `-signal-source=model\|ensemble\|rule\|csvprob` |
+| `cmd/memberagree` | анализ согласия членов ансамбля по файлам `-members-csv` (план `20261029-ensemble-member-disagreement`): единогласные против раздельных сделок, ISO-недельный кластерный бутстрэп, терцили `|p-0.5|`, плацебо по меткам, таблицы по сидам и окнам; офлайн, не в живом пути |
 | `cmd/walkforward` | purged walk-forward с артефактами по окнам |
 | `cmd/strategyvalidation` | реестр попыток, DSR, PBO, надёжность, консистентность |
 | `cmd/oosfreeze` | заморозка OOS-рецепта (`-action record\|status`) |
@@ -174,6 +175,7 @@ Mac (основной) и ai-box (резервный) никогда не тор
 | `internal/alert` | клиент `telegram` и наблюдатель за вероятностью/устаревшими свечами/PSI | live |
 | `internal/metrics` | метрики Prometheus | live |
 | `internal/drift` | PSI-дрейф признаков | live |
+| `internal/proxyroute` | выбор прокси для HTTP-клиентов через SOCKS: loopback, приватные и link-local адреса идут напрямую, а не через туннель | live |
 | `internal/dailysummary`, `internal/pnl` | дневная сводка в Telegram, расчёт P&L | live |
 | `internal/filltracking`, `internal/spread`, `internal/borrowcost` | качество исполнения, пер-тикерные спреды из аудита, стоимость займа | live/analysis |
 | `internal/incidentcheck` | аудит/проверка детектора инцидентов | live |
@@ -184,7 +186,7 @@ Mac (основной) и ai-box (резервный) никогда не тор
 | `internal/backtest` | движок реплея, источник ISS, кэш решений, атрибуция, отчёты | offline + preflight |
 | `internal/walkforward`, `internal/strategyvalidation`, `internal/oosfreeze`, `internal/trainrun`, `internal/verifier`, `internal/tearsheet` | валидация, прогон обучения, отчёт по P&L, HTML-tearsheet | offline |
 | `internal/metricsdoc` | линтер `docs/metrics.md` | offline |
-| `internal/betaregime`, `internal/momentum`, `internal/equalweight`, `internal/gapstress`, `internal/tailprecision`, `internal/newsstudy`, `internal/icaport` | исследовательские библиотеки за CLI исследований | research |
+| `internal/betaregime`, `internal/momentum`, `internal/equalweight`, `internal/gapstress`, `internal/tailprecision`, `internal/newsstudy`, `internal/icaport`, `internal/memberagree` | исследовательские библиотеки за CLI исследований | research |
 
 ## 7. Скрипты
 

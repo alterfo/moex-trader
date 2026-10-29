@@ -134,7 +134,8 @@ Validation and backtest:
 
 | Package | Role |
 |---|---|
-| `cmd/backtest` | historical replay with `-signal-source=model\|ensemble\|rule\|csvprob` |
+| `cmd/backtest` | historical replay with `-signal-source=model\|ensemble\|rule\|csvprob`; `-members-csv` writes one row per closed ensemble trade (member probabilities of the opening decision) for the member-agreement analysis |
+| `cmd/memberagree` | member-agreement analysis of the `-members-csv` files (plan `20261029-ensemble-member-disagreement`): unanimous versus split trades, ISO-week cluster bootstrap, `|p-0.5|` terciles, label placebo, per-seed and per-window tables; offline, no live path |
 | `cmd/walkforward` | purged walk-forward with per-window artifacts |
 | `cmd/strategyvalidation` | attempts registry, DSR, PBO, reliability, consistency |
 | `cmd/oosfreeze` | OOS recipe freeze (`-action record\|status`) |
@@ -171,6 +172,7 @@ Research studies (not in the trading path): (placebo check of the score table: `
 | `internal/storage` | SQLite WAL: audit, signals, kill switch | live |
 | `internal/alert` | `telegram` client and probability/stale-candle/PSI watch | live |
 | `internal/metrics` | Prometheus metrics | live |
+| `internal/proxyroute` | proxy selector for SOCKS-proxied HTTP clients: loopback, private and link-local hosts go direct, not through the tunnel | live |
 | `internal/drift` | PSI feature drift | live |
 | `internal/dailysummary`, `internal/pnl` | daily Telegram summary, P&L computation | live |
 | `internal/filltracking`, `internal/spread`, `internal/borrowcost` | execution-quality, per-ticker spreads from audit, borrow cost | live/analysis |
@@ -182,7 +184,7 @@ Research studies (not in the trading path): (placebo check of the score table: `
 | `internal/backtest` | replay engine, ISS source, decision cache, attribution, reports | offline + preflight |
 | `internal/walkforward`, `internal/strategyvalidation`, `internal/oosfreeze`, `internal/trainrun`, `internal/verifier`, `internal/tearsheet` | validation, training run, P&L report, HTML tearsheet | offline |
 | `internal/metricsdoc` | lint of `docs/metrics.md` | offline |
-| `internal/betaregime`, `internal/momentum`, `internal/equalweight`, `internal/gapstress`, `internal/tailprecision`, `internal/newsstudy`, `internal/icaport` | research libraries behind the study CLIs | research |
+| `internal/betaregime`, `internal/momentum`, `internal/equalweight`, `internal/gapstress`, `internal/tailprecision`, `internal/newsstudy`, `internal/icaport`, `internal/memberagree` | research libraries behind the study CLIs | research |
 
 ## 7. Scripts
 
