@@ -18,6 +18,7 @@ Rules: criteria are written before the run; numbers go into `docs/metrics.md` (i
 | `20260927-moex-pulse.md` | All tasks unchecked (cloud signal serving); check whether alive |
 | `20261022-algopack-orderflow.md` | DONE: 12 order-flow tests, A2 passed (`docs/metrics/s8b-portfolio.md` 8.15); frozen A2 rule under forward evaluation until about 2027-01-20 |
 | `20261023-algopack-100-hypotheses.md` | DONE: 100 hypotheses, Tier 1 passed 0 of 28, 17 Tier 2 leads (metrics 8.16); tool `cmd/flowscan` |
+| `20261029-closing-the-limitations.md` | REGISTERED: registry of 10 programme limitations with the action that removes each; E1 (value beyond 12-month momentum) runs first |
 
 ## Closed (files deleted, see git history; numbers in the metrics files)
 
