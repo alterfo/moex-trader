@@ -116,7 +116,8 @@ Live and operations (in the live or failover path):
 | `cmd/calmscan` | calm-state study (plan `20261026-calm-before-move`): does a quiet stock (low volatility ratio or flat price box) rank its own 10-day abnormal return better than the rest; six pre-registered cells, placebo, replication window |
 | `cmd/metascan` | meta-variable study (plan `20261024-algopack-meta-variables`): causal binary macro and exogenous states (key rate, CNY-RUB, Brent, IMOEX, gold, RVI, sanctions news, fund activity, calendar) plus Saturn, lunar and Kp negative controls, split of the composite daily IC and partial-adjustment net by state, stock-level exposure interactions, circular-shift permutation p and Nyholt M_eff threshold; modes `fetch`, `fetch2` and `fetch4` (ISS, GFZ, Binance, Open-Meteo, Yahoo and GDELT series into `data/macro-long`), `run` (wave 1), `wave2` (wave 2 rows and the descriptive diagnostics) and `wave4` (the world-data rows of plan `20261025-algopack-wave4-world-data`); read the `cmd/alphafit -mode dump` series; offline, no live path |
 | `cmd/tinvestprobe` | futures order probe in the T-Bank sandbox |
-| `cmd/borrowmeasure` | short-borrow rates/limits measurement in the sandbox |
+| `cmd/borrowmeasure` | short-borrow terms and margin-fee measurement in the sandbox (report, no history) |
+| `cmd/borrowterms` | append-only daily snapshot of the contractual short terms per ticker (`data/borrow_terms.jsonl`: `short_enabled`, `Kshort`, `Dshort`, `DshortMin`), driven by `scripts/borrow-terms-daily.sh` over `data/borrow_universe.txt` |
 
 Training and model tooling:
 
@@ -197,6 +198,7 @@ Research studies (not in the trading path): (placebo check of the score table: `
 | `ridge_probs.py`, `ridge_full_dump.py`, `factors_wide.py`, `ridge-scores-pull.sh`, `factor_shadow*.py`, `quantile_probs.py` | ridge score table and factor research | ai-box → Mac |
 | `breadth*.sh/py`, `hypo*.sh/py`, `depth-candidate.sh`, `rerun-r2.sh`, `rerun-forward.sh`, `calendar_cycles.py`, `intraday_*.py`, `futoi_study.py`, `events_study.py`, `procvar.py`, `world_*.py`, `timesfm_features.py`, `make_candles_csv.py` | hypothesis studies | ai-box |
 | `news-daily.sh`, `rebuild-news-archive.sh`, `score_news.py`, `tgarchive-live.sh`, `fundsnap-daily.sh`, `regime-fresh.sh`, `trades-record-deploy.sh` | data collection cron | Mac / ai-box |
+| `borrow-terms-daily.sh` | daily short-term snapshot (`cmd/borrowterms`) | Mac |
 | `launchd/` | macOS launchd units | Mac |
 
 New code is Go; the Python scripts are legacy research tooling.

@@ -30,6 +30,7 @@ go run ./cmd/momentumbench -config config.sandbox.yaml -out report-momentumbench
 go run ./cmd/betaregime -config config.sandbox.yaml -out report-betaregime.md
 go run ./cmd/gapstress -config config.sandbox.yaml -portfolio artifacts/portfolio.json
 go run ./cmd/borrowmeasure -config config.sandbox.yaml -out report-borrow.md
+go run ./cmd/borrowterms -config config.sandbox.yaml -tickers "$(cat data/borrow_universe.txt)" -out data/borrow_terms.jsonl
 go run ./cmd/oosfreeze -action status
 go run ./cmd/strategyvalidation
 ```
@@ -58,7 +59,7 @@ event_delisting, event_mna, event_default, negotiations_signal, sanctions_signal
 - **Запасной вариант** (`model.path`): объединённая логистическая регрессия от `cmd/trainmodel` (чистый Go).
 - **Challenger**: `model.challenger_ensemble_path` оценивает каждый вектор в тени; см. AGENTS.md.
 
-Диагностика, которая никогда не касается торгового пути: `cmd/calibrate`, `cmd/leadlag`, `cmd/tailprecision`, `cmd/momentumbench`, `cmd/betaregime`, `cmd/gapstress`, `cmd/borrowmeasure`, `cmd/oosfreeze`, `cmd/strategyvalidation`, `cmd/newsfetch`.
+Диагностика, которая никогда не касается торгового пути: `cmd/calibrate`, `cmd/leadlag`, `cmd/tailprecision`, `cmd/momentumbench`, `cmd/betaregime`, `cmd/gapstress`, `cmd/borrowmeasure`, `cmd/borrowterms` (ежедневный append-only снапшот, `scripts/borrow-terms-daily.sh`), `cmd/oosfreeze`, `cmd/strategyvalidation`, `cmd/newsfetch`.
 
 ## 4. Бэктест и preflight
 

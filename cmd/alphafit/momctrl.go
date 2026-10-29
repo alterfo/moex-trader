@@ -62,7 +62,7 @@ type momArms struct {
 	comp, mom, resid [][]float64
 }
 
-func momControl(pp *pipe, frzPath, outPath string) {
+func momControl(pp *pipe, frzPath, outPath string, carry float64) {
 	ds := pp.ds
 	raw, err := os.ReadFile(frzPath)
 	if err != nil {
@@ -125,6 +125,24 @@ func momControl(pp *pipe, frzPath, outPath string) {
 		emit("momctrl rate %.2f: %s", rate, statLine("composite sleeve net 17% carry", comp.net17, split))
 		emit("momctrl rate %.2f: %s", rate, statLine("mom256 sleeve net 17% carry", mom.net17, split))
 		emit("momctrl rate %.2f: %s", rate, statLine("residual sleeve net 17% carry", res.net17, split))
+		if carry > 0 {
+			c := carry / 252
+			netOf := func(r *sleeveRun) []float64 {
+				out := filled(len(r.net17))
+				for i := range out {
+					if !math.IsNaN(r.gross[i]) {
+						out[i] = r.gross[i] - r.cost[i] - r.short[i]*c
+					}
+				}
+				return out
+			}
+			cc, mc, rc := netOf(comp), netOf(mom), netOf(res)
+			emit("momctrl rate %.2f: %s", rate, statLine(fmt.Sprintf("composite sleeve net %.1f%% carry", carry*100), cc, split))
+			emit("momctrl rate %.2f: %s", rate, statLine(fmt.Sprintf("mom256 sleeve net %.1f%% carry", carry*100), mc, split))
+			emit("momctrl rate %.2f: %s", rate, statLine(fmt.Sprintf("residual sleeve net %.1f%% carry", carry*100), rc, split))
+			emit("momctrl rate %.2f: %s", rate, statLine(fmt.Sprintf("composite minus mom256, net %.1f%% carry", carry*100), seriesDiff(cc, mc), split))
+			emit("momctrl rate %.2f: %s", rate, statLine(fmt.Sprintf("residual minus mom256, net %.1f%% carry", carry*100), seriesDiff(rc, mc), split))
+		}
 		emit("momctrl rate %.2f: %s", rate, statLine("composite sleeve net 25% carry", comp.net25, split))
 		emit("momctrl rate %.2f: %s", rate, statLine("mom256 sleeve net 25% carry", mom.net25, split))
 		emit("momctrl rate %.2f: %s", rate, statLine("residual sleeve net 25% carry", res.net25, split))

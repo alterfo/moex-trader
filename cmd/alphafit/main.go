@@ -308,6 +308,7 @@ func main() {
 	rateS := flag.Float64("rates", 0.05, "momsleeve verdict: frozen rate of the long-short sleeve")
 	plcDump := flag.String("plcdump", "", "s3diff: placebo dump CSV")
 	sigKind := flag.String("sig", "mom256", "momsleeve: mom256 or mom121")
+	carryFlag := flag.Float64("carry", 0, "momctrl: extra annual short-borrow rate to report next to 17% and 25% (0 = off)")
 	momF := flag.String("mom", "", "add Mom120 and Mom256 (sums of abnormal returns over 120 and 256 observations) as features: on, or placebo (within-date permutation)")
 	with3b := flag.Bool("with3b", false, "keep the four wave-3b base columns (ProfP2, ProfP3, VolEnt, DepEnt) as features")
 	aucInc := flag.Bool("aucinc", false, "keep AucA1 as a feature (valid only with next-open entry)")
@@ -403,7 +404,7 @@ func main() {
 	case "momsleeve":
 		momSleeve(pp, *basePath, *sigKind, *stage, *rateL, *rateS)
 	case "momctrl":
-		momControl(pp, *frz, *outPath)
+		momControl(pp, *frz, *outPath, *carryFlag)
 	case "tfmb":
 		tfmB(pp, *frz)
 	case "libext":

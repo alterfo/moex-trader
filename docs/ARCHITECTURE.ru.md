@@ -118,7 +118,8 @@ Mac (основной) и ai-box (резервный) никогда не тор
 | `cmd/calmscan` | исследование «спокойного» состояния (план `20261026-calm-before-move`): ранжирует ли тихая бумага (низкое отношение волатильностей или плоский ценовой коридор) свою 10-дневную избыточную доходность лучше остальных; шесть зарегистрированных ячеек, плацебо, окно репликации |
 | `cmd/metascan` | исследование мета-переменных (план `20261024-algopack-meta-variables`): причинные бинарные макро- и внешние состояния (ключевая ставка, CNY-RUB, Brent, IMOEX, золото, RVI, новости о санкциях, активность фондов, календарь) и негативные контроли (Сатурн, фаза Луны, Kp), разбиение дневного IC композита и чистой прибыли книги с частичной подстройкой по состояниям, взаимодействия с экспозициями акций, p-значение круговой перестановкой и порог по Nyholt M_eff; режимы `fetch`, `fetch2` и `fetch4` (ряды ISS, GFZ, Binance, Open-Meteo, Yahoo и GDELT в `data/macro-long`), `run` (волна 1), `wave2` (строки волны 2 и описательная диагностика) и `wave4` (строки данных о мире, план `20261025-algopack-wave4-world-data`); читают ряды `cmd/alphafit -mode dump`; офлайн, живой путь не затрагивается |
 | `cmd/tinvestprobe` | проба фьючерсных ордеров в песочнице T-Bank |
-| `cmd/borrowmeasure` | измерение ставок/лимитов короткого займа в песочнице |
+| `cmd/borrowmeasure` | измерение условий короткого займа и маржинальных комиссий в песочнице (отчёт, без истории) |
+| `cmd/borrowterms` | ежедневный снапшот договорных условий шорта по тикерам (`data/borrow_terms.jsonl`: `short_enabled`, `Kshort`, `Dshort`, `DshortMin`), запускается `scripts/borrow-terms-daily.sh` по списку `data/borrow_universe.txt` |
 
 Обучение и инструменты модели:
 
@@ -199,6 +200,7 @@ Mac (основной) и ai-box (резервный) никогда не тор
 | `ridge_probs.py`, `ridge_full_dump.py`, `factors_wide.py`, `ridge-scores-pull.sh`, `factor_shadow*.py`, `quantile_probs.py` | таблица оценок ridge и исследование факторов | ai-box → Mac |
 | `breadth*.sh/py`, `hypo*.sh/py`, `depth-candidate.sh`, `rerun-r2.sh`, `rerun-forward.sh`, `calendar_cycles.py`, `intraday_*.py`, `futoi_study.py`, `events_study.py`, `procvar.py`, `world_*.py`, `timesfm_features.py`, `make_candles_csv.py` | исследования гипотез | ai-box |
 | `news-daily.sh`, `rebuild-news-archive.sh`, `score_news.py`, `tgarchive-live.sh`, `fundsnap-daily.sh`, `regime-fresh.sh`, `trades-record-deploy.sh` | cron сбора данных | Mac / ai-box |
+| `borrow-terms-daily.sh` | ежедневный снапшот условий шорта (`cmd/borrowterms`) | Mac |
 | `launchd/` | юниты launchd для macOS | Mac |
 
 Новый код пишется на Go; скрипты на Python — устаревший исследовательский инструментарий.

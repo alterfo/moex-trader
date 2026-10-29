@@ -421,3 +421,31 @@ Registered contrasts at 25% carry, rate 0.33: composite minus momentum **+0.0194
 **Registered criteria: both fail.** (1) composite minus momentum is positive but its interval contains zero at both rates (the sign holds in both halves only at rate 0.33 and 0.50 with a half-width of 0.08-0.10%, i.e. below the power floor written before the run); (2) residual minus momentum is not separated from zero and its halves disagree. **Verdict: null.** Value beyond 12-month momentum is not established, so the economic sentence of the programme is reduced to "the flow statistics rank the 10-day cross-section; a momentum book ranks it at least as well, and neither converts into net return after cost and carry". The ranking-level fact that survives is narrower: the composite is not a momentum proxy (91% of its IC is orthogonal to `mom256`), which is what a feature-level claim may say and an economic claim may not.
 
 Descriptive, cost sensitivity: at the live 0.15% per side tariff (`momctrl-e1-flat.txt`) the same three books at rate 0.33 give composite +0.00022% and momentum +0.01037% net25, i.e. composite minus momentum turns **-0.01016%** (halves -0.026 / +0.010), and at rate 0.50 -0.01444%. The sign of the contrast therefore depends on the cost model: quoted BBO spreads (average 8.6-9.5 bp per side here) favour the high-turnover composite, the flat tariff of the live account does not. That is limitation 7 of the registry, measured rather than asserted, and it is the reason the flat read is reported next to the registered one.
+
+### 8.47 Short-borrow terms of the admitted universe, measured (2026-10-29)
+
+Plan `docs/plans/20261029-closing-the-limitations.md` item 2, outputs `artifacts/algopack-momentum/borrow-top100-20261029.md` (`cmd/borrowmeasure`), `borrow-terms-20261029.jsonl` (first snapshot of the new `cmd/borrowterms`), `artifacts/algopack-momentum/momctrl-e1-bbo-carry30.txt`.
+
+The broker API does expose the short terms per instrument (`short_enabled_flag`, `Kshort`, `Dshort`, `DshortMin`); `cmd/borrowmeasure` previously reported that no borrow rate was measurable because it looked for margin-fee operations, which is the wrong field. Measured on the 99 admitted names of the last matrix date (2026-10-21) through the T-Bank sandbox contract terms: 72 resolved as shares (AMFL, CNYM, SBMM unknown; OBLG, SBCB, SBMX, SBRB, STME, TPAY return 50002), 68 of the 72 short-enabled, 4 disabled (CBOM, EUTR, OZPH, WUSH).
+
+| statistic | Dshort, annual | DshortMin, annual |
+|---|---|---|
+| minimum | 20.00% | 14.28% |
+| 25th percentile | 21.99% | 15.00% |
+| median | 25.01% | 18.18% |
+| 75th percentile | 36.89% | 22.22% |
+| maximum | 125.00% (HEAD) | 50.00% |
+
+Mean Dshort 32.10%. The 17% carry used as the base read of the programme is therefore below the cheapest quartile of the measured distribution and the 25% stress is the median, not a stress: not one admitted name is at or below 17%.
+
+Book read at the measured carries (bbo cost, frozen rate 0.33, window and machinery of 8.46; carry enters linearly, so the whole curve is exact given the run):
+
+| carry | composite | mom256 | residual | composite minus mom256 |
+|---|---|---|---|---|
+| 17% | +0.06790% (t +1.58) | +0.05051% | +0.06649% | +0.01740% [-0.076, +0.095] |
+| 25% | +0.03833% (t +0.89) | +0.01890% | +0.03733% | +0.01943% [-0.074, +0.097] |
+| 30% | +0.01985% (t +0.46) | -0.00085% | +0.01910% | +0.02070% [-0.073, +0.099] |
+
+At the measured median (25%) the composite book nets +0.038% a day with the interval touching zero; at 30% it is +0.020%; at the 75th percentile (36.9%) it is -0.006% a day. The momentum book goes negative between 25% and 30%. Every registered verdict of the programme that used the 17% base was therefore read on a carry the market does not offer, and the correction moves the economics down, never up: this is a limitation removed in the direction that strengthens the nulls, and no earlier conclusion becomes more favourable.
+
+`cmd/borrowterms` appends one JSONL line per ticker per day (`date`, `ticker`, `short_enabled`, `kshort`, `dshort`, `dshort_min`, `recorded_at`), skips a day that is already recorded for every ticker, and is driven by `scripts/borrow-terms-daily.sh` over `data/borrow_universe.txt`; the first snapshot (2026-10-29, 72 rows) is in the artifacts. It records the contractual terms and the short flag, which are instrument metadata; the broker exposes no daily borrow-limit series, so intraday availability of a name remains unmeasured and is now the only piece of this limitation that is not closed.
