@@ -9,7 +9,7 @@ Russian translation: [AGENTS.ru.md](AGENTS.ru.md). This file is canonical. Direc
 3. **Failover zone:** `cmd/watchdog|witness`, `internal/failover/**`, `deploy/**`, `scripts/deploy-failover.sh`, `watchdog.*`. Before touching election logic run `go test ./internal/failover/ ./cmd/witness/ ./cmd/watchdog/`.
 4. The signal source implements both `orchestrator.SignalSource` and `backtest.SignalSource`.
 5. `cmd/trader` runs the preflight backtest gate (`preflight.*`) with the same signal source as the live loop and refuses to start on negative realized P&L, too few closed trades or no history; never bypass it.
-6. Cross-session talk goes through the user (or agterm/peer-chat); no headless `claude -p` (403).
+6. Cross-session talk goes through the user (or agterm typing between panes); no headless agent-to-agent channels (Claude Code and its peer-chat skill are retired).
 7. **No concurrent code edits.** One writer at a time; check `git status`/`git diff` first, commit promptly.
 8. **Metric-bearing changes are committed immediately.** `docs/metrics.md` (index) and `docs/metrics/*.md` hold every backtest/analysis number; edit them in the same commit as the change. Read metrics from `HEAD` or a file the user named.
 

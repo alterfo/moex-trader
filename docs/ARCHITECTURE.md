@@ -173,6 +173,7 @@ Research studies (not in the trading path): (placebo check of the score table: `
 | `internal/storage` | SQLite WAL: audit, signals, kill switch | live |
 | `internal/alert` | `telegram` client and probability/stale-candle/PSI watch | live |
 | `internal/metrics` | Prometheus metrics | live |
+| `internal/proxyroute` | proxy selector for SOCKS-proxied HTTP clients: loopback, private and link-local hosts go direct, not through the tunnel | live |
 | `internal/drift` | PSI feature drift | live |
 | `internal/dailysummary`, `internal/pnl` | daily Telegram summary, P&L computation | live |
 | `internal/filltracking`, `internal/spread`, `internal/borrowcost` | execution-quality, per-ticker spreads from audit, borrow cost | live/analysis |
