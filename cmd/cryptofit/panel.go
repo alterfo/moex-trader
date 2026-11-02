@@ -42,6 +42,16 @@ func loadPanel(dataDir string, maxSymbols int) (*panel, error) {
 	if maxSymbols > 0 && len(syms) > maxSymbols {
 		syms = syms[:maxSymbols]
 	}
+	excluded := loadExclude(filepath.Join(dataDir, "exclude.csv"))
+	if len(excluded) > 0 {
+		kept := syms[:0]
+		for _, s := range syms {
+			if !excluded[s] {
+				kept = append(kept, s)
+			}
+		}
+		syms = kept
+	}
 	p := &panel{index: map[string]int{}}
 	dateSet := map[string]bool{}
 	for _, sym := range syms {
@@ -139,6 +149,30 @@ func loadSeries(dataDir, sym string) (*series, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+func loadExclude(path string) map[string]bool {
+	out := map[string]bool{}
+	f, err := os.Open(path)
+	if err != nil {
+		return out
+	}
+	defer f.Close()
+	r := csv.NewReader(f)
+	if _, err := r.Read(); err != nil {
+		return out
+	}
+	for {
+		rec, err := r.Read()
+		if err != nil {
+			break
+		}
+		if len(rec) == 0 {
+			continue
+		}
+		out[rec[0]] = true
+	}
+	return out
 }
 
 func loadFunding(dataDir string, s *series) error {

@@ -73,6 +73,8 @@ func run(o options) error {
 		return fetchFunding(o, venueDir)
 	case "inventory":
 		return inventory(o, venueDir)
+	case "classify":
+		return classify(o, venueDir)
 	default:
 		return fmt.Errorf("unknown mode %q", o.mode)
 	}
