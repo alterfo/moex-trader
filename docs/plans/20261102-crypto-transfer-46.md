@@ -1,6 +1,6 @@
 # The 46 strategies on crypto markets, with crypto costs (2026-11-02)
 
-Status: PLANNED (registered 2026-11-02, before any crypto data is downloaded and before any row is scored). English only. Owner's request, 2026-11-02: "check all 46 strategies on crypto markets, but with the costs of those markets accounted for". Nothing here touches the live path: no order, no key with withdrawal rights, no change to `config.sandbox.yaml`, `ensemble_model.json` or `./trader`. The live programme stays MOEX; a crypto line is research until a candidate passes every gate in section 7.
+Status: PLANNED and PARTLY RUN (registered 2026-11-02, before any crypto data was downloaded). S0 and S1 are done and the W1 battery has been run once on the frozen panel: **0 candidates, 2 leads** (order flow t 2.89, one-month momentum t 2.18, both below the registered |t| >= 3.3), three families closed negative, numbers in `docs/metrics/s10-crypto.md` 10.1-10.6. English only. The owner's request, 2026-11-02: "check all 46 strategies on crypto markets, but with the costs of those markets accounted for". Nothing here touches the live path: no order, no key with withdrawal rights, no change to `config.sandbox.yaml`, `ensemble_model.json` or `./trader`. The live programme stays MOEX; a crypto line is research until a candidate passes every gate in section 7.
 
 Reviewer: none yet. No row may be called confirmed without a completed review pass (rule 10 of `20261029-closing-the-limitations.md`).
 

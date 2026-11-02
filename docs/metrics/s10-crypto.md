@@ -1,0 +1,105 @@
+# Metrics: the 46 registered lines on crypto markets (section 10)
+
+Part of [metrics.md](../metrics.md) (the index, conventions and ledger live there). Numbers here are the single source of truth for this topic. Plan: [plans/20261102-crypto-transfer-46.md](../plans/20261102-crypto-transfer-46.md), registered before any crypto data was downloaded.
+
+## 10. Crypto transfer of the registered programme
+
+Conventions specific to this section: one venue for prices (Binance USDⓈ-M perpetuals), retail fee tier, costs charged per name by its own trailing liquidity tier, funding charged from the venue's own settlement history, one market and one author. Money is in bps of book notional per day unless stated. Rank IC is measured over the 5-day forward close-to-close return; book P&L accrues one day at a time.
+
+### 10.1 S0: panel, universe and freeze
+
+| item | value |
+|---|---|
+| contracts with monthly kline history | 1079 of 1080 enumerated (one contract has no data) |
+| daily rows after parsing | 740261 |
+| contracts with funding history | 1009 |
+| date range | 2020-01-31 .. 2026-10-31 |
+| contracts whose data ends before the last date | 138 |
+| non-crypto contracts excluded (`underlyingType` not `COIN`) | 239 of 942 live contracts |
+| contracts used as the cross-section | 840 |
+| panel freeze, `cmd/cryptofit -mode freeze` | 2088 files, 165543936 bytes, chain sha256 `c9fa33602acafb209d5ca07d1a845b872a271eadc59c15d16e2acc6a9a2a4742` |
+
+Coverage is uneven by construction and this is why the evaluation window is 2024+: 137 contracts had a bar on 2021-10-08, 233 on 2023-06-16, 428 on 2025-02-21 and 702 on 2026-10-31. A 2021-start cross-section of 137 names with a top-100 universe would be a 100-name sample with 37 names left over; 2024-start leaves the universe comfortably above the 100 names the book needs.
+
+### 10.2 S1: break-even before any backtest
+
+The cost model is frozen in `internal/cryptocost` and printed by `cmd/cryptofit -mode costs`. Retail tier, Binance, 2026-11-02:
+
+| tier (trailing median daily quote volume) | fee/side | spread+impact/side | all-in/side | round trip |
+|---|---|---|---|---|
+| major >=1B | 5.00 | 1.50 | 6.50 | 13.00 |
+| large >=100M | 5.00 | 3.50 | 8.50 | 17.00 |
+| mid >=10M | 5.00 | 8.00 | 13.00 | 26.00 |
+| small <10M | 5.00 | 20.00 | 25.00 | 50.00 |
+
+Required gross per side per day = 2 x turnover x all-in cost. At the large tier this is 1.70 bps a day for a 10% daily turnover book, 5.61 for 33%, 17.00 for 100%. For comparison the MOEX programme charges 15 bps a side (30 bps round trip), so the same turnover costs half as much in crypto for large names and 1.7x as much for names below 10M a day.
+
+Funding over the holding period, from an APR of 9%, 11% and 22%: 1 day 2.5/3.0/6.0 bps, 5 days 12.3/15.1/30.1, 10 days 24.7/30.1/60.3, 40 days 98.6/120.5/241.1. `cmd/cryptofit -mode s1` prints this arithmetic for all 46 rows at their pre-registered turnover; it is the table that closes rows before a backtest is run.
+
+### 10.3 W1: the frozen battery, run once
+
+Window 2024-01-01..2026-10-31 (1033 days), universe = top 100 contracts by trailing 20-day median quote volume at each date, dollar-neutral top/bottom quintile book, partial adjustment at the stated rate, Binance taker. Ten cells, registered before the full panel existed (errata 4 of the plan, which also discloses the diagnostic run on the partial panel).
+
+Close entry:
+
+| signal | lookback | rate | IC | gross | cost | funding | net | t NW | sharpe | DSR | h1 | h2 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 12-month momentum | 365 | 0.10 | 0.037 | 8.32 | 1.28 | -0.28 | 6.76 | 0.79 | 0.46 | 0.213 | 1.33 | 12.19 |
+| 12-month momentum | 365 | 0.33 | 0.037 | 11.59 | 2.32 | -0.80 | 8.47 | 0.89 | 0.50 | 0.233 | 1.12 | 15.81 |
+| 1-month momentum | 30 | 0.10 | -0.015 | 11.76 | 2.64 | 12.48 | 21.60 | 2.18 | 1.20 | 0.679 | 16.17 | 27.01 |
+| 1-month momentum | 30 | 0.33 | -0.015 | 11.02 | 4.92 | 14.10 | 20.20 | 1.58 | 0.86 | 0.448 | 16.72 | 23.68 |
+| 1-day reversal | 2 | 0.10 | -0.001 | -9.33 | 2.91 | -2.35 | -14.59 | -3.05 | -1.83 | 0.000 | -8.13 | -21.03 |
+| 1-day reversal | 2 | 0.33 | -0.001 | -10.60 | 10.25 | -2.78 | -23.63 | -2.41 | -1.50 | 0.000 | -16.55 | -30.70 |
+| taker-buy share | 20 | 0.10 | 0.026 | 11.78 | 3.45 | 5.38 | 13.71 | 2.89 | 1.66 | 0.898 | 8.18 | 19.24 |
+| taker-buy share | 20 | 0.33 | 0.026 | 13.72 | 11.37 | 6.00 | 8.35 | 1.14 | 0.66 | 0.314 | 0.88 | 15.81 |
+| funding carry | 7 | 0.10 | 0.001 | -47.28 | 2.69 | 26.41 | -23.56 | -1.83 | -1.14 | 0.000 | -10.57 | -36.52 |
+| funding carry | 7 | 0.33 | 0.001 | -61.17 | 4.84 | 41.74 | -24.27 | -1.41 | -0.87 | 0.001 | -7.43 | -41.07 |
+
+Next-open entry (decision at the close of day d, position from the open of d+1 to the open of d+2), same window and 1032 days:
+
+| signal | rate | net | t NW | DSR | h1 | h2 |
+|---|---|---|---|---|---|---|
+| 12-month momentum | 0.10 / 0.33 | 6.80 / 8.62 | 0.80 / 0.90 | 0.213 / 0.237 | 1.36 / 1.14 | 12.23 / 16.10 |
+| 1-month momentum | 0.10 / 0.33 | 21.80 / 20.61 | 2.20 / 1.61 | 0.684 / 0.457 | 16.20 / 16.87 | 27.40 / 24.34 |
+| 1-day reversal | 0.10 / 0.33 | -14.53 / -23.42 | -3.03 / -2.39 | 0.000 / 0.000 | -8.18 / -16.60 | -20.88 / -30.24 |
+| taker-buy share | 0.10 / 0.33 | 13.79 / 8.45 | 2.91 / 1.15 | 0.901 / 0.318 | 8.17 / 0.88 | 19.41 / 16.03 |
+| funding carry | 0.10 / 0.33 | -23.90 / -24.62 | -1.86 / -1.43 | 0.000 / 0.001 | -10.44 / -7.19 | -37.36 / -42.06 |
+
+The Bonferroni bar for 10 cells at the 5% level is |t| >= 2.81. One cell clears it (taker-buy share at rate 0.10, t 2.89 close entry and 2.91 next-open); the plan's gate 2 requires |t| >= 3.3 and no cell reaches it.
+
+### 10.4 Robustness of the one cell above the bar
+
+Taker-buy share, lookback 20, rate 0.10, close entry; each row changes one thing and keeps the rest:
+
+| variant | net | t NW | sharpe |
+|---|---|---|---|
+| base | 13.71 | 2.89 | 1.66 |
+| funding switched off (carry removed) | 8.33 | 1.78 | 1.01 |
+| maker execution (55% fill probability) | 14.30 | 3.01 | 1.73 |
+| Bybit fee schedule | 13.58 | 2.86 | 1.64 |
+| quantile 0.10 | 16.76 | 2.71 | 1.59 |
+| quantile 0.30 | 12.78 | 3.28 | 1.86 |
+| lookback 10 | 13.44 | 2.69 | 1.50 |
+| lookback 40 | 14.71 | 3.19 | 1.83 |
+| top 50 universe | 17.43 | 2.43 | 1.36 |
+| top 200 universe | 10.46 | 2.88 | 1.74 |
+
+The sign is stable in every variant, the magnitude stays in 8-18 bps a day, and the break-even cost per side is 83.68 bps against 8.50 charged. Removing funding removes 39% of the net and takes t below 2: the cell is half an order-flow book and half a short-the-crowded-long carry, and the two are not separable at this horizon.
+
+### 10.5 Placebo
+
+Five within-date permutations of the signal through the identical book, costs and turnover: net +0.96, -4.91, -3.15, -4.78 and -1.13 bps a day (mean -2.60) against the real +13.71. The permutation reproduces none of the real net.
+
+### 10.6 Verdict
+
+| C row | family | registered expectation | measured on the frozen panel | verdict |
+|---|---|---|---|---|
+| C11 | order flow | A2 passed on MOEX, forwarded | taker-buy share: net +13.71 bps a day, t 2.89, DSR 0.898, placebo negative, sign stable across ten variants | **lead**, not a candidate (gate 2 needs 3.3; 39% of the net is funding) |
+| C35 | 12-month momentum | confirmed on MOEX, no net gain | net +6.76 bps a day, t 0.79, IC 0.037, both halves positive but the first half is 1.33 | null at these costs |
+| C37 | low-turnover momentum | the structure costs reward | 1-month momentum net +21.60 at 10% turnover, t 2.18; the 12-month form does not convert | **lead** for the fast form only |
+| C41 | reversal / gap family | MOEX lead failed on costs | 1-day reversal is significantly negative (t -3.05): the daily cross-section trends at one day, so there is no reversal to trade at this horizon in 2024-2026 | closed negative |
+| C15 | funding carry | carry family, untested on MOEX equities | funding carry book net -23.56 bps a day: the crowded long pays, but the price move against the short leg costs more than the carry earns | closed negative |
+
+Result of the first crypto stage: **0 candidates, 2 leads** (order flow, one-month momentum), 3 families closed negative, the remaining 41 rows untouched. No row is called confirmed: no cell reached the registered gate, no cell has a forward record, and no cell has a completed Reviewer pass.
+
+What a lead is worth here: an order-flow book at 10% daily turnover earns a break-even of 83.68 bps a side against 8.50 charged, so the economics are not the obstacle for once. The obstacle is that the effect halves when carry is removed and that a 1033-day single-market window with t 2.89 against a 3.3 bar is, by the programme's own convention, not evidence of an edge.

@@ -25,6 +25,7 @@ type options struct {
 	from      string
 	to        string
 	maxSyms   int
+	entry     string
 	out       string
 }
 
@@ -40,6 +41,7 @@ func main() {
 	flag.IntVar(&o.horizon, "horizon", 5, "forward horizon in daily bars")
 	flag.StringVar(&o.venue, "venue", "binance", "binance | bybit | okx")
 	flag.StringVar(&o.exec, "exec", "taker", "taker | maker")
+	flag.StringVar(&o.entry, "entry", "close", "close | open")
 	flag.IntVar(&o.placebo, "placebo", 0, "within-date permutations (0 = none)")
 	flag.BoolVar(&o.noFunding, "no-funding", false, "switch funding off (diagnostic only)")
 	flag.StringVar(&o.from, "from", "", "first date YYYY-MM-DD")
@@ -195,6 +197,7 @@ func runBooks(o options) error {
 		exec:      exec,
 		noFunding: o.noFunding,
 		signal:    o.signal,
+		entry:     o.entry,
 		from:      o.from,
 		to:        o.to,
 	}

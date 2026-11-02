@@ -19,7 +19,7 @@ Rules: criteria are written before the run; numbers go into `docs/metrics.md` (i
 | `20261022-algopack-orderflow.md` | DONE: 12 order-flow tests, A2 passed (`docs/metrics/s8b-portfolio.md` 8.15); frozen A2 rule under forward evaluation until about 2027-01-20 |
 | `20261023-algopack-100-hypotheses.md` | DONE: 100 hypotheses, Tier 1 passed 0 of 28, 17 Tier 2 leads (metrics 8.16); tool `cmd/flowscan` |
 | `20261029-closing-the-limitations.md` | REGISTERED: registry of 10 programme limitations with the action that removes each; E1 (value beyond 12-month momentum) runs first |
-| `20261102-crypto-transfer-46.md` | PLANNED: the 46 registered lines mapped to crypto analogues, crypto cost model (retail taker tier, funding, two executions), break-even-first stage S1, gates and kill criteria; nothing run |
+| `20261102-crypto-transfer-46.md` | PARTLY RUN: S0 panel and freeze, S1 break-even table for 46 rows, W1 battery run once on the frozen panel (metrics 10.1-10.6); 0 candidates, 2 leads (order flow t 2.89, 1-month momentum t 2.18 against a 3.3 bar), 3 families closed negative |
 
 ## Closed (files deleted, see git history; numbers in the metrics files)
 

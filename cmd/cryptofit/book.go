@@ -86,6 +86,7 @@ type bookOptions struct {
 	shuffle   bool
 	seed      int64
 	signal    string
+	entry     string
 	from      string
 	to        string
 }
@@ -200,14 +201,14 @@ type cand struct {
 	vol  float64
 	fund float64
 	cost cryptocost.Config
+	rh   float64
 }
 
-func (p *panel) candidates(d string, di int, o bookOptions) ([]cand, []float64) {
+func (p *panel) candidates(d string, di int, o bookOptions) []cand {
 	cands := make([]cand, 0, 256)
-	fwd := make([]float64, 0, 256)
 	for _, s := range p.series {
 		i, ok := s.byDate[d]
-		if !ok || i+1 >= len(s.bars) {
+		if !ok {
 			continue
 		}
 		sig := p.signalFor(s, i, o.signal, o)
@@ -215,17 +216,35 @@ func (p *panel) candidates(d string, di int, o bookOptions) ([]cand, []float64) 
 			continue
 		}
 		cur := s.bars[i].close
-		nxt := s.bars[i+1].close
-		if cur <= 0 || nxt <= 0 {
+		if cur <= 0 {
 			continue
+		}
+		var r1, fund float64
+		if o.entry == "open" {
+			if i+2 >= len(s.bars) {
+				continue
+			}
+			entryBar := s.bars[i+1]
+			exitBar := s.bars[i+2]
+			if entryBar.open <= 0 || exitBar.open <= 0 {
+				continue
+			}
+			r1 = exitBar.open/entryBar.open - 1
+			fund = s.funding[entryBar.date]
+		} else {
+			if i+1 >= len(s.bars) {
+				continue
+			}
+			nxt := s.bars[i+1].close
+			if nxt <= 0 {
+				continue
+			}
+			r1 = nxt/cur - 1
+			fund = s.funding[s.bars[i+1].date]
 		}
 		vol := p.medianQuoteVol(s, i, 20)
 		if vol <= 0 {
 			continue
-		}
-		fund := 0.0
-		if c, ok := s.funding[s.bars[i+1].date]; ok {
-			fund = c
 		}
 		h := o.horizon
 		if i+h >= len(s.bars) || s.bars[i+h].close <= 0 {
@@ -234,14 +253,14 @@ func (p *panel) candidates(d string, di int, o bookOptions) ([]cand, []float64) 
 		cands = append(cands, cand{
 			sym:  s.symbol,
 			sig:  sig,
-			r1:   nxt/cur - 1,
+			r1:   r1,
 			vol:  vol,
 			fund: fund,
 			cost: costConfig(o.venue, o.exec, vol),
+			rh:   s.bars[i+h].close/cur - 1,
 		})
-		fwd = append(fwd, s.bars[i+h].close/cur-1)
 	}
-	return cands, fwd
+	return cands
 }
 
 func (p *panel) runBook(o bookOptions, label string) result {
@@ -256,23 +275,24 @@ func (p *panel) runBook(o bookOptions, label string) result {
 		if o.to != "" && d > o.to {
 			continue
 		}
-		cands, fwd := p.candidates(d, di, o)
+		cands := p.candidates(d, di, o)
 		if len(cands) < 20 {
 			continue
 		}
 		sort.Slice(cands, func(a, b int) bool { return cands[a].vol > cands[b].vol })
 		if o.top > 0 && len(cands) > o.top {
 			cands = cands[:o.top]
-			fwd = fwd[:o.top]
 		}
 		sigs := make([]float64, len(cands))
+		fwds := make([]float64, len(cands))
 		for i := range cands {
 			sigs[i] = cands[i].sig
+			fwds[i] = cands[i].rh
 		}
 		if o.shuffle && o.seed != 0 {
 			shuffleWithin(sigs, o.seed)
 		}
-		if ic := rankCorr(sigs, fwd); !math.IsNaN(ic) {
+		if ic := rankCorr(sigs, fwds); !math.IsNaN(ic) {
 			res.ic = append(res.ic, ic)
 		}
 		ranks := rankNormalise(sigs)
@@ -409,7 +429,7 @@ func (r *result) summarise() {
 		r.meanIC = mean(r.ic)
 	}
 	if turnSum > 0 {
-		r.bePerSide = mean(gs) / (turnSum / float64(n))
+		r.bePerSide = mean(gs) / (turnSum / float64(n) / 100)
 	}
 }
 

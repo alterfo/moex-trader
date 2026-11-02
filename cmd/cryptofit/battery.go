@@ -65,6 +65,7 @@ func printBattery(o options) error {
 			exec:      exec,
 			noFunding: o.noFunding,
 			signal:    signalKind(c.signal),
+			entry:     o.entry,
 			from:      from,
 			to:        o.to,
 		}

@@ -176,3 +176,9 @@ Sections 3-9 live in `docs/metrics/`; numbering is unchanged, so `metrics.md 8.1
 | 9.6 Nightly candidate gate aligned with the preflight (2026-10-19) | s9-live.md |
 | 9.7 Live sandbox P&L, 2026-09-17..2026-10-18 | s9-live.md |
 | 9.8 Execution-quality tracking (Task 16) | s9-live.md |
+| 10.1 S0: crypto panel, universe and panel freeze (2026-11-02) | s10-crypto.md |
+| 10.2 S1: crypto cost model and break-even table for the 46 rows (2026-11-02) | s10-crypto.md |
+| 10.3 W1: frozen ten-cell battery on crypto perpetuals (2026-11-02) | s10-crypto.md |
+| 10.4 Robustness of the order-flow cell (2026-11-02) | s10-crypto.md |
+| 10.5 Placebo of the order-flow book (2026-11-02) | s10-crypto.md |
+| 10.6 Verdict: 0 candidates, 2 leads (2026-11-02) | s10-crypto.md |
