@@ -23,7 +23,7 @@ Coverage is uneven by construction and this is why the evaluation window is 2024
 
 ### 10.2 S1: break-even before any backtest
 
-The cost model is frozen in `internal/cryptocost` and printed by `cmd/cryptofit -mode costs`. Retail tier, Binance, 2026-11-02:
+The cost model is frozen in `internal/cryptocost` and printed by `cmd/cryptofit -mode costs`. Retail tier, Binance, 2026-11-02. **The spread and impact columns are tier assumptions, not measurements**: no order-book data was downloaded in this stage (see 10.7), so each name is charged the value of its trailing-liquidity tier.
 
 | tier (trailing median daily quote volume) | fee/side | spread+impact/side | all-in/side | round trip |
 |---|---|---|---|---|
@@ -103,3 +103,18 @@ Five within-date permutations of the signal through the identical book, costs an
 Result of the first crypto stage: **0 candidates, 2 leads** (order flow, one-month momentum), 3 families closed negative, the remaining 41 rows untouched. No row is called confirmed: no cell reached the registered gate, no cell has a forward record, and no cell has a completed Reviewer pass.
 
 What a lead is worth here: an order-flow book at 10% daily turnover earns a break-even of 83.68 bps a side against 8.50 charged, so the economics are not the obstacle for once. The obstacle is that the effect halves when carry is removed and that a 1033-day single-market window with t 2.89 against a 3.3 bar is, by the programme's own convention, not evidence of an edge.
+
+### 10.7 What data this stage did and did not use
+
+Used: `data.binance.vision` monthly `futures/um/klines` at interval 1d (open, high, low, close, base volume, quote volume, trade count, taker-buy base and quote volume) and monthly `futures/um/fundingRate` (settlement time, interval hours, rate), plus `fapi/v1/exchangeInfo` and `fapi/v1/ticker/24hr` for the contract classification and the liquidity order.
+
+Not used, and this bounds every number above:
+
+| fact | consequence here |
+|---|---|
+| no order-book snapshot or best-bid/offer history was downloaded | the "spread + impact" column of 10.2 is a tier assumption, not a measured spread; the break-even of 83.68 bps a side and the cost of 3.45 bps a day inherit that assumption |
+| the C11 signal is built from the kline field `taker_buy_quote_volume / quote_volume` | it is an aggressive-flow share over 20 days, **not** the MOEX A2 book-imbalance signal; C11 is therefore transferred as a family member, not replicated |
+| no open-interest or long/short ratio series | C33 and the crowding part of C15 are unread |
+| no liquidation events | C41 was run as a plain one-day reversal and closed negative; the cascade form is untested |
+
+Available and not yet pulled, all public and historical: `futures/um/daily/bookTicker` (every best-bid/ask update, about 130 MB a day for BTCUSDT, far smaller for mid-caps), `futures/um/daily/bookDepth` (one-minute snapshots of cumulative depth at 1% levels, about 0.5 MB a day for BTCUSDT, 34561 rows on 2026-10-01), `futures/um/daily/metrics` (30-minute open interest, top-trader and taker long/short ratios), `futures/um/monthly/aggTrades` and `premiumIndexKlines` (basis). The measured-spread read, the A2 replication on `bookDepth` and the cascade form of C41 all depend on that pull and are not part of this stage's numbers.
