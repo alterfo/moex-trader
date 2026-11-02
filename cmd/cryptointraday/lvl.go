@@ -159,7 +159,11 @@ func runLVL(o options, w sessionWindow, contracts []string) error {
 	if len(trades) == 0 {
 		return fmt.Errorf("lvl %s: no trades", w.name)
 	}
-	reportCell(w, "O-LVL", trades)
+	res := statsFromTrades("O-LVL", w.name, trades)
+	printCell(res)
+	if o.jsonOut != "" {
+		return writeCellJSON(o.jsonOut, res)
+	}
 	return nil
 }
 

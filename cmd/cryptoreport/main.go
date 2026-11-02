@@ -93,14 +93,16 @@ type reportJSON struct {
 }
 
 type options struct {
-	data string
-	out  string
+	data     string
+	out      string
+	intraday string
 }
 
 func main() {
 	var o options
 	flag.StringVar(&o.data, "data", filepath.Join("artifacts", "crypto", "w1.json"), "report data produced by cryptofit -mode export")
 	flag.StringVar(&o.out, "out", filepath.Join("docs", "reports", "crypto-w1.html"), "output HTML path")
+	flag.StringVar(&o.intraday, "intraday", filepath.Join("artifacts", "crypto", "intraday"), "directory of intraday cell JSONs")
 	flag.Parse()
 	if err := run(o); err != nil {
 		log.Fatalf("%v", err)
@@ -116,7 +118,8 @@ func run(o options) error {
 	if err := json.Unmarshal(raw, &rep); err != nil {
 		return err
 	}
-	html := render(rep)
+	cells := loadIntraday(o.intraday)
+	html := render(rep, cells)
 	if err := os.MkdirAll(filepath.Dir(o.out), 0o755); err != nil {
 		return err
 	}
@@ -184,7 +187,7 @@ type doc struct{ b strings.Builder }
 func (d *doc) w(s string)                { d.b.WriteString(s) }
 func (d *doc) f(format string, a ...any) { fmt.Fprintf(&d.b, format, a...) }
 
-func render(rep reportJSON) string {
+func render(rep reportJSON, intraday []intradayCell) string {
 	d := &doc{}
 	d.w("<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n")
 	d.w("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n")
@@ -195,6 +198,7 @@ func render(rep reportJSON) string {
 	data(d, rep)
 	costs(d, rep)
 	cells(d, rep)
+	intradaySection(d, intraday)
 	leadSection(d, rep)
 	verdict(d, rep)
 	next(d)
@@ -221,7 +225,7 @@ func masthead(d *doc, rep reportJSON) {
 	d.f("%.2f", fast.T)
 	d.w(` — both below the registered gate of absolute t `)
 	d.f("%.1f", rep.Bars.Gate)
-	d.w(` gate, and two fifths of the flow book's net is funding carry rather than signal.</p>
+	d.w(` gate, and two fifths of the flow book's net is funding carry rather than signal. A second stage then ran the three intraday rules the owner asked about — opening-range breakout, intraday momentum, level fade — on 5-minute bars: <strong>six more cells, no candidates and no leads</strong>, because each of them turns its notional over once or twice a day.</p>
 <dl class="facts">
 <div><dt>window</dt><dd class="mono">`)
 	d.w(rep.Window)
@@ -355,7 +359,7 @@ func leadSection(d *doc, rep reportJSON) {
 		}
 	}
 	d.w(`<section id="lead">
-<h2><span class="num">05</span>The one thing above the bar, and why it is still only a lead</h2>
+<h2><span class="num">06</span>The one thing above the bar, and why it is still only a lead</h2>
 <p>Order flow — the share of aggressive buying in a contract's turnover, averaged over 20 days — is the only cell that clears the Bonferroni bar for ten trials. It is also the one that most obviously tempts a false conclusion, so it was put through ten single-change variants, a placebo, and a carry decomposition.</p>
 <figure>`)
 	d.w(variantsChart(lead.Variants, base))
@@ -387,7 +391,7 @@ func verdict(d *doc, rep reportJSON) {
 	rev := findCell(rep, "rev", 0.10)
 	carry := findCell(rep, "funding", 0.10)
 	d.w(`<section id="verdict">
-<h2><span class="num">06</span>Verdict</h2>
+<h2><span class="num">07</span>Verdict</h2>
 <p>Zero candidates, two leads, three families closed with a number instead of an opinion.</p>
 <table><caption>What the first crypto stage settles</caption>
 <thead><tr><th>line</th><th>family</th><th>measured</th><th>verdict</th></tr></thead>
@@ -409,6 +413,7 @@ func verdict(d *doc, rep reportJSON) {
 	d.w(`</td><td><span class="tag neg">closed</span></td></tr>
 <tr><td class="mono">41 rows</td><td>the rest</td><td>priced at stage S1, or waiting on data the panel does not hold</td><td><span class="tag null">untouched</span></td></tr>
 </tbody></table>
+<p>The intraday stage in section 05 added six cells on 5-minute bars and none of them reached a positive net that survives its own turnover: the breakout rule earns its costs and nothing more, the momentum rule reverses rather than continues and the mirror still loses to turnover, and the level rule carries no gross edge. The intraday line is closed with those numbers rather than left open.</p>
 <p>No row is called confirmed. No cell reached the gate, no cell has an out-of-sample forward record, and no cell has a completed reviewer pass.</p>
 </section>
 `)
@@ -416,7 +421,7 @@ func verdict(d *doc, rep reportJSON) {
 
 func next(d *doc) {
 	d.w(`<section id="next">
-<h2><span class="num">07</span>What would change the verdict</h2>
+<h2><span class="num">08</span>What would change the verdict</h2>
 <ol>
 <li><strong>Measure the spread instead of assuming it.</strong> Best-bid and offer history exists per contract per day; sampling it by pair and hour replaces the tier assumption in every cost line, and doubles as the execution-timing measurement the programme wants anyway.</li>
 <li><strong>Rebuild the flow signal from the book.</strong> One-minute depth snapshots give an imbalance series closer to the MOEX A2 test than the aggressive-flow proxy used here, and settle whether the lead is flow or carry.</li>

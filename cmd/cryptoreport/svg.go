@@ -93,3 +93,27 @@ func fmt3(v float64) string {
 	}
 	return fmt.Sprintf("%.3f", v)
 }
+
+func niceStep(span float64, target int) float64 {
+	if span <= 0 || target <= 0 {
+		return 1
+	}
+	raw := span / float64(target)
+	mag := math.Pow(10, math.Floor(math.Log10(raw)))
+	for _, m := range []float64{1, 2, 2.5, 5, 10} {
+		if raw <= m*mag {
+			return m * mag
+		}
+	}
+	return 10 * mag
+}
+
+func axisRange(lo, hi float64) (float64, float64, float64) {
+	step := niceStep(hi-lo, 5)
+	lo = math.Floor(lo/step) * step
+	hi = math.Ceil(hi/step) * step
+	if hi == lo {
+		hi = lo + step
+	}
+	return lo, hi, step
+}

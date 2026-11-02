@@ -218,8 +218,13 @@ func runMom(o options, w sessionWindow, sessions []*sessionRec) error {
 		cs = append(cs, s.cost)
 		fs = append(fs, s.funding)
 	}
-	fmt.Printf("cell O-MOM %s: days %d, gross %.2f, cost %.2f, funding %.2f, net %.2f bps/day, t %.2f, sharpe %.2f\n",
-		w.name, len(series), mean(gs), mean(cs), mean(fs), mean(nets), nwT(nets, 5), sharpe(nets))
+	res := cellResult{Cell: "O-MOM", Session: w.name, Days: len(series),
+		GrossDay: mean(gs), CostDay: mean(cs), FundDay: mean(fs), NetDay: mean(nets),
+		NetDayT: nwT(nets, 5), Sharpe: sharpe(nets), H1: mean(nets[:len(nets)/2]), H2: mean(nets[len(nets)/2:])}
+	printCell(res)
+	if o.jsonOut != "" {
+		return writeCellJSON(o.jsonOut, res)
+	}
 	fmt.Printf("  halves %.2f / %.2f, names/day %.0f\n", mean(nets[:len(nets)/2]), mean(nets[len(nets)/2:]), meanF(series, func(s dayMom) float64 { return float64(s.names) }))
 	fmt.Printf("  mirror of the same book: gross %.2f, net %.2f bps/day\n", -mean(gs), meanF(series, func(s dayMom) float64 { return -s.gross - s.cost + s.funding }))
 	return nil

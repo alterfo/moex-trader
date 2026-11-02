@@ -25,6 +25,7 @@ type options struct {
 	maxHold   int
 	makerFill float64
 	shift     int
+	jsonOut   string
 }
 
 func main() {
@@ -39,6 +40,7 @@ func main() {
 	flag.IntVar(&o.maxHold, "max-hold", 360, "maximum hold in minutes for O-ORB")
 	flag.Float64Var(&o.makerFill, "maker-fill", 0.55, "fill probability of a limit entry at the range boundary")
 	flag.IntVar(&o.shift, "shift", 0, "placebo: delay the first breakout by this many 5-minute bars")
+	flag.StringVar(&o.jsonOut, "json", "", "write this cell as JSON to the path")
 	flag.Parse()
 
 	w, ok := windowByName(o.session)
@@ -326,7 +328,11 @@ func runORB(o options, w sessionWindow, contracts []string, sessions []*sessionR
 	if len(trades) == 0 {
 		return fmt.Errorf("orb %s: no trades", w.name)
 	}
-	reportCell(w, "O-ORB", trades)
+	res := statsFromTrades("O-ORB", w.name, trades)
+	printCell(res)
+	if o.jsonOut != "" {
+		return writeCellJSON(o.jsonOut, res)
+	}
 	return nil
 }
 
