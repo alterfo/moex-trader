@@ -224,8 +224,8 @@ func (p *panel) candidates(d string, di int, o bookOptions) ([]cand, []float64) 
 			continue
 		}
 		fund := 0.0
-		for k := i + 1; k <= i+o.horizon && k < len(s.bars); k++ {
-			fund += s.funding[s.bars[k].date]
+		if c, ok := s.funding[s.bars[i+1].date]; ok {
+			fund = c
 		}
 		h := o.horizon
 		if i+h >= len(s.bars) || s.bars[i+h].close <= 0 {

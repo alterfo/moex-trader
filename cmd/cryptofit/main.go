@@ -58,6 +58,11 @@ func run(o options) error {
 		return nil
 	case "panel":
 		return printPanel(o)
+	case "s1":
+		printS1()
+		return nil
+	case "battery":
+		return printBattery(o)
 	case "book":
 		return runBooks(o)
 	default:
