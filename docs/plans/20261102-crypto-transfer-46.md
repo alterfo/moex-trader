@@ -154,6 +154,7 @@ The crypto line is stopped, with what has been measured written into the metrics
 | S2-S3 | W1 books, verdict rows, placebo and deflation readings | 6 weeks |
 | S4 | fill model and executed-cost re-read of the survivors | 3 weeks |
 | S5 | paper forward record, 8 weeks minimum, one venue | 8 weeks |
+| report | rendered note `docs/reports/crypto-w1.html` from `cmd/cryptofit -mode export` and `cmd/cryptoreport` | with W1 |
 | W2 | opened only after W1 closes | 8 weeks |
 
 Numbers go into a new `docs/metrics/s10-crypto.md` with an index row in `docs/metrics.md`, in the same commit as the run (rule 8). Code goes into `cmd/cryptofit` and `internal/cryptocost` with their `docs/ARCHITECTURE.md` and `.ru.md` rows in the same commit. Data and outputs live in `artifacts/crypto/`, never in git.

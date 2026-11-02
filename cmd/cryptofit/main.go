@@ -69,6 +69,8 @@ func run(o options) error {
 		return printBattery(o)
 	case "freeze":
 		return freezePanel(o)
+	case "export":
+		return exportReport(o)
 	case "book":
 		return runBooks(o)
 	default:

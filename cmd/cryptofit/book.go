@@ -70,6 +70,7 @@ type result struct {
 	half2     float64
 	turn      float64
 	bePerSide float64
+	avgCost   float64
 	fundPaid  float64
 	fundRecv  float64
 }
@@ -430,6 +431,9 @@ func (r *result) summarise() {
 	}
 	if turnSum > 0 {
 		r.bePerSide = mean(gs) / (turnSum / float64(n) / 100)
+		if r.turn > 0 {
+			r.avgCost = mean(cs) / (2 * r.turn / 100)
+		}
 	}
 }
 
