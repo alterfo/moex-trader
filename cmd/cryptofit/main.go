@@ -25,6 +25,7 @@ type options struct {
 	from      string
 	to        string
 	maxSyms   int
+	out       string
 }
 
 func main() {
@@ -44,6 +45,7 @@ func main() {
 	flag.StringVar(&o.from, "from", "", "first date YYYY-MM-DD")
 	flag.StringVar(&o.to, "to", "", "last date YYYY-MM-DD")
 	flag.IntVar(&o.maxSyms, "max-symbols", 0, "limit symbols loaded (0 = all)")
+	flag.StringVar(&o.out, "out", "", "output path for the freeze manifest")
 	flag.Parse()
 
 	if err := run(o); err != nil {
@@ -63,6 +65,8 @@ func run(o options) error {
 		return nil
 	case "battery":
 		return printBattery(o)
+	case "freeze":
+		return freezePanel(o)
 	case "book":
 		return runBooks(o)
 	default:
