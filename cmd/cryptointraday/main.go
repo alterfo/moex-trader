@@ -24,6 +24,7 @@ type options struct {
 	out       string
 	maxHold   int
 	makerFill float64
+	shift     int
 }
 
 func main() {
@@ -37,6 +38,7 @@ func main() {
 	flag.StringVar(&o.out, "out", "", "sessions output CSV")
 	flag.IntVar(&o.maxHold, "max-hold", 360, "maximum hold in minutes for O-ORB")
 	flag.Float64Var(&o.makerFill, "maker-fill", 0.55, "fill probability of a limit entry at the range boundary")
+	flag.IntVar(&o.shift, "shift", 0, "placebo: delay the first breakout by this many 5-minute bars")
 	flag.Parse()
 
 	w, ok := windowByName(o.session)
@@ -66,6 +68,10 @@ func main() {
 		}
 		if err := runMom(o, w, rows); err != nil {
 			log.Fatalf("mom: %v", err)
+		}
+	case "lvl":
+		if err := runLVL(o, w, contracts); err != nil {
+			log.Fatalf("lvl: %v", err)
 		}
 	case "orb":
 		rows, err := readSessions(out)
@@ -152,7 +158,7 @@ type tradeRec struct {
 
 func runORB(o options, w sessionWindow, contracts []string, sessions []*sessionRec) error {
 	vol := loadDailyVolumeOrDie(o.dailyDir, contracts)
-	fund := loadDailyFunding(o.dailyDir, contracts)
+	fundEv := loadFundingEvents(filepath.Join(o.dailyDir, "funding"), contracts)
 	rangeQ := map[string]map[string]float64{}
 	for _, r := range sessions {
 		m, ok := rangeQ[r.symbol]
@@ -221,7 +227,7 @@ func runORB(o options, w sessionWindow, contracts []string, sessions []*sessionR
 			ret := posDir * (price/entry - 1) * 1e4
 			dailyVol := prevVolume(vol, sym, day)
 			c := allInCostBps(o, dailyVol)
-			f := fundAt(fund, sym, day, w) * posDir
+			f := fundingBetween(fundEv[sym], entryT, ts) * posDir
 			trades = append(trades, tradeRec{
 				symbol: sym, date: day, dir: posDir, entry: entry, exit: price,
 				gross: ret, cost: 2 * c, fund: -f, net: ret - 2*c - f,
@@ -280,6 +286,9 @@ func runORB(o options, w sessionWindow, contracts []string, sessions []*sessionR
 				}
 				return true
 			}
+			if m < w.startMin+w.lenMin+5*o.shift {
+				return true
+			}
 			if traded {
 				return true
 			}
@@ -317,11 +326,11 @@ func runORB(o options, w sessionWindow, contracts []string, sessions []*sessionR
 	if len(trades) == 0 {
 		return fmt.Errorf("orb %s: no trades", w.name)
 	}
-	reportORB(w, trades)
+	reportCell(w, "O-ORB", trades)
 	return nil
 }
 
-func reportORB(w sessionWindow, trades []tradeRec) {
+func reportCell(w sessionWindow, cell string, trades []tradeRec) {
 	byDate := map[string][]tradeRec{}
 	var dates []string
 	for _, t := range trades {
@@ -350,8 +359,8 @@ func reportORB(w sessionWindow, trades []tradeRec) {
 			wins++
 		}
 	}
-	fmt.Printf("cell O-ORB %s: trades %d over %d days, mean net %.1f bps/trade, t(trade) %.2f, hit %.1f%%, hold %.0f min\n",
-		w.name, len(trades), len(dates), mean(nets), nwT(nets, 5), 100*float64(wins)/float64(len(trades)), mean(holds))
+	fmt.Printf("cell %s %s: trades %d over %d days, mean net %.1f bps/trade, t(trade) %.2f, hit %.1f%%, hold %.0f min\n",
+		cell, w.name, len(trades), len(dates), mean(nets), nwT(nets, 5), 100*float64(wins)/float64(len(trades)), mean(holds))
 	fmt.Printf("  mean gross %.1f, cost %.1f, funding %.1f bps/trade; daily book mean %.2f bps/day, t %.2f, sharpe %.2f\n",
 		meanField(trades, func(t tradeRec) float64 { return t.gross }),
 		meanField(trades, func(t tradeRec) float64 { return t.cost }),

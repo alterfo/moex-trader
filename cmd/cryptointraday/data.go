@@ -20,16 +20,15 @@ type bar struct {
 }
 
 type sessionRec struct {
-	symbol  string
-	date    string
-	open    float64
-	high    float64
-	low     float64
-	close   float64
-	qvol    float64
-	bars    int
-	entries int
-	trades  int
+	symbol     string
+	date       string
+	open       float64
+	high       float64
+	low        float64
+	rangeClose float64
+	sessionEnd float64
+	qvol       float64
+	bars       int
 }
 
 type sessionWindow struct {
@@ -204,4 +203,59 @@ func loadDailyFunding(dir string, symbols []string) map[string]map[string]float6
 		out[sym] = byDate
 	}
 	return out
+}
+
+type fundingEvent struct {
+	ms  int64
+	bps float64
+}
+
+func loadFundingEvents(dir string, symbols []string) map[string][]fundingEvent {
+	out := map[string][]fundingEvent{}
+	for _, sym := range symbols {
+		path := filepath.Join(dir, sym+".csv")
+		f, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+		r := csv.NewReader(f)
+		r.FieldsPerRecord = -1
+		if _, err := r.Read(); err != nil {
+			f.Close()
+			continue
+		}
+		var evs []fundingEvent
+		for {
+			rec, err := r.Read()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				f.Close()
+				break
+			}
+			if len(rec) < 3 {
+				continue
+			}
+			ms, err := strconv.ParseInt(rec[0], 10, 64)
+			if err != nil {
+				continue
+			}
+			evs = append(evs, fundingEvent{ms: ms, bps: parseNum(rec[2]) * 1e4})
+		}
+		f.Close()
+		sort.Slice(evs, func(a, b int) bool { return evs[a].ms < evs[b].ms })
+		out[sym] = evs
+	}
+	return out
+}
+
+func fundingBetween(evs []fundingEvent, from, to int64) float64 {
+	sum := 0.0
+	for _, e := range evs {
+		if e.ms > from && e.ms <= to {
+			sum += e.bps
+		}
+	}
+	return sum
 }

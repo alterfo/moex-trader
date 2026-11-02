@@ -118,3 +118,34 @@ Not used, and this bounds every number above:
 | no liquidation events | C41 was run as a plain one-day reversal and closed negative; the cascade form is untested |
 
 Available and not yet pulled, all public and historical: `futures/um/daily/bookTicker` (every best-bid/ask update, about 130 MB a day for BTCUSDT, far smaller for mid-caps), `futures/um/daily/bookDepth` (one-minute snapshots of cumulative depth at 1% levels, about 0.5 MB a day for BTCUSDT, 34561 rows on 2026-10-01), `futures/um/daily/metrics` (30-minute open interest, top-trader and taker long/short ratios), `futures/um/monthly/aggTrades` and `premiumIndexKlines` (basis). The measured-spread read, the A2 replication on `bookDepth` and the cascade form of C41 all depend on that pull and are not part of this stage's numbers.
+
+### 10.8 Intraday cells: opening-range breakout, intraday momentum, level fade (2026-11-02)
+
+Plan `docs/plans/20261102-crypto-intraday-orb.md`, registered before any 5-minute price was read. Data: `data.binance.vision` monthly `futures/um/klines` at interval `5m`, 2023-01-01..2026-10-31, top 100 USDⓈ-M contracts by trailing 24-hour quote volume, `underlyingType = COIN`. Panel freeze `07492b9433d97b51aeb59956c0f441614c5f6e47ea940185c87551ad567d687d` over 2188 files and 2854644929 bytes, daily and 5-minute together. Sessions built by `cmd/cryptointraday -mode sessions`: 88089 records for the UTC-day window and 88138 for the US-cash window.
+
+Two session definitions, fixed before the run: **S0** = UTC day, range 00:00-00:30, session end 23:55; **S1** = US cash, range 13:30-14:00, session end 20:00. Costs are the frozen crypto model at the retail taker tier by liquidity tier; funding is charged only at the settlements that fall inside the hold, read from the venue's own funding history.
+
+| cell | session | units | gross | cost | funding | net | t | halves |
+|---|---|---|---|---|---|---|---|---|
+| O-ORB | S0 | 4273 trades, 3.4 a day | 15.8 bps/trade | 14.2 | 0.8 | **+2.4** bps/trade | 0.27 (trade), 0.50 (daily 8.14 bps/day) | -9.13 / +25.40 bps/day |
+| O-ORB | S1 | 4358 trades, 3.6 a day | 16.5 | 14.2 | -0.1 | **+2.2** | 0.29 (trade), -0.13 (daily -1.31) | -29.97 / +27.35 |
+| O-MOM | S0 | 1274 days, 65 names a day | -34.68 bps/day | 52.70 | 0.00 | **-87.38** bps/day | -6.76 | -89.25 / -85.51 |
+| O-MOM | S1 | 1274 days, 65 names | +2.64 | 50.95 | 0.00 | **-48.31** | -5.87 | -44.34 / -52.28 |
+| O-LVL | S0 | 235685 trades, 168 a day | 0.1 bps/trade | 27.2 | 0.0 | **-27.1** bps/trade | -48.31 (trade), -18.51 (daily -23.75) | -21.50 / -26.00 |
+| O-LVL | S1 | 149527 trades, 107 a day | 0.8 | 27.4 | -0.0 | **-26.6** | -35.52 (trade), -20.37 (daily -25.22) | -23.45 / -26.98 |
+
+O-ORB detail: hit rate 35.7% (S0) and 38.6% (S1), mean hold 243 and 226 minutes, one position per contract per session, first breakout only, stop at the opposite range boundary and a 6-hour cap, "in play" filter (top decile by previous-day quote volume and range volume above the contract's own 20-session median) admitted 3.4-3.6 trades a day across 100 contracts. The +1-bar placebo moves the S0 gross from 15.8 to 14.2 (t 0.37) and the S1 gross from 16.5 to 17.3 (t -0.09), so the result is not a knife-edge and the placebo reproduces as much as the rule does.
+
+O-MOM detail: the traded form buys the top and sells the bottom quintile of the 30-minute range return and holds to session end. The S0 book loses 34.68 bps a day gross, i.e. the first half hour **reverses** over the rest of the UTC day rather than continuing; the mirrored book (fade the range) earns +34.68 bps gross and still loses -18.02 bps net against a 52.70 bps daily-turnover cost. The S1 book has no gross edge at all (+2.64) and loses its cost.
+
+O-LVL detail: levels are the previous session high and low, the previous seven session highs and lows, and the round-number grid for contracts priced below 100; a touch is a bar within 0.25 ATR(14 bars of 5m) of a level; the rule fades the touch unless the same bar closes beyond the level on volume above 1.5x the 20-bar median, in which case it follows; stop 1 ATR, exit at session end, at most three entries a session. Gross per trade is 0.1 (S0) and 0.8 (S1) bps against 27.2-27.4 bps of cost: at this specification the direction call carries no edge, and no stop horizon can bridge 27 bps when the gross is 0.1-0.8.
+
+Verdict of the intraday stage: **0 candidates and no leads**.
+
+| cell | what it establishes |
+|---|---|
+| O-ORB | a genuine gross effect exists — a 30-minute range breakout continues for about 16 bps over the following four hours — and it equals the taker round trip almost to the basis point; below the gate (t 0.50) and unstable across halves |
+| O-MOM | crypto contradicts the MOEX I1 null in sign and strength: the first half hour reverses (-34.68 bps a day, t -6.76), and the reversal still cannot pay a 52.70 bps daily round trip |
+| O-LVL | levels, as specified here, are not a signal: gross 0.1-0.8 bps a trade at 27 bps of cost |
+
+The cost ordering that decides all three: an intraday book turns over its notional once or twice a day, which at the retail tier costs 26-52 bps a day, against 1.7-5.6 bps a day for the low-turnover daily books of 10.3. The venue's fee schedule, not the signal, is the binding constraint for every intraday cell tested so far.

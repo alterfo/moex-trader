@@ -182,3 +182,5 @@ Sections 3-9 live in `docs/metrics/`; numbering is unchanged, so `metrics.md 8.1
 | 10.4 Robustness of the order-flow cell (2026-11-02) | s10-crypto.md |
 | 10.5 Placebo of the order-flow book (2026-11-02) | s10-crypto.md |
 | 10.6 Verdict: 0 candidates, 2 leads (2026-11-02) | s10-crypto.md |
+| 10.7 What data the first stage did and did not use (2026-11-02) | s10-crypto.md |
+| 10.8 Intraday cells: opening-range breakout, intraday momentum, level fade (2026-11-02) | s10-crypto.md |

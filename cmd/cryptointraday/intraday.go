@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"path/filepath"
 	"sort"
 )
 
@@ -41,12 +42,13 @@ func runSessions(o options, w sessionWindow, contracts []string, barDir, out str
 					acc.high = math.Max(acc.high, b.high)
 					acc.low = math.Min(acc.low, b.low)
 				}
-				acc.close = b.close
+				acc.rangeClose = b.close
+				acc.sessionEnd = b.close
 				acc.qvol += b.quoteVol
 				acc.bars++
 				return true
 			}
-			acc.close = b.close
+			acc.sessionEnd = b.close
 			return true
 		})
 		if err != nil {
@@ -81,10 +83,10 @@ func writeSessions(path string, rows []*sessionRec) error {
 	}
 	defer f.Close()
 	w := csvWriter(f)
-	w.write([]string{"symbol", "date", "range_open", "range_high", "range_low", "range_close", "range_qvol"})
+	w.write([]string{"symbol", "date", "range_open", "range_high", "range_low", "range_close", "session_close", "range_qvol"})
 	for _, r := range rows {
 		w.write([]string{r.symbol, r.date,
-			fnum(r.open), fnum(r.high), fnum(r.low), fnum(r.close), fnum(r.qvol)})
+			fnum(r.open), fnum(r.high), fnum(r.low), fnum(r.rangeClose), fnum(r.sessionEnd), fnum(r.qvol)})
 	}
 	return w.done()
 }
@@ -96,13 +98,13 @@ func readSessions(path string) ([]*sessionRec, error) {
 	}
 	out := make([]*sessionRec, 0, len(rows))
 	for _, r := range rows {
-		if len(r) < 7 {
+		if len(r) < 8 {
 			continue
 		}
 		out = append(out, &sessionRec{
 			symbol: r[0], date: r[1],
 			open: parseNum(r[2]), high: parseNum(r[3]), low: parseNum(r[4]),
-			close: parseNum(r[5]), qvol: parseNum(r[6]),
+			rangeClose: parseNum(r[5]), sessionEnd: parseNum(r[6]), qvol: parseNum(r[7]),
 		})
 	}
 	return out, nil
@@ -129,7 +131,7 @@ func runMom(o options, w sessionWindow, sessions []*sessionRec) error {
 	}
 	sort.Strings(dates)
 	vol := loadDailyVolumeOrDie(o.dailyDir, contractsOf(sessions))
-	fund := loadDailyFunding(o.dailyDir, contractsOf(sessions))
+	fund := loadDailyFunding(filepath.Join(o.dailyDir, "funding"), contractsOf(sessions))
 	var series []dayMom
 	for _, d := range dates {
 		recs := byDate[d]
@@ -145,7 +147,7 @@ func runMom(o options, w sessionWindow, sessions []*sessionRec) error {
 		}
 		var cands []cand
 		for _, r := range recs {
-			if r.open <= 0 || r.close <= 0 {
+			if r.open <= 0 || r.rangeClose <= 0 || r.sessionEnd <= 0 {
 				continue
 			}
 			v := prevVolume(vol, r.symbol, d)
@@ -154,7 +156,7 @@ func runMom(o options, w sessionWindow, sessions []*sessionRec) error {
 			}
 			cands = append(cands, cand{
 				rec:  r,
-				sig:  r.close/r.open - 1,
+				sig:  r.rangeClose/r.open - 1,
 				vol:  v,
 				cost: allInCostBps(o, v),
 				fund: fundAt(fund, r.symbol, d, w),
@@ -197,7 +199,7 @@ func runMom(o options, w sessionWindow, sessions []*sessionRec) error {
 			if wgt == 0 {
 				continue
 			}
-			ret := c.rec.close/c.rec.open - 1
+			ret := c.rec.sessionEnd/c.rec.rangeClose - 1
 			gross += wgt * ret * 1e4
 			cost += 2 * math.Abs(wgt) * c.cost
 			funding -= wgt * c.fund / 1e4
@@ -219,6 +221,7 @@ func runMom(o options, w sessionWindow, sessions []*sessionRec) error {
 	fmt.Printf("cell O-MOM %s: days %d, gross %.2f, cost %.2f, funding %.2f, net %.2f bps/day, t %.2f, sharpe %.2f\n",
 		w.name, len(series), mean(gs), mean(cs), mean(fs), mean(nets), nwT(nets, 5), sharpe(nets))
 	fmt.Printf("  halves %.2f / %.2f, names/day %.0f\n", mean(nets[:len(nets)/2]), mean(nets[len(nets)/2:]), meanF(series, func(s dayMom) float64 { return float64(s.names) }))
+	fmt.Printf("  mirror of the same book: gross %.2f, net %.2f bps/day\n", -mean(gs), meanF(series, func(s dayMom) float64 { return -s.gross - s.cost + s.funding }))
 	return nil
 }
 
