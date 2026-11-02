@@ -39,3 +39,6 @@ __pycache__/
 /data/algopack/
 /data/grafana/
 /data/borrow_terms.jsonl
+
+# crypto research panel (bulk exchange dumps, not redistributed)
+/data/crypto/

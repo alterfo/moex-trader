@@ -120,6 +120,7 @@ Mac (основной) и ai-box (резервный) никогда не тор
 | `cmd/tinvestprobe` | проба фьючерсных ордеров в песочнице T-Bank |
 | `cmd/borrowmeasure` | измерение условий короткого займа и маржинальных комиссий в песочнице (отчёт, без истории) |
 | `cmd/borrowterms` | ежедневный снапшот договорных условий шорта по тикерам (`data/borrow_terms.jsonl`: `short_enabled`, `Kshort`, `Dshort`, `DshortMin`), запускается `scripts/borrow-terms-daily.sh` по списку `data/borrow_universe.txt` |
+| `cmd/cryptofetch` | месячная массовая загрузка для крипто-линии исследований (план `20261102-crypto-transfer-46`): режимы `symbols` (перечень всех USDⓈ-M перпетуалов, когда-либо торговавшихся, из листинга бакета `data.binance.vision`, с первым и последним месяцем, поэтому делистнутые контракты остаются в панели), `klines` и `funding` (возобновляемая помесячная загрузка, распаковка и нормализация в `data/crypto/binance-um/`), `inventory` (покрытие, последняя дата, строки фандинга); офлайн, без ключей |
 
 Обучение и инструменты модели:
 
@@ -184,6 +185,7 @@ Mac (основной) и ai-box (резервный) никогда не тор
 | `internal/runbook` | правило капитала для сброса kill switch | live |
 | `internal/failover` | выборы, witness, пир, снимок, heartbeat | failover |
 | `internal/bus` | заготовка Redis Streams (не используется) | none |
+| `internal/cryptocost` | замороженная модель издержек крипто-рынков из плана переноса (retail maker/taker за сторону, спред, импакт, вероятность исполнения мейкера, фандинг за период удержания, займ и haircut биржи, арифметика break-even и требуемого гросса); общая для всех строк, чтобы ни одна не считалась по другой цене | analysis |
 | `internal/backtest` | движок реплея, источник ISS, кэш решений, атрибуция, отчёты | offline + preflight |
 | `internal/walkforward`, `internal/strategyvalidation`, `internal/oosfreeze`, `internal/trainrun`, `internal/verifier`, `internal/tearsheet` | валидация, прогон обучения, отчёт по P&L, HTML-tearsheet | offline |
 | `internal/metricsdoc` | линтер `docs/metrics.md` | offline |

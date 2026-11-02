@@ -118,6 +118,7 @@ Live and operations (in the live or failover path):
 | `cmd/tinvestprobe` | futures order probe in the T-Bank sandbox |
 | `cmd/borrowmeasure` | short-borrow terms and margin-fee measurement in the sandbox (report, no history) |
 | `cmd/borrowterms` | append-only daily snapshot of the contractual short terms per ticker (`data/borrow_terms.jsonl`: `short_enabled`, `Kshort`, `Dshort`, `DshortMin`), driven by `scripts/borrow-terms-daily.sh` over `data/borrow_universe.txt` |
+| `cmd/cryptofetch` | monthly bulk loader for the crypto research line (plan `20261102-crypto-transfer-46`): modes `symbols` (enumerates every USDⓈ-M perpetual that ever traded from the `data.binance.vision` bucket listing, with first and last month, so delisted contracts stay in the panel), `klines` and `funding` (resumable monthly download, unzip and normalise into `data/crypto/binance-um/`), `inventory` (coverage, last date, funding rows); offline, no keys |
 
 Training and model tooling:
 
@@ -182,6 +183,7 @@ Research studies (not in the trading path): (placebo check of the score table: `
 | `internal/runbook` | kill-switch reset equity rule | live |
 | `internal/failover` | election, witness, peer, snapshot, heartbeat | failover |
 | `internal/bus` | Redis Streams scaffolding (unused) | none |
+| `internal/cryptocost` | frozen crypto cost model of the transfer plan (retail maker/taker per side, spread, impact, maker fill probability, funding over the holding period, borrow and exchange haircut, break-even and required-gross arithmetic); shared by every crypto row so no row is charged differently | analysis |
 | `internal/backtest` | replay engine, ISS source, decision cache, attribution, reports | offline + preflight |
 | `internal/walkforward`, `internal/strategyvalidation`, `internal/oosfreeze`, `internal/trainrun`, `internal/verifier`, `internal/tearsheet` | validation, training run, P&L report, HTML tearsheet | offline |
 | `internal/metricsdoc` | lint of `docs/metrics.md` | offline |
