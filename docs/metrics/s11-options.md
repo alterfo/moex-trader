@@ -37,6 +37,17 @@ By DTE (S1): 5 days +438.6 (t 2.48, n 133); 10 days +901.9 (t 2.41, n 51); 20 da
 
 Stability (pooled, DTE 5 and 20): at a 2% half-spread S1 +668.9 (t 3.40), S2 +741.0 (t 5.30), S3 +742.0 (t 3.57), S4 +430.2 (t 3.54); at a 5% half-spread S1 +458.3 (t 2.39), S2 +661.9 (t 4.98), S3 +716.1 (t 3.49), S4 +221.1 (t 1.98). With settlement-price entry and no trade filter (descriptive, not executable) the means are S1 +682.9, S2 +627.4, S3 +860.4, S4 +467.5: the premium is a property of the market, not of the tradability filter. Doubling the exchange fee changes a trade by 8 RUB against a mean of 771.
 
+By calendar year (mean RUB per expiry) the premium is decaying, and the decay is clearest in the shortest book:
+
+| book | 2023 | 2024 | 2025 | 2026 (to 11-07) |
+|---|---|---|---|---|
+| S1 at DTE 5 only | +965 (22) | +706 (40) | +182 (39) | +56 (32) |
+| S1 pooled DTE 5-20 | +912 (28) | +1101 (50) | +484 (50) | +453 (40) |
+| S2 pooled | +746 (24) | +777 (42) | +369 (41) | +1376 (27) |
+| S4 pooled | +610 (28) | +633 (50) | +169 (50) | +647 (40) |
+
+The shortest straddle, the book that would actually be run, went from +965 RUB per expiry in 2023 to +56 in 2026: the average premium over the realized move has compressed to the level of the cost charge, and the 2026 cell is inside its own noise (standard deviation about 2100 RUB). A strategy that is only statistically alive on pooled history is not a strategy.
+
 Capacity is the binding constraint, not the edge: the median number of contracts traded on the entry day per leg is 22 for S1 at DTE 5 and 9-15 for the other cells, i.e. about 0.7-1.7 mln RUB of notional per trade and therefore a strategy measured in tens of thousands of RUB a year on 1 mln RUB of capital, not millions.
 
 ### 11.5 The other five families do not show the same premium
@@ -57,6 +68,6 @@ The four books pooled (DTE 5 and 20): S1 short straddle -1464.4 RUB per expiry (
 
 ### 11.4 Verdict
 
-Against the registered gate of `docs/plans/20261108-options-premium.md`: criteria (1) t >= 2.64, (2) both halves positive, (3) net positive at a 2% half-spread and (4) a positive VRP all pass for **all four books on BR**. This is a lead for the forward log, never a deployment: the sample is one market, one to three years, four books and a heavy tail (the worst BR straddle lost 1.3% of notional, 19 times the mean gain, and the 5% CVaR is 7.4 thousand RUB against 10.3 thousand RUB of margin-proxy capital). The other five families (GD, CR, GZ, LK, Eu) were still downloading when this section was written and are reported when their pull completes.
+Against the registered gate of `docs/plans/20261108-options-premium.md`: criteria (1) t >= 2.64, (2) both halves positive, (3) net positive at a 2% half-spread and (4) a positive VRP all pass for **all four books on BR**. The yearly decay (11.3) is a second reason to treat it as a lead and not a deployment: the pooled t-statistic is carried by 2023-2024. This is a lead for the forward log, never a deployment: the sample is one market, one to three years, four books and a heavy tail (the worst BR straddle lost 1.3% of notional, 19 times the mean gain, and the 5% CVaR is 7.4 thousand RUB against 10.3 thousand RUB of margin-proxy capital). The other five families (GD, CR, GZ, LK, Eu) were still downloading when this section was written and are reported when their pull completes.
 
 Frozen forward rule (registered 2026-11-08, before any forward date exists): for every BR expiry from 2026-11-09, sell the ATM straddle at the traded `WAPRICE` on the latest trading day within DTE 5..DTE 8 before expiry where both legs traded at least 5 contracts, hold to expiry, mark the payoff against the underlying future's settlement, charge 4 RUB per contract per side and 1% of premium per side. The forward log is scored on the same pooled statistics with the same bar; a forward mean below zero or a forward month-bootstrap interval that contains zero closes the lead.
