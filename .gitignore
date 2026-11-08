@@ -42,3 +42,6 @@ __pycache__/
 
 # crypto research panel (bulk exchange dumps, not redistributed)
 /data/crypto/
+
+# MOEX FORTS options history pulled from ISS (bulk, reproducible by cmd/optfetch)
+/data/options/

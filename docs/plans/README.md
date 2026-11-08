@@ -20,6 +20,7 @@ Rules: criteria are written before the run; numbers go into `docs/metrics.md` (i
 | `20261023-algopack-100-hypotheses.md` | DONE: 100 hypotheses, Tier 1 passed 0 of 28, 17 Tier 2 leads (metrics 8.16); tool `cmd/flowscan` |
 | `20261029-closing-the-limitations.md` | REGISTERED: registry of 10 programme limitations with the action that removes each; E1 (value beyond 12-month momentum) runs first |
 | `20261102-crypto-transfer-46.md` | PARTLY RUN: S0 panel and freeze, S1 break-even table for 46 rows, W1 battery run once on the frozen panel (metrics 10.1-10.7); 0 candidates, 2 leads (order flow t 2.89, 1-month momentum t 2.18 against a 3.3 bar), 3 families closed negative |
+| `20261108-options-premium.md` | REGISTERED: MOEX FORTS options, six families, VRP descriptive row and four premium-selling books with a frozen cost model; data door `cmd/optfetch`, scan `cmd/optscan` |
 | `20261102-crypto-intraday-orb.md` | DONE: ORB, intraday momentum and level fade on 5-minute crypto bars, six cells run once (metrics 10.8); 0 candidates, no leads — ORB gross equals the taker round trip, momentum reverses but the mirror cannot pay the turnover, levels carry no edge |
 
 ## Closed (files deleted, see git history; numbers in the metrics files)
