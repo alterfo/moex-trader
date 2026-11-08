@@ -39,7 +39,9 @@ Stability (pooled, DTE 5 and 20): at a 2% half-spread S1 +668.9 (t 3.40), S2 +74
 
 Capacity is the binding constraint, not the edge: the median number of contracts traded on the entry day per leg is 22 for S1 at DTE 5 and 9-15 for the other cells, i.e. about 0.7-1.7 mln RUB of notional per trade and therefore a strategy measured in tens of thousands of RUB a year on 1 mln RUB of capital, not millions.
 
-### 11.5 Gold (GD) does not show the same premium
+### 11.5 The other five families do not show the same premium
+
+**Gold (GD)** pulled to 1426 series over 2023-10..2026-11; gold options trade far less often than BR, so the sample is 9-15 expiries per tenor.
 
 GD pulled to 1426 series over 2023-10..2026-11; gold options trade far less often than BR, so the sample is 9-15 expiries per tenor.
 
@@ -50,6 +52,8 @@ GD pulled to 1426 series over 2023-10..2026-11; gold options trade far less ofte
 | 20 | 9 | 0.161 | 0.154 | +0.007 | 3.51 | 3.66 | -0.00 |
 
 The four books pooled (DTE 5 and 20): S1 short straddle -1464.4 RUB per expiry (t -1.00, n 26), S4 delta-hedged -1029.2 (t -1.49), S3 covered call +1255.9 (t 1.52, n 12), S2 25-delta strangle +1616.8 (t 9.48, n 8). The straddle loses, the VRP is within a point of zero, and the only positive cell is an eight-observation strangle with no losing trade: **GD fails the gate for S1, S3 and S4 and the S2 cell is too small to read**. The premium is specific to Brent, not a property of MOEX options as such, which is what a real premium should look like.
+
+**CNY (CR)**, 508 series, 13 expiries at DTE 5: IV 0.173 against RV 0.133 (+4.0 points), straddle 2.27% of forward against a realized move of 2.40%, net +0.08% of notional; at DTE 20 there are four expiries and the net is -1.25%. **Inconclusive, close to zero, and too few observations for any verdict.** **GZ (Gazprom), LK (Lukoil) and Eu (euro)** produced 16, 0 and 0 series: the generator either found no listed series for the historical price levels or the family trades too rarely to generate them, so they are **not tested**, and a future plan that wants them needs the per-date whole-market pull (`cmd/optfetch -mode day`) instead of generated SECIDs.
 
 ### 11.4 Verdict
 

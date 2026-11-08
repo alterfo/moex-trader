@@ -66,6 +66,20 @@ func strikeString(v float64) string {
 	return strconv.FormatFloat(v, 'f', -1, 64)
 }
 
+func strikeDecimals(step float64) int {
+	for d := 0; d <= 4; d++ {
+		scaled := step * math.Pow(10, float64(d))
+		if math.Abs(scaled-math.Round(scaled)) < 1e-9 {
+			return d
+		}
+	}
+	return 4
+}
+
+func formatStrike(v float64, decimals int) string {
+	return strconv.FormatFloat(v, 'f', decimals, 64)
+}
+
 func prefixStrikes(chain []chainEntry, prefix string) []float64 {
 	seen := map[float64]bool{}
 	var out []float64
@@ -289,9 +303,25 @@ func seriesMode(r *responder, dir, prefix string, from, to time.Time, workers in
 			n = 1
 		}
 		var candidates []float64
-		for k := -n; k <= n; k++ {
-			candidates = append(candidates, roundTo(center+float64(k)*step, step))
+		decimals := strikeDecimals(step)
+		seen := map[string]bool{}
+		addStrike := func(v float64) {
+			key := formatStrike(v, decimals)
+			if seen[key] {
+				return
+			}
+			seen[key] = true
+			candidates = append(candidates, v)
 		}
+		for k := -n; k <= n; k++ {
+			addStrike(roundTo(center+float64(k)*step, step))
+		}
+		for _, s := range strikes {
+			if s >= center*(1-window) && s <= center*(1+window) {
+				addStrike(s)
+			}
+		}
+		sort.Float64s(candidates)
 		if grid > 0 && len(candidates) > grid {
 			stride := (len(candidates) + grid - 1) / grid
 			var thin []float64
@@ -314,7 +344,7 @@ func seriesMode(r *responder, dir, prefix string, from, to time.Time, workers in
 			if int(m) > int(lst.Month()) {
 				year--
 			}
-			variants := probeVariants(r, prefix, candidates, letter, year, expiryFrom, lst)
+			variants := probeVariants(r, prefix, candidates, decimals, letter, year, expiryFrom, lst)
 			if len(variants) == 0 {
 				variants = []string{""}
 			}
@@ -325,7 +355,7 @@ func seriesMode(r *responder, dir, prefix string, from, to time.Time, workers in
 						letterFor = optionPutMonthLetters[int(m)-1]
 					}
 					for _, suf := range variants {
-						id := fmt.Sprintf("%s%sB%s%d%s", prefix, strikeString(s), letterFor, year%10, suf)
+						id := fmt.Sprintf("%s%sB%s%d%s", prefix, formatStrike(s, decimals), letterFor, year%10, suf)
 						jobs <- job{id: id, from: expiryFrom, to: lst.AddDate(0, 1, 0)}
 						queued++
 					}
@@ -342,7 +372,7 @@ func seriesMode(r *responder, dir, prefix string, from, to time.Time, workers in
 	return nil
 }
 
-func probeVariants(r *responder, prefix string, candidates []float64, letter string, year int, expiryFrom, lst time.Time) []string {
+func probeVariants(r *responder, prefix string, candidates []float64, decimals int, letter string, year int, expiryFrom, lst time.Time) []string {
 	probes := []float64{candidates[len(candidates)/2]}
 	if len(candidates) > 6 {
 		probes = append(probes, candidates[len(candidates)/4], candidates[len(candidates)*3/4])
@@ -353,7 +383,7 @@ func probeVariants(r *responder, prefix string, candidates []float64, letter str
 	for _, strike := range probes {
 		var found []string
 		for _, suf := range []string{"", "B", "C", "D", "E"} {
-			probe := fmt.Sprintf("%s%sB%s%d%s", prefix, strikeString(strike), letter, year%10, suf)
+			probe := fmt.Sprintf("%s%sB%s%d%s", prefix, formatStrike(strike, decimals), letter, year%10, suf)
 			rows, err := r.series(probe, "options", expiryFrom, lst.AddDate(0, 1, 0), []string{"TRADEDATE", "WAPRICE", "SETTLEPRICE", "VOLUME"})
 			if err != nil {
 				continue
