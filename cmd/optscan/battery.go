@@ -211,6 +211,44 @@ func runBattery(p params) error {
 					}
 				}
 
+				wingCall, _ := deltaStrike(opts, entry, fs, t, true, 0.10)
+				wingPut, _ := deltaStrike(opts, entry, fs, t, false, -0.10)
+				if wingCall != nil && wingPut != nil && call25 != nil && put25 != nil {
+					if c25v, ok1 := premiumOf(call25, entry, p.useSettle); ok1 {
+						if p25v, ok2 := premiumOf(put25, entry, p.useSettle); ok2 {
+							if wcv, ok3 := premiumOf(wingCall, entry, p.useSettle); ok3 {
+								if wpv, ok4 := premiumOf(wingPut, entry, p.useSettle); ok4 {
+									credit := c25v + p25v - wcv - wpv
+									payoffCondor := math.Max(fe-call25.strike, 0) + math.Max(put25.strike-fe, 0) -
+										math.Max(fe-wingCall.strike, 0) - math.Max(wingPut.strike-fe, 0)
+									costCondor := costsRUB(p.feeRUB, p.spreadFrac, c25v+p25v+wcv+wpv, mult, 4)
+									maxLoss := math.Max(call25.strike-wingPut.strike, wingCall.strike-put25.strike)*mult - credit*mult
+									capCondor := math.Min(p.marginFrac*fs*mult, math.Max(maxLoss, p.marginFrac*fs*mult*0.2))
+									get(family, "S5_condor25_10", dte).add((credit-payoffCondor)*mult-costCondor, capCondor, days, expiry, math.Min(call25.vol[entry], put25.vol[entry]))
+									if capCondor > 0 && (credit-payoffCondor)*mult-costCondor < -capCondor*1.5 {
+										fmt.Printf("warn %s %s condor loss beyond max loss %.0f\n", family, expiry, (credit-payoffCondor)*mult-costCondor)
+									}
+								}
+							}
+						}
+					}
+				}
+				if wingCall != nil && wingPut != nil {
+					if cv, ok1 := premiumOf(call, entry, p.useSettle); ok1 {
+						if pv, ok2 := premiumOf(put, entry, p.useSettle); ok2 {
+							if wcv, ok3 := premiumOf(wingCall, entry, p.useSettle); ok3 {
+								if wpv, ok4 := premiumOf(wingPut, entry, p.useSettle); ok4 {
+									credit := cv + pv - wcv - wpv
+									payoffFly := math.Abs(fe-call.strike) - math.Max(fe-wingCall.strike, 0) - math.Max(wingPut.strike-fe, 0)
+									costFly := costsRUB(p.feeRUB, p.spreadFrac, cv+pv+wcv+wpv, mult, 4)
+									maxLoss := math.Max(call.strike-wingPut.strike, wingCall.strike-call.strike)*mult - credit*mult
+									capFly := math.Min(p.marginFrac*fs*mult, math.Max(maxLoss, p.marginFrac*fs*mult*0.2))
+									get(family, "S6_fly10", dte).add((credit-payoffFly)*mult-costFly, capFly, days, expiry, math.Min(call.vol[entry], put.vol[entry]))
+								}
+							}
+						}
+					}
+				}
 				call30, _ := deltaStrike(opts, entry, fs, t, true, 0.30)
 				if call30 != nil {
 					c30, ok := premiumOf(call30, entry, p.useSettle)
@@ -246,7 +284,7 @@ func runBattery(p params) error {
 	if err := writeCSV(filepath.Join("artifacts", "options", "battery.csv"), rows); err != nil {
 		return err
 	}
-	tradeRows := [][]string{{"family", "strategy", "dte", "expiry", "pnl_rub", "capital_rub", "days"}}
+	tradeRows := [][]string{{"family", "strategy", "dte", "expiry", "pnl_rub", "capital_rub", "days", "volume"}}
 	for _, key := range order {
 		b := books[key]
 		for i := range b.pnl {
@@ -258,7 +296,7 @@ func runBattery(p params) error {
 	if err := writeCSV(filepath.Join("artifacts", "options", "trades.csv"), tradeRows); err != nil {
 		return err
 	}
-	for _, strategy := range []string{"S1_atm_straddle", "S2_strangle25", "S3_covered_call", "S4_delta_hedged"} {
+	for _, strategy := range []string{"S1_atm_straddle", "S2_strangle25", "S3_covered_call", "S4_delta_hedged", "S5_condor25_10", "S6_fly10"} {
 		var pooled []float64
 		var caps, dss []float64
 		for _, b := range books {

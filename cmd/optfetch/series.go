@@ -165,7 +165,7 @@ func futureIDs(prefix string, from, to time.Time) []string {
 	return out
 }
 
-func seriesMode(r *responder, dir, prefix string, from, to time.Time, workers int, window float64, grid int) error {
+func seriesMode(r *responder, dir, prefix string, from, to time.Time, workers int, window float64, grid int, refresh bool) error {
 	chain, err := latestChain(dir)
 	if err != nil {
 		return err
@@ -191,7 +191,7 @@ func seriesMode(r *responder, dir, prefix string, from, to time.Time, workers in
 	var futures []fut
 	for _, id := range futureIDs(prefix, futFrom, futTill) {
 		path := filepath.Join(futDir, id+".csv.gz")
-		if _, err := os.Stat(path); err != nil {
+		if _, statErr := os.Stat(path); statErr != nil || refresh {
 			rows, err := r.series(id, "forts", futFrom, futTill, []string{"TRADEDATE", "CLOSE", "SETTLEPRICE", "VOLUME"})
 			if err != nil {
 				log.Printf("future %s: %v", id, err)

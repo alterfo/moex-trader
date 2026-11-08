@@ -490,6 +490,7 @@ func main() {
 	iss := flag.String("iss", defaultISS, "ISS base URL")
 	workers := flag.Int("workers", 3, "parallel requests")
 	force := flag.Bool("force", false, "refetch existing day files")
+	refresh := flag.Bool("refresh", false, "refetch underlying futures histories in series mode")
 	prefix := flag.String("prefix", "", "option secid prefix for series mode, e.g. BR or GD")
 	window := flag.Float64("window", 0.15, "strike window around the future price for series mode")
 	grid := flag.Int("grid", 25, "maximum strikes per future for series mode")
@@ -521,7 +522,7 @@ func main() {
 			log.Fatal("-prefix is required for series mode")
 		}
 		for _, p := range strings.Split(*prefix, ",") {
-			if err := seriesMode(r, *dir, strings.TrimSpace(p), from, till, *workers, *window, *grid); err != nil {
+			if err := seriesMode(r, *dir, strings.TrimSpace(p), from, till, *workers, *window, *grid, *refresh); err != nil {
 				log.Fatal(err)
 			}
 		}

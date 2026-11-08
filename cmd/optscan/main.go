@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type futureSpec struct {
@@ -648,7 +649,7 @@ func writeCSV(path string, rows [][]string) error {
 }
 
 func main() {
-	mode := flag.String("mode", "vrp", "vrp|battery")
+	mode := flag.String("mode", "vrp", "vrp|battery|fwd|fwdsettle")
 	dir := flag.String("dir", "data/options", "data directory")
 	families := flag.String("families", "BR,GD,CR,GZ,LK,Eu", "option secid prefixes")
 	dtes := flag.String("dte", "5,20", "days to expiry at entry")
@@ -661,6 +662,10 @@ func main() {
 	minVol := flag.Float64("minvol", 5, "minimum contracts traded on each leg on the entry day")
 	entry := flag.String("entry", "wap", "wap (require trades) or settle (read the settlement price, descriptive only)")
 	split := flag.String("split", "2025-07-01", "date that splits the window into halves")
+	fwdDate := flag.String("date", "", "snapshot date for fwd mode")
+	fwdMin := flag.Int("fwdmin", 1, "minimum days to expiry for fwd mode")
+	fwdMax := flag.Int("fwdmax", 10, "maximum days to expiry for fwd mode")
+	fwdTarget := flag.Int("target", 5, "days to expiry that defines the forward entry")
 	flag.Parse()
 	p := params{
 		dir:         *dir,
@@ -690,6 +695,18 @@ func main() {
 		if err := runVRP(p); err != nil {
 			log.Fatal(err)
 		}
+	case "fwd":
+		date := *fwdDate
+		if date == "" {
+			date = timeNowDate()
+		}
+		if err := runForward(p, date, *fwdMin, *fwdMax); err != nil {
+			log.Fatal(err)
+		}
+	case "fwdsettle":
+		if err := runForwardSettle(p, *fwdTarget, p); err != nil {
+			log.Fatal(err)
+		}
 	case "battery":
 		if err := runBattery(p); err != nil {
 			log.Fatal(err)
@@ -697,4 +714,8 @@ func main() {
 	default:
 		log.Fatalf("unknown mode %q", *mode)
 	}
+}
+
+func timeNowDate() string {
+	return time.Now().Format("2006-01-02")
 }

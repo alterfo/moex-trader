@@ -66,6 +66,33 @@ The four books pooled (DTE 5 and 20): S1 short straddle -1464.4 RUB per expiry (
 
 **CNY (CR)**, 508 series, 13 expiries at DTE 5: IV 0.173 against RV 0.133 (+4.0 points), straddle 2.27% of forward against a realized move of 2.40%, net +0.08% of notional; at DTE 20 there are four expiries and the net is -1.25%. **Inconclusive, close to zero, and too few observations for any verdict.** **GZ (Gazprom), LK (Lukoil) and Eu (euro)** produced 16, 0 and 0 series: the generator either found no listed series for the historical price levels or the family trades too rarely to generate them, so they are **not tested**, and a future plan that wants them needs the per-date whole-market pull (`cmd/optfetch -mode day`) instead of generated SECIDs.
 
+### 11.6 Defined-risk variants: what the wings cost
+
+Two protected books were added to the battery, both with one contract per leg and the same cost model: **S5 iron condor** (short 25-delta strangle, long 10-delta wings) and **S6 iron butterfly** (short ATM straddle, long 10-delta wings). Capital for these books is the true maximum loss of the structure, not the 15% proxy.
+
+| book | n | mean RUB | NW t | month-bootstrap 95% | worst | CVaR 5% | capital (max loss) | ann % |
+|---|---|---|---|---|---|---|---|---|
+| S5 condor 25/10 (pooled) | 87 | +218.9 | 2.88 | [+50, +378] | -2408 | -1927 | 6212 | 194 |
+| S5 condor 25/10, DTE 5 | 85 | +206.7 | 2.70 | | -2408 | -1927 | 6212 | 194 |
+| S6 iron fly 10 (pooled) | 90 | +90.9 | 0.53 | [-350, +438] | -5233 | -3837 | 3030 | 58 |
+| S2 naked strangle, DTE 5 (reference) | 119 | +746.0 | 4.88 | | -5096 | -2654 | 10411 | 415 |
+
+The condor costs 72% of the naked strangle's mean and buys a 53% smaller worst trade and a 27% smaller CVaR, at roughly half the capital; return on capital falls from 415% to 194% but the capital is now bounded and real. The iron butterfly is the wrong structure on this market: the wings are close enough to the money that they eat the whole premium (t 0.53). A capped-risk version of the BR premium is therefore possible, but it is a different, weaker trade, not a free tail hedge.
+
+### 11.7 Capacity and the forward log
+
+Median contracts traded on the entry day per leg: 22 for the straddle, 12 for the strangle, 13 for the condor. At a participation rate of 10/25/50% of that volume the books would run 2/6/11, 1/3/6 and 1/3/6 contracts; with the full-sample means (which 11.3 shows are optimistic for the recent regime) the annual income is:
+
+| book | 10% | 25% | 50% | capital at 25% |
+|---|---|---|---|---|
+| S1 straddle DTE 5 | 50.5k RUB | 151.5k RUB | 277.8k RUB | 61.9k RUB |
+| S2 strangle DTE 5 | 43.2k RUB | 129.6k RUB | 259.2k RUB | 31.2k RUB |
+| S5 condor DTE 5 | 12.1k RUB | 36.2k RUB | 72.5k RUB | 18.6k RUB |
+
+The strategy is capital-efficient and volume-bound: 50-150 thousand RUB a year at a defensible participation rate, against 148 thousand RUB a year of key-rate carry on 1 mln RUB. It cannot absorb a 1 mln RUB book, which is the honest reason it is a lead and not the answer to the risk-free hurdle.
+
+The forward log started on 2026-11-08: `cmd/optscan -mode fwd` writes a daily snapshot of every BR expiry between DTE 1 and 10 (strike, traded prices, volumes, forward) to `data/options/forward-snapshots.jsonl`, and `-mode fwdsettle -target 5` scores the DTE-5 entry once the expiry has passed, writing `artifacts/options/forward-results.csv`. Both run from `scripts/options-daily.sh` in the nightly launchd job, so the frozen rule of 11.4 accrues evidence without anyone remembering to run it.
+
 ### 11.4 Verdict
 
 Against the registered gate of `docs/plans/20261108-options-premium.md`: criteria (1) t >= 2.64, (2) both halves positive, (3) net positive at a 2% half-spread and (4) a positive VRP all pass for **all four books on BR**. The yearly decay (11.3) is a second reason to treat it as a lead and not a deployment: the pooled t-statistic is carried by 2023-2024. This is a lead for the forward log, never a deployment: the sample is one market, one to three years, four books and a heavy tail (the worst BR straddle lost 1.3% of notional, 19 times the mean gain, and the 5% CVaR is 7.4 thousand RUB against 10.3 thousand RUB of margin-proxy capital). The other five families (GD, CR, GZ, LK, Eu) were still downloading when this section was written and are reported when their pull completes.
