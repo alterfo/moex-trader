@@ -58,11 +58,11 @@ func runForward(p params, date string, dteMin, dteMax int) error {
 			if expiry <= date {
 				continue
 			}
-			dte := 0
-			for i := entryIdx; i < len(fut.dates) && fut.dates[i] <= expiry; i++ {
-				dte++
+			expiryIdx, ok := fut.at[expiry]
+			if !ok {
+				continue
 			}
-			dte--
+			dte := expiryIdx - entryIdx
 			if dte < dteMin || dte > dteMax {
 				continue
 			}
@@ -93,28 +93,41 @@ func runForward(p params, date string, dteMin, dteMax int) error {
 	return nil
 }
 
-func runForwardSettle(p params, targetDTE int, costs params) error {
+func runForwardSettle(p params, targetDTE int, slack int, costs params) error {
 	path := filepath.Join(p.dir, "forward-snapshots.jsonl")
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return err
+	}
+	best := map[string]snapshot{}
+	for _, line := range splitLines(string(b)) {
+		var s snapshot
+		if err := json.Unmarshal([]byte(line), &s); err != nil {
+			continue
+		}
+		if s.DTE < targetDTE || s.DTE > targetDTE+slack {
+			continue
+		}
+		if s.CallWap <= 0 || s.PutWap <= 0 || s.CallVol < p.minVol || s.PutVol < p.minVol {
+			continue
+		}
+		cur, ok := best[s.Expiry]
+		if !ok || s.DTE < cur.DTE {
+			best[s.Expiry] = s
+		}
 	}
 	specs := loadSpecs(p.dir)
 	futures := map[string][]*future{}
 	var rows [][]string
 	rows = append(rows, []string{"date", "expiry", "future", "dte", "strike", "forward", "premium", "payoff", "pnl_rub"})
 	var pnls []float64
-	for _, line := range splitLines(string(b)) {
-		var s snapshot
-		if err := json.Unmarshal([]byte(line), &s); err != nil {
-			continue
-		}
-		if s.DTE != targetDTE {
-			continue
-		}
-		if s.CallWap <= 0 || s.PutWap <= 0 || s.CallVol < p.minVol || s.PutVol < p.minVol {
-			continue
-		}
+	expiries := make([]string, 0, len(best))
+	for e := range best {
+		expiries = append(expiries, e)
+	}
+	sort.Strings(expiries)
+	for _, expiry := range expiries {
+		s := best[expiry]
 		if _, ok := futures[s.Family]; !ok {
 			futures[s.Family] = loadFutures(p.dir, s.Family, specs, p.usdrub)
 		}
@@ -138,12 +151,11 @@ func runForwardSettle(p params, targetDTE int, costs params) error {
 		return err
 	}
 	if len(pnls) == 0 {
-		fmt.Printf("forward: no settled trades at DTE %d yet\n", targetDTE)
+		fmt.Printf("forward: no settled trades at DTE %d-%d yet\n", targetDTE, targetDTE+slack)
 		return nil
 	}
-	sort.Float64s(pnls)
 	m, t := neweyWest(pnls, 5)
-	fmt.Printf("forward DTE %d: n %d mean %.1f t %.2f worst %.1f\n", targetDTE, len(pnls), m, t, pnls[0])
+	fmt.Printf("forward DTE %d-%d: n %d mean %.1f t %.2f\n", targetDTE, targetDTE+slack, len(pnls), m, t)
 	return nil
 }
 

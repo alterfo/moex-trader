@@ -666,6 +666,7 @@ func main() {
 	fwdMin := flag.Int("fwdmin", 1, "minimum days to expiry for fwd mode")
 	fwdMax := flag.Int("fwdmax", 10, "maximum days to expiry for fwd mode")
 	fwdTarget := flag.Int("target", 5, "days to expiry that defines the forward entry")
+	fwdSlack := flag.Int("slack", 3, "extra days allowed when the target day had no trade")
 	flag.Parse()
 	p := params{
 		dir:         *dir,
@@ -704,7 +705,7 @@ func main() {
 			log.Fatal(err)
 		}
 	case "fwdsettle":
-		if err := runForwardSettle(p, *fwdTarget, p); err != nil {
+		if err := runForwardSettle(p, *fwdTarget, *fwdSlack, p); err != nil {
 			log.Fatal(err)
 		}
 	case "battery":

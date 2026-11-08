@@ -294,7 +294,10 @@ func seriesMode(r *responder, dir, prefix string, from, to time.Time, workers in
 		if center <= 0 {
 			continue
 		}
-		step := strikeStep(strikes)
+		step := localStrikeStep(strikes, center, window)
+		if step <= 0 {
+			step = strikeStep(strikes)
+		}
 		if step <= 0 {
 			step = center * 0.01
 		}
@@ -397,6 +400,23 @@ func probeVariants(r *responder, prefix string, candidates []float64, decimals i
 		}
 	}
 	return nil
+}
+
+func localStrikeStep(strikes []float64, center, window float64) float64 {
+	best := math.Inf(1)
+	lo, hi := center*(1-window), center*(1+window)
+	for i := 1; i < len(strikes); i++ {
+		if strikes[i] < lo || strikes[i] > hi {
+			continue
+		}
+		if d := strikes[i] - strikes[i-1]; d > 0 && d < best {
+			best = d
+		}
+	}
+	if math.IsInf(best, 1) {
+		return 0
+	}
+	return best
 }
 
 func strikeStep(strikes []float64) float64 {
