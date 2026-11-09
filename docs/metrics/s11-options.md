@@ -106,6 +106,8 @@ The signal is `IV_ATM - RV20`, where RV20 is the realised volatility of the unde
 
 The threshold is monotone in the mean and in both halves, and at six points it turns the 2025 and 2026 cells positive: the decay in 11.3 is a decay of the *average* premium, and the recent years still pay when the premium is large at entry. The same exercise at DTE 20 does not work (signal correlation -0.12, thresholding reduces the mean), so the filter is a short-dated phenomenon.
 
+Cost robustness of the 0.06 threshold: at a 2% half-spread the mean is +772.1 (t 4.13, halves 772 / 773, 2025 +411 on 13, 2026 +773 on 18); at 5% it is +586.5 (t 3.21, halves 627 / 480, 2025 +283 on 13). The filtered book is far less cost-sensitive than the unfiltered one because it trades only when the premium is wide.
+
 Caveat: the thresholds were read on the same sample as the result. The monotonicity and the two independent halves are the evidence; a forward test at the 0.06 threshold is what would make it a rule.
 
 ### 11.9 Multi-strike ladder: how much more the market can absorb
