@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -79,9 +80,33 @@ func cbrMode(dir string, from, to time.Time) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+	merged := map[string]string{}
+	if b, err := os.ReadFile(path); err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n")[1:] {
+			parts := strings.SplitN(line, ",", 2)
+			if len(parts) == 2 && parts[0] != "" {
+				merged[parts[0]] = parts[1]
+			}
+		}
+	}
+	for _, line := range lines[1:] {
+		parts := strings.SplitN(line, ",", 2)
+		if len(parts) == 2 && parts[0] != "" {
+			merged[parts[0]] = parts[1]
+		}
+	}
+	dates := make([]string, 0, len(merged))
+	for d := range merged {
+		dates = append(dates, d)
+	}
+	sort.Strings(dates)
+	out := []string{"date,rate"}
+	for _, d := range dates {
+		out = append(out, d+","+merged[d])
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(out, "\n")+"\n"), 0o644); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "cbr: %d rows -> %s\n", len(lines)-1, path)
+	fmt.Fprintf(os.Stderr, "cbr: %d rows -> %s\n", len(dates), path)
 	return nil
 }

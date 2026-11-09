@@ -13,7 +13,7 @@ Empirical results of the MOEX Trader research programme, written as a single pap
 5. **Calendar effects, cycles and intraday patterns are absent after 1990 / after costs** (section 8.11). The overnight premium (+0.07-0.10% per day) is real but smaller than the 0.30% needed to trade it.
 6. **The one positive result is cross-sectional.** A ridge model on a point-in-time panel of the whole TQBR board (monthly rebalancing, 2019-2026) gives a long book minus universe of +1.07% per period (Newey-West t = 3.35, Sharpe 1.11), passing the registered rule; its long-short form misses on t (2.54) and needs a short-borrow cost below about 5% per year, which was never measured (section 8.6). As a live gate candidate it passes the rolling gate in 59% of windows, not the registered 70% (section 8.8).
 7. **A live-path defect, not the model, produced the September-October SELL drift**: until 2026-10-09 the running trader fed unmasked `news_count` and `news_sentiment` to a model trained on zeros (section 9.1).
-8. **Options are the first family with a positive, statistically strong premium.** On BR (Brent options, 75-95% of FORTS option turnover) the ATM straddle's implied volatility exceeds the realized volatility by 5.8-7.7 points; selling the ATM straddle, the 25-delta strangle, a covered call or a delta-hedged straddle earns +538 to +822 RUB per expiry (month-bootstrap 95% intervals above zero, Newey-West t 3.5-6.1) over 2023-05..2026-11, and the sign survives a 5% half-spread. It is a lead with a heavy tail and small capacity (median 9-22 contracts a leg), not a deployment (section 11).
+8. **Options are the first family with a positive premium, but it is decayed and small.** On BR (Brent options, 75-95% of FORTS option turnover) ATM implied volatility exceeds realized volatility by 4.5-7.2 points; selling the 25-delta strangle, a covered call, the ATM straddle or a delta-hedged straddle earns +487 to +784 RUB per expiry over 2023-05..2026-11 (month-bootstrap intervals above zero, Newey-West t 2.9-5.9), and the sign survives a 2% half-spread. The straddle book turns negative in 2026; an entry filter of at least six vol points of IV minus trailing volatility is positive in both halves and in 2025-2026 (+834 RUB, t 4.42), but it is an in-sample threshold. Capacity is 13-21 contracts a leg, i.e. tens of thousands of RUB a year (section 11).
 9. **The risk-free hurdle is high**: the 14% key rate pays +12347 RUB per month on 1M RUB; every strategy window recorded here earned less in absolute RUB, and the options lead (section 11) does not clear it in absolute terms either, because its capacity is 0.7-1.7 mln RUB of notional per trade (section 8.12).
 
 ## 0. Conventions
@@ -80,7 +80,7 @@ Sections 3-9 live in `docs/metrics/`; numbering is unchanged, so `metrics.md 8.1
 
 | subsection | file |
 |---|---|
-| 11.1 Options data door and census; 11.2 BR variance premium; 11.3 four premium-selling books; 11.4 verdict | s11-options.md |
+| 11.1 Options data door and census; 11.2 BR variance premium; 11.3 four books; 11.4 verdict; 11.5 other families; 11.6 defined risk; 11.7 capacity; 11.8 entry filter; 11.9 strike ladder; 11.10 correction | s11-options.md |
 | 3.1 Tail-precision falsification (generation 1, 2026-09-17) | s3-baseline.md |
 | 3.2 Momentum benchmark (generation 1) | s3-baseline.md |
 | 3.3 Six-quarter grid on the portfolio engine (generation 1) | s3-baseline.md |

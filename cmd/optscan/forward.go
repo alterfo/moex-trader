@@ -22,6 +22,8 @@ type snapshot struct {
 	PutWap  float64 `json:"put_wap"`
 	CallVol float64 `json:"call_vol"`
 	PutVol  float64 `json:"put_vol"`
+	IV      float64 `json:"iv"`
+	RV20    float64 `json:"rv20"`
 }
 
 func runForward(p params, date string, dteMin, dteMax int) error {
@@ -74,10 +76,18 @@ func runForward(p params, date string, dteMin, dteMax int) error {
 			if seen[date+"|"+expiry] {
 				continue
 			}
+			iv := 0.0
+			tau := float64(daysBetween(date, expiry)) / 365
+			civ, ok1 := impliedVol(call.settle[date], fwd, call.strike, tau, true)
+			piv, ok2 := impliedVol(put.settle[date], fwd, put.strike, tau, false)
+			if ok1 && ok2 {
+				iv = 0.5 * (civ + piv)
+			}
 			s := snapshot{Date: date, Family: family, Expiry: expiry, Future: fut.id, DTE: dte,
 				Forward: fwd, Strike: call.strike,
 				CallWap: call.wap[date], PutWap: put.wap[date],
-				CallVol: call.vol[date], PutVol: put.vol[date]}
+				CallVol: call.vol[date], PutVol: put.vol[date],
+				IV: iv, RV20: trailingVol(fut, date, 20)}
 			b, err := json.Marshal(s)
 			if err != nil {
 				return err
@@ -109,6 +119,9 @@ func runForwardSettle(p params, targetDTE int, slack int, costs params) error {
 			continue
 		}
 		if s.CallWap <= 0 || s.PutWap <= 0 || s.CallVol < p.minVol || s.PutVol < p.minVol {
+			continue
+		}
+		if p.minIVRV > 0 && s.IV-s.RV20 < p.minIVRV {
 			continue
 		}
 		cur, ok := best[s.Expiry]

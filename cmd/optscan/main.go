@@ -203,9 +203,7 @@ func loadFutures(dir, family string, specs map[string]futureSpec, rates map[stri
 			continue
 		}
 		f := &future{id: id, mult: 1, at: map[string]int{}, settle: map[string]float64{}}
-		if spec, ok := specs[id]; ok {
-			f.mult = multiplier(spec, rateAt(rates, rows[len(rows)-1][0]))
-		}
+		spec, hasSpec := specs[id]
 		for _, r := range rows[1:] {
 			if len(r) < 3 {
 				continue
@@ -225,6 +223,9 @@ func loadFutures(dir, family string, specs map[string]futureSpec, rates map[stri
 			f.at[d] = i
 		}
 		f.lst = f.dates[len(f.dates)-1]
+		if hasSpec {
+			f.mult = multiplier(spec, rateAt(rates, f.lst))
+		}
 		out = append(out, f)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].lst < out[j].lst })
@@ -434,6 +435,8 @@ type params struct {
 	usdrub      map[string]float64
 	minVol      float64
 	useSettle   bool
+	debug       bool
+	minIVRV     float64
 }
 
 func straddlePremium(call, put *option, day string) (float64, bool) {
@@ -649,7 +652,7 @@ func writeCSV(path string, rows [][]string) error {
 }
 
 func main() {
-	mode := flag.String("mode", "vrp", "vrp|battery|fwd|fwdsettle")
+	mode := flag.String("mode", "vrp", "vrp|battery|filter|ladder|fwd|fwdsettle")
 	dir := flag.String("dir", "data/options", "data directory")
 	families := flag.String("families", "BR,GD,CR,GZ,LK,Eu", "option secid prefixes")
 	dtes := flag.String("dte", "5,20", "days to expiry at entry")
@@ -662,6 +665,10 @@ func main() {
 	minVol := flag.Float64("minvol", 5, "minimum contracts traded on each leg on the entry day")
 	entry := flag.String("entry", "wap", "wap (require trades) or settle (read the settlement price, descriptive only)")
 	split := flag.String("split", "2025-07-01", "date that splits the window into halves")
+	thresholds := flag.String("thresholds", "0,0.02,0.04,0.06,0.08", "IV minus trailing RV thresholds for filter mode")
+	maxStrikes := flag.Int("strikes", 3, "straddles per expiry in ladder mode")
+	debug := flag.Bool("debug", false, "print per-trade detail")
+	minIVRV := flag.Float64("ivrv", 0.06, "minimum IV minus trailing 20-day volatility at entry for the forward rule")
 	fwdDate := flag.String("date", "", "snapshot date for fwd mode")
 	fwdMin := flag.Int("fwdmin", 1, "minimum days to expiry for fwd mode")
 	fwdMax := flag.Int("fwdmax", 10, "maximum days to expiry for fwd mode")
@@ -674,6 +681,8 @@ func main() {
 		maxMoney:    *maxMoney,
 		minVol:      *minVol,
 		useSettle:   *entry == "settle",
+		debug:       *debug,
+		minIVRV:     *minIVRV,
 		feeRUB:      *fee,
 		spreadFrac:  *spread,
 		futCostFrac: *futCost,
@@ -694,6 +703,14 @@ func main() {
 	switch *mode {
 	case "vrp":
 		if err := runVRP(p); err != nil {
+			log.Fatal(err)
+		}
+	case "filter":
+		if err := runFilter(p, filterThresholds(*thresholds)); err != nil {
+			log.Fatal(err)
+		}
+	case "ladder":
+		if err := runLadder(p, *maxStrikes); err != nil {
 			log.Fatal(err)
 		}
 	case "fwd":

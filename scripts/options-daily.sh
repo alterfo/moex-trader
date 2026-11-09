@@ -14,4 +14,4 @@ bin/optfetch -mode cbr -from "$(date +%Y)-01-01" -till "$TILL" || echo "cbr fail
 bin/optfetch -mode series -prefix BR -from "$(date -v-30d +%F)" -till "$TILL" -workers 2 -refresh || echo "BR series refresh failed"
 bin/optscan -mode fwd -families BR -date "$(date -v-1d +%F)" || echo "forward snapshot failed"
 bin/optscan -mode fwd -families BR -date "$TILL" || echo "forward snapshot failed"
-bin/optscan -mode fwdsettle -families BR -target 5 || echo "forward settle failed"
+bin/optscan -mode fwdsettle -families BR -target 5 -slack 3 -ivrv 0.06 || echo "forward settle failed"
