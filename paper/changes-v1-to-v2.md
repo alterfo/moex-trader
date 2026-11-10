@@ -2,7 +2,7 @@
 
 **v1 (published):** 29 October 2026, `alpha_on_paper_preprint-1.pdf`, 41 pages,
 md5 `163220507bc2c8db85972ebd7427c229`, version DOI 10.5281/zenodo.23752213.
-**v2 (this one):** 10 November 2026, `main.pdf`, 44 pages, titled *Predictability Without Monetization:
+**v2 (this one):** 10 November 2026, `main.pdf`, 43 pages, titled *Predictability Without Monetization:
 A Point-in-Time Audit of Order-Flow Signals on the Moscow Exchange*.
 
 Both versions share one concept DOI. v1 stays available and unchanged, because both referee reports
@@ -22,7 +22,7 @@ states what the text proves.
 | Information beyond momentum | "not established", test not run | E1 run 29.10.2026: contrast +0.0194%/day (t 0.44), null |
 | Power of the confirmation rule | not reported | 14.8%, MDE 0.0787; 561/1 056/1 317 dates to 80% |
 | Ledger directions | 46 | 42 |
-| Length | 41 pages | 44 pages |
+| Length | 41 pages | 43 pages |
 
 ## 2. Numbers that changed
 
@@ -87,7 +87,7 @@ features, and the signal and economics criteria — except the power rule, which
 
 Affiliation and email restored as in v1: *Oleg Sidorkin, Independent researcher,
 osidorkin85@gmail.com*, with a footnote on the public repository, the Apache 2.0 licence and the
-disclaimer. The title block takes one more line, which accounts for 44 pages instead of 43.
+disclaimer. The title block takes one more line, which briefly cost a page before the abstract was shortened.
 
 ## 8. Draft description for the Zenodo v2 record
 

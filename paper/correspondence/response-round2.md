@@ -1,7 +1,7 @@
 # Ответ на повторную рецензию
 
 **Работа:** O. Sidorkin. *Predictability Without Monetization: A Point-in-Time Audit of Order-Flow
-Signals on the Moscow Exchange.* Версия 5, 10 ноября 2026, 44 стр. (`main.pdf`).
+Signals on the Moscow Exchange.* Версия 5, 10 ноября 2026, 43 стр. (`main.pdf`).
 **Рецензия:** второй раунд, 10 ноября 2026, 42 численные проверки, рекомендация «принятие после
 минимальных правок».
 
