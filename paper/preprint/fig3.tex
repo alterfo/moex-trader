@@ -1,0 +1,33 @@
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[x=25cm,y=0.56cm,font=\footnotesize]
+\fill[warm!18] (0.0556,-1.2) rectangle (0.0833,13.2);
+\node[warm!80!black,font=\scriptsize,align=center] at (0.0695,13.9) {policy rate\\14--21\% p.a.};
+\draw[grey!40] (-0.15,-1.2) -- (-0.15,13.2);
+\foreach \v in {-0.15,-0.10,-0.05,0,0.05,0.10,0.15}{
+  \draw[grey!40] (\v,-1.2) -- (\v,13.2);
+  \node[below] at (\v,-1.2) {\pgfmathprintnumber[fixed,precision=2]{\v}};
+}
+\draw[ink] (0,-1.2) -- (0,13.2);
+\newcommand{\bookrow}[5]{
+  \draw[ink,line width=0.8pt] (#3,#1) -- (#4,#1);
+  \draw[ink,line width=0.8pt] (#3,#1-0.18) -- (#3,#1+0.18);
+  \draw[ink,line width=0.8pt] (#4,#1-0.18) -- (#4,#1+0.18);
+  \fill[linkblue] (#2,#1) circle (2.4pt);
+  \node[anchor=east] at (-0.165,#1) {#5};
+}
+\node[anchor=east,font=\footnotesize\bfseries] at (-0.165,12.4) {Top 100};
+\bookrow{11}{-0.065}{-0.149}{0.027}{Daily rebalancing, flat 0.15\%}
+\bookrow{10}{0.030}{-0.048}{0.114}{Partial adj.\ $r=0.33$, flat 0.15\%}
+\bookrow{9}{0.0753}{-0.005}{0.163}{Partial adj.\ $r=0.5$, quoted spread}
+\bookrow{8}{0.031}{-0.057}{0.122}{Same, entry at next open}
+\bookrow{7}{-0.026}{-0.109}{0.062}{Same, spread for $\approx$RUB 1 mn}
+\bookrow{6}{0.0538}{-0.012}{0.125}{Same, beta-hedged}
+\bookrow{5}{0.0446}{-0.027}{0.126}{Same, sector-neutral forecast}
+\node[anchor=east,font=\footnotesize\bfseries] at (-0.165,3.6) {Thin universe (ranks 101--400)};
+\bookrow{2.6}{0.0174}{-0.023}{0.063}{Long--short, 25\% borrow}
+\bookrow{1.6}{0.0184}{-0.004}{0.045}{Long-only vs.\ universe}
+\node[below=14pt] at (0,-1.2) {Net return, \% per day (95\% block-bootstrap interval)};
+\end{tikzpicture}
+\caption{Net daily return of composite books with 95\% block-bootstrap intervals. Every interval shown includes zero. The shaded band shows the policy rate (14--21\% a year) expressed per trading day, for scale. The extended-feature book (Table~\ref{tab:books}) is not shown; its gain over the main book is noise.}\label{fig:books}
+\end{figure}

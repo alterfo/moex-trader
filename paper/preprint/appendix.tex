@@ -1,0 +1,243 @@
+\appendix
+
+\section{Definitions of the 75 composite features}\label{app:features}
+
+All features are daily, per stock and date. Unless stated otherwise they use ``joint'' bars from 10:05 to 18:30 (bars present in all three intraday sets; for features based only on \texttt{tradestats}, that set suffices), with 102 slots (slot 0 is the bar ending 10:05, slot 101 the bar ending 18:30). ``Weighted'' means weighted by bar traded value $v$ from \texttt{tradestats}. Subscripts $b$ and $s$ denote buyer and seller.
+
+\small
+\begin{longtable}{@{}R{3.0cm}p{12.6cm}@{}}
+\caption{Definitions of the composite features}\label{tab:features}\\
+\toprule
+Feature & Definition \\
+\midrule
+\endfirsthead
+\toprule
+Feature & Definition \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+NJ & Number of joint bars \\
+A1 & $\sum(v^b-v^s)/\sum v$ \\
+A2 & Weighted mean of \texttt{imbalance\_val} (10 levels, value) \\
+ImbVol & Weighted mean of \texttt{imbalance\_vol} (10 levels, volume) \\
+ImbBBOVal, ImbBBOVol & Weighted means of best-quote value and volume imbalance \\
+Depth & Mean over bars of resting bid plus ask value (\texttt{obstats}) \\
+LevAsym & Mean of $(\text{levels}_b-\text{levels}_s)/(\text{levels}_b+\text{levels}_s)$ \\
+ThinBid & Mean of $(1-\text{vwap}^{1m}_b/\text{mid})-(\text{vwap}^{1m}_s/\text{mid}-1)$ with mid the average of the two; identically zero by construction (Appendix~\ref{app:pitfalls}) \\
+SpLv, SpBBO, Sp1m & Mean positive 10-level, best-quote and RUB 1 mn spreads \\
+SpRatio & Mean of best-quote over 10-level spread \\
+SpStd & Standard deviation of the 10-level spread (at least 10 bars) \\
+SpLast & Log of last 10-level spread over its daily mean \\
+SpEarlyOverMid & Log of mean 10-level spread in slots 0--5 over slots 11--17 \\
+BBOoverStd & Mean of best-quote spread over bar price standard deviation \\
+DepthOpenClose & Log of depth in slots 0--6 over slots 95--101 \\
+ImbStd & Standard deviation of \texttt{imbalance\_val} across bars \\
+Trades & Total number of trades \\
+Ticket, TicketB, TicketS & $\sum v/\sum \text{trades}$; same for buyer- and seller-initiated \\
+TicketMed & Median over bars of value per trade \\
+TicketStd & Mean over bars of value per trade divided by bar price standard deviation \\
+TicketGapLate & Log ratio of buyer to seller ticket size, slots 83--101 (at least 8 bars) \\
+TrCntImb & $(\text{trades}_b-\text{trades}_s)/\text{trades}$ \\
+A1Trades & Bar A1 weighted by number of trades \\
+A1Tail & A1 over bars with absolute price change at or above the day's 90th percentile (at least 3 bars) \\
+LogVolRatio & $\ln(\sum \text{vol}_b/\sum \text{vol}_s)$ \\
+Top3 & Share of value in the three largest bars \\
+AggGap, AggGapEarly & Weighted mean of $(\text{vwap}_b-\text{vwap}_s)/\text{vwap}$ over bars with both sides; early version over slots 0--17 (at least 5 bars) \\
+CLV & (Close at 18:30 minus day low) over (day high minus day low) \\
+VwapDev & Close at 18:30 over $\sum v/\sum \text{vol}$, minus one \\
+Amihud & Mean over bars of absolute price change over value \\
+Idle & One minus the share of the 102 bars with positive value \\
+ShareNeg & Seller share of value in bars with negative price change (at least 5 bars) \\
+ShareMid, ShareLast & Share of daily value in slots 35--59 (13:00--15:00) and 89--101 (17:30--18:30) \\
+PeakMin & Minutes from 10:00 to the end of the highest-value bar \\
+RetLast, RetEarly & Log return from slot 89 to the 18:30 close; from the first bar's close to slot 17 \\
+RV, RSup, RSdn & Realized volatility of bar-close log returns; up and down semivariances (at least 20 bars) \\
+MaxJump & Maximum absolute bar return over RV \\
+Park & Parkinson range $\ln(\text{high}/\text{low})/(2\sqrt{\ln 2})$ over RV \\
+PrStd & Mean bar price standard deviation \\
+PutOverVal & Value of placed orders over traded value \\
+PutOverBook & Placed value per bar over Depth \\
+PutOrders & Number of orders placed \\
+CanOrdRatio & Orders cancelled over orders placed \\
+CanDiff & Buyer cancellation ratio minus seller cancellation ratio (by value) \\
+PutSize & Log ratio of buyer to seller average placed order size \\
+PlaceAgg & VWAP of placed buy orders minus that of sell orders, over the day's VWAP \\
+CanVwGap & Same for cancelled orders \\
+A4, A4Late, A4Early & Net order flow for the day; slots 95--101; slots 0--6 (at least 3 bars each) \\
+A5 & Cancelled over placed value \\
+A2Late, A2Early, A2H1, A2H2 & A2 over slots 83--101, 0--17, 0--50 and 51--101 \\
+VPIN & $\sum|\text{vol}_b-\text{vol}_s|/\sum(\text{vol}_b+\text{vol}_s)$ \\
+Kyle & $\mathrm{cov}(\text{imb},r)/\mathrm{var}(\text{imb})$ across bars, $\text{imb}=(v^b-v^s)/v$ (at least 20 bars) \\
+FlowRet & Correlation of bar imbalance and bar return \\
+FlowAC, ImbAC2 & Lag-1 autocorrelation of bar trade imbalance and of book imbalance \\
+Skew & $\sum r^3/\big((\sum r^2)^{1.5}/\sqrt n\big)$ \\
+ProfTilt & Slope of bar value on slot number, over mean bar value, times 101 \\
+ImbSlope & Slope of cumulative bar imbalance on slot number \\
+UnexpA1, UnexpA2 & (A minus mean) over standard deviation of the stock's previous 20 values (at least 10) \\
+\end{longtable}
+\normalsize
+
+Excluded as epoch-dependent or using bars after 18:30: full-session value, closing-auction A1, price levels, morning and evening sessions, and four profile and entropy measures tested separately (Section~\ref{sec:noadd}). Controls: within-date ranks of the past 1-, 5- and 20-day returns.
+
+\section{Secondary modules in detail}\label{app:secondary}
+
+\paragraph{Whole-board cross-sectional ridge (passed its own criterion).} A monthly ridge model on five price signals (12--1 momentum, one-month return, low volatility, distance to the 52-week high, low maximum return) over all sufficiently liquid TQBR stocks, including later-delisted ones, earns 1.07\% per month for a long top-quintile book against the universe over 92 months ($t=3.35$, Sharpe 1.11). It passed its pre-specified rule but fails a rolling-window gate (59\% of windows against 70\% required); the long--short form collapses once borrow exceeds 0.03\% per day; and although it beats the equal-weighted universe by about 20 percentage points a year in 2024--2026, it earns less than the policy rate in absolute terms. One-month returns continue rather than reverse on this market (long--short on the one-month return: $-2.69\%$ per month, $t=-5.18$, no positive year out of 11), the opposite of the short-term reversal familiar from developed markets \citep{jegadeesh1990}. A shadow book is being recorded forward.
+
+\paragraph{News-attention reversal (lead).} Across 155,601 ticker-tagged headlines from 2022 to 2026, abnormal news counts predict a reversal: the IC of the count shock is $-0.0245$ ($t=-6.3$), and the top decile of attention loses 0.127\% on the next day ($t=-5.1$; top minus bottom over 10 days $-0.43\%$). Seven of 17 rows hit with 0 of 5 control hits. Since 2025 the effect is about a quarter of its earlier size. Lexicon sentiment is null, and the economics were not tested because the effect requires shorting.
+
+\paragraph{Dividend run-up (lead).} For 115 dividend events among the top 100 stocks in 2021--2026, buying 11 trading days before the last buy date and exiting the day before earns, for the 66 events with a dividend yield of at least 3\%, 2.13\% per event net of spreads $[+1.14\%,+3.13\%]$, positive in each of six years (weakest 2025, $+0.69\%$). The pre-specified statistical rows did not pass. Because the broker calendar does not record when an event became known, we reconstructed announcement dates from headlines of the form ``board of directors recommended''; for the 56 events announced 14--81 trading days before entry (median 24), the result is 1.96\% $[+0.72\%,+3.13\%]$ on 41 events, but 2025 is negative ($-0.67\%$). The rule is frozen and will be read after 15 new events.
+
+\paragraph{Opening-gap reversal (lead).} Among 94 columns built from public descriptions of fund strategies (trend, residual reversal, defensive, liquidity, seasonality, macro pass-through, peer lead--lag), none became a candidate at $|t|\ge3.452$ ($M_{\mathrm{eff}}=89.8$), with 0 of 10 placebo hits. Trend and defensive columns are absorbed by annual momentum (correlations 0.6--0.97). The only lead is reversal after the opening gap (incremental slope $-0.023$, $t=-3.65$, negative in both halves), which missed candidate status because its independent-sample IC (0.0184) fell short of the pre-set 0.02. The threshold was not changed; a separate plan with real short costs is registered.
+
+\paragraph{Other negative results.} A price-and-flow ensemble classifier had AUCs of 0.46--0.55, and two-thirds of its simulated profit was IMOEX beta; zero-shot LLM direction calls on headlines reached AUCs of 0.511--0.527 against a 0.55 threshold; a supervised headline classifier reached 0.5234 against 0.530; LLM sentiment on 143,088 headlines worked only in 2022--2024 ($t=7.25$) and not in 2025--2026 ($t=0.14$); dividend capture fails because ex-date gaps absorb about 97\% of the dividend; the overnight premium is real (0.133\% per day, $t=6.90$) but buying the close and selling the open loses 0.026\% per day after costs; calendar effects that were strong on the S\&P~500 before 1990 vanish afterwards and are not confirmed on IMOEX; a replication of the VAR-ICA-MGARCH higher-moment portfolio \citep{mikhaylov2026} produced a Sharpe ratio of $-0.09$ against 0.15 for equal weights; and 0 of 99 ``world data'' states (weather, commodities, news tone) moderated the composite. Appendix~\ref{app:ledger} lists every direction.
+
+\section{Ledger of the 42 research directions}\label{app:ledger}
+
+Each row is one direction, which may contain from one to 100 tests. Status: F failed its pre-specified criteria; P passed its criteria (none of the passing books earns more than the policy rate); L lead awaiting a frozen forward test or a new plan; D descriptive. Two caveats attach to the table. First, row 14 (A2, the first plan) was run before the provenance rule existed and before any real-time data; Section~\ref{sec:regen} re-reads that result as exploratory on regenerated rows, and the P status here records the original gate, not a real-time verdict. Second, two directions, including the momentum confirmation, ran without a completed review pass; their numbers are reported, and the missing review is recorded in the plan log rather than repaired after the fact. The earlier drafts carried 46 directions and this one carries 42; the correspondence between the two numbering schemes is kept in the repository and will accompany the deposit of the second real-time window, because reviews of the earlier version refer to the old numbers and the mapping should not have to be reconstructed by a reader.
+
+\small
+\begin{longtable}{@{}r R{4.6cm} c p{8.4cm}@{}}
+\caption{Ledger of research directions}\label{tab:ledger}\\
+\toprule
+\# & Direction & Status & Key result \\
+\midrule
+\endfirsthead
+\toprule
+\# & Direction & Status & Key result \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{4}{@{}l}{\emph{Price-and-flow classifier}} \\
+1 & Ensemble classifier (LightGBM, XGBoost, logit), 18 liquid stocks & F & AUC 0.46--0.55; tail-decision precision 42.4\% vs.\ 47.7\% base rate ($p=0.912$); about two-thirds of simulated P\&L is IMOEX beta \\
+2 & Recipe variants (labels, ranks, calibration, panel width, foundation-model inputs, retail open interest) & F & No variant passed the deployment gate \\
+3 & Macro factors, Markov regimes, IMOEX forecasting & F & No out-of-sample gain; all three failed \\
+4 & Beta-neutral overlay with real index futures & F & Synthetic hedge $t=3.98$; real futures $t=-0.49$ (integer contracts), $+0.39$ (fractional) \\
+\multicolumn{4}{@{}l}{\emph{News and events}} \\
+5 & Zero-shot LLM direction from headlines & F & AUC 0.511 / 0.527 / 0.526 at 1 / 5 / 10 days vs.\ 0.55 threshold \\
+6 & Supervised headline classifier (153,151 pairs, 260 tickers) & F & AUC 0.5234 vs.\ 0.530; permutation control 0.5021; net quintile spread $+0.263\%$, interval includes zero \\
+7 & Events: sanctions, negotiations, level crossings, news bursts & F & No tradable effect in any type \\
+8 & Dividend capture & F & 65 events in 9 waves, then 1,591 events: ex-date gap absorbs on average 97\% of the dividend \\
+\multicolumn{4}{@{}l}{\emph{Calendar, intraday, portfolios}} \\
+9 & Calendar effects and cycles (S\&P~500 since 1953, IMOEX since 1997) & F & Monday $t=-7.86$ before 1990, 0.31 after; IMOEX 1.27; 40/48/108-month cycles negative OOS $R^2$ in 6 of 6 \\
+10 & Overnight premium (10-minute candles, 29 stocks) & F & $+0.133\%$ per day ($t=6.90$); close-to-open trade $-0.026\%$ per day net \\
+11 & VAR-ICA-MGARCH higher-moment portfolio & F & Sharpe $-0.09$ vs.\ 0.15 equal weights; drawdown 74.3\% vs.\ 53.8\% \\
+12 & Walk-forward removal of losing tickers & F & Indistinguishable from random removal \\
+13 & Whole-board ridge, long minus universe (92 months) & P & $+1.07\%$ per month, $t=3.35$, Sharpe 1.11; rolling gate 59\% vs.\ 70\%; long--short fails above 0.03\% daily borrow \\
+\multicolumn{4}{@{}l}{\emph{AlgoPack order flow}} \\
+14 & A2 book imbalance, first plan (1 of 12 tests) & P & $t=+19$; net $+0.049\%$ per day at 0.15\% per side; hedge failed; 12.3\% a year without the controls and 5.8\% with them, before the hedge \\
+15 & 100 hypotheses on the real-time window & F & Confirmatory 0 of 28 (closest weekly A2, $t=5.52$, first half $-0.003\%$); 17 exploratory leads, 10 of them A2 variants \\
+16 & Order flow in the price-based classifier & F & $\Delta$AUC $+0.002$ $[-0.017,+0.018]$ vs.\ $+0.016$; long-history gain was market timing \\
+17 & Forecasting volatility and spreads & F & $|t|$ up to 8.1 but $\Delta R^2$ $+0.0008$ (1 day), $+0.0021$ (5 days) vs.\ 0.01 \\
+18 & Market return and volatility from aggregate flow & F & Returns 0 of 6 (best $t=1.66$); volatility 2 of 9, $\Delta R^2$ below 0.01 \\
+19 & Decile-spread ensemble on 10 demeaned columns & L & $+0.952\%$ per date $[0.311,1.537]$, $t=2.95$; entirely short leg; long-only $-0.16\%$ \\
+20 & 75-feature composite & P & IC 0.0957 ($t=5.87$), $+0.0368$ over baseline; placebos 0; book $-0.065\%$ daily, $+0.030\%$ partial, 0 at 25\% borrow; $P$ refers to the signal criterion only, the economic criterion fails, and under rule (ii) the result is a lead \\
+21 & Futures and FX, 101 hypotheses & F & Book 1: 1 of 62 (perpetual USD/RUB basis, $t=-4.43$, likely thin-spot bounce); book 2: 0 of 16; 23 rows await data \\
+22 & Third plan, 42 rows & F & Futures and FX 0 of 34 (max $|t|=2.46$); thin stocks 3 leads, all A2, no economics \\
+23 & State variables, wave 1 (45 states) & L & 1 hit: IC 0.139 at low vs.\ 0.045 at high RVI ($p=0.0024$); money $p=0.148$; controls 0 of 9 \\
+24 & State variables, wave 2 & F & 0 hits; controls 0 of 18; RVI lead fails stricter threshold \\
+25 & Quoted-spread costs and horizons 10/20/40 & F & $+0.0753\%$ per day $[-0.005,+0.163]$, $t=1.71$; RUB 1 mn spread $-0.026\%$ \\
+26 & Features proposed by three local language models & F & IC increment $+0.0016$ $[-0.0020,+0.0057]$ \\
+27 & Transformation library (100 rows) & F & 0 of 100, 0 of 5 placebos at $p\le0.00052$; 4 rows $p<0.05$ vs.\ 5 expected \\
+28 & Moderator library (105 rows) & F & Two nominal hits explained by forecast-dispersion control ($+0.142$); within strata $+0.015$ ($t=0.81$) \\
+29 & Deflation, beta and sector neutrality & F & DSR 0.685 ($N=10$), 0.346 ($N=100$); beta $-0.269$; hedged $+0.0538\%$ ($t=1.49$); sector-neutral $+0.0446\%$ $[-0.027,0.126]$ \\
+30 & World data, wave 4 (99 states) & F & 0 of 99, controls 0 of 18 at $p\le0.0007$ ($M_{\mathrm{eff}}=70.8$); 2 rows $p<0.05$ vs.\ 5 expected \\
+31 & Ordinary--preferred pairs (6 pairs) & F & Threshold unreachable by design (min.\ permutation $p$ 0.0054 vs.\ 0.0035); spread reversion real ($t=-3.18$); net $-0.470\%$ per trade with borrow \\
+32 & Composite in thin stocks & F & IC 0.1292 ($t=12.8$); long--short $+0.0174\%$, long-only $+0.0184\%$, both intervals include zero \\
+33 & Execution timing (244 stocks, 461 days) & P & Savings vs.\ open 0.25 / 2.0 / 12.9\bp\ by spread tercile; universal ``avoid the open'' rule \\
+34 & News-attention shock (155,601 headlines) & L & Reversal: IC $-0.0245$ ($t=-6.3$); top decile $-0.127\%$ next day; quarter-size since 2025 \\
+35 & Dividend run-up (115 events) & L & $+2.13\%$ per event $[1.14,3.13]$ for 66 events with yield $\ge3\%$; announcement-dated subset $+1.96\%$, 2025 negative \\
+36 & TimesFM, zero-shot (40,851 forecasts) & F & 0 of 3, 0 of 5 controls; covariates unused (placebo 0.0825 vs.\ 0.0814) \\
+37 & 256-day momentum in the composite & F & IC $+0.0105$ ($t=2.39$); net gain $+0.008\%$ equals placebo \\
+38 & Slow momentum books & F & Long-only relative $+0.042\%$ ($t=1.96$ vs.\ 2.0) on fitting sample; absolute $-0.7\%$ a year vs.\ $-20\%$ for universe \\
+39 & TimesFM, 11 further uses (102,325 forecasts) & F & 0 of 11, 0 of 5 placebos; intervals well calibrated (0.80--0.82) \\
+40 & 94 fund-style columns and 6 exposure rules & L & 0 candidates at $|t|\ge3.452$; lead: opening-gap reversal ($t=-3.65$); exposure rules 0 of 6 \\
+41 & LLM headline sentiment (143,088 headlines) & F & Daily IC $+0.016$ ($t=2.73$); evening-news IC works only in 2022--2024 ($t=7.25$ vs.\ 0.14); model failed pilot quality check \\
+42 & ``Calm before the move'' (6 cells) & F & 0 of 6; best cell difference $t=1.75$ vs.\ 2.0, sign flips across periods \\
+\end{longtable}
+\normalsize
+
+\section{Pitfalls that changed results}\label{app:pitfalls}
+
+Each item below changed at least one result during the program.
+\begin{enumerate}
+\item \textbf{Training--serving skew.} Two news features were always zero in the training history but non-zero in the live pipeline (counts up to 144 against a training mean of 0.10 and standard deviation of 0.70). For three weeks the deployed classifier issued 81--95\% sell decisions while the index rose. Reproducing the logged model output from candidate inputs (agreement to the fourth decimal) located the cause.
+\item \textbf{Outcome inside the controls.} For open-to-close outcomes, a same-day return control contains the outcome, producing $t=+30.6$. Controls must be lagged.
+\item \textbf{Identically zero feature.} A mid-price computed from the same two quantities whose difference is measured makes the feature identically zero (ThinBid).
+\item \textbf{Rank leakage.} Within-date ranks computed after a label dead-zone filter use future information; ranks must be computed before filtering.
+\item \textbf{Survivorship and look-back liquidity.} On a survivor-only panel, $t$-statistics are inflated by 0.3--2.3; a hand-built composite factor fell from $t=3.67$ to 1.42 on the point-in-time panel of 719 stocks.
+\item \textbf{Regenerated history.} Effects on regenerated rows were about twice as large, and market timing on them looked like cross-sectional skill (Section~\ref{sec:regen}).
+\item \textbf{Calibration.} Calibrating on the last 20\% of the training window changed raw AUC by up to 0.08, and a calibrator fitted on an anomalously anti-correlated tail inverted the ranking (AUC loss 0.07--0.19).
+\item \textbf{Library drift.} An archived model reproduced only 93\% of its outputs after library updates; every comparison uses a control re-trained in the same run.
+\item \textbf{Unreachable permutation thresholds.} With 180 circular shifts the minimum attainable $p$ is 0.0054, above the 0.0035 threshold: every row failed by construction. Thresholds must be checked against attainable minima before running.
+\item \textbf{Wrong futures expiry rule.} A ``15th of the delivery month'' rule mislabelled natural-gas contracts and zeroed features. Front contracts are now chosen daily by turnover and windows without an end price are dropped.
+\item \textbf{Dispersion artefact in moderators.} Subgroups with wider predictor dispersion show higher correlations mechanically; the absolute forecast must be included as a control moderator.
+\item \textbf{Lost rows.} Ticker renames and Saturday sessions without mapping lost up to 70\% of rows for affected stocks (in one case 2,757 input bars against 2,055 output bars).
+\item \textbf{Synthetic hedge.} A frictionless index leg produced $t=3.98$; real futures with basis, rolls and integer contracts produced $t=-0.49$. On a RUB 200,000 account the frictions cost about RUB 12,800.
+\item \textbf{Soft leakage.} Columns that depend on 18:30--18:50 bars are not available at the decision time; excluding them changed the IC by 0.00003, but the principle requires it.
+\item \textbf{Boundary optima.} A parameter tuned at a historical optimum is flagged if a grid neighbour loses more than half the result or flips sign. Example: an aggregate exposure limit of 60,000 gave $+81{,}730$, 75,000 gave $-6{,}555$ (trades fell from 234 to 50), and 90,000 gave $+144{,}058$.
+\item \textbf{Procedure noise.} Over 75 configurations of the same classifier recipe (5 seeds $\times$ 3 start offsets $\times$ 5 training starts), AUC had a standard deviation of 0.0108 (range 0.4605--0.5009), driven by fold boundaries (0.0116) rather than seeds (0.0019).
+\end{enumerate}
+
+\section{Calibration of the testing machinery}\label{app:calibration}
+
+\begin{table}[htbp]
+\centering
+\begin{threeparttable}
+\caption{Hits by placebos and mechanism-free controls}\label{tab:calibration}
+\small
+\begin{tabularx}{\textwidth}{@{}Lcc@{}}
+\toprule
+Family & Placebo / control hits & Real hits \\
+\midrule
+State variables, wave 1 & 0 of 9 & 1 of 45 \\
+State variables, wave 2 & 0 of 18 & 0 \\
+World data, wave 4 & 0 of 18 & 0 of 99 \\
+Transformation library & 0 of 5 & 0 of 100 \\
+Fund-style columns & 0 of 10 & 0 candidates \\
+News-attention shock & 0 of 5 & 7 of 17 \\
+TimesFM (both waves) & 0 of 10 & 0 of 14 \\
+LLM headline sentiment & 0 of 5 & 1, blocked by plan guard \\
+Composite (permutation placebo) & 0 of 5 & signal passes \\
+\bottomrule
+\end{tabularx}
+\begin{tablenotes}\footnotesize
+\item Notes: Controls are lunar phase, Saturn's longitude, the previous day's geomagnetic Kp index, Mercury retrograde, calendar-day parity and bitcoin volatility, used as state variables with the same statistics as the real variables. In the transformation library and world-data families the number of nominal $p<0.05$ rows (4 and 2) was below the number expected by chance (5 in each).
+\end{tablenotes}
+\end{threeparttable}
+\end{table}
+
+\section{Frozen forward tests and reproducibility checklist}\label{app:checklist}
+
+\paragraph{Frozen forward tests.} Each is read once, by the owner or on the owner's instruction, never by an automatic job.
+\begin{description}[leftmargin=1.2em,style=nextline]
+\item[Composite.] Trained on feature dates 2020-04-02 to 2026-10-07 (159,708 rows, 78 inputs; ridge, elastic net and baseline coefficients); read once after 60 forward feature dates with matured 10-day outcomes (about 5 February 2027). Hyper-parameters: ridge 0.003, elastic net 0.001 with $\alpha=0.5$, trade rate 0.33. The model file's SHA-256 was recomputed on 28 October 2026 and matches the value recorded on 23 October. The matrix behind it holds 163,709 ticker-days over 1,644 dates; 159,708 of them carry a matured 10-day outcome inside the training range, which is what the row count records. A rebuild on 10 November 2026 reproduced 163,610 rows and 159,726 training rows, so the difference is the missing outcomes at the end of the window and per-name gaps, not a filter:
+\par\smallskip{\footnotesize\texttt{793bf125b38b2022dae53021f5185032bb464c506ce2f507d8fb39fb4a2f8892}}
+\item[Decile-spread ensemble.] Five seeds (20261023--20261027) trained on the ten demeaned columns from 2026-10-21; SHA-256 of the five model files recorded at freezing on 23 October 2026:
+\par\smallskip{\footnotesize\texttt{d10133ba99bb2be0dadfde061c5b0254b626658dd92b2f3da198d4b4dce5c9a7}\\
+\texttt{e6a3e603fa47dfe42884a8456cd6192824940c2898c2eb9b493597cf37888982}\\
+\texttt{384a154e08722389b04460f19593946340b7d5609a0cc50d8963393f43dc64dc}\\
+\texttt{d1811a4f9a62a34adc4ef4a98cd9b54a6a8d0636a93e989499d8d563f0063b35}\\
+\texttt{9cfb88a3d7eb504190a34ffac110fec8d6a43d5cab30abafa2bcabd7dd151f55}}
+Read once after 60 forward feature dates with matured outcomes (about 5 February 2027); accepted if the seed-mean decile spread net of 0.30\% has a block-bootstrap interval above zero and the sign agrees in at least four of five seeds.
+\item[Frozen A2 rule.] A rule, not a fitted model: A2 from \texttt{obstats} bars up to 18:30, top-100 universe by 60-day median value, top quintile, equal weights, long minus the equal-weighted universe, daily, 0.15\% per side; defined by the plan and code recorded at freezing. Read once after 60 dates from 21 October 2026 (about 20 January 2027).
+\item[Dividend run-up.] Rule frozen on 25 October 2026; read once after 15 new events.
+\item[Shadow ridge book.] Recorded forward; read once after 12 rebalances.
+\end{description}
+
+\paragraph{Checklist.} The checklist follows the structure of the QFRS standards \citep{khushi2026}: data, labels, point-in-time features, normalization, splits, evaluation and backtesting.
+\begin{itemize}
+\item \textbf{Data and provenance.} Verdicts only on rows with $\texttt{SYSTIME}\le$ trade date $+30$ days; dropped rows counted by year; data-quality checks run before outcomes (Section~\ref{sec:data}).
+\item \textbf{Universe.} Point-in-time top 100 by 60-day median turnover, recomputed daily; delisted stocks included.
+\item \textbf{Labels.} 10-day abnormal close-to-close returns; ex-dividend windows excluded; ranks computed before any filtering.
+\item \textbf{Normalization.} Within-date ranks; scaling statistics (surprise $z$-scores, volatility) use only past data; no global scaler.
+\item \textbf{Splits.} Chronological only; expanding training window; 11-trading-day purge and embargo before each test block; no random or $k$-fold splits.
+\item \textbf{Timing.} Features from bars ending by 18:30; entry at the close via the closing auction; no post-18:30 columns.
+\item \textbf{Evaluation.} Mean daily rank IC with Newey--West and block bootstrap; sign tests across disjoint blocks; placebos and mechanism-free controls; multiple-testing thresholds fixed before outcomes.
+\item \textbf{Backtesting.} Explicit mapping from forecast to positions (Section~\ref{sec:portfolio}); three cost models; borrow scenarios; measured, bounded and assumed inputs listed in Table~\ref{tab:inputs}; deflated Sharpe ratio for several trial counts.
+\item \textbf{Power.} Every confirmation rule states the minimum detectable effect and the power it delivers against the observed effect; a rule whose power against the effect it is meant to confirm is below 50\% is labelled a falsification test (Section~\ref{sec:uncertainty}). For the composite-increment rule at 60 forward dates the power is 15\% and the label is applied.
+\item \textbf{Seeds.} Bootstrap seeds 20261022 and 20261023; placebo seeds 20261023--20261027; model seed 42 by default; LLM pilot seed 20261026.
+\item \textbf{Determinism.} Re-running any study reproduces all reported numbers to the last digit.
+\item \textbf{Registration.} The protocol of the second real-time window (Section~\ref{sec:realtime2}) is deposited with a public timestamping service before its first reading, together with the model hashes and the criteria; the deposited text, not this paper, is the version of record for that window.
+\end{itemize}

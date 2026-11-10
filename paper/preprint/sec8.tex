@@ -1,0 +1,61 @@
+\section{Secondary results and exploratory leads}\label{sec:secondary}
+
+\paragraph{Execution timing (passed).} Using quoted best-quote spreads for 244 stocks over 461 days, the cheapest half-hour window is almost never the opening one. Relative to trading at the open, choosing a window by each stock's own trailing spread profile saves 0.25\bp\ per side for the tightest-spread third, 2.0\bp\ for the middle third and 12.9\bp\ for the widest third. A control using a neighbour's profile is positive in all groups, so the gain comes from a universal rule (``do not trade at the open''); the stock-specific window adds 0.2\bp. These are quoted spreads, not executed prices.
+
+\paragraph{Leads.} Table~\ref{tab:leads} lists the five leads. None is a finding; each either has a frozen forward rule or requires a new plan. Appendix~\ref{app:secondary} describes them, the whole-board price-signal ridge model (which passed its own criterion but earns less than the policy rate), and the remaining negative results.
+
+\begin{table}[htbp]
+\centering
+\caption{Exploratory leads}\label{tab:leads}
+\small
+\begin{tabularx}{\textwidth}{@{}R{2.6cm}R{3.3cm}R{3.3cm}L@{}}
+\toprule
+Lead & Evidence & Why it is not a finding & Next read \\
+\midrule
+Decile-spread ensemble (10 demeaned columns) & $+0.952\%$ per date $[0.311,1.537]$, $t=2.95$ & Entirely in the short leg; borrow not included & Frozen; about 5 Feb 2027 \\
+News-attention reversal & Count-shock IC $-0.0245$ ($t=-6.3$); top decile $-0.127\%$ next day & About a quarter of its size since 2025; needs shorting & New plan required \\
+Dividend run-up & $+2.13\%$ per event $[1.14,3.13]$, 66 events & Statistical rows failed; announcement dates reconstructed; 2025 negative on dated subset & Frozen; after 15 events \\
+Opening-gap reversal & Incremental slope $-0.023$ ($t=-3.65$) & Independent-sample IC 0.0184 below the 0.02 threshold & Plan registered, not run \\
+RVI dependence of the composite & IC 0.139 (calm) vs.\ 0.045 ($p=0.0024$) & Money not significant; fails stricter threshold & Closed unless re-planned \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Discussion}\label{sec:discussion}
+
+\paragraph{What survives.} After provenance, leakage, costs and trial count are treated as first-class objects, one thing clearly survives: a cross-sectional forecasting signal in order-flow data, placebo-controlled, out-of-sample, positive in seven of eight quarters, robust to noise and delisting losses, and slowly decaying with staleness. Its size, an IC near 0.1, is large for a 10-day cross-sectional forecast \citep{grinold2000a}. Two things do not survive, or not yet: the claim that this information is distinct from long-horizon momentum, and the claim that it can be monetized. The gap between signal and money has identifiable sources (turnover, delay, the short leg and its cost, market exposure), and the slowly decaying IC against the quickly decaying book (Figure~\ref{fig:delay}) is the clearest statement of the problem: a 10-day IC aggregates predictability over the whole horizon, but only its early, high-turnover part is large enough to pay for trading.
+
+\paragraph{Implications for subscribers.} The data contain cross-sectional information, but exploiting it requires costs below the retail tariff, cheap and available borrow, and execution at or before the close of the signal day. For a subscriber deciding whether to buy the dataset for its economics, the answer this paper supports is no: a free 12-month momentum rank built from exchange candles nets within 0.019\% per day of the composite, the contrast is not separated from zero, and the composite needs a borrow rate that no admitted name offers. The dataset is worth buying for its research content and for the provenance lesson, not for a trading edge. Because the decile-spread evidence sits in the short leg, a long-only investor may find the information more useful for avoiding stocks than for selecting them, a conjecture extension E2 would test. A cheaper and more robust use is operational: avoiding the opening half hour saves up to 13\bp\ per side for the widest-spread third of stocks.
+
+\paragraph{Implications for research practice.} Four habits changed our results. Check data provenance (here \texttt{SYSTIME}) before any analysis, because the regenerated history is associated with larger estimates of every quantity we selected on it. Use demeaned features and demeaned placebos whenever a model could time the market, because within-date permutation placebos preserve market-level information. Run mechanism-free controls alongside real variables; in our program they never fired, which makes the few real hits more credible. And measure the noise of the evaluation procedure itself: for the price-based classifier, moving fold boundaries changed the AUC with a standard deviation of 0.0116, against 0.0019 for changing the random seed, so single-configuration AUC comparisons below 0.016 are uninformative.
+
+\section{Limitations}\label{sec:limits}
+
+\begin{itemize}
+\item \textbf{One market, one author, no independent replication.} All results come from one market and one research program.
+\item \textbf{Short real-time window.} 457 trading days (1.81 years), about 46 non-overlapping 10-day periods, with three of eight quarters below $t=2$. The provenance rule that protects the verdict also limits its sample.
+\item \textbf{Momentum overlap.} At book level the composite is not separated from 12-month momentum: the registered contrast is $+0.019$\% per day with an interval that contains zero, and the ranking residual that is orthogonal to momentum does not convert into a separable net return (Section~\ref{sec:extensions}, E1).
+\item \textbf{A used window.} The real-time window was used for single features before the composite was evaluated on it.
+\item \textbf{Confounding of regeneration and time.} The regenerated rows coincide with 2020--2024, so we cannot separate a data artefact from genuine change in the market.
+\item \textbf{Economic inputs.} Borrow availability by date is unmeasured, and the fee is measured only from 2026-10-29 forward; costs are quoted spreads and tariffs, not executed prices; only one portfolio mapping was evaluated on the top 100, and the dividend check is a bound (Section~\ref{sec:uncertainty}).
+\item \textbf{Corporate actions.} The dividend calendar covers eight tickers in the verdict window, so the dividend check is a bound. Delisting proceeds were not reconstructed; we imposed total losses instead.
+\item \textbf{Hyper-parameters.} They were selected on regenerated history; this protects the verdict window from overfitting but makes the implied levels optimistic.
+\item \textbf{Internal pre-specification.} Plans were time-stamped by the commit history of a then-private repository rather than by an external registry, and reviewed by a language-model reviewer rather than a human co-author. Some leads (notably momentum) were first noticed on a window that had already been used. Positive results are not corrected for choices of windows and hyper-parameters made after data were seen.
+\item \textbf{Use of language models.} Language models served as pre-run reviewers, generated candidate features and scored headlines. A model reviewer may share blind spots with the analyst; the 4-billion-parameter sentiment model failed its own quality check, so that null result is a statement about the model, not about news sentiment.
+\end{itemize}
+
+\section{Conclusion}\label{sec:conclusion}
+
+On the Moscow Exchange in 2025--2026, five-minute order-flow statistics sold by the exchange predict the cross-section of 10-day abnormal returns of the most liquid stocks, under a protocol that fixes hypotheses and thresholds in advance and uses only information available at decision time and only data written in real time. A composite of 75 features reaches a mean rank IC of 0.096 ($t=5.87$) with placebos at zero, and the signal is robust in every check we pre-specified. It is not worth more than a 12-month momentum rank. The two books net the same to within an interval that contains zero, the 91\% of the composite's ranking power that survives the momentum span buys nothing extra, and what remains of the claim is a ranking fact rather than an economic one. After realistic costs and the measured borrow, the economic value of the signal is small, statistically indistinguishable from zero, and fragile to execution delay and to the rate itself: at the measured median of 25\% a year the book earns 0.038\% per day, and it turns negative at the measured upper quartile. After accounting for the number of trials, the book's Sharpe ratio is indistinguishable from the best of a modest number of skill-less strategies. The sample is too short to establish either economic value or its absence, and the forward rule as declared has 15\% power to confirm the effect it was designed to confirm. The frozen forward tests scheduled for early 2027 will be read once; they can falsify the signal but not confirm its value, which will require a longer real-time record, a measured availability series, and the remaining pre-specified extensions of Section~\ref{sec:extensions}.
+
+\section*{Data and code availability}
+
+ISS data are publicly available from MOEX. AlgoPack data require an exchange subscription and their terms of use may restrict redistribution, so neither the raw exchange files nor the derived feature matrices are redistributed. The study code, the plan files, the run logs and the SHA-256 hashes of the frozen models (Appendix~\ref{app:checklist}) are public at \url{https://github.com/alterfo/moex-trader} under the Apache License 2.0, and this paper is built from that tree. Reproducibility is therefore full for the code and the protocol, and partial for the data: a reader with an AlgoPack subscription can rebuild the matrix and every table from the repository, while a reader without one can inspect and re-run the analysis on their own copy of the same product, but cannot re-derive the features from scratch.
+
+\section*{Use of AI tools}
+
+Large language models were used in the research pipeline as described in Sections~\ref{sec:protocol} and~\ref{sec:noadd} and Appendix~\ref{app:secondary}: as an independent pre-run reviewer with read-only access, as a source of candidate features, and for headline classification. The manuscript was drafted with the assistance of Claude (Anthropic) from the author's research records; the author verified the content and takes full responsibility for it.
+
+\section*{Funding and competing interests}
+
+The author received no external funding for this work. This paper is for research purposes and is not investment advice.

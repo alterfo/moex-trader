@@ -1,0 +1,31 @@
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[x=1.55cm,y=0.62cm,font=\footnotesize]
+\fill[warm!18] (2.15,-0.6) rectangle (2.24,5.7);
+\draw[grey!60] (0,-0.6) -- (7.2,-0.6);
+\foreach \yr in {2020,...,2027}{
+  \pgfmathsetmacro{\xx}{\yr-2020}
+  \draw[grey!40] (\xx,-0.6) -- (\xx,5.7);
+  \node[below] at (\xx,-0.6) {\yr};
+}
+\node[left] at (-0.1,5) {AlgoPack rows};
+\fill[grey!55] (0,4.6) rectangle (5.0,5.4);
+\fill[linkblue] (5.0,4.6) rectangle (6.8,5.4);
+\node at (2.5,5) {regenerated (\texttt{SYSTIME} $>$ trade date $+$ 30 d)};
+\node[white] at (5.9,5) {real time};
+\node[left] at (-0.1,3.8) {Training (expanding)};
+\fill[linkblue!40] (0.25,3.4) rectangle (6.78,4.2);
+\node[left] at (-0.1,2.6) {Hyper-parameter fit};
+\fill[grey!55] (2.5,2.2) rectangle (5.0,3.0);
+\node[left] at (-0.1,1.4) {Verdict window};
+\fill[linkblue] (5.0,1.0) rectangle (6.01,1.8);
+\fill[linkblue!70!black] (6.01,1.0) rectangle (6.79,1.8);
+\node[white] at (5.5,1.4) {half 1};
+\node[white] at (6.4,1.4) {half 2};
+\node[left] at (-0.1,0.2) {Frozen forward test};
+\fill[warm] (6.81,-0.2) rectangle (7.1,0.6);
+\node[anchor=east] at (6.7,0.2) {60 dates $+$ 10-day maturation};
+\node[anchor=west,font=\scriptsize] at (2.28,-0.25) {2022 closure};
+\end{tikzpicture}
+\caption{Sample design. AlgoPack equity rows before 2025 were regenerated after the fact and are used only for fitting and sign checks. Models are trained on an expanding window with an 11-trading-day embargo before each quarterly test block. Verdicts are read once on the real-time window, split into halves at 5 January 2026. The forward test is read once after 60 new dates and 10-day outcome maturation.}\label{fig:design}
+\end{figure}

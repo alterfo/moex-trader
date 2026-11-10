@@ -1,0 +1,19 @@
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  ybar,bar width=16pt,width=0.9\textwidth,height=5.2cm,
+  symbolic x coords={2025Q1,2025Q2,2025Q3,2025Q4,2026Q1,2026Q2,2026Q3*},
+  xtick=data,ymin=0,ymax=9,ylabel={Newey--West $t$ of mean IC},
+  nodes near coords,every node near coord/.append style={font=\footnotesize},
+  point meta=explicit symbolic,
+  tick label style={font=\footnotesize},label style={font=\footnotesize},
+  enlarge x limits=0.1,
+  axis lines*=left,
+]
+\addplot[fill=linkblue,draw=none] coordinates {(2025Q1,1.09) [{+1.09}] (2025Q2,6.92) [{+6.92}] (2025Q3,5.06) [{+5.06}] (2025Q4,1.85) [{+1.85}] (2026Q1,7.31) [{+7.31}] (2026Q2,7.61) [{+7.61}] (2026Q3*,0.26) [{+0.26}]};
+\draw[warm,dashed] (rel axis cs:0,0.2222) -- (rel axis cs:1,0.2222) node[above left,font=\footnotesize,warm] {$t=2$};
+\end{axis}
+\end{tikzpicture}
+\caption{Newey--West $t$-statistic of the composite's mean daily IC by quarterly walk-forward block. The IC is positive in every block, but the first and last blocks carry almost no signal (IC 0.035 and 0.012) and 2025Q4 is also below $t=2$. The partial 2026Q4, 16 dates to 16 October 2026, is not one of the seven blocks and has a mean IC of $-0.266$.}\label{fig:quarters}
+\end{figure}

@@ -1,0 +1,358 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage[authoryear,round]{natbib}
+\usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=black]{hyperref}
+\setlength{\parskip}{0.4em}
+\setlength{\parindent}{0pt}
+\renewcommand{\arraystretch}{1.12}
+
+\title{Order-Flow Predictability Without Reliable Monetization:\\Evidence from Russian Equities, 2025--2026}
+\author{Oleg Sidorkin\\Independent researcher}
+\date{October 28, 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We ask whether point-in-time order-flow and order-book features from the Moscow Exchange (MOEX) predict cross-sectional stock returns after the 2022 regime break, and whether any such prediction survives realistic trading frictions. The data combine paid AlgoPack five-minute bars with public ISS prices. Because MOEX regenerated its historical AlgoPack files, only rows whose storage timestamp (\texttt{SYSTIME}) is at most 30 days after the trade date are used for confirmatory verdicts; earlier history serves only for model selection. A regularized linear composite of 75 daily features and three return controls is evaluated on the top-100 point-in-time liquidity universe with purged, embargoed expanding-window training. On the 457 real-time feature dates from 2025-01-03 to 2026-10-16 the composite has a mean out-of-fold rank information coefficient (IC) of 0.0957 against the 10-day abnormal return (Newey--West $t=5.87$), beating an order-book-imbalance baseline by 0.0368 and five within-date permutation placebos. The economics are fragile. A daily-rebalanced dollar-neutral quintile book loses money after costs; a partial-adjustment book earns $+0.075\%$ per day under a quoted-spread cost model, with a 95\% bootstrap interval that includes zero ($[-0.005\%,+0.163\%]$). The edge shrinks under sector neutralization, does not survive a one- or two-day execution delay, and the deflated Sharpe ratio places the book within the range of the best of ten skill-free strategies (probability 0.69 at 10 trials, 0.35 at 100). We conclude that the data contain a statistically robust cross-sectional signal whose monetization is not established, and we report the frozen forward test that will decide it.
+\end{abstract}
+
+\noindent\textbf{Keywords:} order flow; limit order book; cross-sectional return predictability; backtest overfitting; transaction costs; short-sale costs; Russian equity market.
+
+\section{Introduction}
+
+Return predictability is easy to overstate and hard to monetize. Backtests can be inflated by decision-time leakage, by repeated specification search, and by translating forecasts into portfolios at unrealistic cost \citep{zhang2026alpha,bailey2014deflated,chordia2017anomalies,khushi2026qfrs}. The risk is acute in microstructure settings, where rich intraday data generate many candidate signals with short half-lives and high turnover \citep{kolm2023deep,cont2023crossimpact,jensen2026implementable}.
+
+We study the Russian equity market, where the post-2022 structure, heterogeneous liquidity and costly shorting make claims of tradable alpha demanding. The question is narrow: do point-in-time order-flow features from the limit order book predict future cross-sectional abnormal returns once regenerated history, decision-time leakage and multiple testing are controlled explicitly, and does the prediction survive costs and borrow charges?
+
+The paper makes three contributions.
+\begin{enumerate}
+\item \emph{A point-in-time microstructure panel.} MOEX regenerated its historical AlgoPack files, so the storage timestamp \texttt{SYSTIME} separates data captured in real time from data rewritten years later. We use that field to restrict every confirmatory verdict to real-time rows (Section~\ref{sec:data}).
+\item \emph{A pre-registered evaluation of a 75-feature composite.} Criteria were written before each run; the real-time window was scored once for the composite, with placebos, embargoes and a frozen forward rule (Section~\ref{sec:methods}).
+\item \emph{A separation of prediction from monetization.} We apply a quoted-spread cost model, borrow charges, delayed execution, market and sector neutralization and a deflated Sharpe ratio (Sections~\ref{sec:econ} and~\ref{sec:multiple}).
+\end{enumerate}
+
+The main result is asymmetric. The composite predicts 10-day abnormal returns out of sample, but the long-short portfolio does not deliver net profits that are distinguishable from zero. This is consistent with evidence that order-flow information forecasts returns \citep{chordia2004order,kolm2023deep,cont2023crossimpact} while the value of high-turnover signals shrinks under trading and short-sale costs \citep{muravyev2025anomalies,jensen2026implementable,ledoit2025markowitz}. Gradual rebalancing toward an aim portfolio is the theoretically appropriate response to expensive turnover \citep{garleanu2013dynamic,muhlekarbe2026dynamic,ma2022portfolio}, and it is the execution form we test.
+
+\textbf{Scope.} This is a single market, a single author and a single real-time window of about 1.8 years. We state throughout which results were pre-registered and which are descriptive.
+
+\section{Data and protocol}\label{sec:data}
+
+\paragraph{Sources.} Prices and the trading calendar come from MOEX ISS. Microstructure data come from the paid MOEX AlgoPack service (datasets \texttt{tradestats}, \texttt{obstats}, \texttt{orderstats}, \texttt{hi2}): five-minute bars with buy/sell trade splits, order-book imbalance and spreads at the best quote and ten levels, placed and cancelled orders, and concentration measures. The study downloaded 1{,}775 days per dataset from 2020-01-03, 146.06 million rows. The files include delisted names (554 tickers enter the panel), so the universe has no survivorship filter.
+
+\paragraph{Regenerated history and the \texttt{SYSTIME} rule.} MOEX rewrote earlier AlgoPack history after the fact; for example, all 24{,}622 \texttt{tradestats} rows of 2024-01-10 carry a 2024-01-10 storage date years later, and 2020 \texttt{obstats} rows carry \texttt{SYSTIME} 2023-11-23. We therefore keep a row for confirmatory use only if its \texttt{SYSTIME} is at most the trade date plus 30 days. This removes 0.3--0.7\% of the 2025 rows and none of 2026. The period 2020--2024 is \emph{exploration only}: it selects hyperparameters but never confirms anything. The \emph{real-time window} is the 457 feature dates 2025-01-03 to 2026-10-16, split into halves at 2026-01-05.
+
+\paragraph{Universe.} On each date the universe is the 100 tickers with the highest median daily traded value over the previous 60 trading days (sensitivities at 50 and 200). The window 2022-02-25 to 2022-03-28, when the market was closed or restricted, is excluded. Ticker-days adjacent to a dividend ex-date or a one-day move below $-45\%$ or above $+80\%$ (corporate-action rule) are dropped, because AlgoPack prices are not adjusted for splits or consolidations.
+
+\paragraph{Decision time.} All features use five-minute bars up to 18:30 Moscow time. The closing auction (18:40--18:50) is never used, and two columns that embed it (\texttt{ValDay}, \texttt{AucA1}) were removed after a reviewer found them; the measured effect on IC was 0.00003. This separates the decision from the information set in the manner recommended by \citet{zhang2026alpha}; a formal non-interference guarantee in the sense of \citet{fonseca2026lookahead} was not attempted.
+
+\paragraph{Outcome.} The label is the rank, within the date, of the 10-trading-day forward abnormal log return from the close of day $d$ to the close of $d+10$, where abnormal means the stock's return minus the equal-weighted return of the admitted universe. A 10-day horizon was chosen on the exploration window; 20 and 40 days were worse net of costs.
+
+\section{Methods}\label{sec:methods}
+
+\paragraph{Features.} The composite has 75 daily features built from bars up to 18:30: book imbalance over ten levels (the A2 family and its early, late and ``unexpected'' variants), trade imbalance, order placement and cancellation intensity, spreads and depth, level asymmetry, concentration measures, intraday profile shape, and eight additional microstructure columns (VPIN-style absolute imbalance, a Kyle-type slope of bar return on imbalance, flow--return correlation, and others). Three controls (returns over 1, 5 and 20 days) are always included so that the composite is incremental to reversal and momentum. Each column is rank-scaled within the date to $[-0.5,0.5]$, with missing values set to zero.
+
+\paragraph{Model.} The composite is the average of a ridge regression \citep{hoerl1970ridge} and an elastic net \citep{zou2005elastic} with mixing 0.5 and no intercept (inputs and target are centered within the date). The model class was fixed before any real-time data were read. Hyperparameters (ridge $\lambda=0.003$, elastic net $\lambda=0.001$) and the trading rate were chosen on the exploration window 2022-07 to 2024-12 only.
+
+\paragraph{Baseline and placebos.} The baseline is a ridge on the A2 book-imbalance feature plus the three controls. The placebo is the same composite trained and scored on feature vectors permuted across tickers within each date (five seeds); it preserves every date-level moment and removes the cross-sectional pairing.
+
+\paragraph{Walk-forward.} Training is an expanding window from 2020-04-01. For each test block the training set contains only dates at least 11 trading days before the block start, which implements the purge and the embargo for a 10-day label in one rule \citep{lopezdeprado2018advances}. Verdict blocks are quarterly.
+
+\paragraph{Inference.} The signal statistic is the mean daily out-of-fold rank IC with Newey--West standard errors \citep{newey1987simple,andrews1991heteroskedasticity} and a date-block bootstrap (10-date blocks, 5{,}000 draws). Single-feature screens use Fama--MacBeth regressions by date \citep{famamacbeth1973} with the controls. For families of tests we compute the effective number of independent tests from the eigenvalues of the feature rank-correlation matrix \citep{nyholt2004simple}, computed on exploration data without any outcome, and set the threshold at the Bonferroni level for that number (never below $|t|=3.0$). Benjamini--Hochberg control \citep{benjamini1995controlling} defines ``leads'' that are not results. Related stepwise procedures are described by \citet{romano2005stepwise} and the false-discovery problem for trading signals by \citet{harvey2016cross}. Overfitting of the reported Sharpe ratio is assessed with the deflated Sharpe ratio \citep{bailey2014deflated}.
+
+\paragraph{Portfolio and costs.} The book is dollar-neutral: long the top quintile and short the bottom quintile of the composite score, inverse-volatility weights within each leg. Two cost models are reported.
+\begin{itemize}
+\item \emph{Flat model:} 0.15\% per side on each leg's turnover. This was the pre-registered verdict model.
+\item \emph{Quoted-spread model (bbo):} 0.05\% commission plus half the day's quoted best bid--ask spread of each name per side. The mean quoted spread is 3.6 bp for the most liquid third of the universe and 18.1 bp for the thinnest third. This model was introduced after the flat model failed (Section~\ref{sec:econ}) and is therefore a post-hoc but defensible refinement, not a second pre-registered gate.
+\end{itemize}
+Short positions pay a borrow charge on the short notional: 17\% a year as the base (an unconfirmed secondary-source REPO quote) and 25\% as a stress. Quoted broker rates of 27--29\% exceed both. The daily-rebalanced book trades to target every day; the \emph{partial-adjustment} book moves a fraction $\rho$ of the gap to the target each day \citep{garleanu2013dynamic}, with $\rho=0.33$ (flat model) or $\rho=0.5$ (bbo model) selected on the exploration window.
+
+\section{Results: the signal}\label{sec:signal}
+
+Table~\ref{tab:ic} reports the real-time rank IC. The composite beats the baseline by 0.0368 with a bootstrap interval above zero, and in both halves. The five placebo composites have IC between $-0.0042$ and $+0.0052$, none significant, and in each seed the composite--placebo difference has an interval above zero. Moving from the exploration to the real-time window, composite IC falls from 0.1335 to 0.0957 ($-28\%$) and baseline IC from 0.1087 to 0.0589 ($-46\%$); the real-time number is the one we report as the finding.
+
+\begin{table}[ht]
+\centering
+\caption{Real-time out-of-fold rank IC against the 10-day abnormal return rank (457 dates, 2025-01-03 to 2026-10-16). Intervals are date-block bootstrap 95\%.}
+\label{tab:ic}
+\begin{tabular}{lrrl}
+\toprule
+Model & Mean IC & NW $t$ & 95\% interval \\
+\midrule
+Composite (ridge/elastic-net average) & 0.0957 & 5.87 & [0.0693, 0.1294] \\
+\quad ridge only & 0.0970 & & \\
+\quad elastic net only & 0.0915 & & \\
+Baseline (A2 + controls) & 0.0589 & & [0.0389, 0.0778] \\
+Composite $-$ baseline & 0.0368 & 2.51 & [0.0147, 0.0663] \\
+Halves of composite IC & 0.0853 / 0.1092 & & \\
+Five permutation placebos & $-0.0042$ to $+0.0052$ & n.s. & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Robustness.} Table~\ref{tab:robust} summarizes the diagnostic tests run on the frozen composite (all rules written before the run).
+\begin{table}[ht]
+\centering
+\caption{Robustness of the composite signal (real-time window).}
+\label{tab:robust}
+\begin{tabular}{p{4.2cm}p{9.2cm}}
+\toprule
+Test & Result \\
+\midrule
+Input noise & Gaussian noise at 0.25, 0.5 and 1.0 times the standard deviation of a rank-scaled column leaves 98\%, 93\% and 85\% of the clean IC; positive in every seed. \\
+Stale signal & IC 0.0957, 0.0806, 0.0756, 0.0650, 0.0519 for signals lagged 0, 1, 2, 5 and 10 days; monotone decay with no sign of look-ahead. \\
+Calendar stability & IC positive in 7 of 7 quarters and 18 of 22 months; the first and last quarters carry little IC (0.035 and 0.012). \\
+Total loss of delistings & Seven names left the board; two long positions were lost in full; the net changes by $-0.003$ percentage points. \\
+Without the A2 family & Zeroing the six A2 columns leaves composite IC at 0.0951: the composite does not depend on them. \\
+Sector neutralization & Demeaning scores within sector lists lowers IC to 0.0819 ($-14\%$); placebos still fail. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{A regime lead.} The composite's IC is 0.045 when the RVI implied-volatility index is above its trailing 250-day median and 0.139 otherwise (permutation $p=0.0024$, at the registered threshold 0.0026; it would not pass the enlarged threshold of a later wave). The direction is shared by every volatility proxy except cross-sectional dispersion, and the effect sits in order-book shape features rather than imbalance. It rests on about three regime changes in one window and is labeled a lead, not a result.
+
+\section{Results: the economics}\label{sec:econ}
+
+Table~\ref{tab:econ} lists the net daily return of the books. Under the pre-registered flat model the daily-rebalanced book fails: gross $+0.282\%$ per day on turnover 1.86 per day is absorbed by costs of 0.28\% per day, leaving $-0.065\%$ per day (annualized $-16.4\%$). Partial adjustment raises the net by $+0.095\%$ per day (interval $[+0.059\%,+0.131\%]$, both halves positive) to $+0.030\%$ per day, about 7.5\% a year on the long-leg notional, but the interval includes zero and the value is $+0.0002\%$ at 25\% borrow.
+
+Under the quoted-spread model the partial-adjustment book earns $+0.0753\%$ per day (Newey--West $t=1.71$, both halves positive: $+0.066\%$ and $+0.087\%$), about 18.9\% a year on the long-leg notional at 17\% borrow and 11.2\% at 25\%. The pre-set gate required the interval to lie above zero; the lower bound is $-0.005\%$, so the gate fails by a narrow margin. The five placebo books lose $0.34$--$0.40\%$ per day.
+
+\begin{table}[ht]
+\centering
+\caption{Net return per day of the composite books (real-time window; borrow 17\% a year unless stated). Intervals are bootstrap 95\%.}
+\label{tab:econ}
+\begin{tabular}{p{6.4cm}rl}
+\toprule
+Book & Net / day & 95\% interval \\
+\midrule
+\multicolumn{3}{l}{\emph{Flat 0.15\% per side (pre-registered)}} \\
+Daily rebalanced & $-0.065\%$ & $[-0.149\%,+0.027\%]$ \\
+Partial adjustment, $\rho=0.33$ & $+0.030\%$ & $[-0.048\%,+0.114\%]$ \\
+\quad at 25\% borrow & $+0.000\%$ & $[-0.078\%,+0.084\%]$ \\
+\addlinespace
+\multicolumn{3}{l}{\emph{Quoted-spread costs (post-hoc refinement)}} \\
+Daily rebalanced & $+0.048\%$ & $[-0.037\%,+0.142\%]$ \\
+Partial adjustment, $\rho=0.5$ & $+0.075\%$ & $[-0.005\%,+0.163\%]$ \\
+\quad at 25\% borrow & $+0.045\%$ & \\
+\quad order of 1 million RUB & $-0.026\%$ & $[-0.109\%,+0.062\%]$ \\
+\quad entry at next open & $+0.031\%$ & $[-0.057\%,+0.122\%]$ \\
+\quad one-day-stale signal & $+0.022\%$ & \\
+\quad two-day-stale signal & $-0.034\%$ & \\
+\quad sector-neutral composite & $+0.045\%$ & $[-0.027\%,+0.126\%]$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Delay and size.} The net is not robust to implementation timing: it drops to $+0.022\%$ per day on a one-day-stale signal and turns negative on a two-day-stale one, while rank information decays only slowly (Table~\ref{tab:robust}). About a fifth of the daily gross is the overnight gap that an order at the next open cannot capture. At an order size of about one million RUB the partial-adjustment net is negative. This pattern, a forecast that retains rank information while the book's net does not, is what cost-aware trading theory predicts when signals decay and turnover is expensive \citep{garleanu2013dynamic,ledoit2025markowitz}.
+
+\paragraph{Market exposure and sectors.} The book has a beta of $-0.269$ to the universe mean return (the window had a falling market, mean about $-0.08\%$ per day). The beta-hedged residual is $+0.0538\%$ per day (Newey--West $t=1.49$, interval $[-0.012\%,+0.125\%]$). Sector-neutralization costs about 40\% of the net.
+
+\paragraph{Where the profit sits.} The short leg earns nearly all of the gross in both volatility states. Short-sale costs therefore matter directly, in line with \citet{muravyev2025anomalies}. We have not measured security-by-security borrow rates: the entire economic value lies between 17\% and 25\% a year, 7.5\% against nothing under the flat model.
+
+\paragraph{Thin universe.} Refitting on ranks 101--400 raises the IC to 0.1292 ($t=12.8$) but median quoted spreads of 36 bp absorb the gain: the long-short net is $+0.0407\%$ per day at 17\% carry with interval $[0.000\%,+0.086\%]$ and $+0.0174\%$ at 25\%, and only 10 of 60 sampled thin tickers could be shorted.
+
+\section{Multiple testing and deflation}\label{sec:multiple}
+
+The composite was not the only hypothesis tested on this window. Table~\ref{tab:scan} lists the registered families. A second reading of the same 457 dates was used by later waves (cost model, horizons, momentum, neutrality), so the economic verdict is the sixth look at a spent window, and no p-value in Section~\ref{sec:econ} should be read at nominal size.
+
+\begin{table}[ht]
+\centering
+\caption{Registered families run on the same data; each had its criterion written before the run.}
+\label{tab:scan}
+\begin{tabular}{p{4.6cm}p{8.8cm}}
+\toprule
+Family & Outcome \\
+\midrule
+12 order-flow tests (single features) & One pass: A2 book imbalance (Fama--MacBeth $t=+19.05$, positive in both halves, positive in every year 2020--2026), but net $+0.049\%$ per day at 0.15\% per side, below the key rate; the index-hedged form had $t=+1.61$ and a negative second half. \\
+100 AlgoPack hypotheses (28 confirmatory) & 0 of 28 pass at the effective-test threshold $|t|\ge 3.060$; 17 exploratory leads, ten of them A2 variants. \\
+94 fund-style columns and 6 exposure rules & 0 candidates at $|t|\ge 3.452$ ($M_{\mathrm{eff}}=89.8$) and 0 of 10 placebo hits; one lead (opening-gap reversal); 0 of 6 exposure rules pass. Value, quality and size cannot be tested without point-in-time fundamentals. \\
+Momentum added to the composite & IC rises from 0.0957 to 0.1062 (difference $+0.0105$, $t=2.39$) but the net is unchanged under a permuted-momentum placebo. \\
+News, TimesFM forecasts, pairs, dividend run-up, weather and commodity states & No economic gain; see the appendix. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Deflated Sharpe ratio.} The primary book (quoted-spread costs, $\rho=0.5$, 17\% borrow, 457 days) has a daily Sharpe ratio of 0.098 (annualized 1.56), skewness $-1.52$ and kurtosis 16.4. The probabilistic Sharpe ratio against zero is 0.973. The deflated probability, using the expected maximum of $N$ skill-free trials with null variance $1/T$, is 0.685, 0.435, 0.346, 0.233 and 0.158 for $N=10,50,100,300,800$ trials; with an autocorrelation-adjusted variance it is 0.480, 0.176, 0.106, 0.044 and 0.019 \citep{bailey2014deflated}. About 800 hypothesis rows were registered across the programme, and the true number of independent trials is not knowable. By the rule written before the run (deflated probability below 0.95 already at 10 trials), the book is not distinguishable from the best of ten skill-free books. The expected maximum annualized Sharpe of $N$ skill-free strategies over 1.81 years is 1.17, 1.69, 1.88, 2.15 and 2.37 for $N=10,50,100,300,800$, which would require 1.02, 2.14, 2.64, 3.46 and 4.20 years of data to exceed. The IC finding is not affected by this arithmetic because it was tested against placebos and not selected as a best of $N$.
+
+\section{Discussion}
+
+\paragraph{Why prediction need not imply monetization.} A cross-sectional IC of 0.096 is large for a 10-day horizon, but the composite is highly persistent in its holdings and the book's gross return (0.19--0.28\% per day) is of the same order as the round-trip cost. The short leg carries most of the gross, so the net depends on an unmeasured borrow rate. These are the conditions under which \citet{muravyev2025anomalies} and \citet{jensen2026implementable} find that implementable value is much smaller than raw predictive spreads.
+
+\paragraph{Prior literature.} Order imbalance forecasts returns \citep{chordia2004order}; deeper order-flow information improves forecasts across horizons \citep{kolm2023deep}; cross-impact between assets matters \citep{cont2023crossimpact}. Our contribution relative to this work is the Russian post-2022 setting and the insistence on real-time rows, placebo controls and net-of-cost verdicts in a single design. We have not run a systematic literature search for Russian-market microstructure studies and make no claim that none exist.
+
+\paragraph{Limitations.}
+\begin{itemize}
+\item \emph{Short confirmatory window.} About 1.8 years (457 dates); the minimum detectable effects in the frozen forward test are large (incremental IC about 0.07 at 60 dates).
+\item \emph{Borrow costs are stressed, not observed} security by security.
+\item \emph{Cost model chosen after a failure.} The quoted-spread model followed the failure of the flat model, and the A2 and composite windows were looked at repeatedly.
+\item \emph{Exploration-to-real-time decay.} The composite's IC falls by 28\% when the regenerated period is replaced by real-time data, and MOEX's rewriting of history cannot be audited in code.
+\item \emph{Market specificity.} Results concern Russian equities after 2022 and may not transfer.
+\item \emph{Quoted versus realized costs.} Spreads are quoted; price impact and queue position are not modeled.
+\end{itemize}
+
+\paragraph{Forward test.} The composite is frozen (model file SHA-256 \texttt{793bf125b38b2022dae53021f5185032bb464c506ce2f507d8fb39fb4a2f8892}, trained through 2026-10-07, no retraining). One evaluation is planned after 60 forward feature dates with matured 10-day outcomes, about 2027-02-05; it counts as confirming only if the composite-minus-baseline IC is positive with a bootstrap interval above zero. A second frozen rule (the A2 baseline) is read about 2027-01-20. The economic result of the forward test is reported but is not a confirmation condition, because its power is too low.
+
+\section{Conclusion}
+
+On point-in-time MOEX microstructure data, a regularized composite of daily order-flow features predicts 10-day cross-sectional abnormal returns in Russian equities on the 2025--2026 real-time window, with out-of-fold rank IC of 0.0957 that exceeds both a baseline and permutation placebos. The same evidence does not establish net profitability: after quoted-spread costs, borrow charges, execution delay and deflation for multiple trials, the best book has an interval that includes zero and a deflated Sharpe probability far below conventional thresholds. A leakage-aware design can therefore preserve a real signal while narrowing the claim about tradable alpha. The open question is whether the frozen forward test confirms the predictive value on new dates, and whether measured borrow rates move the economics.
+
+\section*{Data and code availability}
+AlgoPack data are licensed by MOEX and cannot be redistributed. File and matrix SHA-256 hashes, frozen model files, seeds, split dates and all run outputs are recorded in the project repository under \texttt{docs/plans/}, \texttt{docs/metrics/} and \texttt{artifacts/}. The public availability of the repository is to be decided by the author before submission.
+
+\section*{Use of AI tools}
+Experiments were designed and reviewed in a proposer--reviewer arrangement in which large language model sessions drafted code and analyses and a second session reviewed them read-only, including a leakage hunt. The author is responsible for all content, and every number in this paper was checked against the committed metrics files.
+
+\appendix
+\section{Rejected modules}
+The following were tested under pre-registered criteria and rejected, and their code is not in the live system: news-based event detectors and a local-LLM sentiment score; TimesFM~3 zero-shot forecasts as a feature; pairs trading of ordinary and preferred shares; dividend run-up and announcement strategies; weather, commodity and macro state variables as timing rules; a 12-month momentum sleeve (confirmed as a ranking signal but not monetizable at book level); a low-beta momentum sleeve (replication on 2025--2026 fails); and portfolio overlays. Their numbers are in the project metrics files.
+
+\section{Reproducibility checklist}
+\begin{tabular}{p{4.2cm}p{9.2cm}}
+\toprule
+Item & Value \\
+\midrule
+Real-time window & 2025-01-03 to 2026-10-16, 457 dates; halves split 2026-01-05 \\
+Exploration window & 2022-07 to 2024-12 (hyperparameters), training from 2020-04-01 \\
+Panel & 163{,}709 top-100 ticker-days, 1{,}644 dates \\
+Purge/embargo & 11 trading days \\
+Bootstrap & 10-date blocks, 5{,}000 draws, seed 20261022 \\
+Placebo seeds & 20261023 to 20261027 \\
+Matrix SHA-256 prefix & \texttt{c0580fbeace81ad5} \\
+Frozen models SHA-256 & \texttt{793bf125b38b2022dae53021f5185032bb464c506ce2f507d8fb39fb4a2f8892} \\
+\bottomrule
+\end{tabular}
+
+\begin{thebibliography}{99}
+\setlength{\itemsep}{0pt}
+
+\bibitem[Andrews(1991)]{andrews1991heteroskedasticity}
+Andrews, D.\ W.\ K. (1991).
+Heteroskedasticity and autocorrelation consistent covariance matrix estimation.
+\emph{Econometrica}, 59(3), 817--858.
+
+\bibitem[Bailey and L\'opez de Prado(2014)]{bailey2014deflated}
+Bailey, D.\ H. and L\'opez de Prado, M. (2014).
+The deflated Sharpe ratio: Correcting for selection bias, backtest overfitting, and non-normality.
+\emph{Journal of Portfolio Management}, 40(5), 94--107.
+
+\bibitem[Benjamini and Hochberg(1995)]{benjamini1995controlling}
+Benjamini, Y. and Hochberg, Y. (1995).
+Controlling the false discovery rate: A practical and powerful approach to multiple testing.
+\emph{Journal of the Royal Statistical Society: Series B}, 57(1), 289--300.
+
+\bibitem[Chordia et~al.(2017)]{chordia2017anomalies}
+Chordia, T., Goyal, A. and Saretto, A. (2017).
+Anomalies and false rejections.
+SSRN working paper 3017677 (earlier title: p-hacking: Evidence from two million trading strategies).
+
+\bibitem[Chordia and Subrahmanyam(2004)]{chordia2004order}
+Chordia, T. and Subrahmanyam, A. (2004).
+Order imbalance and individual stock returns: Theory and evidence.
+\emph{Journal of Financial Economics}, 72(3), 485--518.
+
+\bibitem[Cont et~al.(2023)]{cont2023crossimpact}
+Cont, R., Cucuringu, M. and Zhang, C. (2023).
+Cross-impact of order flow imbalance in equity markets.
+\emph{Quantitative Finance}, 23(10), 1373--1393.
+
+\bibitem[Fama and MacBeth(1973)]{famamacbeth1973}
+Fama, E.\ F. and MacBeth, J.\ D. (1973).
+Risk, return, and equilibrium: Empirical tests.
+\emph{Journal of Political Economy}, 81(3), 607--636.
+
+\bibitem[Fonseca(2026)]{fonseca2026lookahead}
+Fonseca, X. (2026).
+Look-ahead-freedom as temporal non-interference: A verifiable correctness property for backtesting and agentic trading pipelines.
+arXiv:2607.04958.
+
+\bibitem[G\^arleanu and Pedersen(2013)]{garleanu2013dynamic}
+G\^arleanu, N. and Pedersen, L.\ H. (2013).
+Dynamic trading with predictable returns and transaction costs.
+\emph{Journal of Finance}, 68(6), 2309--2340.
+
+\bibitem[Harvey et~al.(2016)]{harvey2016cross}
+Harvey, C.\ R., Liu, Y. and Zhu, H. (2016).
+\ldots and the cross-section of expected returns.
+\emph{Review of Financial Studies}, 29(1), 5--68.
+
+\bibitem[Hoerl and Kennard(1970)]{hoerl1970ridge}
+Hoerl, A.\ E. and Kennard, R.\ W. (1970).
+Ridge regression: Biased estimation for nonorthogonal problems.
+\emph{Technometrics}, 12(1), 55--67.
+
+\bibitem[Jensen et~al.(2026)]{jensen2026implementable}
+Jensen, T.\ I., Kelly, B.\ T., Malamud, S. and Pedersen, L.\ H. (2026).
+Machine learning and the implementable efficient frontier.
+\emph{Review of Financial Studies}, 39(10), 3035--3078.
+
+\bibitem[Khushi(2026)]{khushi2026qfrs}
+Khushi, M. (2026).
+QFRS: Quantitative finance reporting standards for forecasting, evaluation and trading claims.
+\emph{Artificial Intelligence Review}.
+doi:10.1007/s10462-026-11664-w.
+
+\bibitem[Kolm et~al.(2023)]{kolm2023deep}
+Kolm, P.\ N., Turiel, J. and Westray, N. (2023).
+Deep order flow imbalance: Extracting alpha at multiple horizons from the limit order book.
+\emph{Mathematical Finance}, 33(4), 1044--1081.
+
+\bibitem[Ledoit and Wolf(2025)]{ledoit2025markowitz}
+Ledoit, O. and Wolf, M. (2025).
+Markowitz portfolios under transaction costs.
+\emph{Quarterly Review of Economics and Finance}, 100, 101962.
+
+\bibitem[L\'opez de Prado(2018)]{lopezdeprado2018advances}
+L\'opez de Prado, M. (2018).
+\emph{Advances in Financial Machine Learning}.
+Wiley.
+
+\bibitem[Ma et~al.(2022)]{ma2022portfolio}
+Ma, G., Siu, C.\ C. and Zhu, S.-P. (2022).
+Portfolio choice with return predictability and small trading frictions.
+\emph{Economic Modelling}, 111, 105823.
+
+\bibitem[Muhle-Karbe et~al.(2026)]{muhlekarbe2026dynamic}
+Muhle-Karbe, J., Sefton, J. and Shi, X.-F. (2026).
+Dynamic portfolio choice with intertemporal hedging and transaction costs.
+\emph{Management Science}, 72, 7684--7701.
+
+\bibitem[Muravyev et~al.(2025)]{muravyev2025anomalies}
+Muravyev, D., Pearson, N.\ D. and Pollet, J.\ M. (2025).
+Anomalies and their short-sale costs.
+\emph{Journal of Finance}, 80, 3639--3694.
+
+\bibitem[Newey and West(1987)]{newey1987simple}
+Newey, W.\ K. and West, K.\ D. (1987).
+A simple, positive semi-definite, heteroskedasticity and autocorrelation consistent covariance matrix.
+\emph{Econometrica}, 55(3), 703--708.
+
+\bibitem[Nyholt(2004)]{nyholt2004simple}
+Nyholt, D.\ R. (2004).
+A simple correction for multiple testing for single-nucleotide polymorphisms in linkage disequilibrium with each other.
+\emph{American Journal of Human Genetics}, 74(4), 765--769.
+
+\bibitem[Romano and Wolf(2005)]{romano2005stepwise}
+Romano, J.\ P. and Wolf, M. (2005).
+Stepwise multiple testing as formalized data snooping.
+\emph{Econometrica}, 73(4), 1237--1282.
+
+\bibitem[Zhang et~al.(2026)]{zhang2026alpha}
+Zhang, F., Li, Z., Peng, S. and Chen, Y. (2026).
+When alpha disappears: A one-switch benchmark for decision-time leakage in financial backtests.
+arXiv:2605.23959.
+
+\bibitem[Zou and Hastie(2005)]{zou2005elastic}
+Zou, H. and Hastie, T. (2005).
+Regularization and variable selection via the elastic net.
+\emph{Journal of the Royal Statistical Society: Series B}, 67(2), 301--320.
+
+\end{thebibliography}
+\end{document}

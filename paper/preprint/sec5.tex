@@ -1,0 +1,137 @@
+\section{Results I: the signal}\label{sec:signal}
+
+\subsection{Single features: strong statistics, marginal economics}
+
+The first plan tested 12 hypotheses built mainly on the five base features (next-day abnormal returns, intraday windows, level-crossing events) plus one market-level concentration signal. Only A2, the 10-level book imbalance, passed: Fama--MacBeth $t=+19$ and a net return of 0.049\% per day for a long top-quintile book against the universe at 0.15\% per side, positive in both halves. A version hedged with an IMOEX short failed, with a negative second half. Before the hedge, the net return is 0.049\% per day, 12.3\% a year, without the controls and 0.023\% per day, 5.8\% a year, with them; the earlier draft quoted a 3--6\% range that does not follow from either number and is withdrawn. This plan's halves (January 2020 to June 2023, July 2023 to October 2026) predate the provenance rule and rely mostly on regenerated rows, so in retrospect we treat its result as exploratory.
+
+The second plan tested 100 hypotheses on the real-time window (about 420 dates), with 28 confirmatory rows (effective family size 22.574; threshold $|t|\ge3.060$) and 72 exploratory rows. Each confirmatory row required both a Fama--MacBeth $t$ above threshold and a positive net return in both halves for a long top-quintile book. None of the 28 passed. The closest was weekly-rebalanced A2, with $t=+5.52$ but a first-half net return of $-0.003\%$ per day. Of 63 screened exploratory rows, 17 survived Benjamini--Hochberg at $q=0.10$, ten of them variants of A2. Single order-flow features are statistically strong and economically marginal, which motivates pooling them.
+
+\subsection{The composite forecasts the cross-section}\label{sec:momentum}
+
+Table~\ref{tab:signal} reports the verdict. The composite's mean daily IC on the real-time window is 0.0957 with a Newey--West $t$ of 5.87 and a bootstrap interval of $[0.0693,0.1294]$. The increment over the A2 baseline is 0.0368 with a 95\% interval of $[0.0147,0.0663]$, above zero and positive in both halves. Placebos trained on within-date permuted features stay at zero in all five seeds (IC between $-0.0042$ and $+0.0052$). The signal criterion is met.
+
+\begin{table}[htbp]
+\centering
+\begin{threeparttable}
+\caption{Signal verdict on the real-time window}\label{tab:signal}
+\small
+\begin{tabularx}{\textwidth}{@{}L r r@{}}
+\toprule
+ & Mean daily IC & NW $t$ \\
+\midrule
+Composite (75 order-flow features $+$ 3 controls) & 0.0957 & 5.87 \\
+\quad 95\% block-bootstrap interval; halves & $[0.0693,\,0.1294]$; 0.0853 / 0.1092 & \\
+Baseline (A2 $+$ 3 controls) & 0.0589 & \\
+\quad 95\% block-bootstrap interval & $[0.0389,\,0.0778]$ & \\
+Increment, composite minus baseline & 0.0368 & 2.51 \\
+\quad 95\% block-bootstrap interval; halves & $[0.0147,\,0.0663]$; 0.0431 / 0.0286 & \\
+Within-date permutation placebo, 5 seeds & $-0.0042$ to $+0.0052$ & \\
+\addlinespace
+\multicolumn{3}{@{}l}{\emph{Momentum comparison (E1, pre-specified after the window closed)}} \\
+256-day momentum rank alone, same window\tnote{a} & 0.1072 & 3.95 \\
+Composite residual after projection on the momentum rank\tnote{b} & 0.0869 & 7.33 \\
+Composite plus 256- and 120-day momentum (descriptive) & 0.1062 & \\
+\addlinespace
+\multicolumn{3}{@{}l}{\emph{Variants (descriptive)}} \\
+Composite without the A2 family & 0.0951 & \\
+Sector-neutral composite & 0.0819 & \\
+Thin universe, ranks 101--400 (re-estimated) & 0.1292 & 12.8 \\
+Thin universe, frozen top-100 model transferred & 0.0496 & 4.6 \\
+\bottomrule
+\end{tabularx}
+\begin{tablenotes}\footnotesize
+\item Notes: 457 trading days, 3 January 2025 to 16 October 2026; outcome is the 10-day abnormal return. Positive in both halves (split 5 January 2026). The calendar quarters are seven of eight: the partial fourth quarter of 2026, 16 dates to 16 October, has a mean IC of $-0.266$.
+\item[a] Confirmed on independent price history: IC 0.0380 over 919 dates in 2021--2024, $t=2.56$, interval $[0.0097,0.0668]$, positive in every calendar year. At book level the momentum sleeve nets 0.0189\% per day at 25\% carry against 0.0383\% for the composite; the registered contrast is $+0.0194$\% per day, $t=0.44$, interval $[-0.0739,+0.0974]$.
+\item[b] The rank-scaled composite minus its within-date least-squares projection on the rank-scaled momentum, i.e.\ the part of the ranking that momentum does not span. It is not separable from momentum at book level: $+0.0184$\% per day, interval $[-0.112,+0.137]$.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}
+
+\paragraph{Is the signal distinct from momentum?} The composite's controls cover reversal and one-month momentum, but not 12-month momentum, so the question was run as a pre-specified test after the window closed (E1, Section~\ref{sec:extensions}). The answer is no, at book level. A 256-day momentum rank alone has IC 0.1072 ($t=3.95$) on the same window, above the composite's 0.0957, and it is confirmed on independent price history: IC 0.0380 over 919 dates in 2021--2024 ($t=2.56$, interval $[0.0097,0.0668]$), positive in every calendar year. Run through the identical partial-adjustment book, the momentum sleeve nets 0.0189\% per day at 25\% carry and the composite 0.0383\%; the registered contrast, composite minus momentum, is $+0.0194$\% per day with a Newey--West $t$ of 0.44 and a block-bootstrap interval $[-0.0739,+0.0974]$, and its halves disagree in sign at the higher adjustment speed. The one ranking-level fact that survives is narrower and worth stating precisely: 91\% of the composite's IC remains after its projection on the momentum rank is removed (residual IC 0.0869, $t=7.33$), so the composite is not a momentum proxy, but that residual does not convert into a separable net return either (residual minus momentum $+0.0184$\% per day, interval $[-0.112,+0.137]$). We therefore claim the ranking beyond reversal, one-month momentum and the best single order-flow feature, and we do not claim value beyond long-horizon price trends: at book level the two signals are indistinguishable, and the candidate explanation --- that the regularized model combines a real orthogonal component inefficiently --- is not tested here. The momentum rank is one series, so its IC standard error is 0.0271 against 0.0163 for the 75-feature composite: the two point estimates are comparable, but the composite is the more precise estimate and the momentum one the noisier. The two statistics that are easy to confuse here are kept apart throughout the paper: the level IC of the momentum rank is 0.1072 with $t=3.95$, while the increment of momentum \emph{over the composite}, as a feature added to it, is 0.0105 with $t=2.39$ and an incremental-regression slope of 0.089 with $t=3.41$; the first is a level, the other is a contribution, and they answer different questions.
+
+\paragraph{The window was not unseen.} The single-feature family of the previous subsection was evaluated on the same real-time window before the composite. The composite's inputs were defined by family and decision-time availability rather than selected on those single-feature results, and its weights are learned out-of-fold, so the selection bias that \citet{novymarx2015} documents for combinations of in-sample winners is limited. It is not zero, which is one more reason the frozen forward test matters.
+
+\subsection{Robustness of the signal}\label{sec:robust}
+
+An audit re-built the feature matrix from raw files (163,709 rows) and reproduced the verdict exactly. Six further checks were then run on the frozen composite, with criteria written before the runs (Table~\ref{tab:robust}).
+
+\input{fig2}
+
+The signal is positive in every quarterly block, but it is not uniform (Figure~\ref{fig:quarters}): three of the eight calendar quarters have a $t$-statistic below 2, and the first and the partial last carry almost no signal, with ICs of 0.035 and $-0.266$. Sign tests that do not depend on a long-run variance estimate confirm the signal and separate it from the money. Adjacent months share up to ten days of outcome overlap, so the binomial $p$-values are anti-conservative as printed; correcting them for the measured serial dependence of the monthly ICs (lags 1--3: 0.049, $-0.030$, 0.206, effective sample 15.4 months) leaves the signal test at $p=0.0037$ instead of $0.0022$, and on 45 non-overlapping ten-date blocks 38 are positive ($p<10^{-4}$). Under a symmetric null the probability of seven positive quarters out of eight is 0.035, and of at least 18 positive months out of 22 is 0.0022. For the book's net return, five positive quarters out of eight ($p=0.36$) and 14 positive months out of 22 ($p=0.14$) are not distinguishable from chance. The signal is robust to input noise and to total losses on the seven stocks delisted during the window \citep[cf.][]{shumway1997}, and it decays slowly with staleness: a ten-day-old forecast still has an IC of 0.052. The dividend check is a bound, not a measurement, because the calendar covers only eight tickers in the window.
+
+\begin{table}[htbp]
+\centering
+\begin{threeparttable}
+\caption{Robustness checks on the frozen composite}\label{tab:robust}
+\small
+\begin{tabularx}{\textwidth}{@{}R{2.9cm}R{3.6cm}L@{}}
+\toprule
+Check & Pre-specified criterion & Result \\
+\midrule
+Input noise (retrain; noise SD $=0.289m$, 3 seeds per level) & IC $\ge70\%$ of clean at $m=0.25$; positive in all seeds at $m=1$ & IC retains 98\%, 93\%, 85\% at $m=0.25,0.5,1$; minimum 0.078. Book net 0.073\%, 0.061\%, 0.035\% vs.\ 0.075\% per day. Pass \\
+Stale signal (forecast of $d-k$ vs.\ outcome of $d$) & IC at $k=1\ge70\%$ of $k=0$; monotone decay & IC 0.0957, 0.0806, 0.0756, 0.0650, 0.0519 at $k=0,1,2,5,10$ (84\% at $k=1$). Book net 0.022\% at $k=1$, $-0.034\%$ at $k=2$. Pass for IC; book fragile \\
+Total loss on delisted stocks & Sign of book net unchanged & 7 stocks delisted in the window; long positions lost entirely twice. Net 0.072\% vs.\ 0.075\%; difference $-0.003$\pp\ $[-0.010,0.000]$. Pass \\
+Dividend gaps & Net moves by $<0.01$\pp & 132 of 45,636 stock-days excluded via calendar, which covers 8 tickers. Upper bound removing all next-day returns $>5$\pp from the universe mean: 0.069\% vs.\ 0.075\% $[-0.056,+0.047]$. Pass as a bound \\
+Independent periods & IC $>0$ in $\ge6$ of 7 quarters and 80\% of months & IC $>0$ in 7 of 8 quarters and 18 of 22 months. Book net $>0$ in 5 of 8 quarters and 14 of 22 months. Pass; weak edges \\
+Entry at next open & Net does not change sign & IC unchanged; net 0.031\% $[-0.057,+0.122]$ vs.\ 0.075\%. Pass, weaker \\
+\bottomrule
+\end{tabularx}
+\begin{tablenotes}\footnotesize
+\item Notes: Book results refer to the partial-adjustment book ($r=0.5$) with quoted-spread costs and 17\% borrow, kept for comparability with the earlier draft; the measured median of 25\% is used in Section~\ref{sec:money}, where carry enters linearly at about 0.0037\pp\ per day per percentage point and every figure in this table moves down by that amount. Intervals are 95\% block-bootstrap intervals. $m$ scales the noise added to every input.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}
+
+\subsection{Sensitivity across declared grids}\label{sec:grids}
+
+A single tuned optimum is weak evidence; a plateau is stronger. Table~\ref{tab:grids} collects the grids declared in the plans. On the fitting sample the ridge IC changes smoothly across a 300-fold range of the penalty, the elastic-net IC is flat around its optimum, and the net return declines monotonically with the horizon. On the real-time window the IC degrades gracefully with input noise and delay, whereas the net return is sensitive to every implementation parameter. Universe size was varied for the single feature A2 (top 100, 200 and 300) and, for the composite, through the thin universe of ranks 101--400; a top-50 universe was not run.
+
+\begin{table}[htbp]
+\centering
+\begin{threeparttable}
+\caption{Sensitivity across pre-declared grids}\label{tab:grids}
+\small
+\begin{tabularx}{\textwidth}{@{}R{3.1cm}R{3.5cm}L@{}}
+\toprule
+Parameter & Grid & Result \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Fitting sample (regenerated history, July 2022--December 2024)}} \\
+Ridge penalty $\lambda_{\mathrm R}$ & 0.003, 0.01, 0.03, 0.1, 0.3, 1 & Mean IC from 0.1328 (best, 0.003) to 0.1167 (worst); smooth \\
+Elastic-net penalty $\lambda_{\mathrm{EN}}$ & 0.0002 to 0.004 & Best 0.1326 at 0.001 \\
+Horizon $H$ (quoted-spread book) & 10, 20, 40 days & Net 0.162\%, 0.141\%, 0.097\% per day; $H=10$ chosen \\
+Adjustment speed $r$ & 1, 0.5, 0.33, 0.2, 0.1, 0.05 & Best 0.33 (flat costs), 0.5 (quoted spread), 0.2 (thin universe) \\
+\addlinespace
+\multicolumn{3}{@{}l}{\emph{Real-time window}} \\
+Adjustment speed $r$ (flat costs) & 1 vs.\ 0.33 & Net $-0.065\%$ vs.\ $+0.030\%$ per day \\
+Input noise $m$ & 0.25, 0.5, 1 & IC 98\%, 93\%, 85\% of clean; net 0.073\%, 0.061\%, 0.035\% \\
+Signal delay $k$ & 0, 1, 2, 5, 10 days & IC 0.096 to 0.052; net 0.075\%, 0.022\%, $-0.034\%$ for $k\le2$ \\
+Borrow rate (flat costs) & 17\%, 25\% & Net 0.030\% vs.\ $\approx0$ \\
+Cost model & quoted spread, RUB 1 mn spread & Net 0.075\% vs.\ $-0.026\%$ \\
+Universe, composite & top 100, ranks 101--400 & IC 0.096 vs.\ 0.129; best thin net 0.018\% \\
+Universe, single feature A2 (flat costs; 10-day hold for top 100, 5-day for 200 and 300) & top 100, 200, 300 & $t=+5.6,+8.1,+8.6$; net by half $+0.006/+0.046$, $+0.014/+0.033$, $+0.013/+0.008$\% per day \\
+\bottomrule
+\end{tabularx}
+\begin{tablenotes}\footnotesize
+\item Notes: Fitting-sample values are optimistic because order-flow effects are larger on regenerated rows (Section~\ref{sec:regen}).
+\end{tablenotes}
+\end{threeparttable}
+\end{table}
+
+\subsection{Regenerated versus real-time history}\label{sec:regen}
+
+Three observations show why the provenance rule matters. First, the A2 effect estimated on regenerated 2020--2024 rows is about twice its real-time size. Second, every quantity selected on the regenerated fitting sample is more optimistic than its real-time counterpart: the ridge component's IC on the fitting sample was 0.117--0.133 across the penalty grid, against 0.096 for the composite in real time, and the quoted-spread book earned 0.162\% per day on the fitting sample against 0.075\% in real time. Third, ten order-flow columns appeared to improve the price-based ensemble classifier on the long history; on the real-time window the AUC gain is $+0.002$ $[-0.017,+0.018]$ against a pre-specified threshold of $+0.016$, the 95th percentile of the procedure's own noise. A pre-registered round with within-date demeaned features and a demeaned placebo showed that the long-history gain was market timing. Kolmogorov--Smirnov distances between the distributions of 2024H2 and 2025H1 exceed 0.10 for A2 (0.112), five-day A2 (0.137) and the spread ratio (0.140).
+
+A within-date permutation placebo cannot catch this problem: it preserves the date-level moments of the features, so any market-timing component survives the permutation. Demeaned features and demeaned placebos are needed.
+
+Regeneration and calendar time are confounded in our data: the regenerated rows are exactly the 2020--2024 rows. The halving of the A2 effect is consistent with a regeneration artefact, with genuine decay of the effect, or with both. The rule protects verdicts against either explanation.
+
+\subsection{What does not add}\label{sec:noadd}
+
+Several extensions raised the composite's IC or seemed promising but did not change its economics.
+\begin{itemize}
+\item \textbf{Momentum.} The 256-day momentum signal is confirmed on independent price history (2021--2024: IC 0.0380, $t=2.56$, 919 dates). Added to the composite it raises the IC by 0.0105 ($t=2.39$), but the net gain at 25\% borrow is 0.008\pp\ per day, identical to that of a placebo with shuffled momentum.
+\item \textbf{Features proposed by language models.} Three local language models proposed 75 ideas, of which five were implementable (pre-dividend flow asymmetry, PageRank of imbalance correlations, Legendre-polynomial profile shapes, closing-auction imbalance for next-open entry, entropy of turnover and depth). The IC increment is 0.0016 $[-0.0020,+0.0057]$.
+\item \textbf{Transformations.} A library of 100 transformations of the 16 strongest features (five-day means, $z$-scores, changes, liquidity-tercile ranks, lags and 20 interactions) produced 0 of 100 hits at $p\le0.00052$ ($M_{\mathrm{eff}}=95.5$), 0 of 5 placebo hits, and 4 rows with $p<0.05$ against 5 expected by chance.
+\item \textbf{Moderators.} Among 105 candidate moderators, two nominal hits (both forms of agreement between level asymmetry and A2) showed an IC of 0.149 in the top third versus 0.060 in the bottom third ($t=5.08$). But the control moderator ``absolute size of the forecast itself'' produced a larger difference (0.142), and within strata of equal forecast confidence the effect is 0.015 ($t=0.81$). Subgroups with wider predictor dispersion mechanically show higher correlations; there was no discovery.
+\item \textbf{A pretrained foundation model.} Zero-shot TimesFM forecasts \citep{das2024} on 256-day abnormal-return histories (40,851 forecasts) added nothing beyond the composite (0 of 3 rows). A placebo fed another stock's covariates performed as well as the real version (IC 0.0825 vs.\ 0.0814), so the model does not use the covariates; its forecast correlates 0.65 with 12-month momentum. Eleven further uses (102,325 forecasts) also failed, although its 80\% prediction intervals were well calibrated (coverage 0.80--0.82). This matches \citet{rahimikia2025} and \citet{alonso2026}.
+\end{itemize}

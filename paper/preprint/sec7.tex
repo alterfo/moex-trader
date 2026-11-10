@@ -1,0 +1,74 @@
+\section{Economic uncertainty}\label{sec:uncertainty}
+
+The forecasting result rests on measured quantities. The economic result does not. This section separates the two, states what each assumption is worth, and specifies the analyses that would reduce the uncertainty.
+
+\subsection{Measured, bounded and assumed inputs}
+
+Table~\ref{tab:inputs} classifies every input to the net return of the main book. The quoted spread, the book's market exposure and now the short-borrow fee are measured; the delisting and dividend inputs are bounded by deliberately pessimistic checks; the commission, the price impact beyond the quoted spread, the execution time and above all the borrow availability by date are assumed.
+
+\begin{table}[htbp]
+\centering
+\caption{Inputs to the economic result: measured, bounded or assumed}\label{tab:inputs}
+\small
+\begin{tabularx}{\textwidth}{@{}R{2.6cm}R{1.8cm}R{4.4cm}L@{}}
+\toprule
+Input & Status & Value used & Effect on net return (\% per day) \\
+\midrule
+Quoted spread & Measured & Half the best-quote spread, per stock-day (AlgoPack \texttt{obstats}) & Main book $+0.075$ \\
+Market exposure & Measured & Beta $-0.269$ to the universe & Hedged $+0.054$ ($t=1.49$) \\
+Delisting proceeds & Bounded & Total loss on 7 delisted stocks & $+0.072$ \\
+Dividend gaps & Bounded & Calendar covers 8 tickers; outlier bound & $+0.069$ \\
+Commission & Assumed & 0.15\% per side (flat) or 0.05\% plus spread & Flat-cost partial book $+0.030$ \\
+Impact beyond the touch & Proxied & Half the spread for $\approx$RUB 1 mn & $-0.026$ \\
+Execution time & Assumed & Close of signal day via closing auction & Next open $+0.031$; 1-day delay $+0.022$; 2-day $-0.034$ \\
+Borrow fee & Measured & 25.0\% a year median (20.0--125.0\%, quartiles 22.0 and 36.9), 72 of 99 names resolved & Main book $+0.0679$ at 17\%, $+0.0383$ at 25\%, $+0.0199$ at 30\%, $-0.006$ at 36.9\%; see Section~\ref{sec:borrow} \\
+Borrow availability & Not measured & All short-leg names (top 100) assumed borrowable & Unknown; 10 of 60 thin names shortable \\
+Rebalancing rule & Chosen on fitting & $r=0.5$ (spread), 0.33 (flat) & Daily rebalancing (flat) $-0.065$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Borrow: break-even rates and availability}\label{sec:borrow}
+
+Because the book is dollar-neutral, its short exposure is close to one unit of capital, so each additional percentage point of annual borrow costs about $1/252\approx0.004$\pp\ per day (equation~\ref{eq:net}); the measured coefficient of the curve is 0.00370--0.00375, i.e.\ a short exposure of 0.93. The flat-cost book's decline from 0.030\% at 17\% to roughly zero at 25\% matches this arithmetic. Applied to the quoted-spread book, the same arithmetic gives 0.0679\% per day at 17\%, 0.0383\% at 25\%, 0.0199\% at 30\% and $-0.006$\% at 36.9\%, so this book breaks even at 35.3\% a year and clears the lower end of the policy band only below 20.3\%; the published $r=0.5$ book, which earns 0.0753\% at 17\%, breaks even at 36.8\%. For the flat-cost book the break-even rate is about 25\%. These are derivations from the reported results and they ignore estimation error, but the earlier caveat that the fee was unmeasured no longer applies.
+
+The fee is now measured at the source, through the broker's contract-terms endpoint for the admitted universe: of 99 names, 72 resolve as shares and 68 are short-enabled, with the annual rate running from 20.0\% to 125.0\%, median 25.0\%, quartiles 22.0\% and 36.9\%, and a mean of 32.1\%. The 17\% used as the base of the earlier draft is below the cheapest quartile and below every individual name; 25\%, previously described as a stress, is the median. Nothing in the programme becomes more favourable under the correction, and three of its registered verdicts were read on a rate the market does not offer.
+
+Availability is a separate problem and remains unmeasured. The rule assumes that every name in the short quintile can be borrowed every day. We now record the contractual terms and the short flag daily through the broker's terms endpoint, which is instrument metadata and therefore available historically from the recording date forward, but the broker exposes no series of borrow limits, so the intraday availability of a name is still an assumption. Among the 60 thin stocks we checked by hand, only 10 could be shorted. If availability is correlated with the forecast, for example if the most negatively forecast names are also the hardest to borrow, the short leg's measured return overstates what can be captured, which is the mechanism documented by \citet{muravyev2025}. The decile-spread evidence, in which the entire effect sits in the short leg, makes this concern concrete.
+
+\subsection{The portfolio mapping is a design choice}\label{sec:mapping}
+
+All books in Table~\ref{tab:books} map the forecast into equal-gross long and short quintiles with inverse-volatility weights. That mapping is conventional, not optimal. \citet{jacobs1998} show that the optimal long--short portfolio integrates both legs rather than combining two separate sorts, and \citet{grinold2000b} quantify how the efficiency gain from shorting depends on constraints and costs. When the short leg is expensive and partly unavailable, a scaled-down or borrow-constrained short leg, or a long-only implementation, may dominate. The long-only evidence we have is mixed: for single features, long top-quintile books against the universe failed in all 28 confirmatory real-time rows; in the thin universe the long-only composite book earns 0.0184\% per day with an interval that includes zero; and for the decile-spread ensemble the long leg alone loses money. A long-only top-100 composite book was not run.
+
+\subsection{What the sample can and cannot say}
+
+A non-significant net return is not evidence of a zero net return. Define a smallest effect size of interest $\delta$ for the net return of an implementable book. For an investor whose capital could otherwise earn the policy rate, a natural choice is the lower end of that rate, 14\% a year or $\delta\approx0.056\%$ per day. The main book's standard error is about 0.043\pp\ per day (from its bootstrap interval). Its 90\% interval, $[0.005\%,0.146\%]$, contains values well above $\delta$, so an equivalence test \citep{lakens2017} cannot conclude that the net return is negligible; its 95\% interval contains zero, so the pre-specified test cannot conclude that it is positive. The data are inconclusive.
+
+Assuming the daily variance and autocorrelation stay as observed, the sample size for a two-sided test at 5\% with 80\% power follows from one formula, $T=\big[(z_{0.975}+z_{0.80})\,\sigma_{\mathrm{LR}}/\delta\big]^2$ with $z_{0.975}+z_{0.80}=2.80$ and $\sigma_{\mathrm{LR}}$ the autocorrelation-adjusted daily volatility of the book, 0.941\% against the plain 0.766\%. For $\delta=0.0753$ that gives 1,226 trading days (4.9 years); for $\delta=0.056$, the lower end of the policy rate, 2,215 days (8.8 years). The earlier draft printed 1,160 and 2,300 without the formula or $\sigma_{\mathrm{LR}}$; both follow from the same expression to within 6\%, and the inputs are now stated. These rough calculations show the order of magnitude: the economic question cannot be settled on a 1.8-year window.
+
+The frozen forward test (60 dates) cannot settle it either, and its power against the quantity it is asked to confirm is the one number the protocol was missing. Over 60 dates the standard error of the book's mean net return would be about 0.12\pp\ per day, which is uninformative. The standard error of the mean IC would be about 0.045, so an IC of 0.096 would produce $t\approx2.1$. For the confirmation rule itself --- the 95\% interval of the IC increment above zero --- the increment's Newey--West standard error over 450 dates is 0.0147, which scales to 0.0402 over 60 dates because the series is autocorrelated (variance factor 5.3, effective sample 84.7 dates). The minimum detectable increment is then 0.0787, more than twice the observed 0.0368, and the power of the rule against an effect of the observed size is \textbf{15\%}. Reaching 80\% power takes 561 dates at the interval rule, 1,056 at $|t|\ge3.0$ and 1,317 at $|t|\ge3.45$. A block bootstrap of the 60-date mean (10-date blocks, 4,000 draws) reproduces the standard error, 0.0408 against 0.0402. The forward read is therefore a falsification test, not a confirmation test, and Section~\ref{sec:criteria} and the abstract say so. Measuring the borrow fee was worth more than additional forward dates; measuring availability still is.
+
+\subsection{Pre-specified extensions}\label{sec:extensions}
+
+The following analyses address the main open questions. E1 has since been run and is reported below; the other four have not been run. Each is listed with its gate so that, when run, it is evaluated against criteria fixed in advance; they form one family of five. Because the real-time window has been used, any positive result on it can only be a lead; confirmation requires forward data.
+\begin{description}[leftmargin=2.2em,style=nextline]
+\item[E1. Information beyond momentum.] \emph{Run 2026-10-29; null.} The composite and a 256-day momentum rank were put through the same partial-adjustment book with the same costs and carry, together with the composite's residual after projection on the momentum rank. At the measured median carry of 25\% the composite nets 0.0383\% per day, the momentum sleeve 0.0189\% and the residual 0.0373\%; the registered contrast, composite minus momentum, is $+0.0194$\% per day with a Newey--West $t$ of 0.44 and a block-bootstrap interval $[-0.0739,+0.0974]$, and residual minus momentum is $+0.0184$\% with an interval that also contains zero. Both registered criteria fail: the contrast is not separated from zero, and at the higher adjustment speed its halves disagree in sign. At the level of ranking the composite keeps 91\% of its IC after the momentum span is removed (0.0869, $t=7.33$), so it is not a momentum proxy; at the level of money the two are indistinguishable. With the flat 0.15\% tariff of the live account the contrast turns $-0.0102$\% per day, so its sign depends on the cost model --- a further reason to report both.
+\item[E2. Long-only implementation.] Top-quintile composite book on the top 100 against the equal-weighted universe, quoted-spread costs, no borrow; gate: net interval above zero in both halves, placebo books non-positive.
+\item[E3. Borrow-feasible short leg.] Short only names with recorded availability on the date, charged at the recorded fee; the fee is now recorded daily, the availability by date still is not.
+\item[E4. Hold bands.] Enter the top (bottom) quintile and exit only when a name leaves the top (bottom) 40\%, the buy/hold spread of \citet{novymarx2016}.
+\item[E5. Scaled short exposure.] Short-leg scale chosen on the fitting sample from a declared grid, following \citet{jacobs1998}.
+\end{description}
+
+\subsection{A second real-time window}\label{sec:realtime2}
+
+The window used in this paper has been read many times, by this study and by the studies before it, and rule (ii) of Section~\ref{sec:protocol} makes every result on it a lead. A resubmission that repeats the same window would inherit the same defect, so the protocol designates a second one now, before it is read.
+
+\emph{Dates.} Feature dates from 19 October 2026 onward: the first trading date after 16 October 2026, the last date of the spent window. No date in this window has been used for any verdict, plan or exploratory screen in this programme.
+
+\emph{Frozen contents.} The two model files with their SHA-256 hashes, the trade rates (0.33 flat, 0.50 quoted), the horizons, the three cost models, the two carry scenarios, the quintile mapping, and the five criteria of Section~\ref{sec:criteria} with the corrected power rule of Section~\ref{sec:uncertainty}. The momentum sleeve is a co-primary rather than a robustness check, because the first window established that it nets at least as much as the composite: the second window measures both books under identical machinery.
+
+\emph{Reading rule.} One reading, at 561 dates, the horizon at which the increment rule reaches 80\% power against the effect observed in the first window; the first date at which that count is complete is about November 2028 at the current rate of accrual. An interim reading at 60 dates is permitted only as a falsification check --- a negative sign, or an interval excluding the first-window effect, retires the lead --- and never as confirmation. No date is added after the reading, no window is extended, and no parameter is recomputed.
+
+\emph{What is still missing.} The fee is recorded daily from 29 October 2026; availability by date is not, so a short-feasible reading (E3) remains open. A single-author programme cannot produce the external replication that would settle the question independently of its author, and the second window does not claim to.
+
+\emph{Registration.} The protocol of this subsection, with the file hashes, the criteria and the two reading dates, is deposited before the first reading with a public timestamping service and mirrored in the repository; the version of record is the deposited one, and later edits are recorded as amendments with their dates.

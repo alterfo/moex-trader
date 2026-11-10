@@ -1,0 +1,94 @@
+\section{Results II: monetization}\label{sec:money}
+
+\subsection{Net returns of the books}\label{sec:book}
+
+Table~\ref{tab:books} and Figure~\ref{fig:books} report the books. Under the flat 0.15\% tariff, daily rebalancing loses 0.065\% per day; partial adjustment with $r=0.33$ lifts this by 0.095\pp\ $[+0.059,+0.131]$ to a gain of 0.030\% per day (about 7.5\% a year), which falls to zero at 25\% borrow. The signal and execution criteria of Section~\ref{sec:criteria} are met, the economic criterion fails. Two books are referred to from here on and the distinction matters for every rate threshold below: the \emph{published book}, $r=0.5$ under quoted-spread costs, which is the gate book of Table~\ref{tab:books} and earns 0.0753\% per day at 17\% borrow; and the \emph{frozen book}, $r=0.33$, which is the configuration whose models are frozen for the forward test and which earns 0.0679\% per day at the same carry. The borrow curve in the next paragraphs is the frozen book, because that is the configuration the programme will actually read forward.
+
+A later plan re-evaluated the economics with quoted-spread costs, choosing the horizon on the fitting sample. On the real-time window the main book earns 0.0753\% per day with a 95\% interval of $[-0.005\%,+0.163\%]$ and a Newey--West $t$ of 1.71; both halves are positive (0.066\% and 0.087\%), the five placebo books lose 0.34--0.40\% per day, almost all of it cost. A placebo forecast has no cross-sectional information, its daily IC sits between -0.004 and +0.005, so its book turns the same turnover against a zero edge and its loss measures the cost model rather than the absence of signal. The book-level placebo criterion is close to mechanical for that reason, and the informative placebo comparison is at the level of the forecast, where it is reported. The gate fails narrowly. A one-sided test would reject zero at 5\%, but the gate was specified as two-sided and is not altered after the fact. With the spread for a RUB 1 million order the net return is negative. At quoted-spread costs partial adjustment beats daily rebalancing (0.048\% per day) by 0.027\pp\ $[-0.000,+0.055]$, a weaker execution gain than under the flat tariff.
+
+\paragraph{At the measured borrow rate.} The 0.0753\% figure above is charged at 17\% a year, a secondary quote. The broker's contractual short terms were measured for the admitted universe after this run: 72 of the 99 names resolve, 68 are short-enabled, and the annual rate ranges from 20.0\% to 125.0\% with median 25.0\%, quartiles 22.0\% and 36.9\% --- no admitted name is available at 17\%. Carry enters equation~(\ref{eq:net}) linearly, so the whole curve follows from the same run at 0.0037\pp\ per day per percentage point of annual rate. The main book is then $+0.0679$\% per day at 17\%, $+0.0383$\% at the measured median of 25\% ($t=0.89$, $[-0.040,+0.122]$), $+0.0199$\% at 30\% ($t=0.46$) and $-0.006$\% at the upper quartile of 36.9\%. Three rate thresholds matter and they belong to two different books. On the curve above, which is the frozen $r=0.33$ book, the net falls by 0.00370--0.00375\pp\ per day per point of annual rate --- an implied short exposure of 0.93 rather than 0.95 --- so the book breaks even at 35.3\% and clears the lower end of the policy band (14\% a year) only below 20.3\%. The published $r=0.5$ book, at 0.0753\% per day, breaks even at 36.8\%; that is the figure the earlier draft carried, and it is stated here as the $r=0.5$ anchor rather than as a property of the curve. The cheapest rate the broker offers on any admitted name is 20.0\%, so the whole survivable range is a fraction of one percentage point wide and no name in the universe sits inside it. Under the flat tariff of the live account the same book nets 0.0298\% at 17\% and nothing at 25\%. Measured against the policy rate rather than against zero, the book at the median carry earns 0.0383\% per day against 0.0556--0.0833\% that the same capital could earn risk-free, i.e.\ an excess return of between $-0.017$ and $-0.045$\pp\ per day; the information ratio of 1.56 is a statement about dispersion, not about that difference.Every economic reading in this paper that used 17\% is therefore an upper bound; the measured median is the number we report first, and it lowers the economics at every horizon, never raises them. Two clarifications about what the grid does and does not contain. The step from 0.0753\% to 0.0679\% at 17\% is the change of the adjustment speed from $r=0.5$ to the frozen $r=0.33$, not a dividend adjustment: the dividend term is not in the book at all and is reported separately as a bound below, so the grid is optimistic by 0.0038--0.0126\% per day relative to a full accounting. And the grid uses the measured rate but not the measured per-name assignment: the median is applied to the whole short leg, whereas the rates are per name and the short quintile is not a random sample of the universe. The endogeneity of the fee, if it exists, biases the median figure upward, and the mean of 32.1\% costs a further 0.0271\% per day.
+
+\paragraph{The cost model is a decision variable, not a detail.} Two cost models are carried through every table and they can disagree in sign, so neither is decorative. The composite book turns over 0.63 of its notional a day and the momentum sleeve 0.16, a factor of four; quoted half-spreads average 8.6--9.5\bp\ per side for these names, while the live retail tariff is a flat 15\bp. Quoted spreads therefore flatter the high-turnover leg and the flat tariff penalizes it. The registered momentum contrast illustrates the size of the effect: $+0.0194$\% per day under quoted spreads against $-0.0102$\% under the flat tariff of the live account. Every contrast whose sign moves between the two is marked as such, and because the live account pays the flat tariff, the flat read is the conservative one wherever the two disagree.
+
+\paragraph{The short leg and the Sharpe ratio.} The gross return is concentrated where the borrow cost is: over the quoted-spread window the long leg earns 0.0236\% per day and the short leg 0.2002\%, so the short side carries 89.5\% of the gross 0.2238\%. The book's beta to the equal-weighted universe is $-0.269$, and in a window in which the universe fell it was net short: hedging that exposure costs 0.0213\% per day, exactly $|\beta|\cdot20\%/252$, and leaves $+0.0538$\% (Newey--West $t=1.49$). The beta-hedged figure, not the raw 0.075\%, is the headline of this section. Two further corrections apply to the short leg and neither requires new data. First, dividends: the book is charged no dividend on the names it is short, and the raw close-to-close return already reflects the ex-date gap, so the net is overstated by $0.96\cdot\Delta y/252$ where $\Delta y$ is the gap between the dividend yields of the long and the short leg. With the top-100 yield at 3.3\% the one-sided worst case, in which the long leg earns no dividend at all, is 0.0126\% per day, 17\% of the unhedged net; a realistic gap of 1 percentage point is 0.0038\%. Second, the Sharpe ratio: 1.56 is computed on 0.766\% daily volatility without adjustment for serial dependence. With the book's own autocorrelation factor of 1.87 the same series gives an annualized Sharpe ratio of 1.14, and with the Bartlett-weighted factor of 1.51 it gives 1.27. The deflated probabilities of Table~\ref{tab:dsr} already use the 1.87 variant; the undeflated headline does not.
+
+\begin{table}[htbp]
+\centering
+\begin{threeparttable}
+\caption{Net returns of composite books on the real-time window}\label{tab:books}
+\small
+\begin{tabularx}{\textwidth}{@{}Lrcr@{}}
+\toprule
+Book & Net, \% per day & 95\% interval & Approx.\ \% p.a. \\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Top 100, flat 0.15\% per side, 17\% borrow (comparable to the earlier draft; the measured curve is in the text)}} \\
+Daily rebalancing & $-0.065$ & $[-0.149,+0.027]$ & $-16$ \\
+Partial adjustment, $r=0.33$ & $+0.030$ & $[-0.048,+0.114]$ & $+7.5$ \\
+\quad same, 25\% borrow & $\approx0$ & & $\approx0$ \\
+\addlinespace
+\multicolumn{4}{@{}l}{\emph{Top 100, quoted-spread costs, $r=0.5$, $H=10$, 17\% borrow (measured curve in the text)}} \\
+Main book (gate) & $+0.0753$ & $[-0.005,+0.163]$ & $+19$ \\
+\quad entry at next open & $+0.031$ & $[-0.057,+0.122]$ & $+8$ \\
+\quad spread for a $\approx$RUB 1 mn order & $-0.026$ & $[-0.109,+0.062]$ & $-7$ \\
+\quad signal delayed 1 / 2 days & $+0.022$ / $-0.034$ & & \\
+\quad beta-hedged to the universe & $+0.0538$ & $[-0.012,+0.125]$ & $+14$ \\
+\quad sector-neutral forecast & $+0.0446$ & $[-0.027,+0.126]$ & $+11$ \\
+\quad plus five LLM-proposed features & $+0.0817$ & $[+0.006,+0.166]$ & $+21$ \\
+\addlinespace
+\multicolumn{4}{@{}l}{\emph{Thin universe (ranks 101--400), quoted-spread costs, $r=0.2$}} \\
+Long--short, 25\% borrow & $+0.0174$ & $[-0.023,+0.063]$ & $+4.4$ \\
+Long-only vs.\ equal-weighted universe & $+0.0184$ & $[-0.004,+0.045]$ & $+4.6$ \\
+\bottomrule
+\end{tabularx}
+\begin{tablenotes}\footnotesize
+\item Notes: Annualized figures are the daily mean times 252, rounded. The main book's Newey--West $t$ is 1.71 and its annualized Sharpe ratio 1.56 over 457 days. The extended book's improvement over the main book is $+0.007$\pp\ $[-0.011,+0.025]$, i.e.\ noise. The policy rate ranged from 14\% to 21\% a year (0.056--0.083\% per trading day). Beta-hedged: Newey--West $t=1.49$.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}
+
+\input{fig3}
+
+\subsection{Where monetization is lost}
+
+\paragraph{Turnover.} Daily rebalancing of a 10-day forecast is wasteful: moving from $r=1$ to $r=0.33$ improves the flat-cost book by about 0.095\pp\ per day. This is the mechanism of \citet{garleanu2013} and is consistent with \citet{novymarx2016}.
+
+\paragraph{Delay.} Figure~\ref{fig:delay} shows the central asymmetry of the paper. The IC of a one-day-old forecast retains 84\% of its value and a ten-day-old forecast 54\%. The book's net return retains 29\% with a one-day delay and turns negative with a two-day delay. Entering at the next open instead of the close costs 0.044\pp\ per day. The part of the predictability that covers costs is concentrated in the first one or two days of the horizon, while the slower part, which keeps the 10-day IC high, does not pay for the trading it requires.
+
+\input{fig4}
+
+\paragraph{Latency.} The protocol implies a twenty-minute window: features from bars ending at 18:30, orders into the 18:50 closing auction. Two different things are called a timestamp here and only one of them is measured. The data carry \texttt{SYSTIME}, the exchange's record stamp, which is provenance and not delivery; and the pipeline that produced this paper writes the file for date $d$ at 00:20 on $d+1$ --- the daily fetch job runs at 00:20, and each of the last ten raw files carries that arrival time to the minute. Nothing in the programme has ever executed in the same evening as the signal. Whether a subscriber's feed delivers the 18:25--18:30 bar before 18:50 is therefore untested here, and it is the first measurement a pilot should make: if delivery lags by more than twenty minutes the same-evening construction is unavailable, and the implementable variant is the next open, which costs 59\% of the net return.
+
+\paragraph{The short leg.} A decisive test of a different construction, an ensemble of gradient-boosted trees and a logit on ten demeaned order-flow columns, produced a top-minus-bottom decile spread in 10-day abnormal returns of 0.952\% per date net of a 0.30\% round-trip cost (interval $[0.311\%,1.537\%]$, Newey--West $t=2.95$). The entire effect sits in the short leg: the long-only version earns $-0.16\%$. Holding the short leg for ten trading days at 17--25\% annual borrow costs roughly 0.67--0.99\%, most or all of the point estimate (our illustration; the test's cost assumption did not include borrow). This matches the pattern in \citet{muravyev2025}.
+
+\paragraph{Market exposure.} The main book's beta to the equal-weighted universe is $-0.269$: during a falling market it was net short. After hedging this exposure the net return is 0.0538\% per day ($t=1.49$).
+
+\paragraph{Time variation.} The signal is weak in the first and last quarters. In an exploratory analysis of 45 state variables, the composite's IC is 0.139 when the RVI volatility index is below its trailing median and 0.045 when it is above (circular-shift $p=0.0024$); the effect sits in book-shape features rather than A2. Trading only in calm states would add about 2\% a year, the monetary difference is not significant ($p=0.148$), and the result does not survive the stricter threshold of the next wave.
+
+\paragraph{Risk profile.} A Sharpe ratio is not a sufficient summary of a series with skewness $-1.52$ and excess kurtosis 13.4, so the risk of the book is reported directly. Over the 457 dates the gate book compounds to $+39.0\%$ with a maximum drawdown of $-18.2\%$, from the peak of 16 July 2026 to the trough of 4 August 2026: three weeks give back more than half of the cumulative result. Months are 22, of which 8 are negative (36\%), the worst $-8.6\%$ and the best $+11.7\%$. The one-day 99\% loss, measured historically, is $-1.74\%$; the mean of the worst 1\% of days is $-3.63\%$; a normal approximation on the same mean and variance gives $-1.86\%$ and the Cornish--Fisher correction on the same moments gives $-4.29\%$. The last figure is the one a desk should carry: the Gaussian rule understates a bad day by a factor of 2.3, and one such day costs about 57 days of expected net return. At the measured median carry the same drawdown is $-18.5\%$ and the terminal equity $1.21$ instead of $1.39$, because the drawdown is a fast event and the carry is a slow one. The sector-neutral book has a drawdown of $-16.2\%$, 99\% historical loss $-1.60\%$ and Cornish--Fisher $-3.75\%$; at 25\% carry it earns 0.0141\% per day, 3.6\% a year, which retires the sector-neutral variant on economics alone.
+
+\paragraph{Capacity.} The book holds forty positions with inverse-volatility weights, so capacity is set by the spread at the order size, not by the forecast. The RUB 1 million stress model is the only size-dependent measurement in the paper, and at that size the book already loses 0.026\% per day, $-6.4$\% a year. A comfortable ceiling is therefore tens of millions of roubles of gross exposure, not hundreds: at 10--20 million roubles per leg the expected net is 7.5--15 thousand roubles a day against a daily standard deviation of roughly 90 thousand on the same notional, a signal-to-noise ratio near 0.08 per day. This is the class of a personal account run by someone who values the research, not a product for an allocator, and it is one more reason the paper positions itself as an audit.
+
+\subsection{Deflation and track-record length}
+
+The main book's annualized Sharpe ratio of 1.56 over 457 days (skewness $-1.52$, kurtosis 16.4) has a probabilistic Sharpe ratio of 0.973 against zero. Table~\ref{tab:dsr} shows how quickly this evidence weakens once selection is accounted for. With ten trials, the expected maximum Sharpe ratio of skill-less strategies over 1.81 years is 1.17 and the deflated probability falls to 0.685; with 100 trials the expected maximum (1.88) exceeds the observed value and the deflated probability is 0.346. The null variance $1/T$ ignores the autocorrelation of daily book returns; correcting it (factor 1.87) lowers the deflated probabilities further, to 0.480 at ten trials and 0.106 at one hundred. The program's registry counts 41 attempts for the first model alone and many more across directions, so the relevant column is not the first. The conclusion about the signal is unaffected: the IC was tested against placebos, not selected as the best of $N$ books.
+
+\begin{table}[htbp]
+\centering
+\begin{threeparttable}
+\caption{Deflation of the main book's Sharpe ratio}\label{tab:dsr}
+\small
+\begin{tabularx}{\textwidth}{@{}Lrrrrrr@{}}
+\toprule
+Number of trials $N$ & 1 & 10 & 50 & 100 & 300 & 800 \\
+\midrule
+Expected max.\ annual Sharpe without skill & 0 & 1.17 & 1.69 & 1.88 & 2.15 & 2.37 \\
+Years at which this equals the observed 1.56 & --- & 1.02 & 2.14 & 2.64 & 3.46 & 4.20 \\
+Deflated probability, null variance $1/T$ & 0.973 & 0.685 & 0.435 & 0.346 & 0.233 & 0.158 \\
+Deflated probability, autocorrelation-adjusted & --- & 0.480 & 0.176 & 0.106 & 0.044 & 0.019 \\
+\bottomrule
+\end{tabularx}
+\begin{tablenotes}\footnotesize
+\item Notes: Quoted-spread costs, $r=0.5$, 17\% borrow, 457 trading days (1.81 years). Expected maxima use $V=1/T$ \citep{bailey2014dsr}; the years row is the track-record length at which the expected maximum of $N$ skill-less trials equals the observed Sharpe ratio (deflated probability 0.5). The adjusted row inflates $V$ by 1.87, the autocorrelation factor of the daily series. The pre-specified reading rule was that a deflated probability below 0.95 at $N=10$ makes the book indistinguishable from the best of ten skill-less books.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}

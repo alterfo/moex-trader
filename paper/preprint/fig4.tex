@@ -1,0 +1,22 @@
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.82\textwidth,height=5.6cm,
+  xmin=-0.5,xmax=10.5,ymin=-70,ymax=125,
+  xtick={0,1,2,5,10},ytick={-50,0,50,100},
+  xlabel={Signal delay $k$ (trading days)},ylabel={\% of undelayed value},
+  tick label style={font=\footnotesize},label style={font=\footnotesize},
+  axis lines*=left,
+  legend style={font=\footnotesize,at={(0.98,0.22)},anchor=east,draw=none,fill=none},
+  point meta=explicit symbolic,
+  every node near coord/.append style={font=\scriptsize},
+]
+\draw[grey!60] (axis cs:-0.5,0) -- (axis cs:10.5,0);
+\addplot[linkblue,thick,mark=*,nodes near coords,nodes near coords align={above}] coordinates {(0,100) [{0.096}] (1,84.2) [{0.081}] (2,79.0) [{0.076}] (5,67.9) [{0.065}] (10,54.2) [{0.052}]};
+\addplot[warm,thick,mark=square*,nodes near coords,nodes near coords align={right}] coordinates {(0,100) [{}] (1,29.2) [{+0.022\%}] (2,-45.2) [{$-0.034\%$}]};
+\legend{rank IC,book net return (quoted-spread costs)}
+\end{axis}
+\end{tikzpicture}
+\caption{Signal versus money under delay. Rank IC of a forecast made $k$ trading days earlier (blue) and net daily return of the partial-adjustment book under quoted-spread costs when the signal is delayed (orange), both as a share of their undelayed values (IC 0.0957; net 0.075\% per day). Labels give raw values.}\label{fig:delay}
+\end{figure}

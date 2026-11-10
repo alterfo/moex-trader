@@ -1,0 +1,62 @@
+\section{Data and sample construction}\label{sec:data}
+
+\subsection{Sources}
+
+Table~\ref{tab:data} lists the data. All sources are public or available by exchange subscription; no proprietary or internal data are used. The core dataset is AlgoPack \citep{moexalgo}: for every instrument and five-minute bar, four ``super-candle'' sets. \texttt{tradestats} summarizes trades, including buyer- and seller-initiated value, volume and counts and side-specific VWAPs. \texttt{obstats} summarizes the order book: best-quote spread, the spread over 10 levels and for a RUB~1 million order, the number of levels, resting value and volume on each side, and normalized imbalances $(\text{bid}-\text{ask})/(\text{bid}+\text{ask})$ at the best quotes and over 10 levels. \texttt{orderstats} summarizes order placements and cancellations by side. \texttt{hi2} reports end-of-day participant-concentration indices. For equities the archive covers 1,775 trading days from 3 January 2020, about 250 stocks per day including later-delisted names, and 146 million rows across the three intraday sets.
+
+\begin{table}[htbp]
+\centering
+\begin{threeparttable}
+\caption{Data sources}\label{tab:data}
+\small
+\begin{tabularx}{\textwidth}{@{}R{3.3cm}LR{4.2cm}@{}}
+\toprule
+Source & Content & Coverage \\
+\midrule
+MOEX ISS (open API) & Daily equity candles (open, close, turnover); IMOEX, RVI, RTSI and sector indices; government-bond indices; USD/RUB; 10-minute equity candles & 2014--2026; 719 stocks ever traded on the main board (TQBR), incl.\ delisted; 881,385 stock-days \\
+MOEX AlgoPack (subscription) & Five-minute \texttt{tradestats}, \texttt{obstats}, \texttt{orderstats}, \texttt{hi2} for equities, futures and FX & From 2020-01-03; equities 1,775 days, $\approx$250 stocks/day, 146 mn rows \\
+Broker dividend calendar & Last buy date and net dividend per share & 2,152 records (broad panel); 115 events for the top 100, 2021--2026 \\
+News archive & Ticker-tagged headlines with time stamp, source and source-trust weight & 155,601 headlines, 2022-01 to 2026-10 \\
+Macro and external series & Policy rate, CNY/RUB, USD/RUB, Brent, gold in RUB, ETF turnover, commodities, weather, GDELT tone, geomagnetic Kp index, bitcoin (control only) & Daily, from 2019 where available \\
+\bottomrule
+\end{tabularx}
+\begin{tablenotes}\footnotesize
+\item Notes: Sources used only in secondary modules (retail open interest in futures, S\&P~500 history for calendar tests, a public Russian financial-news corpus for classifier training) appear in Appendix~\ref{app:secondary}.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}
+
+\subsection{Data provenance and the real-time rule}\label{sec:provenance}
+
+Each AlgoPack row carries a field \texttt{SYSTIME} recording when the row was written. A row whose \texttt{SYSTIME} is more than 30 days after its trade date was not written in real time; we call it \emph{regenerated}. For equities, real-time rows start on 3 January 2025. For futures, \texttt{tradestats} and \texttt{obstats} become real-time in May 2025 and \texttt{orderstats} in August 2026; FX sets switch at different dates in 2025 and 2026.
+
+We adopt one rule for the whole program. Rows with $\texttt{SYSTIME} > \text{trade date} + 30$ days may be used for fitting, specification and sign checks, but never for a verdict. Verdicts use only real-time rows. Section~\ref{sec:regen} quantifies what the rule changes. Regenerated rows are not necessarily wrong; the point is that we cannot verify that they reflect information available at the time, and that their statistical properties differ from real-time rows.
+
+\subsection{Prices, calendar and corporate actions}
+
+A trading day is a day on which at least 30 stocks are quoted. MOEX trades equities on some Saturdays while the IMOEX index is not computed on weekends, so a 10-bar window spans on average 9.31 panel bars, 9.31 trading days counted on the MOEX equity calendar (Saturdays excluded) and 12--13 calendar days; all windows are defined in panel bars, and the three counts are stated separately because they are not interchangeable. The market closure of 25 February to 28 March 2022 is excluded: any return with either end point inside it is dropped.
+
+The daily close is the \texttt{pr\_close} of the last five-minute bar of the main session, whose bar-end labels run from 10:05 to 18:50; morning and evening sessions are excluded. A one-day price change below $-45\%$ or above $+80\%$ is treated as a split or consolidation and dropped. AlgoPack prices are unadjusted and ISS prices are on a different scale for some stocks, so the two sources are never mixed within one return. Ticker renames (YNDX$\to$YDEX, TCSG$\to$T) are mapped to one identifier; without this, up to 70\% of rows for the affected stocks are lost.
+
+The ex-dividend date is the first trading day after the last buy date. In all order-flow studies, the ex-date and the trading days immediately before and after it are excluded for that stock: its return, its feature row and any outcome window containing it.
+
+An intraday bar enters a feature only if it is present in all three intraday sets, and a daily feature requires at least 20 such bars before 18:30. Days with fewer than 80\% of the stock's median annual bar count are dropped. Before any outcome was read, we checked file counts against the ISS calendar, the share of zero-value bars and the agreement of the AlgoPack close with ISS (median absolute deviation 0.18--0.33\% for stocks unaffected by splits). A year in which more than 2\% of stock-days failed these checks would have been dropped rather than repaired.
+
+\subsection{Universe and returns}
+
+The main universe is the point-in-time top 100: on each date $d$, the 100 stocks with the highest median daily turnover over the previous 60 trading days (at least 40 observations). Membership is recomputed daily and uses only information before $d$. A ``thin'' universe consists of ranks 101--400 on the same ranking. With $C_{i,d}$ the close of stock $i$ on day $d$ and $U_d$ the universe on $d$,
+\begin{align}
+r_{i,d} &= \ln\!\left(C_{i,d}/C_{i,d-1}\right), & ab_{i,d} &= r_{i,d}-\frac{1}{|U_d|}\sum_{j\in U_d} r_{j,d},\\
+y^{(h)}_{i,d} &= \ln\!\left(\frac{C_{i,d+h}}{C_{i,d}}\right)-\frac{1}{|U_d|}\sum_{j\in U_d}\ln\!\left(\frac{C_{j,d+h}}{C_{j,d}}\right), \label{eq:y}
+\end{align}
+so $y^{(h)}_{i,d}$ is the $h$-day abnormal return from the close of $d$. The main horizon is $h=10$.
+
+\subsection{Timing of signals and execution}\label{sec:timing}
+
+Features use bars ending no later than 18:30. Orders submitted at 18:30 can still participate in the closing auction, which accepts orders until 18:50, so a position taken at the close of day $d$ on a signal computed at 18:30 is feasible. Columns that depend on bars after 18:30 (full-session turnover, closing-auction imbalance) are excluded from the composite. Including them would have changed the composite IC by only 0.00003, but they are not available at the decision time.
+
+\subsection{Sample design}\label{sec:design}
+
+Figure~\ref{fig:design} summarizes the design. The composite panel has 163,709 stock-days on 1,644 dates from January 2020 to 20 October 2026. Hyper-parameters are chosen on the regenerated fitting sample from July 2022 to December 2024. The verdict window runs from 3 January 2025 to 16 October 2026 (457 trading days for the main book) and is split into halves at 5 January 2026. The book and the IC series do not have the same length, and the difference is mechanical: a daily IC needs a matured 10-day outcome, so with the data cut of 20 October 2026 the last seven dates have no outcome yet and the IC series stops at 450 dates, while the book, which marks positions to market, runs to 457. A frozen forward test began on 22 October 2026.
+
+\input{fig1}

@@ -1,0 +1,121 @@
+\section{Protocol and methods}\label{sec:method}
+
+\subsection{Pre-specification and decision rules}\label{sec:protocol}
+
+The protocol is designed so that the researcher cannot adapt criteria to results. Its rules are:
+\begin{enumerate}[label=(\roman*)]
+\item \emph{Plan before outcomes.} Each study has a written plan with feature definitions, the expected sign, windows, controls, family size, thresholds, the economic criterion and the requirement that the sign hold in both halves. The plan is time-stamped before any outcome is computed.
+\item \emph{One read.} A verdict window is ``spent'' by one test. If a window has already been viewed for another question, the plan says so and any positive result is labelled a lead, not a finding.
+\item \emph{Two statuses.} Confirmatory rows have hard thresholds and verdicts. Exploratory rows are screened by the \citet{benjamini1995} procedure at $q=0.10$ and can only become \emph{leads}. A lead becomes confirmatory only through a new plan that copies its definition verbatim.
+\item \emph{Failure is final.} A failure closes the direction for the same definitions. Changing windows, signs or controls after seeing results requires a new plan with a new family size.
+\item \emph{Mechanism controls.} Each series runs alongside permutation placebos and mechanism-free controls (lunar phase, Saturn's longitude, the geomagnetic Kp index, Mercury retrograde, calendar-day parity, bitcoin volatility). A hit by any control invalidates all hits of the same series.
+\item \emph{Independent pre-run review.} Before each run the code and plan were read by a second reviewer, a separate large-language-model instance with read-only access, tasked with finding look-ahead leakage, plan--code mismatches and unattainable thresholds. Its findings were recorded as amendments before the run; amendments made after the first look at numbers are recorded separately and flagged.
+\item \emph{Frozen forward tests.} A lead is frozen: fitted models are saved with their SHA-256 hashes, together with the portfolio rule and thresholds. It is read once after a pre-set number of new dates and never extended or restarted.
+\item \emph{Power on record.} Before each run the plan states the smallest detectable effect. For the composite, the Newey--West standard error of the IC increment over 450 dates is 0.0147, so an increment of 0.063 is needed for $|t|=3.45$ at 80\% power; the earlier draft printed 0.07 from the level IC standard error, and the difference is corrected here. The same rule was not applied to the confirmation rule itself, which is the defect repaired in Section~\ref{sec:uncertainty}.
+\item \emph{Full count.} A registry of all attempts is kept, because the number of trials enters the deflated Sharpe ratio.
+\end{enumerate}
+Plans were time-stamped by the commit history of the public repository, not by an external registry. We return to this limitation in Section~\ref{sec:limits}.
+
+\subsection{Features}
+
+\paragraph{Five base features.} With sums over the joint bars of day $d$ up to 18:30 and $v^b,v^s$ the buyer- and seller-initiated traded value,
+\begin{align}
+A1&=\frac{\sum (v^b-v^s)}{\sum v}, & A2&=\frac{\sum \mathrm{imb}^{(10)}_{\mathrm{val}}\,v}{\sum v}, & A3&=\overline{\mathrm{imb}^{\mathrm{bbo}}_{\mathrm{val}}},\\
+A4&=\frac{(P^b-X^b)-(P^s-X^s)}{P^b+P^s}, & A5&=\frac{\sum X}{\sum P},
+\end{align}
+where $\mathrm{imb}^{(10)}_{\mathrm{val}}$ is the value imbalance over 10 book levels, $\mathrm{imb}^{\mathrm{bbo}}_{\mathrm{val}}$ the imbalance at the best quotes, and $P$ and  value of placed and cancelled orders by side. The denominator of A4 counts placed orders only, so the statistic is net flow per unit of gross placement rather than per unit of net activity; the choice is stated because the written form does not make it obvious. A1 is trade imbalance, A2 book imbalance, A3 imbalance at the touch, A4 net order flow and A5 cancellation intensity. Signs were fixed in advance as ``more buyers, higher return'' except for A5, which is tested two-sided.
+
+\paragraph{The 75-feature composite.} Table~\ref{tab:families} groups the composite's inputs; Appendix~\ref{app:features} defines each. The families cover imbalances (including intraday sub-windows and within-stock ``surprise'' $z$-scores), book shape and depth, spreads, trade size and activity, aggressor prices, order placement and cancellation, realized volatility and jumps, and eight microstructure measures. One feature, \texttt{ThinBid}, turned out to be identically zero by construction (Appendix~\ref{app:pitfalls}); we keep it in the count for transparency. Three controls, the within-date ranks of the past 1-, 5- and 20-day returns, are always included so that the composite must add to short-term reversal and one-month momentum. Longer-horizon momentum is \emph{not} among the inputs; Section~\ref{sec:momentum} shows why this matters.
+
+Inputs were included by feature family and by decision-time availability, not by their individual performance. Each is ranked within date across stocks that have it (at least 30) and scaled to $[-0.5,0.5]$ as $(\mathrm{rank}-1)/(n-1)-0.5$; missing values are set to 0, the neutral rank.
+
+\begin{table}[htbp]
+\centering
+\caption{Feature families in the composite}\label{tab:families}
+\small
+\begin{tabularx}{\textwidth}{@{}R{3.1cm}L@{}}
+\toprule
+Family & Content \\
+\midrule
+Order and trade imbalance & A1, A2, A3, volume-based book imbalance; A2 in early, late and half-session windows; within-stock ``surprise'' $z$-scores of A1 and A2; dispersion of bar-level imbalance; slope of cumulative imbalance \\
+Book shape & Average depth (resting value on both sides); level asymmetry; open-to-close depth ratio; number of joint bars \\
+Spreads & Mean best-quote, 10-level and RUB 1 mn spreads; their ratios, dispersion and last value; morning compression; spread over bar price volatility \\
+Trade size and activity & Mean, median and dispersion of trade size; buyer and seller ticket size; trade count and its imbalance; top-3 bar concentration; share of idle bars; Amihud illiquidity \\
+Aggressor prices & Buyer--seller VWAP gap; close location in the day's range; deviation of close from VWAP; last-hour and morning returns; intraday profile shares \\
+Orders & Net order flow A4 (full day, open, close windows); cancellation intensity A5; cancellation asymmetry; placement aggressiveness; order size asymmetry; orders placed relative to traded value and to book depth \\
+Volatility and jumps & Realized volatility of five-minute closes; up and down semivariances; maximum jump; Parkinson range ratio; mean bar price volatility \\
+Microstructure & VPIN-like ratio; Kyle-lambda slope; flow--return correlation; flow and book-imbalance autocorrelations; realized skewness; turnover tilt \\
+Controls (always in) & Within-date ranks of past 1-, 5- and 20-day returns \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{The composite model}\label{sec:model}
+
+Let $x_{i,d}\in\mathbb{R}^{78}$ be the scaled inputs, centred within date, and $y_{i,d}$ the within-date rank of $y^{(10)}_{i,d}$ scaled to $[-0.5,0.5]$. With $X$ and $y$ stacked over the training rows ($n$ observations, no intercept), the ridge component \citep{hoerl1970} is
+\begin{equation}
+\hat\beta_{\mathrm R}=\left(X^\top X/n+\lambda_{\mathrm R}I\right)^{-1}X^\top y/n,\qquad \lambda_{\mathrm R}=0.003,
+\end{equation}
+and the elastic-net component \citep{zou2005} solves
+\begin{equation}
+\min_\beta\ \frac{1}{2n}\|y-X\beta\|_2^2+\lambda_{\mathrm{EN}}\Big[\alpha\|\beta\|_1+\tfrac{1-\alpha}{2}\|\beta\|_2^2\Big],\qquad \alpha=0.5,\ \lambda_{\mathrm{EN}}=0.001,
+\end{equation}
+by coordinate descent \citep{friedman2010} (at most 500 passes, tolerance $10^{-7}$). The composite forecast is the average of the two predictions. The baseline is a ridge regression ($\lambda=0.001$) on A2 and the three return controls only.
+
+Hyper-parameters were chosen only on the fitting sample (July 2022 to December 2024); Section~\ref{sec:grids} reports the grids. Because order-flow effects are stronger on the regenerated fitting sample (Section~\ref{sec:regen}), the selection is optimistic by construction; the verdict is read once on the real-time window.
+
+Estimation is walk-forward with an expanding window from April 2020. Each quarterly test block is predicted by a model trained only on dates at least 11 trading days before the block's start, which purges overlapping 10-day labels and adds a one-day embargo \citep{lopezdeprado2018}. The verdict window contains seven quarterly blocks.
+
+\paragraph{Why the average and not the better component.} On the verdict window the ridge component has IC 0.0970, the elastic net 0.0915 and their average 0.0957, so the average is 0.0013 below the better component. That gap is not a reason to reselect: the two components tie on the fitting sample (0.1328 for ridge, 0.1326 for the elastic net), where the average was fixed in advance, and 0.0013 is a tenth of the standard error of the composite IC over the same window, i.e. a difference well inside sampling noise. Choosing the component with the higher verdict-window IC after reading the verdict window would add one more trial to a family of 41 and would spend the protection the pre-registration buys. We report both components separately and keep the average, and we flag the gap here so that it is visible rather than buried in a table.
+
+\subsection{Statistical inference}\label{sec:inference}
+
+\paragraph{Information coefficient.} The daily IC is the Pearson correlation between within-date ranks of the forecast and of the outcome, i.e.\ a Spearman correlation. We report its mean over dates and a Newey--West $t$-statistic \citep{newey1987} with Bartlett weights and $L$ lags,
+\begin{equation}
+\hat V=\hat\gamma_0+2\sum_{l=1}^{L}\Big(1-\frac{l}{L+1}\Big)\hat\gamma_l,\qquad t=\bar x/\sqrt{\hat V/n},
+\end{equation}
+with $L=10$ for 10-day outcomes, $L=5$ for one-day outcomes and $\max(5,h)$ in general; where noted, $L$ is chosen by the \citet{andrews1991} AR(1) plug-in rule.
+
+\paragraph{Overlapping horizons.} Daily 10-day outcomes overlap, so 457 daily ICs contain only about 46 non-overlapping 10-day periods. Newey--West with $L$ equal to the horizon and the block bootstrap with blocks at least as long as the horizon are designed for this dependence, but both can be over-confident when the effective sample is small \citep{hjalmarsson2011,boudoukh2019}. We therefore add tests that do not rely on a long-run variance estimate: sign tests across disjoint quarterly and monthly blocks (Section~\ref{sec:robust}), and the requirement that every verdict hold in both halves and show no significant opposite sign in either calendar year.
+
+\paragraph{Fama--MacBeth regressions.} For single features we run daily cross-sectional regressions of the outcome rank on the feature rank and controls \citep{fama1973}: the returns of days $t,t-1,\dots,t-5$, log turnover relative to its 20-day mean, and the mean 10-level spread. A control is dropped if its mean rank correlation with the feature exceeds 0.7. When the outcome is realized within the same day, controls are lagged one day; otherwise the outcome leaks into the controls (Appendix~\ref{app:pitfalls}).
+
+\paragraph{Halves.} Each result must have the same sign in both pre-specified halves. A verdict additionally fails if either calendar year 2025 or 2026 shows the opposite sign with $|t|\ge 2$.
+
+\paragraph{Block bootstrap.} Daily series (IC, net returns) are resampled in blocks of consecutive dates \citep{kunsch1989}: block length 10 (or $\max(10,H)$ for horizon $H$), 5,000 resamples, percentile intervals. Seeds are fixed in the plans.
+
+\paragraph{Placebos.} The main placebo permutes feature vectors across stocks within each date (five seeds). It preserves all date-level moments of the features and destroys the link between a stock and its features. If a placebo passes, the series of tests is void. Time-shift placebos (260, 380 or 520 dates) and, for binary state variables, circular shifts of at least 20 dates are also used; the circular-shift $p$-value is $(1+\#\{|D^*|\ge|D|\})/(1+\#\text{shifts})$.
+
+\paragraph{Multiple testing.} For a family of $M$ features with eigenvalues $\lambda_k$ of their mean cross-sectional rank-correlation matrix, the effective number of tests is $M_{\mathrm{eff}}=1+(M-1)(1-\mathrm{Var}(\lambda)/M)$ \citep{nyholt2004}, computed before any outcome is read. The threshold is $|t|\ge\max\{3.0,z_{1-0.025/M_{\mathrm{eff}}}\}$ or $p\le 0.05/M_{\mathrm{eff}}$; the floor of 3.0 follows \citet{harvey2016}. Benjamini--Hochberg control at $q=0.05$ or $0.10$ is used where stated.
+
+\paragraph{Deflated Sharpe ratio.} For a daily net-return series with Sharpe ratio $\widehat{SR}$, $T$ observations, skewness $\gamma_3$ and kurtosis $\gamma_4$,
+\begin{equation}
+\mathrm{PSR}(SR_0)=\Phi\!\left(\frac{(\widehat{SR}-SR_0)\sqrt{T-1}}{\sqrt{1-\gamma_3\widehat{SR}+\frac{\gamma_4-1}{4}\widehat{SR}^2}}\right),\label{eq:psr}
+\end{equation}
+and the deflated Sharpe ratio sets $SR_0$ to the expected maximum Sharpe ratio of $N$ independent skill-less trials, $SR_0=\sqrt{V}\big[(1-\gamma)\Phi^{-1}(1-1/N)+\gamma\Phi^{-1}(1-1/(Ne))\big]$ with $\gamma_{E}\approx0.5772$ and $V=1/T$ \citep{bailey2014dsr}. Because the effective number of trials is unknowable, we report $N\in\{1,10,50,100,300,800\}$. Because daily book returns are autocorrelated, we also report a variant in which $V$ is inflated by the series' autocorrelation factor. The probability of backtest overfitting, estimated by combinatorially symmetric cross-validation with $S=16$ \citep{bailey2017pbo}, enters the deployment gate of the price-based classifier.
+
+\subsection{Portfolio construction and costs}\label{sec:portfolio}
+
+On each date with at least 40 forecasts, stocks are sorted by forecast; the top and bottom quintiles form long and short legs. Within each leg, target weights are proportional to $1/\sigma_i$, the standard deviation of the stock's abnormal return over its last 20 observations, normalized to sum to one, so the book is dollar-neutral with gross exposure 2. Let $a_{i,d}$ be the target weight. The daily book holds $w_{i,d}=a_{i,d}$; the partial-adjustment book holds
+\begin{equation}
+w_{i,d}=(1-r)\,w_{i,d-1}+r\,a_{i,d},\qquad r\in\{1,0.5,0.33,0.2,0.1,0.05\},\label{eq:adj}
+\end{equation}
+in the spirit of \citet{garleanu2013}. The daily net return is
+\begin{equation}
+\mathrm{net}_d=\sum_i w_{i,d}\,f_{i,d+1}-\sum_i|w_{i,d}-w_{i,d-1}|\,c_{i,d}-\frac{b}{252}\sum_{w_{i,d}<0}|w_{i,d}|,\label{eq:net}
+\end{equation}
+where $f_{i,d+1}$ is the simple close-to-close return, $c_{i,d}$ the one-way cost and $b$ the annual borrow rate. The adjustment speed is chosen on the fitting sample: $r=0.33$ under flat costs and $r=0.5$ under quoted-spread costs.
+
+Three cost models are used. \emph{Flat:} 0.15\% per side, the retail broker tariff. \emph{Quoted spread:} 0.05\% commission plus half the stock-day's best-quote spread (0.15\% if unavailable); half-spreads average about 1.8\bp for the most liquid third and 9--45\bp for thin stocks. \emph{RUB 1 mn order (stress):} 0.05\% plus half the spread for an order of about RUB 1 million. Borrow is charged at three annual rates: the measured median of the admitted universe, 25.0\%, as the base after the measurement of Section~\ref{sec:borrow}; 17\%, the secondary quote used in the earlier draft and now known to be below every measured name, kept only for comparability with the published tables; and 36.9\%, the measured upper quartile. Variants include a long-only book measured against the equal-weighted universe (no borrow), entry at the next open, and a sector-neutral forecast demeaned within five fixed sector groups.
+
+\subsection{Verdict criteria for the composite}\label{sec:criteria}
+
+The composite was evaluated once on the real-time window against three pre-specified criteria.
+\begin{enumerate}[label=(\arabic*)]
+\item \emph{Signal:} the mean daily out-of-fold IC of the composite minus that of the baseline is positive with a 95\% bootstrap interval above zero; positive in both halves; and the composite beats its placebo with an interval above zero in at least four of five seeds.
+\item \emph{Economics:} the dollar-neutral book (flat costs, 25\% borrow as the measured median, 36.9\% as the upper-quartile stress) has a net mean with a 95\% interval above zero in both halves, and placebo books have non-positive means.
+\item \emph{Execution:} the partial-adjustment book beats the daily book with an interval above zero.
+\end{enumerate}
+Passing (1) and (2) would make the composite a lead with a frozen forward rule. A later plan (Section~\ref{sec:book}) re-evaluated economics under quoted-spread costs with horizons $H\in\{10,20,40\}$ selected on the fitting sample, with the gate that the net mean's 95\% interval lie above zero, the mean be positive in both halves and the placebo books be non-positive.
+
+\paragraph{One standard or two?} Criterion (1) is an interval test, while Section~\ref{sec:inference} applies $|t|\ge3.0$ to the single-feature families. The difference is deliberate but it is a difference, and the reader is entitled to see it stated rather than to infer it. The threshold prices the search over 28 and 94 candidate features; the composite's increment was not selected over that family, because its inputs were fixed by family and by decision-time availability before the window was touched and its weights are fitted out-of-fold, so the pre-registered gate for it is the interval of the increment. We nevertheless report the stricter reading next to the looser one, because the two do not agree: the increment over the baseline has $t=2.51$ and does not clear 3.0, while the momentum rank's own level IC has $t=3.95$ and does. A reader who applies one threshold to both statistics should conclude that the composite's ranking advantage over the baseline is the weaker of the two claims, and that is how we state it in the abstract and in Section~\ref{sec:signal}. Finally, rule (ii) of the protocol says that a positive result read on a window already used for another question is a lead, not a finding. The real-time window was used by the single-feature family before the composite was evaluated, so the composite's result is reported throughout as a lead, with the frozen forward test of Section~\ref{sec:extensions} as its only confirmation path.
