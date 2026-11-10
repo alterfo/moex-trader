@@ -16,6 +16,7 @@ import (
 
 	"github.com/olegsidorkin/moex-trader/internal/alert/telegram"
 	"github.com/olegsidorkin/moex-trader/internal/failover"
+	"github.com/olegsidorkin/moex-trader/internal/proxyroute"
 )
 
 func main() {
@@ -104,6 +105,6 @@ func newProxyHTTPClient(proxy string) (*http.Client, error) {
 	}
 	return &http.Client{
 		Timeout:   10 * time.Second,
-		Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)},
+		Transport: &http.Transport{Proxy: proxyroute.Func(proxyURL)},
 	}, nil
 }

@@ -18,6 +18,7 @@ import (
 
 	"github.com/olegsidorkin/moex-trader/internal/config"
 	"github.com/olegsidorkin/moex-trader/internal/ingestion/news"
+	"github.com/olegsidorkin/moex-trader/internal/proxyroute"
 )
 
 const (
@@ -312,6 +313,6 @@ func newHTTPClient(proxy string) *http.Client {
 	}
 	return &http.Client{
 		Timeout:   60 * time.Second,
-		Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)},
+		Transport: &http.Transport{Proxy: proxyroute.Func(proxyURL)},
 	}
 }

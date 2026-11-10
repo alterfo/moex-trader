@@ -39,6 +39,7 @@ import (
 	"github.com/olegsidorkin/moex-trader/internal/metrics"
 	"github.com/olegsidorkin/moex-trader/internal/model"
 	"github.com/olegsidorkin/moex-trader/internal/orchestrator"
+	"github.com/olegsidorkin/moex-trader/internal/proxyroute"
 	"github.com/olegsidorkin/moex-trader/internal/risk"
 	"github.com/olegsidorkin/moex-trader/internal/runbook"
 	"github.com/olegsidorkin/moex-trader/internal/spread"
@@ -809,7 +810,7 @@ func newTelegramHTTPClient(proxy string) (*http.Client, error) {
 	}
 	return &http.Client{
 		Timeout:   10 * time.Second,
-		Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)},
+		Transport: &http.Transport{Proxy: proxyroute.Func(proxyURL)},
 	}, nil
 }
 
@@ -825,7 +826,7 @@ func newNewsHTTPClient(proxy string) *http.Client {
 	}
 	return &http.Client{
 		Timeout:   60 * time.Second,
-		Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)},
+		Transport: &http.Transport{Proxy: proxyroute.Func(proxyURL)},
 	}
 }
 

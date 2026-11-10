@@ -18,7 +18,7 @@ type freezeEntry struct {
 
 func freezePanel(o options) error {
 	var entries []freezeEntry
-	for _, dir := range []string{"klines1d", "funding"} {
+	for _, dir := range []string{"klines1d", "funding", "klines5m"} {
 		root := filepath.Join(o.dataDir, dir)
 		names, err := os.ReadDir(root)
 		if err != nil {
