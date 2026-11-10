@@ -45,3 +45,25 @@ __pycache__/
 
 # MOEX FORTS options history pulled from ISS (bulk, reproducible by cmd/optfetch)
 /data/options/
+
+# AlgoPack- and ISS-derived panels: subscription terms, reproducible from the
+# exchange feeds, never redistributed (see the paper's availability section).
+/data/algopack-fo/
+/data/algopack-fx/
+/data/macro-long/
+/data/fundamentals.jsonl
+/data/ridge_scores.csv
+data/news_raw_rss.jsonl
+data/news_spool.jsonl
+
+# research artifacts held local only
+/artifacts/crypto/
+
+# locally built binaries and model dumps
+/flowscan
+/pairscan
+/trader.prev-*
+trader.prev-*
+
+# LaTeX build log
+paper/preprint/main.out
