@@ -20,7 +20,7 @@ func markdownFiles(t *testing.T) []string {
 		}
 		if d.IsDir() {
 			switch d.Name() {
-			case ".git", ".claude", ".kilo", ".ralphex", ".revmux", "node_modules", "artifacts", "bin":
+			case ".git", ".claude", ".kilo", ".ralphex", ".revmux", "node_modules", "artifacts", "bin", "correspondence":
 				return filepath.SkipDir
 			}
 			return nil

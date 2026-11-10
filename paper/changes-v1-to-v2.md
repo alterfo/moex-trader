@@ -1,95 +1,95 @@
-# Что изменилось от Zenodo v1 к v2
+# Changes from Zenodo v1 to v2
 
-**v1 (опубликована):** 29 октября 2026, `alpha_on_paper_preprint-1.pdf`, 41 стр.,
-md5 `163220507bc2c8db85972ebd7427c229`, DOI версии 10.5281/zenodo.23752213.
-**v2 (эта):** 10 ноября 2026, `main.pdf`, 44 стр., заголовок *Predictability Without Monetization:
+**v1 (published):** 29 October 2026, `alpha_on_paper_preprint-1.pdf`, 41 pages,
+md5 `163220507bc2c8db85972ebd7427c229`, version DOI 10.5281/zenodo.23752213.
+**v2 (this one):** 10 November 2026, `main.pdf`, 44 pages, titled *Predictability Without Monetization:
 A Point-in-Time Audit of Order-Flow Signals on the Moscow Exchange*.
 
-Обе версии ссылаются на один concept DOI; v1 остаётся доступной и неизменной, потому что именно её
-читали оба рецензента.
+Both versions share one concept DOI. v1 stays available and unchanged, because both referee reports
+cite it.
 
-## 1. Заголовок и тезис
+## 1. Title and thesis
 
-Заголовок заменён: ироничное «When Alpha Survives Only on Paper» → «Predictability Without
-Monetization». Причина содержательная: тезис работы изменился после нового теста, и заголовок
-теперь сообщает то, что доказывает текст.
+The title changed: the ironic "When Alpha Survives Only on Paper" became "Predictability Without
+Monetization". The reason is substantive — the thesis moved after a new test, and the title now
+states what the text proves.
 
 | | v1 | v2 |
 |---|---|---|
-| Тезис | «предсказуемость есть, монетизации нет» | «композит не лучше бесплатного 12-месячного моментума; ни одна книга не выживает после издержек и измеренного заёма» |
-| Ставка заёма | предположение 17% | измерена: 20.0–125.0%, медиана 25.0%, квартили 22.0/36.9, среднее 32.1% |
-| Заголовочная экономика | 0.0751%/день при 17% | 0.0383%/день при 25% (t 0.89, интервал включает ноль) |
-| Информация сверх моментума | «не установлена», тест не запускался | E1 выполнен 29.10.2026: контраст +0.0194%/день (t 0.44), null |
-| Мощность правила подтверждения | не сообщалась | 14.8%, MDE 0.0787; 561/1 056/1 317 дат до 80% |
-| Направлений в леджере | 46 | 42 |
-| Объём | 41 стр. | 44 стр. |
+| Thesis | "predictability exists, monetization does not" | "the composite is not worth more than a free 12-month momentum rank; neither book survives costs and the measured carry" |
+| Borrow rate | assumed 17% | measured: 20.0–125.0%, median 25.0%, quartiles 22.0/36.9, mean 32.1% |
+| Headline economics | 0.0751%/day at 17% | 0.0383%/day at 25% (t 0.89, interval includes zero) |
+| Information beyond momentum | "not established", test not run | E1 run 29.10.2026: contrast +0.0194%/day (t 0.44), null |
+| Power of the confirmation rule | not reported | 14.8%, MDE 0.0787; 561/1 056/1 317 dates to 80% |
+| Ledger directions | 46 | 42 |
+| Length | 41 pages | 44 pages |
 
-## 2. Числа, которые изменились
+## 2. Numbers that changed
 
-| Утверждение | v1 | v2 |
+| Claim | v1 | v2 |
 |---|---|---|
-| Нетто основной книги | 0.075%/день | 0.0383 при медиане 25%; 0.0679 у замороженной при 17% |
-| Безубыточная ставка | ≈37% (от книги 0.075) | 35.3% (замороженная книга), 36.8% (опубликованная, r=0.5) |
-| Порог полосы политики | не считался | заём ≤ 20.3% при минимуме рынка 20.0% |
-| Дивиденды шорта | не входили | граница 0.96·Δy/252: 0.0126%/день худший случай, 0.0038% при разрыве 1 п.п. |
-| Sharpe | 1.56 | 1.56 и 1.14–1.27 с поправкой на автокорреляцию |
-| Положительные кварталы | 7 из 7 (p 0.008) | 7 из 8 (p 0.035); частичный 2026Q4, 16 дат, IC −0.266 |
-| Знаковые тесты по месяцам | p 0.002 | 0.0022 без поправки, 0.0037 с поправкой; 38 из 45 блоков, p < 10⁻⁴ |
-| «2 300 дней» эквивалентности | без формулы | формула T = ((z₀.₉₇₅+z₀.₈₀)σ_LR/δ)², σ_LR = 0.941%; 1 226 и 2 215 дней |
-| MDE инкремента | 0.07 | 0.063 |
+| Main book net | 0.075%/day | 0.0383 at the 25% median; 0.0679 for the frozen book at 17% |
+| Break-even borrow | ≈37% (from the 0.075 book) | 35.3% (frozen book), 36.8% (published, r=0.5) |
+| Policy-band threshold | not computed | borrow ≤ 20.3% against a market minimum of 20.0% |
+| Short-leg dividends | omitted | bound 0.96·Δy/252: 0.0126%/day worst case, 0.0038% per 1 pp gap |
+| Sharpe | 1.56 | 1.56 and 1.14–1.27 autocorrelation-adjusted |
+| Positive quarters | 7 of 7 (p 0.008) | 7 of 8 (p 0.035); partial 2026Q4, 16 dates, IC −0.266 |
+| Monthly sign tests | p 0.002 | 0.0022 raw, 0.0037 adjusted; 38 of 45 blocks, p < 10⁻⁴ |
+| "2 300 days" of equivalence | no formula | T = ((z₀.₉₇₅+z₀.₈₀)σ_LR/δ)², σ_LR = 0.941%; 1 226 and 2 215 days |
+| MDE of the increment | 0.07 | 0.063 |
 
-## 3. Что добавлено
+## 3. What was added
 
-- **§6.1 «Risk profile»** — максимальная просадка −18.2% (16.07 → 04.08.2026), 8 отрицательных
-  месяцев из 22, исторический 99% убыток −1.74%, CVaR −3.63%, Корниш–Фишер −4.29%; при 25% заёма
-  просадка −18.5%.
-- **§6.1 «Capacity»** — потолок в десятки миллионов рублей брутто; при 10–20 млн на ногу
-  ожидание 7.5–15 тыс. ₽/день против ~90 тыс. ₽ дневного SD.
-- **§6.2 «Latency»** — файл дня d появляется в контуре в 00:20 d+1; исполнение в тот же вечер
-  объявлено непроверенным, а не рабочим.
-- **§6.1 «The cost model is a decision variable»** — контраст моментума +0.0194% при котируемых
-  спредах против −0.0102% при плоском тарифе.
-- **§7.6 «A second real-time window»** — даты с 19.10.2026, одно чтение на 561-й дате (≈ноябрь
-  2028), 60 дат — только фальсификация.
-- **§4.6 «One standard or two?»** — явное признание, что гейт композита интервальный, а порог
-  \|t\| ≥ 3.0 относится к семействам одиночных признаков.
-- **§4.3 «Why the average and not the better component»** — ридж 0.0970 против смеси 0.0957.
-- **Приложение F** — строка «Power» (порог мощности в чек-листе) и строка «Registration»,
-  сверка 163 709 / 159 708 / 159 726 строк.
+- **§6.1 "Risk profile"** — maximum drawdown −18.2% (16 Jul → 4 Aug 2026), 8 negative months out of
+  22, historical 99% loss −1.74%, CVaR −3.63%, Cornish–Fisher −4.29%; at 25% carry the drawdown is
+  −18.5%.
+- **§6.1 "Capacity"** — tens of millions of roubles gross; 7.5–15 thousand roubles expected per day
+  against ~90 thousand rouble daily SD at that size.
+- **§6.2 "Latency"** — the file for date d lands in the pipeline at 00:20 on d+1; same-evening
+  execution is declared untested rather than assumed.
+- **§6.1 "The cost model is a decision variable"** — the momentum contrast is +0.0194% under quoted
+  spreads against −0.0102% under the flat tariff.
+- **§7.6 "A second real-time window"** — dates from 19.10.2026, one reading at 561 dates
+  (about November 2028), 60 dates for falsification only.
+- **§4.6 "One standard or two?"** — an explicit statement that the composite's gate is an interval,
+  while |t| ≥ 3.0 applies to single-feature families.
+- **§4.3 "Why the average and not the better component"** — ridge 0.0970 against the blend's 0.0957.
+- **Appendix F** — a "Power" line in the reproducibility checklist, a "Registration" line, and the
+  reconciliation of 163 709 / 159 708 / 159 726 rows.
 
-## 4. Что отозвано или исправлено
+## 4. What was withdrawn or corrected
 
-- Диапазон «3–6% в год» в §5.1 отозван: 12.3% без контролей, 5.8% с ними; строка 14 леджера
-  синхронизирована.
-- Формулировка «the regenerated history inflated every quantity» смягчена до «is associated with»
-  (конфаунд с календарным временем).
-- Кварталы: вместо «во всех семи» — семь из восьми с явным указанием частичного квартала.
-- Пояснение, что шаг 0.0753 → 0.0679 — смена скорости подстройки, а не дивидендная поправка.
-- Устранены три повреждённых предложения и рассинхронизация якорей безубыточной ставки.
+- The "3–6% a year" range in §5.1 is withdrawn: 12.3% without controls, 5.8% with them; ledger row
+  14 was brought into line.
+- "the regenerated history inflated every quantity" became "is associated with" — the calendar-time
+  confound is real.
+- Quarters: "all seven" became seven of eight, with the partial quarter named.
+- A clarification that the 0.0753 → 0.0679 step is the adjustment speed, not a dividend adjustment.
+- Three corrupted sentences repaired, and the break-even anchors synchronised.
 
-## 5. Список литературы
+## 5. Bibliography
 
-Сверены обе распечатанные библиографии построчно.
+Both printed reference lists were compared entry by entry.
 
-- **Добавлена одна позиция:** `Bank of Russia. Key rate decisions, 2025–2026` — в v1 ставка
-  политики (14–21%) упоминалась в тексте без ссылки, в v2 она процитирована.
-- **Не удалено ни одной позиции и не изменено ни одного описания.** Остальные 67 записей
-  совпадают; расхождения при автоматическом сравнении были только лигатурами (ﬁ/ﬂ) и переносами.
-- Итого 67 → 68 записей.
+- **One entry added:** `Bank of Russia. Key rate decisions, 2025–2026` — v1 mentioned the 14–21%
+  policy rate in the text without citing it.
+- **Nothing removed, no entry edited.** The other 67 records match; the differences an automated
+  comparison reported were ligatures (ﬁ/ﬂ) and line breaks only.
+- Total 67 → 68.
 
-## 6. Что не менялось
+## 6. What did not change
 
-Данные, вселенная, окно вердикта (3 января 2025 — 16 октября 2026, 457 дат), замороженные модели
-(SHA-256 `793bf125…`), гиперпараметры (`89f77b6d…`), матрица (163 709 строк, 1 644 даты), состав
-75 признаков, критерии сигнала и экономики — кроме правила мощности, которое ужесточено.
+Data, universe, verdict window (3 January 2025 – 16 October 2026, 457 dates), frozen models
+(SHA-256 `793bf125…`), hyper-parameters (`89f77b6d…`), matrix (163 709 rows, 1 644 dates), the 75
+features, and the signal and economics criteria — except the power rule, which was tightened.
 
-## 7. Шапка
+## 7. Title block
 
-Восстановлены аффилиация и адрес электронной почты, как в v1: *Oleg Sidorkin, Independent
-researcher, osidorkin85@gmail.com*, со сноской о публичном репозитории, лицензии Apache 2.0 и
-дисклеймере. Из-за этого титульный блок занимает на строку больше, отсюда 44 страницы вместо 43.
+Affiliation and email restored as in v1: *Oleg Sidorkin, Independent researcher,
+osidorkin85@gmail.com*, with a footnote on the public repository, the Apache 2.0 licence and the
+disclaimer. The title block takes one more line, which accounts for 44 pages instead of 43.
 
-## 8. Черновик описания для Zenodo v2
+## 8. Draft description for the Zenodo v2 record
 
 > **Version 2 — revision after two independent reviews.** The headline result has changed: the
 > order-flow composite is not worth more than a free 12-month momentum rank, and the short-borrow
@@ -99,5 +99,5 @@ researcher, osidorkin85@gmail.com*, со сноской о публичном р
 > (14.8% power at 60 dates; 561 dates for 80%), a risk profile (maximum drawdown −18.2%, 99%
 > Cornish–Fisher loss −4.3%), a capacity bound, a measurement of pipeline latency, and a registered
 > protocol for a second real-time window from 19 October 2026. The bibliography gains one reference.
-> Full change list in `changes-v1-to-v2.md`; the v1 file remains available for the two reviews that
-> cite it.
+> The full change list is in `changes-v1-to-v2.md`; the v1 file remains available for the two reviews
+> that cite it.
